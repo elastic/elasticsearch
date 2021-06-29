@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch;
@@ -32,9 +21,10 @@ import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,6 +46,7 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 
@@ -156,6 +147,16 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         {
             final ElasticsearchException[] foobars = ElasticsearchException.guessRootCauses(new IllegalArgumentException("foobar"));
+            assertEquals(foobars.length, 1);
+            assertThat(foobars[0], instanceOf(ElasticsearchException.class));
+            assertEquals("foobar", foobars[0].getMessage());
+            assertEquals(IllegalArgumentException.class, foobars[0].getCause().getClass());
+            assertEquals("illegal_argument_exception", foobars[0].getExceptionName());
+        }
+
+        {
+            final ElasticsearchException[] foobars = ElasticsearchException.guessRootCauses(
+                new RemoteTransportException("abc", new IllegalArgumentException("foobar")));
             assertEquals(foobars.length, 1);
             assertThat(foobars[0], instanceOf(ElasticsearchException.class));
             assertEquals("foobar", foobars[0].getMessage());
@@ -795,9 +796,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 failure = new BroadcastShardOperationFailedException(new ShardId("_index", "_uuid", 5), "F", failureCause);
 
                 expected = new ElasticsearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
-                // strangely, the wrapped exception appears as the root cause...
-                suppressed = new ElasticsearchException("Elasticsearch exception [type=broadcast_shard_operation_failed_exception, " +
-                        "reason=F]");
+                suppressed = new ElasticsearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
                 expected.addSuppressed(suppressed);
                 break;
 
@@ -810,7 +809,8 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                                 new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 61), null,
                                     OriginalIndices.NONE)), new ShardSearchFailure(new RepositoryException("repository_g", "Repo"),
                                 new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62), null,
-                                    OriginalIndices.NONE)), new ShardSearchFailure(new SearchContextMissingException(0L), null)
+                                    OriginalIndices.NONE)), new ShardSearchFailure(
+                                        new SearchContextMissingException(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L)), null)
                 };
                 failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);
 

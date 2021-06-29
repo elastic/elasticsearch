@@ -1,0 +1,72 @@
+---
+setup:
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"v1": 15.2, "v2": 15.9, "str": "a"}'
+          - '{"index": {}}'
+          - '{"v1": 15.3, "v2": 15.9, "str": "a"}'
+          - '{"index": {}}'
+          - '{"v1": 16.0, "v2": 15.2, "str": "b"}'
+          - '{"index": {}}'
+          - '{"v1": 15.1, "v2": 15.5, "str": "b"}'
+---
+"heteroscedastic t-test":
+  - do:
+      search:
+        size: 0
+        index: "test"
+        body:
+          aggs:
+            ttest:
+              t_test:
+                a:
+                  field: v1
+                b:
+                  field: v2
+  - match: { aggregations.ttest.value: 0.43066659210472646 }
+
+---
+"paired t-test":
+  - do:
+      search:
+        size: 0
+        index: "test"
+        body:
+          aggs:
+            ttest:
+              t_test:
+                a:
+                  field: v1
+                b:
+                  field: v2
+                type: paired
+
+  - match: { aggregations.ttest.value: 0.5632529432617406 }
+
+---
+"homoscedastic t-test with filters":
+  - do:
+      search:
+        size: 0
+        index: "test"
+        body:
+          aggs:
+            ttest:
+              t_test:
+                a:
+                  field: v1
+                  filter:
+                    term:
+                      str.keyword: a
+                b:
+                  field: v1
+                  filter:
+                    term:
+                      str.keyword: b
+                type: homoscedastic
+
+  - match: { aggregations.ttest.value: 0.5757355806262943 }

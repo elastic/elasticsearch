@@ -11,6 +11,11 @@ The following specialized API is available in the Analysis context.
 The following classes are available grouped by their respective packages. Click on a class to view details about the available methods and fields.
 
 
+==== java.lang
+<<painless-api-reference-analysis-java-lang, Expand details for java.lang>>
+
+* <<painless-api-reference-analysis-String, String>>
+
 ==== org.elasticsearch.analysis.common
 <<painless-api-reference-analysis-org-elasticsearch-analysis-common, Expand details for org.elasticsearch.analysis.common>>
 

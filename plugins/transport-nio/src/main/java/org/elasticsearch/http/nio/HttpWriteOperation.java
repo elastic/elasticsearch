@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.nio;
 
+import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.WriteOperation;
 
@@ -27,10 +17,10 @@ import java.util.function.BiConsumer;
 public class HttpWriteOperation implements WriteOperation {
 
     private final SocketChannelContext channelContext;
-    private final NioHttpResponse response;
+    private final HttpPipelinedResponse response;
     private final BiConsumer<Void, Exception> listener;
 
-    HttpWriteOperation(SocketChannelContext channelContext, NioHttpResponse response, BiConsumer<Void, Exception> listener) {
+    HttpWriteOperation(SocketChannelContext channelContext, HttpPipelinedResponse response, BiConsumer<Void, Exception> listener) {
         this.channelContext = channelContext;
         this.response = response;
         this.listener = listener;
@@ -47,7 +37,7 @@ public class HttpWriteOperation implements WriteOperation {
     }
 
     @Override
-    public NioHttpResponse getObject() {
+    public HttpPipelinedResponse getObject() {
         return response;
     }
 }

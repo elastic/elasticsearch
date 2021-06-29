@@ -4,12 +4,12 @@
 <titleabbrev>CJK bigram</titleabbrev>
 ++++
 
-Forms https://en.wikipedia.org/wiki/Bigram[bigrams] out of CJK (Chinese,
+Forms {wikipedia}/Bigram[bigrams] out of CJK (Chinese,
 Japanese, and Korean) tokens.
 
 This filter is included in {es}'s built-in <<cjk-analyzer,CJK language
 analyzer>>. It uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/cjk/CJKBigramFilter.html[CJKBigramFilter].
+{lucene-analysis-docs}/cjk/CJKBigramFilter.html[CJKBigramFilter].
 
 
 [[analysis-cjk-bigram-tokenfilter-analyze-ex]]
@@ -126,16 +126,16 @@ CJK bigram token filter to configure a new
 --------------------------------------------------
 PUT /cjk_bigram_example
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "standard_cjk_bigram" : {
-                    "tokenizer" : "standard",
-                    "filter" : ["cjk_bigram"]
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "standard_cjk_bigram": {
+          "tokenizer": "standard",
+          "filter": [ "cjk_bigram" ]
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -158,10 +158,10 @@ Possible values:
 All non-CJK input is passed through unmodified.
 --
 
-`output_unigrams`
-(Optional, boolean)
+`output_unigrams`::
+(Optional, Boolean)
 If `true`, emit tokens in both bigram and
-https://en.wikipedia.org/wiki/N-gram[unigram] form. If `false`, a CJK character
+{wikipedia}/N-gram[unigram] form. If `false`, a CJK character
 is output in unigram form when it has no adjacent characters. Defaults to
 `false`.
 
@@ -176,26 +176,26 @@ parameters.
 --------------------------------------------------
 PUT /cjk_bigram_example
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "han_bigrams" : {
-                    "tokenizer" : "standard",
-                    "filter" : ["han_bigrams_filter"]
-                }
-            },
-            "filter" : {
-                "han_bigrams_filter" : {
-                    "type" : "cjk_bigram",
-                    "ignored_scripts": [
-                        "hangul",
-                        "hiragana",
-                        "katakana"
-                    ],
-                    "output_unigrams" : true
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "han_bigrams": {
+          "tokenizer": "standard",
+          "filter": [ "han_bigrams_filter" ]
         }
+      },
+      "filter": {
+        "han_bigrams_filter": {
+          "type": "cjk_bigram",
+          "ignored_scripts": [
+            "hangul",
+            "hiragana",
+            "katakana"
+          ],
+          "output_unigrams": true
+        }
+      }
     }
+  }
 }
 --------------------------------------------------

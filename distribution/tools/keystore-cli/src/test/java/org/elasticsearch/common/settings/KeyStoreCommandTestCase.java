@@ -1,23 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
+
+import com.google.common.jimfs.Configuration;
+import com.google.common.jimfs.Jimfs;
+
+import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,17 +27,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-
-import com.google.common.jimfs.Configuration;
-import com.google.common.jimfs.Jimfs;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.cli.CommandTestCase;
-import org.elasticsearch.common.io.PathUtilsForTesting;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
-import org.junit.After;
-import org.junit.Before;
 
 /**
  * Base test case for manipulating the ES keystore.
@@ -89,16 +79,16 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
         return keystore;
     }
 
-    void assertSecureString(String setting, String value) throws Exception {
-        assertSecureString(loadKeystore(""), setting, value);
+    void assertSecureString(String setting, String value, String password) throws Exception {
+        assertSecureString(loadKeystore(password), setting, value);
     }
 
     void assertSecureString(KeyStoreWrapper keystore, String setting, String value) throws Exception {
         assertEquals(value, keystore.getString(setting).toString());
     }
 
-    void assertSecureFile(String setting, Path file) throws Exception {
-        assertSecureFile(loadKeystore(""), setting, file);
+    void assertSecureFile(String setting, Path file, String password) throws Exception {
+        assertSecureFile(loadKeystore(password), setting, file);
     }
 
     void assertSecureFile(KeyStoreWrapper keystore, String setting, Path file) throws Exception {
@@ -114,10 +104,22 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
             }
             int eof = input.read();
             if (eof != -1) {
-                fail("Found extra bytes in file stream from keystore, expected " + expectedBytes.length +
-                     " bytes but found 0x" + Integer.toHexString(eof));
+                fail(
+                    "Found extra bytes in file stream from keystore, expected "
+                        + expectedBytes.length
+                        + " bytes but found 0x"
+                        + Integer.toHexString(eof)
+                );
             }
         }
 
+    }
+
+    String getPossibleKeystorePassword() {
+        if (inFipsJvm()) {
+            // FIPS Mode JVMs require a password for the ES keystore
+            return "keystorepassword";
+        }
+        return randomFrom("", "keystorepassword");
     }
 }

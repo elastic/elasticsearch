@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
@@ -20,6 +21,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -112,7 +114,7 @@ public class XContentObjectTransformerTests extends ESTestCase {
         long aggHistogramInterval = randomNonNegativeLong();
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         aggs.addAggregator(AggregationBuilders.dateHistogram("buckets")
-            .interval(aggHistogramInterval).subAggregation(maxTime).field("time"));
+            .fixedInterval(new DateHistogramInterval(aggHistogramInterval + "ms")).subAggregation(maxTime).field("time"));
 
         assertXContentAreEqual(aggs, aggTransformer.toMap(aggs));
         assertXContentAreEqual(aggTransformer.fromMap(aggTransformer.toMap(aggs)), aggTransformer.toMap(aggs));
@@ -127,8 +129,8 @@ public class XContentObjectTransformerTests extends ESTestCase {
     public void testDeprecationWarnings() throws IOException {
         XContentObjectTransformer<QueryBuilder> queryBuilderTransformer = new XContentObjectTransformer<>(NamedXContentRegistry.EMPTY,
             (p)-> {
-            p.getDeprecationHandler().usedDeprecatedField("oldField", "newField");
-            p.getDeprecationHandler().usedDeprecatedName("oldName", "modernName");
+            p.getDeprecationHandler().logReplacedField(null, null, "oldField", "newField");
+            p.getDeprecationHandler().logRenamedField(null, null, "oldName", "modernName");
             return new BoolQueryBuilder();
             });
         List<String> deprecations = new ArrayList<>();

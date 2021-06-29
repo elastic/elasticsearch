@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -39,10 +29,10 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -73,8 +63,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().merge("type1", new CompressedXContent(mapping),
+            MapperService.MergeReason.MAPPING_UPDATE);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(jsonBuilder()
@@ -112,8 +102,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().merge("type1", new CompressedXContent(mapping),
+            MapperService.MergeReason.MAPPING_UPDATE);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(jsonBuilder()
@@ -146,8 +136,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().merge("type1", new CompressedXContent(mapping),
+            MapperService.MergeReason.MAPPING_UPDATE);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(jsonBuilder()
@@ -180,8 +170,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().merge("type1", new CompressedXContent(mapping),
+            MapperService.MergeReason.MAPPING_UPDATE);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(jsonBuilder()
@@ -214,8 +204,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().merge("type1", new CompressedXContent(mapping),
+            MapperService.MergeReason.MAPPING_UPDATE);
         XContentBuilder builder = jsonBuilder()
                 .startObject()
                 .startArray("completion")
@@ -248,8 +238,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().merge("type1", new CompressedXContent(mapping),
+            MapperService.MergeReason.MAPPING_UPDATE);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(jsonBuilder()
@@ -280,8 +270,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().merge("type1", new CompressedXContent(mapping),
+            MapperService.MergeReason.MAPPING_UPDATE);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(jsonBuilder()
@@ -312,8 +302,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().merge("type1", new CompressedXContent(mapping),
+            MapperService.MergeReason.MAPPING_UPDATE);
         XContentBuilder builder = jsonBuilder()
                 .startObject()
                 .startObject("completion")
@@ -347,8 +337,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().merge("type1", new CompressedXContent(mapping),
+            MapperService.MergeReason.MAPPING_UPDATE);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -701,7 +691,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testUnknownQueryContextParsing() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
                 .startArray("contexts")
@@ -717,8 +707,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
-        CompletionFieldType completionFieldType = (CompletionFieldType) mapperService.fullName("completion");
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
+        CompletionFieldType completionFieldType = (CompletionFieldType) mapperService.fieldType("completion");
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> completionFieldType.getContextMappings().get("brand"));
         assertEquals("Unknown context name [brand], must be one of [ctx, type]", e.getMessage());
@@ -726,11 +716,10 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
 
     public void testParsingContextFromDocument() throws Exception {
         CategoryContextMapping mapping = ContextBuilder.category("cat").field("category").build();
-        ParseContext.Document document = new ParseContext.Document();
+        LuceneDocument document = new LuceneDocument();
 
-        KeywordFieldMapper.KeywordFieldType keyword = new KeywordFieldMapper.KeywordFieldType();
-        keyword.setName("category");
-        document.add(new Field(keyword.name(), new BytesRef("category1"), keyword));
+        KeywordFieldMapper.KeywordFieldType keyword = new KeywordFieldMapper.KeywordFieldType("category");
+        document.add(new KeywordFieldMapper.KeywordField(keyword.name(), new BytesRef("category1"), new FieldType()));
         // Ignore doc values
         document.add(new SortedSetDocValuesField(keyword.name(), new BytesRef("category1")));
         Set<String> context = mapping.parseContext(document);
@@ -738,27 +727,26 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         assertTrue(context.contains("category1"));
 
 
-        document = new ParseContext.Document();
-        TextFieldMapper.TextFieldType text = new TextFieldMapper.TextFieldType();
-        text.setName("category");
-        document.add(new Field(text.name(), "category1", text));
+        document = new LuceneDocument();
+        TextFieldMapper.TextFieldType text = new TextFieldMapper.TextFieldType("category");
+        document.add(new Field(text.name(), "category1", TextFieldMapper.Defaults.FIELD_TYPE));
         // Ignore stored field
-        document.add(new StoredField(text.name(), "category1", text));
+        document.add(new StoredField(text.name(), "category1", TextFieldMapper.Defaults.FIELD_TYPE));
         context = mapping.parseContext(document);
         assertThat(context.size(), equalTo(1));
         assertTrue(context.contains("category1"));
 
-        document = new ParseContext.Document();
+        document = new LuceneDocument();
         document.add(new SortedSetDocValuesField("category", new BytesRef("category")));
         context = mapping.parseContext(document);
         assertThat(context.size(), equalTo(0));
 
-        document = new ParseContext.Document();
+        document = new LuceneDocument();
         document.add(new SortedDocValuesField("category", new BytesRef("category")));
         context = mapping.parseContext(document);
         assertThat(context.size(), equalTo(0));
 
-        final ParseContext.Document doc = new ParseContext.Document();
+        final LuceneDocument doc = new LuceneDocument();
         doc.add(new IntPoint("category", 36));
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> mapping.parseContext(doc));
         assertThat(exc.getMessage(), containsString("Failed to parse context field [category]"));

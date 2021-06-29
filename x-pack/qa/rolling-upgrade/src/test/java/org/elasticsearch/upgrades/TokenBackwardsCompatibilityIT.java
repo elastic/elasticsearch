@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
@@ -166,7 +167,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testRefreshingTokensInMixedCluster() throws Exception {
-        // verify new nodes can refresh tokens created by old nodes and vice versa 
+        // verify new nodes can refresh tokens created by old nodes and vice versa
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         for (RestClient client1 : twoClients) {
             Map<String, Object> responseMap = createTokens(client1, "test_user", "x-pack-test-password");
@@ -299,6 +300,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private Map<Version, RestClient> getRestClientByVersion() throws IOException {
         Response response = client().performRequest(new Request("GET", "_nodes"));
         assertOK(response);
@@ -342,6 +344,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertOK(indexResponse1);
     }
 
+    @SuppressWarnings("unchecked")
     private Map<String, Object> retrieveStoredTokens(RestClient client, int tokenIdx) throws IOException {
         Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token" + tokenIdx);
         Response getResponse = client().performRequest(getRequest);

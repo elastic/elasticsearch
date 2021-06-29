@@ -1,32 +1,35 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class RestCreateIndexActionTests extends ESTestCase {
 
@@ -79,5 +82,60 @@ public class RestCreateIndexActionTests extends ESTestCase {
 
         Map<String, Object> source = RestCreateIndexAction.prepareMappings(contentAsMap);
         assertEquals(contentAsMap, source);
+    }
+
+    public void testIncludeTypeName() throws IOException {
+        RestCreateIndexAction action = new RestCreateIndexAction();
+        List<String> compatibleMediaType = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
+
+        Map<String, String> params = new HashMap<>();
+        params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withHeaders(Map.of("Accept", compatibleMediaType))
+            .withMethod(RestRequest.Method.PUT)
+            .withPath("/some_index")
+            .withParams(params)
+            .build();
+
+        action.prepareRequest(deprecatedRequest, mock(NodeClient.class));
+        assertWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE);
+
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.PUT)
+            .withPath("/some_index")
+            .build();
+        action.prepareRequest(validRequest, mock(NodeClient.class));
+    }
+
+    public void testTypeInMapping() throws IOException {
+        RestCreateIndexAction action = new RestCreateIndexAction();
+
+        List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
+
+        String content = "{\n"
+            + "  \"mappings\": {\n"
+            + "    \"some_type\": {\n"
+            + "      \"properties\": {\n"
+            + "        \"field1\": {\n"
+            + "          \"type\": \"text\"\n"
+            + "        }\n"
+            + "      }\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
+
+        Map<String, String> params = new HashMap<>();
+        params.put(RestCreateIndexAction.INCLUDE_TYPE_NAME_PARAMETER, "true");
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
+            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+            .withPath("/some_index")
+            .withParams(params)
+            .withContent(new BytesArray(content), null)
+            .build();
+
+        CreateIndexRequest createIndexRequest = action.prepareRequestV7(request);
+        // some_type is replaced with _doc
+        assertThat(createIndexRequest.mappings(), equalTo("{\"_doc\":{\"properties\":{\"field1\":{\"type\":\"text\"}}}}"));
+        assertWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

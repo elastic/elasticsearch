@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script.mustache;
@@ -30,7 +19,6 @@ import com.github.mustachejava.TemplateContext;
 import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
-import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -51,30 +39,31 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class CustomMustacheFactory extends DefaultMustacheFactory {
+    static final String V7_JSON_MEDIA_TYPE_WITH_CHARSET = "application/json; charset=UTF-8";
+    static final String JSON_MEDIA_TYPE_WITH_CHARSET = "application/json;charset=utf-8";
+    static final String JSON_MEDIA_TYPE = "application/json";
+    static final String PLAIN_TEXT_MEDIA_TYPE = "text/plain";
+    static final String X_WWW_FORM_URLENCODED_MEDIA_TYPE = "application/x-www-form-urlencoded";
 
-    static final String JSON_MIME_TYPE_WITH_CHARSET = "application/json; charset=UTF-8";
-    static final String JSON_MIME_TYPE = "application/json";
-    static final String PLAIN_TEXT_MIME_TYPE = "text/plain";
-    static final String X_WWW_FORM_URLENCODED_MIME_TYPE = "application/x-www-form-urlencoded";
-
-    private static final String DEFAULT_MIME_TYPE = JSON_MIME_TYPE;
+    private static final String DEFAULT_MEDIA_TYPE = JSON_MEDIA_TYPE;
 
     private static final Map<String, Supplier<Encoder>> ENCODERS = Map.of(
-            JSON_MIME_TYPE_WITH_CHARSET, JsonEscapeEncoder::new,
-            JSON_MIME_TYPE, JsonEscapeEncoder::new,
-            PLAIN_TEXT_MIME_TYPE, DefaultEncoder::new,
-            X_WWW_FORM_URLENCODED_MIME_TYPE, UrlEncoder::new);
+        V7_JSON_MEDIA_TYPE_WITH_CHARSET, JsonEscapeEncoder::new,
+        JSON_MEDIA_TYPE_WITH_CHARSET, JsonEscapeEncoder::new,
+        JSON_MEDIA_TYPE, JsonEscapeEncoder::new,
+        PLAIN_TEXT_MEDIA_TYPE, DefaultEncoder::new,
+        X_WWW_FORM_URLENCODED_MEDIA_TYPE, UrlEncoder::new);
 
     private final Encoder encoder;
 
-    public CustomMustacheFactory(String mimeType) {
+    public CustomMustacheFactory(String mediaType) {
         super();
         setObjectHandler(new CustomReflectionObjectHandler());
-        this.encoder = createEncoder(mimeType);
+        this.encoder = createEncoder(mediaType);
     }
 
     public CustomMustacheFactory() {
-        this(DEFAULT_MIME_TYPE);
+        this(DEFAULT_MEDIA_TYPE);
     }
 
     @Override
@@ -86,10 +75,10 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
         }
     }
 
-    static Encoder createEncoder(String mimeType) {
-        final Supplier<Encoder> supplier = ENCODERS.get(mimeType);
+    static Encoder createEncoder(String mediaType) {
+        final Supplier<Encoder> supplier = ENCODERS.get(mediaType);
         if (supplier == null) {
-            throw new IllegalArgumentException("No encoder found for MIME type [" + mimeType + "]");
+            throw new IllegalArgumentException("No encoder found for media type [" + mediaType + "]");
         }
         return supplier.get();
     }

@@ -1,0 +1,224 @@
+setup:
+  - do:
+      indices.create:
+          index: index_1
+          body:
+            settings:
+              number_of_shards: 1
+            mappings:
+              properties:
+                created_at:
+                   type: date
+                   format: "yyyy-MM-dd"
+  - do:
+      indices.create:
+          index: index_2
+          body:
+            settings:
+              number_of_shards: 1
+            mappings:
+              properties:
+                created_at:
+                   type: date_nanos
+                   format: "yyyy-MM-dd"
+  - do:
+      indices.create:
+          index: index_3
+          body:
+            settings:
+              number_of_shards: 1
+            mappings:
+              properties:
+                created_at:
+                   type: date
+                   format: "yyyy-MM-dd"
+
+
+---
+"pre_filter_shard_size with invalid parameter":
+  - do:
+      catch: /preFilterShardSize must be >= 1/
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        pre_filter_shard_size: 0
+
+---
+"pre_filter_shard_size with shards that have no hit":
+  - do:
+      index:
+        index: index_1
+        id: 1
+        body: { "created_at": "2016-01-01"}
+  - do:
+      index:
+        index: index_2
+        id: 2
+        body: { "created_at": "2017-01-01" }
+
+  - do:
+      index:
+        index: index_3
+        id: 3
+        body: { "created_at": "2018-01-01" }
+  - do:
+      indices.refresh: {}
+
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped: 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 2 }
+
+  # this is the case where we have an empty body and don't skip anything since it's match_all
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        pre_filter_shard_size: 1
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped: 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 3 }
+
+  # this is a case where we can actually skip due to rewrite
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        pre_filter_shard_size: 1
+        body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped : 1}
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 2 }
+
+  # this case we skip all except of one since we need a real result
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        pre_filter_shard_size: 1
+        body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2019-02-01", "lt": "2020-02-01"} } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  # skip 2 and execute one to fetch the actual empty result
+  - match: { _shards.skipped : 2}
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        pre_filter_shard_size: 1
+        body: {"size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } }, "aggs" : { "some_agg"  : { "global" : {} }}}
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped : 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 2 }
+  - match: { aggregations.some_agg.doc_count: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        pre_filter_shard_size: 1
+        body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"}}}, "aggs" : { "idx_terms" : { "terms" : { "field" : "_index", "min_doc_count" : 0 } } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped : 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 2 }
+  - length: { aggregations.idx_terms.buckets: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        pre_filter_shard_size: 1
+        body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"}}}, "aggs" : { "idx_terms" :  { "terms" : { "field" : "_index" } } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped : 1 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 2 }
+  - length: { aggregations.idx_terms.buckets: 2 }
+
+  # check that empty responses are correctly handled when rewriting to match_no_docs
+  - do:
+      search:
+        # ensure that one shard can return empty response
+        max_concurrent_shard_requests: 1
+        body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"}}}, "aggs" : { "idx_terms" :  { "terms" : { "field" : "_index" } } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped : 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total.value: 2 }
+  - length: { aggregations.idx_terms.buckets: 2 }
+
+  - do:
+      search:
+        # ensure that one shard can return empty response
+        max_concurrent_shard_requests: 2
+        body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2019-02-01"}}}, "aggs" : { "idx_terms" :  { "terms" : { "field" : "_index" } } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped : 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total.value: 0 }
+  - length: { aggregations.idx_terms.buckets: 0 }
+
+  # check field sort is correct when skipping query phase
+  - do:
+      search:
+        # ensure that one shard can return empty response
+        max_concurrent_shard_requests: 1
+        pre_filter_shard_size: 1
+        body:
+          "size": 1
+          "track_total_hits": 1
+          "sort": [{ "created_at": { "order": "desc", "numeric_type": "date" } }]
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped: 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "gte" }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "3" }
+
+  # same with aggs
+  - do:
+      search:
+        # ensure that one shard can return empty response
+        max_concurrent_shard_requests: 1
+        pre_filter_shard_size: 1
+        body:
+          "size": 1
+          "track_total_hits": 1
+          "sort": [{ "created_at": { "order": "desc", "numeric_type": "date" } }]
+          "aggs" : { "idx_terms" :  { "terms" : { "field" : "_index" } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped: 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "gte" }
+  - length: { hits.hits: 1 }
+  - match: {hits.hits.0._id: "3" }
+  - length: { aggregations.idx_terms.buckets: 3 }

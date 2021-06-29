@@ -1,29 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-
-import java.util.function.Consumer;
 
 /**
  * This is a simple base class to simplify fan out to shards and collect their results. Each results passed to
@@ -31,12 +18,12 @@ import java.util.function.Consumer;
  * where the given index is used to set the result on the array.
  */
 final class CountedCollector<R extends SearchPhaseResult> {
-    private final Consumer<R> resultConsumer;
+    private final ArraySearchPhaseResults<R> resultConsumer;
     private final CountDown counter;
     private final Runnable onFinish;
     private final SearchPhaseContext context;
 
-    CountedCollector(Consumer<R> resultConsumer, int expectedOps, Runnable onFinish, SearchPhaseContext context) {
+    CountedCollector(ArraySearchPhaseResults<R> resultConsumer, int expectedOps, Runnable onFinish, SearchPhaseContext context) {
         this.resultConsumer = resultConsumer;
         this.counter = new CountDown(expectedOps);
         this.onFinish = onFinish;
@@ -58,11 +45,7 @@ final class CountedCollector<R extends SearchPhaseResult> {
      * Sets the result to the given array index and then runs {@link #countDown()}
      */
     void onResult(R result) {
-        try {
-            resultConsumer.accept(result);
-        } finally {
-            countDown();
-        }
+        resultConsumer.consumeResult(result,  this::countDown);
     }
 
     /**

@@ -1,0 +1,74 @@
+---
+setup:
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_restore_2
+        body:
+          type: fs
+          settings:
+            location: "test_repo_restore_2_loc"
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+---
+teardown:
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_restore_2
+        snapshot: test_snapshot_2
+  - do:
+      snapshot.delete_repository:
+        repository: test_repo_restore_2
+
+---
+"Operator only settings can be set and restored by non-operator user when operator privileges is disabled":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            xpack.security.http.filter.deny: example.com
+            xpack.security.transport.filter.deny: example.com
+
+  - do:
+      snapshot.create:
+        repository: test_repo_restore_2
+        snapshot: test_snapshot_2
+        wait_for_completion: true
+        body: |
+          { "include_global_state": true, "indices": "-*" }
+
+  - match: { snapshot.snapshot: test_snapshot_2 }
+  - match: { snapshot.state : SUCCESS }
+  - is_true: snapshot.include_global_state
+  - is_true: snapshot.version
+  - gt: { snapshot.version_id: 0}
+  - length: { snapshot.indices: 0 }
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            xpack.security.http.filter.deny: tutorial.com
+            xpack.security.transport.filter.deny: tutorial.com
+
+  - do:
+      snapshot.restore:
+        repository: test_repo_restore_2
+        snapshot: test_snapshot_2
+        wait_for_completion: true
+        body: |
+          { "include_global_state": true }
+
+  - do:
+      cluster.get_settings: {}
+
+  - match: { persistent.xpack.security.http.filter.deny: "example.com" }
+  - match: { persistent.xpack.security.transport.filter.deny: "example.com" }
+

@@ -5,6 +5,11 @@
       "description":"Returns results matching a query."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -89,6 +94,7 @@
         "options":[
           "open",
           "closed",
+          "hidden",
           "none",
           "all"
         ],
@@ -182,8 +188,8 @@
         "description":"Whether to calculate and return scores even if they are not used for sorting"
       },
       "track_total_hits":{
-        "type":"boolean",
-        "description":"Indicate if the number of documents that match the query should be tracked"
+        "type":"boolean|long",
+        "description":"Indicate if the number of documents that match the query should be tracked. A number can also be specified, to accurately track the total hit count up to the number."
       },
       "allow_partial_search_results":{
         "type":"boolean",
@@ -218,13 +224,16 @@
       },
       "pre_filter_shard_size":{
         "type":"number",
-        "description":"A threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard bounds and the query are disjoint.",
-        "default":128
+        "description":"A threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard bounds and the query are disjoint."
       },
       "rest_total_hits_as_int":{
         "type":"boolean",
         "description":"Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
         "default":false
+      },
+      "min_compatible_shard_node":{
+        "type":"string",
+        "description":"The minimum compatible version that all shards involved in search should have for this request to be successful"
       }
     },
     "body":{

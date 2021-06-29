@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -22,7 +23,7 @@ import java.io.InputStream;
 
 class BatchedRecordsIterator extends BatchedResultsIterator<AnomalyRecord> {
 
-    BatchedRecordsIterator(Client client, String jobId) {
+    BatchedRecordsIterator(OriginSettingClient client, String jobId) {
         super(client, jobId, AnomalyRecord.RESULT_TYPE_VALUE);
     }
 

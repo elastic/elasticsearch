@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -20,7 +21,7 @@ import java.util.stream.Collectors;
 
 /**
  * Provides a number of utility methods for interacting with {@link Settings} and {@link Setting} inside a {@link Realm}.
- * Settings for realms use an {@link Setting#affixKeySetting(String, String, Function, Setting.AffixSetting[]) affix} style,
+ * Settings for realms use an {@link Setting#affixKeySetting(String, String, Function, Setting.AffixSettingDependency[]) affix} style,
  * where the <em>type</em> of the realm is part of the prefix, and name of the realm is the variable portion
  * (That is to set the order in a file realm named "file1", then full setting key would be
  * {@code xpack.security.authc.realms.file.file1.order}.
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
  */
 public class RealmSettings {
 
+    public static final String RESERVED_REALM_NAME_PREFIX = "_";
     public static final String PREFIX = "xpack.security.authc.realms.";
 
     public static final Function<String, Setting.AffixSetting<Boolean>> ENABLED_SETTING = affixSetting("enabled",
@@ -74,7 +76,7 @@ public class RealmSettings {
      * The {@code Function} takes the <em>realm-type</em> as an argument.
      * @param suffix The suffix of the setting (everything following the realm name in the affix setting)
      * @param delegateFactory A factory to produce the concrete setting.
-     *                       See {@link Setting#affixKeySetting(Setting.AffixKey, Function, Setting.AffixSetting[])}
+     *                       See {@link Setting#affixKeySetting(String, String, Function, Setting.AffixSettingDependency[])}
      */
     public static <T> Function<String, Setting.AffixSetting<T>> affixSetting(String suffix, Function<String, Setting<T>> delegateFactory) {
         return realmType -> Setting.affixKeySetting(realmSettingPrefix(realmType), suffix, delegateFactory);

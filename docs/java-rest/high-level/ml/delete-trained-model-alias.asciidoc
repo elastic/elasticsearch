@@ -1,0 +1,38 @@
+--
+:api: delete-trained-model-alias
+:request: DeleteTrainedModelAliasRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Delete trained model alias API
+
+
+Deletes a trained model alias.
+The API accepts a +{request}+ object as a request and returns a +{response}+.
+If the model alias is not assigned to the provided model id, or if the model
+alias does not exist, this API will result in an error.
+
+[id="{upid}-{api}-request"]
+==== Delete trained model alias request
+
+A +{request}+ requires the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The trained model alias to delete
+<2> The trained model id to which model alias is assigned
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

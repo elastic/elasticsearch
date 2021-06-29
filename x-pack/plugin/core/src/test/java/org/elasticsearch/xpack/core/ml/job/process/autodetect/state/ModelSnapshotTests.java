@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -18,6 +19,8 @@ import java.util.Date;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapshot> {
     private static final Date DEFAULT_TIMESTAMP = new Date();
@@ -155,7 +158,7 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
         modelSnapshot.setMinVersion(Version.CURRENT);
         modelSnapshot.setTimestamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
         modelSnapshot.setDescription(randomAlphaOfLengthBetween(1, 20));
-        modelSnapshot.setSnapshotId(randomAlphaOfLengthBetween(1, 20));
+        modelSnapshot.setSnapshotId(randomAlphaOfLength(10));
         modelSnapshot.setSnapshotDocCount(randomInt());
         modelSnapshot.setModelSizeStats(ModelSizeStatsTests.createRandomized());
         modelSnapshot.setLatestResultTimeStamp(
@@ -213,5 +216,19 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             ModelSnapshot.LENIENT_PARSER.apply(parser, null);
         }
+    }
+
+    public void testEmptySnapshot() {
+        ModelSnapshot modelSnapshot = ModelSnapshot.emptySnapshot("my_job");
+        assertThat(modelSnapshot.getSnapshotId(), equalTo("empty"));
+        assertThat(modelSnapshot.isTheEmptySnapshot(), is(true));
+        assertThat(modelSnapshot.getMinVersion(), equalTo(Version.CURRENT));
+        assertThat(modelSnapshot.getLatestRecordTimeStamp(), is(nullValue()));
+        assertThat(modelSnapshot.getLatestResultTimeStamp(), is(nullValue()));
+    }
+
+    public void testIsEmpty_GivenNonEmptySnapshot() {
+        ModelSnapshot modelSnapshot = createRandomized();
+        assertThat(modelSnapshot.isTheEmptySnapshot(), is(false));
     }
 }

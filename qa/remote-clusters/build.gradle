@@ -1,0 +1,97 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.internal-distribution-download'
+
+testFixtures.useFixture()
+
+dependencies {
+  testImplementation project(':client:rest-high-level')
+}
+
+tasks.register("copyNodeKeyMaterial", Sync) {
+  from project(':x-pack:plugin:core')
+    .files(
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
+    )
+  into "${buildDir}/certs"
+  doLast {
+    file("${buildDir}/certs").setReadable(true, false)
+    file("${buildDir}/certs/testnode.pem").setReadable(true, false)
+    file("${buildDir}/certs/testnode.crt").setReadable(true, false)
+  }
+}
+
+elasticsearch_distributions {
+  docker {
+    type = DOCKER
+    architecture = Architecture.current()
+    version = VersionProperties.getElasticsearch()
+    failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
+  }
+}
+
+tasks.named("preProcessFixture").configure {
+  dependsOn "copyNodeKeyMaterial", elasticsearch_distributions.docker
+  doLast {
+    // tests expect to have an empty repo
+    project.delete(
+      "${buildDir}/repo",
+      "${buildDir}/oss-repo"
+    )
+    createAndSetWritable(
+      "${buildDir}/repo",
+      "${buildDir}/oss-repo",
+      "${buildDir}/logs/default-1",
+      "${buildDir}/logs/default-2",
+      "${buildDir}/logs/oss-1",
+      "${buildDir}/logs/oss-2"
+    )
+  }
+}
+
+dockerCompose {
+  tcpPortsToIgnoreWhenWaiting = [9600, 9601]
+  if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'default'))) {
+    useComposeFiles = ['docker-compose.yml']
+  } else {
+    useComposeFiles = ['docker-compose-oss.yml']
+  }
+}
+
+def createAndSetWritable(Object... locations) {
+  locations.each { location ->
+    File file = file(location)
+    file.mkdirs()
+    file.setWritable(true, false)
+  }
+}
+
+tasks.named("processTestResources").configure {
+  from project(':x-pack:plugin:core')
+    .files(
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
+    )
+}
+
+tasks.register("integTest", Test) {
+  outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
+  maxParallelForks = '1'
+  include '**/*IT.class'
+}
+
+tasks.named("check").configure { dependsOn "integTest" }

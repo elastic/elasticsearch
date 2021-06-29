@@ -1,24 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.Version;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.TestUtils;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
-import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
-import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.TypesTests;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
+import org.elasticsearch.xpack.sql.types.SqlTypesTests;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.sql.JDBCType;
 import java.util.List;
@@ -31,32 +38,37 @@ public class SysTypesTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
 
-    private Tuple<Command, SqlSession> sql(String sql) {
-        EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test), null);
+    private Tuple<Command, SqlSession> sql(String sql, Mode mode, SqlVersion version) {
+        SqlConfiguration configuration = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE,
+            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, null, mode, null, version, null, null, false, false);
+        EsIndex test = new EsIndex("test", SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
+        Analyzer analyzer = new Analyzer(configuration, new FunctionRegistry(), IndexResolution.valid(test), null);
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), false);
 
         IndexResolver resolver = mock(IndexResolver.class);
-        SqlSession session = new SqlSession(TestUtils.TEST_CFG, null, null, resolver, null, null, null, null, null);
+        SqlSession session = new SqlSession(configuration, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);
+    }
+    private Tuple<Command, SqlSession> sql(String sql) {
+        return sql(sql, randomFrom(Mode.values()), randomBoolean() ? null : SqlVersion.fromId(Version.CURRENT.id));
     }
 
     public void testSysTypes() {
-        Command cmd = sql("SYS TYPES").v1();
+        Tuple<Command, SqlSession> cmd = sql("SYS TYPES");
 
-        List<String> names = asList("BYTE", "LONG", "BINARY", "NULL", "INTEGER", "SHORT", "HALF_FLOAT", "FLOAT", "DOUBLE", "SCALED_FLOAT",
-                "KEYWORD", "TEXT", "IP", "BOOLEAN", "DATE", "TIME", "DATETIME",
+        List<String> names = asList("BYTE", "LONG", "BINARY", "NULL", "INTEGER", "SHORT", "HALF_FLOAT",
+                "FLOAT", "DOUBLE", "SCALED_FLOAT", "IP", "KEYWORD", "TEXT", "BOOLEAN", "DATE", "TIME", "DATETIME",
                 "INTERVAL_YEAR", "INTERVAL_MONTH", "INTERVAL_DAY", "INTERVAL_HOUR", "INTERVAL_MINUTE", "INTERVAL_SECOND",
                 "INTERVAL_YEAR_TO_MONTH", "INTERVAL_DAY_TO_HOUR", "INTERVAL_DAY_TO_MINUTE", "INTERVAL_DAY_TO_SECOND",
                 "INTERVAL_HOUR_TO_MINUTE", "INTERVAL_HOUR_TO_SECOND", "INTERVAL_MINUTE_TO_SECOND",
-                "GEO_SHAPE", "GEO_POINT", "SHAPE", "UNSUPPORTED", "OBJECT", "NESTED");
+                "GEO_POINT", "GEO_SHAPE", "SHAPE", "UNSUPPORTED", "NESTED", "OBJECT");
 
-        cmd.execute(session(), wrap(p -> {
+        cmd.v1().execute(cmd.v2(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
             assertEquals(19, r.columnCount());
-            assertEquals(DataType.values().length, r.size());
-            assertFalse(r.schema().types().contains(DataType.NULL));
-            // test numeric as signed
+            assertEquals(SqlDataTypes.types().size(), r.size());
+            assertFalse(r.schema().types().contains(DataTypes.NULL));
+            // test first numeric (i.e. BYTE) as signed
             assertFalse(r.column(9, Boolean.class));
             // make sure precision is returned as boolean (not int)
             assertFalse(r.column(10, Boolean.class));
@@ -72,19 +84,19 @@ public class SysTypesTests extends ESTestCase {
     }
 
     public void testSysTypesDefaultFiltering() {
-        Command cmd = sql("SYS TYPES 0").v1();
+        Tuple<Command, SqlSession> cmd = sql("SYS TYPES 0");
 
-        cmd.execute(session(), wrap(p -> {
+        cmd.v1().execute(cmd.v2(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
-            assertEquals(DataType.values().length, r.size());
+            assertEquals(SqlDataTypes.types().size(), r.size());
         }, ex -> fail(ex.getMessage())));
     }
 
     public void testSysTypesPositiveFiltering() {
         // boolean = 16
-        Command cmd = sql("SYS TYPES " + JDBCType.BOOLEAN.getVendorTypeNumber()).v1();
+        Tuple<Command, SqlSession> cmd = sql("SYS TYPES " + JDBCType.BOOLEAN.getVendorTypeNumber());
 
-        cmd.execute(session(), wrap(p -> {
+        cmd.v1().execute(cmd.v2(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
             assertEquals(1, r.size());
             assertEquals("BOOLEAN", r.column(0));
@@ -92,9 +104,9 @@ public class SysTypesTests extends ESTestCase {
     }
 
     public void testSysTypesNegativeFiltering() {
-        Command cmd = sql("SYS TYPES " + JDBCType.TINYINT.getVendorTypeNumber()).v1();
+        Tuple<Command, SqlSession> cmd = sql("SYS TYPES " + JDBCType.TINYINT.getVendorTypeNumber());
 
-        cmd.execute(session(), wrap(p -> {
+        cmd.v1().execute(cmd.v2(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
             assertEquals(1, r.size());
             assertEquals("BYTE", r.column(0));
@@ -102,20 +114,16 @@ public class SysTypesTests extends ESTestCase {
     }
 
     public void testSysTypesMultipleMatches() {
-        Command cmd = sql("SYS TYPES " + JDBCType.VARCHAR.getVendorTypeNumber()).v1();
+        Tuple<Command, SqlSession> cmd = sql("SYS TYPES " + JDBCType.VARCHAR.getVendorTypeNumber());
 
-        cmd.execute(session(), wrap(p -> {
+        cmd.v1().execute(cmd.v2(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
             assertEquals(3, r.size());
+            assertEquals("IP", r.column(0));
+            assertTrue(r.advanceRow());
             assertEquals("KEYWORD", r.column(0));
             assertTrue(r.advanceRow());
             assertEquals("TEXT", r.column(0));
-            assertTrue(r.advanceRow());
-            assertEquals("IP", r.column(0));
         }, ex -> fail(ex.getMessage())));
-    }
-
-    private static SqlSession session() {
-        return new SqlSession(TestUtils.TEST_CFG, null, null, null, null, null, null, null, null);
     }
 }

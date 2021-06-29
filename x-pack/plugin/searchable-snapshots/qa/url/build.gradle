@@ -1,0 +1,48 @@
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+final Project fixture = project(':test:fixtures:nginx-fixture')
+
+dependencies {
+  testImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
+}
+
+restResources {
+  restApi {
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots'
+  }
+}
+
+apply plugin: 'elasticsearch.test.fixtures'
+testFixtures.useFixture(fixture.path, 'nginx-fixture')
+
+def fixtureAddress = { fixtureName ->
+  int ephemeralPort = fixture.postProcessFixture.ext."test.fixtures.${fixtureName}.tcp.80"
+  assert ephemeralPort > 0
+  'http://127.0.0.1:' + ephemeralPort
+}
+
+File repositoryDir = fixture.fsRepositoryDir as File
+
+tasks.named("integTest").configure {
+  dependsOn fixture.getTasks().named("postProcessFixture")
+
+  systemProperty 'test.url.fs.repo.dir', repositoryDir.absolutePath
+  nonInputProperties.systemProperty 'test.url.http', "${-> fixtureAddress('nginx-fixture')}"
+}
+
+testClusters.matching { it.name == "integTest" }.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'path.repo', repositoryDir.absolutePath
+  setting 'repositories.url.allowed_urls', { "${-> fixtureAddress('nginx-fixture')}" }, IGNORE_VALUE
+
+  setting 'xpack.license.self_generated.type', 'trial'
+
+  setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
+
+  setting 'xpack.security.enabled', 'false'
+}

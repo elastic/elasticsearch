@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.graph;
 
@@ -34,7 +35,7 @@ public class GraphInfoTransportActionTests extends ESTestCase {
         GraphInfoTransportAction featureSet = new GraphInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isGraphAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.GRAPH)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
 
         var usageAction = new GraphUsageTransportAction(mock(TransportService.class), null, null,

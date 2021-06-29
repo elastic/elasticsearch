@@ -11,13 +11,24 @@ Removes a JSON document from the specified index.
 
 `DELETE /<index>/_doc/<_id>`
 
+[[docs-delete-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `delete` or
+`write` <<privileges-list-indices,index privilege>> for the target index or
+index alias.
+
 [[docs-delete-api-desc]]
 ==== {api-description-title}
 
 You use DELETE to remove a document from an index. You must specify the
 index name and document ID.
 
-[float]
+NOTE: You cannot send deletion requests directly to a data stream. To delete a
+document in a data stream, you must target the backing index containing the
+document. See <<update-delete-docs-in-a-backing-index>>.
+
+[discrete]
 [[optimistic-concurrency-control-delete]]
 ===== Optimistic concurrency control
 
@@ -27,7 +38,7 @@ term specified by the `if_seq_no` and `if_primary_term` parameters. If a
 mismatch is detected, the operation will result in a `VersionConflictException`
 and a status code of 409. See <<optimistic-concurrency-control>> for more details.
 
-[float]
+[discrete]
 [[delete-versioning]]
 ===== Versioning
 
@@ -40,7 +51,7 @@ short time after deletion to allow for control of concurrent operations. The
 length of time for which a deleted document's version remains available is
 determined by the `index.gc_deletes` index setting and defaults to 60 seconds.
 
-[float]
+[discrete]
 [[delete-routing]]
 ===== Routing
 
@@ -59,9 +70,9 @@ Example to delete with routing
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_doc/1?routing=kimchy
+PUT /my-index-000001/_doc/1?routing=shard-1
 {
-    "test": "test"
+  "test": "test"
 }
 --------------------------------------------------
 ////
@@ -69,14 +80,14 @@ PUT /twitter/_doc/1?routing=kimchy
 
 [source,console]
 --------------------------------------------------
-DELETE /twitter/_doc/1?routing=kimchy
+DELETE /my-index-000001/_doc/1?routing=shard-1
 --------------------------------------------------
 // TEST[continued]
 
-This request deletes the tweet with id `1`, but it is routed based on the
+This request deletes the document with id `1`, but it is routed based on the
 user. The document is not deleted if the correct routing is not specified.
 
-[float]
+[discrete]
 [[delete-index-creation]]
 ===== Automatic index creation
 
@@ -85,7 +96,7 @@ the delete operation automatically creates the specified index if it does not
 exist. For information about manually creating indices, see
 <<indices-create-index,create index API>>.
 
-[float]
+[discrete]
 [[delete-distributed]]
 ===== Distributed
 
@@ -93,7 +104,7 @@ The delete operation gets hashed into a specific shard id. It then gets
 redirected into the primary shard within that id group, and replicated
 (if needed) to shard replicas within that id group.
 
-[float]
+[discrete]
 [[delete-wait-for-active-shards]]
 ===== Wait for active shards
 
@@ -103,14 +114,14 @@ before starting to process the delete request. See
 <<index-wait-for-active-shards,here>> for further details and a usage
 example.
 
-[float]
+[discrete]
 [[delete-refresh]]
 ===== Refresh
 
 Control when the changes made by this request are visible to search. See
 <<docs-refresh>>.
 
-[float]
+[discrete]
 [[delete-timeout]]
 ===== Timeout
 
@@ -125,9 +136,9 @@ to 5 minutes:
 
 [source,console]
 --------------------------------------------------
-DELETE /twitter/_doc/1?timeout=5m
+DELETE /my-index-000001/_doc/1?timeout=5m
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-delete-api-path-params]]
 ==== {api-path-parms-title}
@@ -141,53 +152,54 @@ DELETE /twitter/_doc/1?timeout=5m
 [[docs-delete-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pipeline]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period to <<index-wait-for-active-shards,wait for active shards>>. Defaults to
+`1m` (one minute).
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=doc-version]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=version_type]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 [[docs-delete-api-example]]
 ==== {api-examples-title}
 
-Delete the JSON document `1` from the `twitter` index:
+Delete the JSON document `1` from the `my-index-000001` index:
 
 [source,console]
 --------------------------------------------------
-DELETE /twitter/_doc/1
+DELETE /my-index-000001/_doc/1
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The API returns the following result:
 
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards" : {
-        "total" : 2,
-        "failed" : 0,
-        "successful" : 2
-    },
-    "_index" : "twitter",
-    "_id" : "1",
-    "_version" : 2,
-    "_primary_term": 1,
-    "_seq_no": 5,
-    "result": "deleted"
+  "_shards": {
+    "total": 2,
+    "failed": 0,
+    "successful": 2
+  },
+  "_index": "my-index-000001",
+  "_id": "1",
+  "_version": 2,
+  "_primary_term": 1,
+  "_seq_no": 5,
+  "result": "deleted"
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
-// TESTRESPONSE[s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
-// TESTRESPONSE[s/"_seq_no" : 5/"_seq_no" : $body._seq_no/]
+// TESTRESPONSE[s/"successful": 2/"successful": 1/]
+// TESTRESPONSE[s/"_primary_term": 1/"_primary_term": $body._primary_term/]
+// TESTRESPONSE[s/"_seq_no": 5/"_seq_no": $body._seq_no/]

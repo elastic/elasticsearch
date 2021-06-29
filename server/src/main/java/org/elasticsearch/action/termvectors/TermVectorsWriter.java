@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.termvectors;
 
@@ -23,15 +12,12 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,21 +34,21 @@ final class TermVectorsWriter {
     // size here?
     private static final String HEADER = "TV";
     private static final int CURRENT_VERSION = -1;
-    TermVectorsResponse response = null;
+    final TermVectorsResponse response;
 
-    TermVectorsWriter(TermVectorsResponse termVectorsResponse) throws IOException {
+    TermVectorsWriter(TermVectorsResponse termVectorsResponse) {
         response = termVectorsResponse;
     }
 
     void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields,
-                   @Nullable AggregatedDfs dfs, @Nullable TermVectorsFilter termVectorsFilter) throws IOException {
+                   @Nullable TermVectorsFilter termVectorsFilter) throws IOException {
         int numFieldsWritten = 0;
         PostingsEnum docsAndPosEnum = null;
         PostingsEnum docsEnum = null;
         boolean hasScores = termVectorsFilter != null;
 
         for (String field : termVectorsByField) {
-            if ((selectedFields != null) && (!selectedFields.contains(field))) {
+            if (selectedFields != null && selectedFields.contains(field) == false) {
                 continue;
             }
 
@@ -90,11 +76,7 @@ final class TermVectorsWriter {
             startField(field, termsSize, positions, offsets, payloads);
 
             if (flags.contains(Flag.FieldStatistics)) {
-                if (dfs != null) {
-                    writeFieldStatistics(dfs.fieldStatistics().get(field));
-                } else {
-                    writeFieldStatistics(topLevelTerms);
-                }
+                writeFieldStatistics(topLevelTerms);
             }
             TermsEnum iterator = fieldTermVector.iterator();
             final boolean useDocsAndPos = positions || offsets || payloads;
@@ -103,27 +85,18 @@ final class TermVectorsWriter {
                 Term term = new Term(field, termBytesRef);
 
                 // with filtering we only keep the best terms
-                if (hasScores && !termVectorsFilter.hasScoreTerm(term)) {
+                if (hasScores && termVectorsFilter.hasScoreTerm(term) == false) {
                     continue;
                 }
 
                 startTerm(termBytesRef);
                 if (flags.contains(Flag.TermStatistics)) {
                     // get the doc frequency
-                    if (dfs != null) {
-                        final TermStatistics statistics = dfs.termStatistics().get(term);
-                        if (statistics == null) {
-                            writeMissingTermStatistics();
-                        } else {
-                            writeTermStatistics(statistics);
-                        }
+                    boolean foundTerm = topLevelIterator.seekExact(termBytesRef);
+                    if (foundTerm) {
+                        writeTermStatistics(topLevelIterator);
                     } else {
-                        boolean foundTerm = topLevelIterator.seekExact(termBytesRef);
-                        if (foundTerm) {
-                            writeTermStatistics(topLevelIterator);
-                        } else {
-                            writeMissingTermStatistics();
-                        }
+                        writeMissingTermStatistics();
                     }
                 }
                 if (useDocsAndPos) {
@@ -158,7 +131,7 @@ final class TermVectorsWriter {
         header.writeVInt(numFieldsWritten);
         for (int i = 0; i < fields.size(); i++) {
             header.writeString(fields.get(i));
-            header.writeVLong(fieldOffset.get(i).longValue());
+            header.writeVLong(fieldOffset.get(i));
         }
         header.close();
         return header.bytes();
@@ -259,15 +232,6 @@ final class TermVectorsWriter {
         writePotentiallyNegativeVLong(ttf);
     }
 
-    private void writeTermStatistics(TermStatistics termStatistics) throws IOException {
-        int docFreq = (int) termStatistics.docFreq();
-        assert (docFreq >= -1);
-        writePotentiallyNegativeVInt(docFreq);
-        long ttf = termStatistics.totalTermFreq();
-        assert (ttf >= -1);
-        writePotentiallyNegativeVLong(ttf);
-    }
-
     private void writeFieldStatistics(Terms topLevelTerms) throws IOException {
         long sttf = topLevelTerms.getSumTotalTermFreq();
         assert (sttf >= -1);
@@ -276,18 +240,6 @@ final class TermVectorsWriter {
         assert (sdf >= -1);
         writePotentiallyNegativeVLong(sdf);
         int dc = topLevelTerms.getDocCount();
-        assert (dc >= -1);
-        writePotentiallyNegativeVInt(dc);
-    }
-
-    private void writeFieldStatistics(CollectionStatistics fieldStats) throws IOException {
-        long sttf = fieldStats.sumTotalTermFreq();
-        assert (sttf >= -1);
-        writePotentiallyNegativeVLong(sttf);
-        long sdf = fieldStats.sumDocFreq();
-        assert (sdf >= -1);
-        writePotentiallyNegativeVLong(sdf);
-        int dc = (int) fieldStats.docCount();
         assert (dc >= -1);
         writePotentiallyNegativeVInt(dc);
     }
@@ -310,11 +262,11 @@ final class TermVectorsWriter {
 
     /** Implements an empty {@link Terms}. */
     private static final Terms EMPTY_TERMS = new Terms() {
-        @Override public TermsEnum iterator() throws IOException { return TermsEnum.EMPTY; }
-        @Override public long size() throws IOException { return 0; }
-        @Override public long getSumTotalTermFreq() throws IOException { return 0; }
-        @Override public long getSumDocFreq() throws IOException { return 0; }
-        @Override public int getDocCount() throws IOException { return 0; }
+        @Override public TermsEnum iterator() { return TermsEnum.EMPTY; }
+        @Override public long size() { return 0; }
+        @Override public long getSumTotalTermFreq() { return 0; }
+        @Override public long getSumDocFreq() { return 0; }
+        @Override public int getDocCount() { return 0; }
         @Override public boolean hasFreqs() { return false; }
         @Override public boolean hasOffsets() { return false; }
         @Override public boolean hasPositions() { return false; }

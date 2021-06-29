@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.store;
 
@@ -12,7 +13,8 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.MemoizedSupplier;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -21,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -175,14 +178,14 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         if (Files.exists(path)) {
             try {
                 List<String> roleSegments = roleSegments(path);
-                final boolean flsDlsLicensed = licenseState.isDocumentAndFieldLevelSecurityAllowed();
+                var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
                 for (String segment : roleSegments) {
                     RoleDescriptor descriptor = parseRoleDescriptor(segment, path, logger, resolvePermission, settings, xContentRegistry);
                     if (descriptor != null) {
                         if (ReservedRolesStore.isReserved(descriptor.getName())) {
                             logger.warn("role [{}] is reserved. the relevant role definition in the mapping file will be ignored",
                                     descriptor.getName());
-                        } else if (flsDlsLicensed == false && descriptor.isUsingDocumentOrFieldLevelSecurity()) {
+                        } else if (descriptor.isUsingDocumentOrFieldLevelSecurity() && licenseChecker.get() == false) {
                             logger.warn("role [{}] uses document and/or field level security, which is not enabled by the current license" +
                                     ". this role will be ignored", descriptor.getName());
                             // we still put the role in the map to avoid unnecessary negative lookups
@@ -331,7 +334,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         List<String> segments = new ArrayList<>();
         StringBuilder builder = null;
         for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
-            if (!SKIP_LINE.matcher(line).matches()) {
+            if (SKIP_LINE.matcher(line).matches() == false) {
                 if (IN_SEGMENT_LINE.matcher(line).matches()) {
                     if (builder != null) {
                         builder.append(line).append("\n");
@@ -368,8 +371,6 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 final Map<String, RoleDescriptor> previousPermissions = permissions;
                 try {
                     permissions = parseFile(file, logger, settings, licenseState, xContentRegistry);
-                    logger.info("updated roles (roles file [{}] {})", file.toAbsolutePath(),
-                        Files.exists(file) ? "changed" : "removed");
                 } catch (Exception e) {
                     logger.error(
                             (Supplier<?>) () -> new ParameterizedMessage(
@@ -383,7 +384,11 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                         .collect(Collectors.toSet());
                 final Set<String> addedRoles = Sets.difference(permissions.keySet(), previousPermissions.keySet());
                 final Set<String> changedRoles = Collections.unmodifiableSet(Sets.union(changedOrMissingRoles, addedRoles));
-                listeners.forEach(c -> c.accept(changedRoles));
+                if (changedRoles.isEmpty() == false) {
+                    logger.info("updated roles (roles file [{}] {})", file.toAbsolutePath(),
+                            Files.exists(file) ? "changed" : "removed");
+                    listeners.forEach(c -> c.accept(changedRoles));
+                }
             }
         }
     }

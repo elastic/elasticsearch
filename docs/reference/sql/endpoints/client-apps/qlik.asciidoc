@@ -3,18 +3,13 @@
 [[sql-client-apps-qlik]]
 === Qlik Sense Desktop
 
-[quote, https://help.qlik.com/en-US/sense/February2018/Subsystems/Hub/Content/Introduction/at-a-glance.htm]
-____
-https://www.qlik.com/us/try-or-buy/download-qlik-sense[Qlik Sense Desktop] is a Windows application that gives individuals the opportunity
-to use Qlik Sense and create personalized, interactive data visualizations, reports, and dashboards from multiple data sources with
-drag-and-drop ease.
-____
+You can use the {es} ODBC driver to access {es} data from Qlik Sense Desktop.
 
 IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 
 ==== Prerequisites
 
-* Qlik Sense Desktop November 2018 or higher
+* https://www.qlik.com/us/try-or-buy/download-qlik-sense[Qlik Sense Desktop] November 2018 or higher
 * {es-sql} <<sql-odbc, ODBC driver>>
 * A preconfigured User or System DSN (see <<dsn-configuration,Configuration>> section on how to configure a DSN).
 

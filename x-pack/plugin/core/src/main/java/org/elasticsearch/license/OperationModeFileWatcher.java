@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -106,7 +107,7 @@ public final class OperationModeFileWatcher implements FileChangesListener {
                     // this UTF-8 conversion is much pickier than java String
                     final String operationMode = new BytesRef(content).utf8ToString();
                     try {
-                        newOperationMode = OperationMode.resolve(operationMode);
+                        newOperationMode = OperationMode.parse(operationMode);
                     } catch (IllegalArgumentException e) {
                         logger.error(
                                 (Supplier<?>) () -> new ParameterizedMessage(

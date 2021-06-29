@@ -7,24 +7,22 @@ description = 'Request and response objects shared by the cli, jdbc ' +
   'and the Elasticsearch plugin'
 
 dependencies {
-  compile(project(':libs:elasticsearch-core')) {
+  api(project(':libs:elasticsearch-core')) {
     transitive = false
   }
-  compile(project(':libs:elasticsearch-x-content')) {
+  api( project(':libs:elasticsearch-x-content')) {
     transitive = false
   }
-  runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
 
-  testCompile project(":test:framework")
+  testImplementation project(":test:framework")
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   //sql does not depend on server, so only jdk signatures should be checked
   replaceSignatureFiles 'jdk-signatures'
 }
 
-dependencyLicenses {
-  mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
+tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
-  ignoreSha 'elasticsearch-core'
 }

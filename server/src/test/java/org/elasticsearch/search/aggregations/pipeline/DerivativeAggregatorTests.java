@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -30,7 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -354,9 +343,6 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             indexWriter -> {
                 Document document = new Document();
                 for (int i = 0; i < valueCounts_empty.length; i++) {
-                    if (frequently()) {
-                        indexWriter.commit();
-                    }
                     for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
                         document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
                         indexWriter.addDocument(document);
@@ -408,10 +394,6 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                     if (randomBoolean())
                         valueCounts_empty_rnd[i] = 0L;
                     for (int docs = 0; docs < valueCounts_empty_rnd[i]; docs++) {
-
-                        if (frequently()) {
-                            indexWriter.commit();
-                        }
                         document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
                         indexWriter.addDocument(document);
                         document.clear();
@@ -458,9 +440,6 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             indexWriter -> {
                 Document document = new Document();
                 for (int i = 0; i < valueCounts_empty.length; i++) {
-                    if (frequently()) {
-                        indexWriter.commit();
-                    }
                     for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
                         document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
                         indexWriter.addDocument(document);
@@ -514,9 +493,6 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             indexWriter -> {
                 Document document = new Document();
                 for (int i = 0; i < valueCounts_empty.length; i++) {
-                    if (frequently()) {
-                        indexWriter.commit();
-                    }
                     for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
                         document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
                         indexWriter.addDocument(document);
@@ -610,7 +586,15 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                     Sum sum = bucket.getAggregations().get("sum");
                     double thisSumValue = sum.value();
                     if (bucket.getDocCount() == 0) {
-                        thisSumValue = gapPolicy == GapPolicy.INSERT_ZEROS ? 0 : Double.NaN;
+                        switch (gapPolicy) {
+                            case INSERT_ZEROS:
+                                thisSumValue = 0;
+                                break;
+                            case KEEP_VALUES:
+                                break;
+                            default:
+                                thisSumValue = Double.NaN;
+                        }
                     }
                     SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
                     if (i == 0) {
@@ -634,10 +618,6 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                     if (randomBoolean())
                         valueCounts_empty_rnd[i] = 0L;
                     for (int docs = 0; docs < valueCounts_empty_rnd[i]; docs++) {
-
-                        if (frequently()) {
-                            indexWriter.commit();
-                        }
                         document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
                         indexWriter.addDocument(document);
                         document.clear();
@@ -673,10 +653,10 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             } else if (cause instanceof SearchPhaseExecutionException) {
                 SearchPhaseExecutionException spee = (SearchPhaseExecutionException) e;
                 Throwable rootCause = spee.getRootCause();
-                if (!(rootCause instanceof IllegalArgumentException)) {
+                if ((rootCause instanceof IllegalArgumentException) == false) {
                     throw e;
                 }
-            } else if (!(cause instanceof IllegalArgumentException)) {
+            } else if ((cause instanceof IllegalArgumentException) == false) {
                 throw e;
             }
         }
@@ -734,9 +714,6 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
         executeTestCase(query, aggBuilder, verify, indexWriter -> {
             Document document = new Document();
             for (int i = 0; i < numValueBuckets; i++) {
-                if (frequently()) {
-                    indexWriter.commit();
-                }
                 for (int docs = 0; docs < valueCounts[i]; docs++) {
                     document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i * interval));
                     indexWriter.addDocument(document);
@@ -756,17 +733,11 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
-                DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-                fieldType.setHasDocValues(true);
-                fieldType.setName(SINGLE_VALUED_FIELD_NAME);
+                DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(SINGLE_VALUED_FIELD_NAME);
+                MappedFieldType valueFieldType
+                    = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
-                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                valueFieldType.setHasDocValues(true);
-                valueFieldType.setName("value_field");
-
-                InternalAggregation histogram;
-                histogram = searchAndReduce(indexSearcher, query, aggBuilder, new MappedFieldType[]{fieldType, valueFieldType});
+                InternalAggregation histogram = searchAndReduce(indexSearcher, query, aggBuilder, fieldType, valueFieldType);
 
                 verify.accept(histogram);
             }

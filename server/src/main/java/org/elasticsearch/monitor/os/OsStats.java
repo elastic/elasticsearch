@@ -1,24 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.os;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -180,17 +172,31 @@ public class OsStats implements Writeable, ToXContentFragment {
 
     public static class Swap implements Writeable, ToXContentFragment {
 
+        private static final Logger logger = LogManager.getLogger(Swap.class);
+
         private final long total;
         private final long free;
 
         public Swap(long total, long free) {
+            assert total >= 0 : "expected total swap to be positive, got: " + total;
+            assert free >= 0 : "expected free swap to be positive, got: " + total;
             this.total = total;
             this.free = free;
         }
 
         public Swap(StreamInput in) throws IOException {
-            this.total = in.readLong();
-            this.free = in.readLong();
+            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+                this.total = in.readLong();
+                assert this.total >= 0 : "expected total swap to be positive, got: " + total;
+                this.free = in.readLong();
+                assert this.free >= 0 : "expected free swap to be positive, got: " + total;
+            } else {
+                // If we have a node in the cluster without the bug fix for
+                // negative memory values, we need to coerce negative values to 0 here.
+                // The relevant bug fix was added for 7.8.0 in https://github.com/elastic/elasticsearch/pull/57317
+                this.total = Math.max(0, in.readLong());
+                this.free = Math.max(0, in.readLong());
+            }
         }
 
         @Override
@@ -204,6 +210,19 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getUsed() {
+            if (total == 0) {
+                // The work in https://github.com/elastic/elasticsearch/pull/42725 established that total memory
+                // can be reported as negative in some cases. Swap can similarly be reported as negative and in
+                // those cases, we force it to zero in which case we can no longer correctly report the used swap
+                // as (total-free) and should report it as zero.
+                //
+                // We intentionally check for (total == 0) rather than (total - free < 0) so as not to hide
+                // cases where (free > total) which would be a different bug.
+                if (free > 0) {
+                    logger.debug("cannot compute used swap when total swap is 0 and free swap is " + free);
+                }
+                return new ByteSizeValue(0);
+            }
             return new ByteSizeValue(total - free);
         }
 
@@ -224,6 +243,8 @@ public class OsStats implements Writeable, ToXContentFragment {
 
     public static class Mem implements Writeable, ToXContentFragment {
 
+        private static final Logger logger = LogManager.getLogger(Mem.class);
+
         private final long total;
         private final long free;
 
@@ -235,10 +256,18 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public Mem(StreamInput in) throws IOException {
-            this.total = in.readLong();
-            assert total >= 0 : "expected total memory to be positive, got: " + total;
-            this.free = in.readLong();
-            assert free >= 0 : "expected free memory to be positive, got: " + total;
+            if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+                this.total = in.readLong();
+                assert total >= 0 : "expected total memory to be positive, got: " + total;
+                this.free = in.readLong();
+                assert free >= 0 : "expected free memory to be positive, got: " + total;
+            } else {
+                // If we have a node in the cluster without the bug fix for
+                // negative memory values, we need to coerce negative values to 0 here.
+                // The relevant bug fix was added for 7.2.0 in https://github.com/elastic/elasticsearch/pull/42725
+                this.total = Math.max(0, in.readLong());
+                this.free = Math.max(0, in.readLong());
+            }
         }
 
         @Override
@@ -252,6 +281,18 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getUsed() {
+            if (total == 0) {
+                // The work in https://github.com/elastic/elasticsearch/pull/42725 established that total memory
+                // can be reported as negative in some cases. In those cases, we force it to zero in which case
+                // we can no longer correctly report the used memory as (total-free) and should report it as zero.
+                //
+                // We intentionally check for (total == 0) rather than (total - free < 0) so as not to hide
+                // cases where (free > total) which would be a different bug.
+                if (free > 0) {
+                    logger.debug("cannot compute used memory when total memory is 0 and free memory is " + free);
+                }
+                return new ByteSizeValue(0);
+            }
             return new ByteSizeValue(total - free);
         }
 

@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.xpack.sql.execution.search.AggRef;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.execution.search.AggRef;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 /**
  * Reference to a TopHits aggregation.
@@ -33,6 +34,6 @@ public class TopHitsAggRef extends AggRef {
 
     @Override
     public String toString() {
-        return ">" + name + "[" + fieldDataType.typeName + "]";
+        return ">" + name + "[" + fieldDataType.typeName() + "]";
     }
 }

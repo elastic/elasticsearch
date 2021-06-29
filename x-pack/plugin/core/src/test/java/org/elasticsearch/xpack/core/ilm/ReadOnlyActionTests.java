@@ -1,11 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -38,13 +38,17 @@ public class ReadOnlyActionTests extends AbstractActionTestCase<ReadOnlyAction> 
                 randomAlphaOfLengthBetween(1, 10));
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(1, steps.size());
-        StepKey expectedFirstStepKey = new StepKey(phase, ReadOnlyAction.NAME, ReadOnlyAction.NAME);
-        UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(0);
+        assertEquals(2, steps.size());
+        StepKey expectedFirstStepKey = new StepKey(phase, ReadOnlyAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
+        StepKey expectedSecondStepKey = new StepKey(phase, ReadOnlyAction.NAME, ReadOnlyAction.NAME);
+        CheckNotDataStreamWriteIndexStep firstStep = (CheckNotDataStreamWriteIndexStep) steps.get(0);
+        ReadOnlyStep secondStep = (ReadOnlyStep) steps.get(1);
+
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
-        assertThat(firstStep.getNextStepKey(), equalTo(nextStepKey));
-        assertThat(firstStep.getSettings().size(), equalTo(1));
-        assertTrue(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(firstStep.getSettings()));
+        assertThat(firstStep.getNextStepKey(), equalTo(expectedSecondStepKey));
+
+        assertThat(secondStep.getKey(), equalTo(expectedSecondStepKey));
+        assertThat(secondStep.getNextStepKey(), equalTo(nextStepKey));
     }
 
 }

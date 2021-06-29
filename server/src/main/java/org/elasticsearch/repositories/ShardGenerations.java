@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -30,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public final class ShardGenerations {
@@ -51,7 +42,32 @@ public final class ShardGenerations {
     private final Map<IndexId, List<String>> shardGenerations;
 
     private ShardGenerations(Map<IndexId, List<String>> shardGenerations) {
-        this.shardGenerations = shardGenerations;
+        this.shardGenerations = Map.copyOf(shardGenerations);
+    }
+
+    private static final Pattern IS_NUMBER = Pattern.compile("^\\d+$");
+
+    /**
+     * Filters out unreliable numeric shard generations read from {@link RepositoryData} or {@link IndexShardSnapshotStatus}, returning
+     * {@code null} in their place.
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/57798">Issue #57988</a>
+     *
+     * @param shardGeneration shard generation to fix
+     * @return given shard generation or {@code null} if it was filtered out or {@code null} was passed
+     */
+    @Nullable
+    public static String fixShardGeneration(@Nullable String shardGeneration) {
+        if (shardGeneration == null) {
+            return null;
+        }
+        return IS_NUMBER.matcher(shardGeneration).matches() ? null : shardGeneration;
+    }
+
+    /**
+     * Returns the total number of shards tracked by this instance.
+     */
+    public int totalShards() {
+        return shardGenerations.values().stream().mapToInt(List::size).sum();
     }
 
     /**
@@ -60,7 +76,7 @@ public final class ShardGenerations {
      * @return indices for which shard generations are tracked
      */
     public Collection<IndexId> indices() {
-        return Collections.unmodifiableSet(shardGenerations.keySet());
+        return shardGenerations.keySet();
     }
 
     /**
@@ -119,8 +135,7 @@ public final class ShardGenerations {
     }
 
     public List<String> getGens(IndexId indexId) {
-        final List<String> existing = shardGenerations.get(indexId);
-        return existing == null ? Collections.emptyList() : Collections.unmodifiableList(existing);
+        return shardGenerations.getOrDefault(indexId, Collections.emptyList());
     }
 
     @Override
@@ -184,7 +199,7 @@ public final class ShardGenerations {
                 for (int i = 0; i < gens.size(); i++) {
                     final String gen = gens.get(i);
                     if (gen != null) {
-                        put(indexId, i, gens.get(i));
+                        put(indexId, i, gen);
                     }
                 }
             });
@@ -192,24 +207,23 @@ public final class ShardGenerations {
         }
 
         public Builder put(IndexId indexId, int shardId, String generation) {
-            generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
+            String existingGeneration = generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
+            assert generation != null || existingGeneration == null
+                : "must not overwrite existing generation with null generation [" + existingGeneration + "]";
             return this;
         }
 
         public ShardGenerations build() {
-            return new ShardGenerations(generations.entrySet().stream().collect(Collectors.toMap(
-                Map.Entry::getKey,
-                entry -> {
-                    final Set<Integer> shardIds = entry.getValue().keySet();
-                    assert shardIds.isEmpty() == false;
-                    final int size = shardIds.stream().mapToInt(i -> i).max().getAsInt() + 1;
-                    // Create a list that can hold the highest shard id as index and leave null values for shards that don't have
-                    // a map entry.
-                    final String[] gens = new String[size];
-                    entry.getValue().forEach((shardId, generation) -> gens[shardId] = generation);
-                    return Arrays.asList(gens);
-                }
-            )));
+            return new ShardGenerations(generations.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> {
+                final Set<Integer> shardIds = entry.getValue().keySet();
+                assert shardIds.isEmpty() == false;
+                final int size = shardIds.stream().mapToInt(i -> i).max().getAsInt() + 1;
+                // Create a list that can hold the highest shard id as index and leave null values for shards that don't have
+                // a map entry.
+                final String[] gens = new String[size];
+                entry.getValue().forEach((shardId, generation) -> gens[shardId] = generation);
+                return Collections.unmodifiableList(Arrays.asList(gens));
+            })));
         }
     }
 }

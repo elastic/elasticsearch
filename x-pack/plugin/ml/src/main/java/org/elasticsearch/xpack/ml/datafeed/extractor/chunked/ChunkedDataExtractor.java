@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
@@ -102,7 +103,7 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     @Override
     public Optional<InputStream> next() throws IOException {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
@@ -114,7 +115,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         return getNextStream();
     }
 
-    private void setUpChunkedSearch() throws IOException {
+    private void setUpChunkedSearch() {
         DataSummary dataSummary = dataSummaryFactory.buildDataSummary();
         if (dataSummary.hasData()) {
             currentStart = context.timeAligner.alignToFloor(dataSummary.earliestTime());
@@ -196,20 +197,17 @@ public class ChunkedDataExtractor implements DataExtractor {
          * So, if we need to gather an appropriate chunked time for aggregations, we can utilize the AggregatedDataSummary
          *
          * @return DataSummary object
-         * @throws IOException when timefield range search fails
          */
-        private DataSummary buildDataSummary() throws IOException {
+        private DataSummary buildDataSummary() {
             return context.hasAggregations ? newAggregatedDataSummary() : newScrolledDataSummary();
         }
 
-        private DataSummary newScrolledDataSummary() throws IOException {
+        private DataSummary newScrolledDataSummary() {
             SearchRequestBuilder searchRequestBuilder = rangeSearchRequest();
 
             SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
             LOGGER.debug("[{}] Scrolling Data summary response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-
-            ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
 
             Aggregations aggregations = searchResponse.getAggregations();
             long earliestTime = 0;
@@ -224,15 +222,13 @@ public class ChunkedDataExtractor implements DataExtractor {
             return new ScrolledDataSummary(earliestTime, latestTime, totalHits);
         }
 
-        private DataSummary newAggregatedDataSummary() throws IOException {
+        private DataSummary newAggregatedDataSummary() {
             // TODO: once RollupSearchAction is changed from indices:admin* to indices:data/read/* this branch is not needed
             ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder =
                 dataExtractorFactory instanceof RollupDataExtractorFactory ? rollupRangeSearchRequest() : rangeSearchRequest();
             SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
             LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-
-            ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
 
             Aggregations aggregations = searchResponse.getAggregations();
             Min min = aggregations.get(EARLIEST_TIME);
@@ -244,6 +240,7 @@ public class ChunkedDataExtractor implements DataExtractor {
             return new SearchSourceBuilder()
                 .size(0)
                 .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, currentStart, context.end))
+                .runtimeMappings(context.runtimeMappings)
                 .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.timeField))
                 .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.timeField));
         }
@@ -251,21 +248,26 @@ public class ChunkedDataExtractor implements DataExtractor {
         private SearchRequestBuilder rangeSearchRequest() {
             return new SearchRequestBuilder(client, SearchAction.INSTANCE)
                 .setIndices(context.indices)
+                .setIndicesOptions(context.indicesOptions)
                 .setSource(rangeSearchBuilder())
+                .setAllowPartialSearchResults(false)
                 .setTrackTotalHits(true);
         }
 
         private RollupSearchAction.RequestBuilder rollupRangeSearchRequest() {
-            SearchRequest searchRequest = new SearchRequest().indices(context.indices).source(rangeSearchBuilder());
+            SearchRequest searchRequest = new SearchRequest().indices(context.indices)
+                .indicesOptions(context.indicesOptions)
+                .allowPartialSearchResults(false)
+                .source(rangeSearchBuilder());
             return new RollupSearchAction.RequestBuilder(client, searchRequest);
         }
     }
 
     private class ScrolledDataSummary implements DataSummary {
 
-        private long earliestTime;
-        private long latestTime;
-        private long totalHits;
+        private final long earliestTime;
+        private final long latestTime;
+        private final long totalHits;
 
         private ScrolledDataSummary(long earliestTime, long latestTime, long totalHits) {
             this.earliestTime = earliestTime;
@@ -307,7 +309,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
     }
 
-    private class AggregatedDataSummary implements DataSummary {
+    private static class AggregatedDataSummary implements DataSummary {
 
         private final double earliestTime;
         private final double latestTime;
@@ -320,11 +322,11 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
 
         /**
-         * This heuristic is a direct copy of the manual chunking config auto-creation done in {@link DatafeedConfig.Builder}
+         * This heuristic is a direct copy of the manual chunking config auto-creation done in {@link DatafeedConfig}
          */
         @Override
         public long estimateChunk() {
-            return DatafeedConfig.Builder.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis;
+            return DatafeedConfig.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis;
         }
 
         @Override

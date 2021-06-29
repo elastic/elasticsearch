@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
@@ -12,15 +13,16 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
@@ -30,7 +32,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.TranslogHandler;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -58,7 +59,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.engine.EngineTestCase.createMapperService;
 import static org.elasticsearch.index.engine.EngineTestCase.getDocIds;
 import static org.elasticsearch.index.engine.EngineTestCase.getNumVersionLookups;
 import static org.elasticsearch.index.engine.EngineTestCase.getTranslog;
@@ -99,8 +99,8 @@ public class FollowingEngineTests extends ESTestCase {
             builder.put("index.xpack.ccr.following_index", false);
         }
         final Settings settings = builder.build();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
             final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new FollowingEngine(engineConfig));
@@ -131,10 +131,9 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
-                        .put("index.soft_deletes.enabled", true)
                         .build();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
@@ -157,10 +156,9 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
-                        .put("index.soft_deletes.enabled", true)
                         .build();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
@@ -192,10 +190,9 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
-                        .put("index.soft_deletes.enabled", true)
                         .build();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
@@ -223,10 +220,9 @@ public class FollowingEngineTests extends ESTestCase {
                 .put("index.number_of_replicas", 0)
                 .put("index.version.created", Version.CURRENT)
                 .put("index.xpack.ccr.following_index", true)
-                .put("index.soft_deletes.enabled", true)
                 .build();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
@@ -249,7 +245,6 @@ public class FollowingEngineTests extends ESTestCase {
         final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         return new EngineConfig(
                 shardId,
-                "allocation-id",
                 threadPool,
                 indexSettings,
                 null,
@@ -275,7 +270,7 @@ public class FollowingEngineTests extends ESTestCase {
                 globalCheckpoint::longValue,
                 () -> RetentionLeases.EMPTY,
                 () -> primaryTerm.get(),
-                EngineTestCase.tombstoneDocSupplier());
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
     }
 
     private static Store createStore(
@@ -284,7 +279,7 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private FollowingEngine createEngine(Store store, EngineConfig config) throws IOException {
-        store.createEmpty(config.getIndexSettings().getIndexVersionCreated().luceneVersion);
+        store.createEmpty();
         final String translogUuid = Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(),
                 SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L);
         store.associateIndexWithNewTranslog(translogUuid);
@@ -485,18 +480,18 @@ public class FollowingEngineTests extends ESTestCase {
                 }
                 assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
                 assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
-                EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower, createMapperService());
+                EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower);
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(follower);
             }
         };
 
         Settings leaderSettings = Settings.builder()
             .put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT).put("index.soft_deletes.enabled", true).build();
-        IndexMetaData leaderIndexMetaData = IndexMetaData.builder(index.getName()).settings(leaderSettings).build();
-        IndexSettings leaderIndexSettings = new IndexSettings(leaderIndexMetaData, leaderSettings);
+            .put("index.version.created", Version.CURRENT).build();
+        IndexMetadata leaderIndexMetadata = IndexMetadata.builder(index.getName()).settings(leaderSettings).build();
+        IndexSettings leaderIndexSettings = new IndexSettings(leaderIndexMetadata, leaderSettings);
         try (Store leaderStore = createStore(shardId, leaderIndexSettings, newDirectory())) {
-            leaderStore.createEmpty(leaderIndexMetaData.getCreationVersion().luceneVersion);
+            leaderStore.createEmpty();
             EngineConfig leaderConfig = engineConfig(shardId, leaderIndexSettings, threadPool, leaderStore, logger, xContentRegistry());
             leaderStore.associateIndexWithNewTranslog(Translog.createEmptyTranslog(
                 leaderConfig.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L));
@@ -505,8 +500,8 @@ public class FollowingEngineTests extends ESTestCase {
                 Settings followerSettings = Settings.builder()
                     .put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
                     .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true).build();
-                IndexMetaData followerIndexMetaData = IndexMetaData.builder(index.getName()).settings(followerSettings).build();
-                IndexSettings followerIndexSettings = new IndexSettings(followerIndexMetaData, leaderSettings);
+                IndexMetadata followerIndexMetadata = IndexMetadata.builder(index.getName()).settings(followerSettings).build();
+                IndexSettings followerIndexSettings = new IndexSettings(followerIndexMetadata, leaderSettings);
                 try (Store followerStore = createStore(shardId, followerIndexSettings, newDirectory())) {
                     EngineConfig followerConfig = engineConfig(
                         shardId, followerIndexSettings, threadPool, followerStore, logger, xContentRegistry());
@@ -520,7 +515,6 @@ public class FollowingEngineTests extends ESTestCase {
 
     private void fetchOperations(AtomicBoolean stopped, AtomicLong lastFetchedSeqNo,
                                  InternalEngine leader, FollowingEngine follower) throws IOException {
-        final MapperService mapperService = EngineTestCase.createMapperService();
         final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), follower.config().getIndexSettings());
         while (stopped.get() == false) {
             final long checkpoint = leader.getProcessedLocalCheckpoint();
@@ -532,7 +526,7 @@ public class FollowingEngineTests extends ESTestCase {
                     final long fromSeqNo = randomLongBetween(Math.max(lastSeqNo - 5, 0), lastSeqNo + 1);
                     final long toSeqNo = randomLongBetween(nextSeqNo, Math.min(nextSeqNo + 5, checkpoint));
                     try (Translog.Snapshot snapshot =
-                             shuffleSnapshot(leader.newChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, true))) {
+                             shuffleSnapshot(leader.newChangesSnapshot("test", fromSeqNo, toSeqNo, true, randomBoolean()))) {
                         follower.advanceMaxSeqNoOfUpdatesOrDeletes(leader.getMaxSeqNoOfUpdatesOrDeletes());
                         Translog.Operation op;
                         while ((op = snapshot.next()) != null) {
@@ -578,10 +572,9 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testProcessOnceOnPrimary() throws Exception {
         final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true).build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         final CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedDocFunc = EngineTestCase.nestedParsedDocFactory();
         int numOps = between(10, 100);
         List<Engine.Operation> operations = new ArrayList<>(numOps);
@@ -673,10 +666,9 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testMaxSeqNoInCommitUserData() throws Exception {
         final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true).build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
             try (FollowingEngine engine = createEngine(store, engineConfig)) {

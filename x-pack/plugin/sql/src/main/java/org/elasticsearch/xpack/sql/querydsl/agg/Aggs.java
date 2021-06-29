@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
@@ -9,12 +10,9 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -23,7 +21,7 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 /**
  * SQL Aggregations associated with a query.
@@ -31,10 +29,10 @@ import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
  * This class maps the SQL GroupBy's (and co) to ES composite agg.
  * While the composite agg doesn't require a dedicated structure, for folding purposes, this structure
  * tracks the relationship between each key and its sub-aggs or pipelines.
- * 
+ *
  * Since sub-aggs can only refer to their group key and these are on the root-level, the tree can have at most
  * 2 levels - the grouping and its sub-aggs.
- * 
+ *
  * In case no group is specified (which maps to the default group in SQL), due to ES nature a 'dummy' filter agg
  * is used.
  */
@@ -42,7 +40,7 @@ public class Aggs {
 
     public static final String ROOT_GROUP_NAME = "groupby";
 
-    public static final GroupByKey IMPLICIT_GROUP_KEY = new GroupByKey(ROOT_GROUP_NAME, StringUtils.EMPTY, null, null) {
+    public static final GroupByKey IMPLICIT_GROUP_KEY = new GroupByKey(ROOT_GROUP_NAME, AggSource.of(StringUtils.EMPTY), null) {
 
         @Override
         public CompositeValuesSourceBuilder<?> createSourceBuilder() {
@@ -50,7 +48,7 @@ public class Aggs {
         }
 
         @Override
-        protected GroupByKey copy(String id, String fieldName, ScriptTemplate script, Direction direction) {
+        protected GroupByKey copy(String id, AggSource source, Direction direction) {
             return this;
         }
     };
@@ -80,7 +78,7 @@ public class Aggs {
         }
 
         // if there's a group, move everything under the composite agg
-        if (!groups.isEmpty()) {
+        if (groups.isEmpty() == false) {
             List<CompositeValuesSourceBuilder<?>> keys = new ArrayList<>(groups.size());
             // first iterate to compute the sources
             for (GroupByKey key : groups) {
@@ -123,23 +121,16 @@ public class Aggs {
         return new Aggs(groups, simpleAggs, combine(pipelineAggs, pipelineAgg));
     }
 
-    public GroupByKey findGroupForAgg(Attribute attr) {
-        String id = attr.id().toString();
+    public GroupByKey findGroupForAgg(String groupOrAggId) {
         for (GroupByKey group : this.groups) {
-            if (id.equals(group.id())) {
+            if (groupOrAggId.equals(group.id())) {
                 return group;
-            }
-            if (attr instanceof ScalarFunctionAttribute) {
-                ScalarFunctionAttribute sfa = (ScalarFunctionAttribute) attr;
-                if (group.script() != null && group.script().equals(sfa.script())) {
-                    return group;
-                }
             }
         }
 
         // maybe it's the default group agg ?
         for (Agg agg : simpleAggs) {
-            if (id.equals(agg.id())) {
+            if (groupOrAggId.equals(agg.id())) {
                 return IMPLICIT_GROUP_KEY;
             }
         }
@@ -182,6 +173,6 @@ public class Aggs {
         return Objects.equals(groups, other.groups)
                 && Objects.equals(simpleAggs, other.simpleAggs)
                 && Objects.equals(pipelineAggs, other.pipelineAggs);
-                
+
     }
 }

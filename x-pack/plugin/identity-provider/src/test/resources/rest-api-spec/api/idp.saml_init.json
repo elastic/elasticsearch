@@ -1,0 +1,23 @@
+{
+  "idp.saml_init": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/idp-saml-init.html"
+    },
+    "stability": "stable",
+    "visibility":"private",
+    "url": {
+      "paths": [
+        {
+          "path": "/_idp/saml/init",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The SAML entity ID of the Service Provider",
+      "required": true
+    }
+  }
+}

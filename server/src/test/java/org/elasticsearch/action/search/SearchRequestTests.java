@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -23,13 +12,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -37,7 +28,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SearchRequestTests extends AbstractSearchTestCase {
 
@@ -48,21 +41,23 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             return request;
         }
         //clusterAlias and absoluteStartMillis do not have public getters/setters hence we randomize them only in this test specifically.
-        return SearchRequest.subSearchRequest(request, request.indices(),
+        return SearchRequest.subSearchRequest(new TaskId("node", 1), request, request.indices(),
             randomAlphaOfLengthBetween(5, 10), randomNonNegativeLong(), randomBoolean());
     }
 
     public void testWithLocalReduction() {
-        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(null, Strings.EMPTY_ARRAY, "", 0, randomBoolean()));
+        final TaskId taskId = new TaskId("n", 1);
+        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(
+            taskId, null, Strings.EMPTY_ARRAY, "", 0, randomBoolean()));
         SearchRequest request = new SearchRequest();
-        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(request, null, "", 0, randomBoolean()));
-        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(request,
+        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(taskId, request, null, "", 0, randomBoolean()));
+        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(taskId, request,
             new String[]{null}, "", 0, randomBoolean()));
-        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(request,
+        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(taskId, request,
             Strings.EMPTY_ARRAY, null, 0, randomBoolean()));
-        expectThrows(IllegalArgumentException.class, () -> SearchRequest.subSearchRequest(request,
+        expectThrows(IllegalArgumentException.class, () -> SearchRequest.subSearchRequest(taskId, request,
             Strings.EMPTY_ARRAY, "", -1, randomBoolean()));
-        SearchRequest searchRequest = SearchRequest.subSearchRequest(request, Strings.EMPTY_ARRAY, "", 0, randomBoolean());
+        SearchRequest searchRequest = SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, "", 0, randomBoolean());
         assertNull(searchRequest.validate());
     }
 
@@ -77,6 +72,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         Version version = VersionUtils.randomVersion(random());
+        if (version.before(Version.V_7_11_0) && searchRequest.source() != null) {
+            // Versions before 7.11.0 don't support runtime mappings
+            searchRequest.source().runtimeMappings(emptyMap());
+        }
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
         assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
@@ -161,6 +160,41 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("using [rescore] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
         }
+        {
+            // Reader context with scroll
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id")))
+                .scroll(TimeValue.timeValueMillis(randomIntBetween(1, 100)));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("using [point in time] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // Minimum compatible shard node version with ccs_minimize_roundtrips
+            SearchRequest searchRequest;
+            boolean isMinCompatibleShardVersion = randomBoolean();
+            if (isMinCompatibleShardVersion) {
+                searchRequest = new SearchRequest(VersionUtils.randomVersion(random()));
+            } else {
+                searchRequest = new SearchRequest();
+            }
+
+            boolean shouldSetCcsMinimizeRoundtrips = randomBoolean();
+            if (shouldSetCcsMinimizeRoundtrips) {
+                searchRequest.setCcsMinimizeRoundtrips(true);
+            }
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+
+            if (isMinCompatibleShardVersion && shouldSetCcsMinimizeRoundtrips) {
+                assertNotNull(validationErrors);
+                assertEquals(1, validationErrors.validationErrors().size());
+                assertEquals("[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible shard version",
+                    validationErrors.validationErrors().get(0));
+            } else {
+                assertNull(validationErrors);
+            }
+        }
     }
 
     public void testCopyConstructor() throws IOException {
@@ -192,5 +226,18 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.setCcsMinimizeRoundtrips(searchRequest.isCcsMinimizeRoundtrips() == false));
         randomFrom(mutators).run();
         return mutation;
+    }
+
+    public void testDescriptionForDefault() {
+        assertThat(toDescription(new SearchRequest()), equalTo("indices[], search_type[QUERY_THEN_FETCH], source[]"));
+    }
+
+    public void testDescriptionIncludesScroll() {
+        assertThat(toDescription(new SearchRequest().scroll(TimeValue.timeValueMinutes(5))),
+            equalTo("indices[], search_type[QUERY_THEN_FETCH], scroll[5m], source[]"));
+    }
+
+    private String toDescription(SearchRequest request) {
+        return request.createTask(0, "test", SearchAction.NAME, TaskId.EMPTY_TASK_ID, emptyMap()).getDescription();
     }
 }

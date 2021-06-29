@@ -1,57 +1,50 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexAction extends BaseRestHandler {
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "
+        + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
+        + "or /{index}/_create/{id}).";
 
-    private final ClusterService clusterService;
-
-    public RestIndexAction(RestController controller, ClusterService clusterService) {
-        this.clusterService = clusterService;
-
-        AutoIdHandler autoIdHandler = new AutoIdHandler();
-        controller.registerHandler(POST, "/{index}/_doc", autoIdHandler); // auto id creation
-        controller.registerHandler(PUT, "/{index}/_doc/{id}", this);
-        controller.registerHandler(POST, "/{index}/_doc/{id}", this);
-
-        CreateHandler createHandler = new CreateHandler();
-        controller.registerHandler(PUT, "/{index}/_create/{id}", createHandler);
-        controller.registerHandler(POST, "/{index}/_create/{id}/", createHandler);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/{index}/_doc/{id}"),
+            new Route(PUT, "/{index}/_doc/{id}"),
+            Route.builder(POST, "/{index}/{type}/{id}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(PUT, "/{index}/{type}/{id}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build());
     }
 
     @Override
@@ -59,9 +52,7 @@ public class RestIndexAction extends BaseRestHandler {
         return "document_index_action";
     }
 
-    final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler() {
-        }
+    public static final class CreateHandler extends RestIndexAction {
 
         @Override
         public String getName() {
@@ -69,10 +60,23 @@ public class RestIndexAction extends BaseRestHandler {
         }
 
         @Override
+        public List<Route> routes() {
+            return List.of(
+                new Route(POST, "/{index}/_create/{id}"),
+                new Route(PUT, "/{index}/_create/{id}"),
+                Route.builder(POST, "/{index}/{type}/{id}/_create")
+                    .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                    .build(),
+                Route.builder(PUT, "/{index}/{type}/{id}/_create")
+                    .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                    .build());
+        }
+
+        @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
             validateOpType(request.params().get("op_type"));
             request.params().put("op_type", "create");
-            return RestIndexAction.this.prepareRequest(request, client);
+            return super.prepareRequest(request, client);
         }
 
         void validateOpType(String opType) {
@@ -82,28 +86,45 @@ public class RestIndexAction extends BaseRestHandler {
         }
     }
 
-    final class AutoIdHandler extends BaseRestHandler {
-        protected AutoIdHandler() {
+    public static final class AutoIdHandler extends RestIndexAction {
+
+        private final Supplier<DiscoveryNodes> nodesInCluster;
+
+        public AutoIdHandler(Supplier<DiscoveryNodes> nodesInCluster) {
+            this.nodesInCluster = nodesInCluster;
         }
 
         @Override
         public String getName() {
-            return "document_create_action";
+            return "document_create_action_auto_id";
+        }
+
+        @Override
+        public List<Route> routes() {
+            return List.of(
+                new Route(POST, "/{index}/_doc"),
+                Route.builder(POST, "/{index}/{type}")
+                    .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                    .build());
         }
 
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
             assert request.params().get("id") == null : "non-null id: " + request.params().get("id");
-            if (request.params().get("op_type") == null && clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_5_0)) {
+            if (request.params().get("op_type") == null && nodesInCluster.get().getMinNodeVersion().onOrAfter(Version.V_7_5_0)) {
                 // default to op_type create
                 request.params().put("op_type", "create");
             }
-            return RestIndexAction.this.prepareRequest(request, client);
+            return super.prepareRequest(request, client);
         }
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.getRestApiVersion() == RestApiVersion.V_7) {
+            request.param("type"); // consume and ignore the type
+        }
+
         IndexRequest indexRequest = new IndexRequest(request.param("index"));
         indexRequest.id(request.param("id"));
         indexRequest.routing(request.param("routing"));
@@ -115,6 +136,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
         indexRequest.setIfSeqNo(request.paramAsLong("if_seq_no", indexRequest.ifSeqNo()));
         indexRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", indexRequest.ifPrimaryTerm()));
+        indexRequest.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, indexRequest.isRequireAlias()));
         String sOpType = request.param("op_type");
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {

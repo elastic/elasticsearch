@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.dissect;
@@ -190,6 +179,13 @@ public class DissectParserTests extends ESTestCase {
         assertMiss("%{*a} %{&a} {a} %{*b} %{&b}", "foo bar x baz lol");
     }
 
+    public void testPartialKeyDefinition() {
+        assertMatch("%{a} %%{b},%{c}", "foo %bar,baz", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));
+        assertMatch("%{a} %{b},%%{c}", "foo bar,%baz", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));
+        assertMatch("%%{a} %{b},%{c}", "%foo bar,baz", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));
+        assertMatch("%foo %{bar}", "%foo test", Arrays.asList("bar"),  Arrays.asList("test"));
+    }
+
     public void testAppendAndAssociate() {
         assertMatch("%{a} %{+a} %{*b} %{&b}", "foo bar baz lol", Arrays.asList("a", "baz"), Arrays.asList("foobar", "lol"));
         assertMatch("%{a->} %{+a/2} %{+a/1} %{*b} %{&b}", "foo      bar baz lol x",
@@ -264,6 +260,11 @@ public class DissectParserTests extends ESTestCase {
         assertMatch(",%{a} %{b}", ",,foo bar", Arrays.asList("a", "b"), Arrays.asList(",foo", "bar"));
     }
 
+    public void testEmptyValueWithBrackets() {
+        assertMatch("(%{a}) [%{b}] -[%{c}]", "(foo) [] -[bar]", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "", "bar"));
+        assertMatch("[%{a}] [%{b}]", "[] []", Arrays.asList("a", "b"), Arrays.asList("", ""));
+    }
+
     /**
      * Runtime errors
      */
@@ -321,7 +322,7 @@ public class DissectParserTests extends ESTestCase {
         while (tests.hasNext()) {
             JsonNode test = tests.next();
             boolean skip = test.path("skip").asBoolean();
-            if (!skip) {
+            if (skip == false) {
                 String name = test.path("name").asText();
                 logger.debug("Running Json specification: " + name);
                 String pattern = test.path("tok").asText();
@@ -344,11 +345,12 @@ public class DissectParserTests extends ESTestCase {
         }
     }
 
-    private DissectException assertFail(String pattern, String input){
-        return expectThrows(DissectException.class, () -> new DissectParser(pattern, null).parse(input));
+    private DissectException assertFail(String pattern, String input) {
+        return expectThrows(DissectException.class, () -> new DissectParser(pattern, null).forceParse(input));
     }
 
     private void assertMiss(String pattern, String input) {
+        assertNull(new DissectParser(pattern, null).parse(input));
         DissectException e = assertFail(pattern, input);
         assertThat(e.getMessage(), CoreMatchers.containsString("Unable to find match for dissect pattern"));
         assertThat(e.getMessage(), CoreMatchers.containsString(pattern));

@@ -1,0 +1,162 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Tests testing constant_keyword (introduced in ES 7.7)
+//
+
+// filtering
+
+filterEquals
+SELECT extra_gender g FROM "test_emp_copy" WHERE g = 'Female' LIMIT 5;
+
+    g     
+---------------
+Female              
+Female              
+Female             
+Female         
+Female
+;
+
+filterNotEquals
+SELECT COUNT(*) AS c FROM "test_emp_copy" WHERE extra_gender <> 'Female';
+
+    c:l     
+---------------
+0
+;
+
+aggWithNullFilter
+SELECT COUNT(*) count FROM test_emp_copy WHERE extra_gender IS NOT NULL;
+
+     count:l     
+---------------
+100
+;
+
+aggWithNullFilter
+SELECT COUNT(*) count FROM test_emp_copy WHERE null_constant IS NULL;
+
+     count:l     
+---------------
+100
+;
+
+functionOverAlias
+SELECT BIT_LENGTH(extra_gender) bit FROM test_emp_copy ORDER BY extra_gender LIMIT 1;
+
+      bit      
+---------------
+48
+;
+
+
+singlePercentileWithoutComma
+SELECT extra_gender AS gender, PERCENTILE(emp_no, 97) p1 FROM test_emp_copy GROUP BY extra_gender;
+
+gender:s             | p1:d
+Female               |10097.5        
+;
+
+percentileRank
+SELECT extra_gender AS gender, PERCENTILE_RANK(emp_no, 10025) rank FROM test_emp_copy GROUP BY extra_gender;
+
+gender:s       | rank:d
+---------------+---------------
+Female         |24.5           
+;
+
+aggSumWithAliasWithColumnRepeatedWithOrderDesc
+SELECT extra_gender AS g, extra_gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp_copy GROUP BY extra_gender;
+
+       g:s     | extra_gender:s |      s3:l     | SUM(salary):l |      s5:l
+---------------+----------------+---------------+---------------+---------------
+Female         |Female          |4824855        |4824855        |4824855      
+;
+
+topHitsAsMinAndMaxAndGroupBy
+schema::extra_gender:s|min:s|max:s|first:s|last:s
+SELECT extra_gender, MIN(first_name) as min, MAX(first_name) as max, FIRST(first_name) as first, LAST(first_name) as last FROM test_emp_copy GROUP BY extra_gender ORDER BY extra_gender;
+
+ extra_gender  |      min      |      max      |     first     |     last      
+---------------+---------------+---------------+---------------+---------------
+Female         |Alejandro      |Zvonko         |Alejandro      |Zvonko         
+;
+
+medianAbsoluteDeviationOnTwoFields
+schema::extra_gender:s|avg:l|mad_s:l|mad_l:d
+SELECT extra_gender, FLOOR(AVG(salary)) AS avg, FLOOR(MAD(salary)) AS mad_s, MAD(languages) AS mad_l FROM test_emp_copy GROUP BY extra_gender ORDER BY extra_gender;
+
+ extra_gender  |      avg    |     mad_s   |     mad_l     
+---------------+-------------+-------------+---------------
+Female         |48248        |10096        |1            
+;
+
+caseGroupByAndHaving
+schema::count:l|extra_gender:s|languages:byte
+SELECT count(*) AS count, extra_gender, languages FROM test_emp_copy
+GROUP BY 2, 3 HAVING CASE WHEN count(*) > 10 THEN 'many' ELSE 'a few' END = 'many'
+ORDER BY 1, 3;
+
+     count     | extra_gender  |   languages   
+---------------+---------------+---------------
+15             |Female         |1              
+17             |Female         |3              
+18             |Female         |4              
+19             |Female         |2              
+21             |Female         |5              
+;
+
+whereFieldWithRLikeAndGroupByOrderBy
+SELECT last_name l, extra_gender g, COUNT(*) c, MAX(salary) AS sal FROM test_emp_copy WHERE emp_no < 10050 AND (last_name RLIKE 'B.*' OR extra_gender = 'F') GROUP BY g, l ORDER BY sal;
+
+      l:s      |      g:s      |      c:l      |     sal:i      
+---------------+---------------+---------------+---------------
+Berztiss       |Female         |1              |28336        
+Brender        |Female         |1              |36051        
+Bridgland      |Female         |1              |48942        
+Bouloucos      |Female         |1              |58715        
+Bamford        |Female         |1              |61805        
+;
+
+multipleGroupingsAndOrderingByGroupsWithFunctions_2
+SELECT first_name f, last_name l, LCASE(extra_gender) g, CONCAT(UCASE(first_name), LCASE(last_name)) c FROM test_emp_copy GROUP BY f, LCASE(extra_gender), l, c ORDER BY c DESC, first_name, l ASC, g LIMIT 3;
+
+      f:s      |      l:s      |      g:s      |       c:s       
+---------------+---------------+---------------+---------------
+null           |Swan           |female         |swan           
+null           |Reistad        |female         |reistad        
+null           |Portugali      |female         |portugali      
+;
+
+isNotNullWithCount
+SELECT extra_gender IS NOT NULL AS bool, COUNT(*) FROM test_emp_copy GROUP BY extra_gender;
+
+          bool:b        |   COUNT(*):l    
+------------------------+---------------
+true                    |100            
+;
+
+likeWithCount1
+SELECT COUNT(*) FROM test_emp_copy WHERE extra_gender LIKE 'F%';
+
+   COUNT(*):l    
+---------------
+100            
+;
+
+likeWithCount2
+SELECT COUNT(*) FROM test_emp_copy WHERE extra_gender LIKE '%m%';
+
+   COUNT(*):l    
+---------------
+100            
+;
+
+likeWithCount3
+SELECT COUNT(*) FROM test_emp_copy WHERE extra_gender NOT LIKE '%m%';
+
+   COUNT(*):l    
+---------------
+0         
+;

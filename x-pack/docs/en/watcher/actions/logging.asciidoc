@@ -1,6 +1,9 @@
 [role="xpack"]
 [[actions-logging]]
-=== Logging Action
+=== {watcher} logging Action
+++++
+<titleabbrev>Logging action</titleabbrev>
+++++
 
 Use the `logging` action to log text to the standard Elasticsearch
 logs. See <<logging-action-attributes>> for the supported attributes.

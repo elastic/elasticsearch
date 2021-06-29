@@ -4,12 +4,13 @@
 [partintro]
 --
 
-{es} provides the following tools for configuring security and performing other 
+{es} provides the following tools for configuring security and performing other
 tasks from the command line:
 
 * <<certgen>>
 * <<certutil>>
 * <<elasticsearch-croneval>>
+* <<elasticsearch-keystore>>
 * <<node-tool>>
 * <<saml-metadata>>
 * <<setup-passwords>>
@@ -22,8 +23,10 @@ tasks from the command line:
 include::certgen.asciidoc[]
 include::certutil.asciidoc[]
 include::croneval.asciidoc[]
+include::keystore.asciidoc[]
 include::node-tool.asciidoc[]
 include::saml-metadata.asciidoc[]
+include::service-tokens-command.asciidoc[]
 include::setup-passwords.asciidoc[]
 include::shard-tool.asciidoc[]
 include::syskeygen.asciidoc[]

@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.action;
 
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
@@ -35,7 +36,7 @@ public class RollupIndexCapsTests extends ESTestCase {
         RollupIndexCaps caps = new RollupIndexCaps(ESTestCase.randomAlphaOfLength(10), jobs);
         assertTrue(caps.hasCaps());
 
-        List<String> jobCaps = caps.getJobCapsByIndexPattern(MetaData.ALL).stream()
+        List<String> jobCaps = caps.getJobCapsByIndexPattern(Metadata.ALL).stream()
                 .map(RollupJobCaps::getJobID)
                 .collect(Collectors.toList());
         assertThat(jobCaps.size(), equalTo(2));

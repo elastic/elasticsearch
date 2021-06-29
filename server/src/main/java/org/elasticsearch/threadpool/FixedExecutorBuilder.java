@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.threadpool;
@@ -39,6 +28,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
 
     private final Setting<Integer> sizeSetting;
     private final Setting<Integer> queueSizeSetting;
+    private final boolean trackEWMA;
 
     /**
      * Construct a fixed executor builder; the settings will have the key prefix "thread_pool." followed by the executor name.
@@ -47,9 +37,10 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
      * @param name      the name of the executor
      * @param size      the fixed number of threads
      * @param queueSize the size of the backing queue, -1 for unbounded
+     * @param trackEWMA whether to track the exponentially weighted moving average of the task execution time
      */
-    FixedExecutorBuilder(final Settings settings, final String name, final int size, final int queueSize) {
-        this(settings, name, size, queueSize, "thread_pool." + name);
+    FixedExecutorBuilder(final Settings settings, final String name, final int size, final int queueSize, final boolean trackEWMA) {
+        this(settings, name, size, queueSize, "thread_pool." + name, trackEWMA);
     }
 
     /**
@@ -60,8 +51,10 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
      * @param size      the fixed number of threads
      * @param queueSize the size of the backing queue, -1 for unbounded
      * @param prefix    the prefix for the settings keys
+     * @param trackEWMA whether to track the exponentially weighted moving average of the task execution time
      */
-    public FixedExecutorBuilder(final Settings settings, final String name, final int size, final int queueSize, final String prefix) {
+    public FixedExecutorBuilder(final Settings settings, final String name, final int size, final int queueSize, final String prefix,
+                                final boolean trackEWMA) {
         super(name);
         final String sizeKey = settingsKey(prefix, "size");
         this.sizeSetting =
@@ -72,6 +65,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
                         Setting.Property.NodeScope);
         final String queueSizeKey = settingsKey(prefix, "queue_size");
         this.queueSizeSetting = Setting.intSetting(queueSizeKey, queueSize, Setting.Property.NodeScope);
+        this.trackEWMA = trackEWMA;
     }
 
     @Override
@@ -93,7 +87,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         int queueSize = settings.queueSize;
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));
         final ExecutorService executor =
-                EsExecutors.newFixed(settings.nodeName + "/" + name(), size, queueSize, threadFactory, threadContext);
+                EsExecutors.newFixed(settings.nodeName + "/" + name(), size, queueSize, threadFactory, threadContext, trackEWMA);
         final ThreadPool.Info info =
             new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.FIXED, size, size, null, queueSize < 0 ? null : new SizeValue(queueSize));
         return new ThreadPool.ExecutorHolder(executor, info);

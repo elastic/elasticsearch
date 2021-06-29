@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.core.NameID;
+import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.security.x509.X509Credential;
 
 import java.io.UnsupportedEncodingException;
@@ -19,7 +22,9 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.time.Clock;
 import java.util.Base64;
+import java.util.Collections;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
@@ -29,6 +34,9 @@ import static org.hamcrest.Matchers.startsWith;
 public class SamlRedirectTests extends SamlTestCase {
 
     private static final String IDP_ENTITY_ID = "https://idp.test/";
+    private static final String SP_ENTITY_ID = "https://sp.example.com/";
+    private static final String ACS_URL = "https://sp.example.com/saml/acs";
+    private static final String IDP_URL = "https://idp.test/saml/sso/redirect";
     private static final String LOGOUT_URL = "https://idp.test/saml/logout";
 
     private static final SigningConfiguration NO_SIGNING = new SigningConfiguration(emptySet(), null);
@@ -87,16 +95,32 @@ public class SamlRedirectTests extends SamlTestCase {
         final SamlRedirect redirect = new SamlRedirect(buildLogoutRequest(LOGOUT_URL + "?"), spConfig);
         final String url = redirect.getRedirectUrl();
         final String queryParam = url.split("\\?")[1].split("&Signature")[0];
-        final String params[] = url.split("\\?")[1].split("&");
-        assert (params.length == 3);
-        String sigAlg = parseAndUrlDecodeParameter(params[1]);
-        // We currently only support signing with SHA256withRSA, this test should be updated if we add support for more
-        assertThat(sigAlg, equalTo("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"));
-        sigAlg = "SHA256withRSA";
-        final String signature = parseAndUrlDecodeParameter(params[2]);
-        assertThat(validateSignature(queryParam, sigAlg, signature, credential), equalTo(true));
-        assertThat(validateSignature(queryParam, sigAlg, signature, invalidCredential), equalTo(false));
-        assertThat(validateSignature(queryParam.substring(0, queryParam.length() - 5), sigAlg, signature, credential), equalTo(false));
+        final String signature = validateUrlAndGetSignature(redirect.getRedirectUrl());
+        assertThat(validateSignature(queryParam,  signature, credential), equalTo(true));
+        assertThat(validateSignature(queryParam,  signature, invalidCredential), equalTo(false));
+        assertThat(validateSignature(queryParam.substring(0, queryParam.length() - 5), signature, credential), equalTo(false));
+    }
+
+    public void testAuthnRequestSigning() throws Exception {
+        final X509Credential credential = (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0);
+        X509Credential invalidCredential = (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0);
+        while (invalidCredential.getEntityCertificate().getSerialNumber().equals(credential.getEntityCertificate().getSerialNumber())) {
+            invalidCredential = (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0);
+        }
+        final SigningConfiguration signingConfig = new SigningConfiguration(singleton("*"), credential);
+        SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, ACS_URL, LOGOUT_URL, signingConfig, null, Collections.emptyList());
+
+        EntityDescriptor idpDescriptor = buildIdPDescriptor(IDP_URL, IDP_ENTITY_ID);
+
+        final SamlRedirect redirect = new SamlRedirect(new SamlAuthnRequestBuilder(sp, SAMLConstants.SAML2_POST_BINDING_URI,
+            idpDescriptor, SAMLConstants.SAML2_REDIRECT_BINDING_URI, Clock.systemUTC()).build(), signingConfig);
+        final String url = redirect.getRedirectUrl();
+        final String queryParam = url.split("\\?")[1].split("&Signature")[0];
+        final String signature = validateUrlAndGetSignature(redirect.getRedirectUrl());
+        assertThat(validateSignature(queryParam, signature, credential), equalTo(true));
+        assertThat(validateSignature(queryParam, signature, invalidCredential), equalTo(false));
+        assertThat(validateSignature(queryParam.substring(0, queryParam.length() - 5), signature, credential),
+            equalTo(false));
     }
 
     private String parseAndUrlDecodeParameter(String parameter) throws UnsupportedEncodingException {
@@ -104,16 +128,25 @@ public class SamlRedirectTests extends SamlTestCase {
         return URLDecoder.decode(value, "UTF-8");
     }
 
-    private boolean validateSignature(String queryParam, String sigAlg, String signature, X509Credential credential) {
+    private String validateUrlAndGetSignature(String url) throws UnsupportedEncodingException {
+        final String params[] = url.split("\\?")[1].split("&");
+        assert (params.length == 3);
+        String sigAlg = parseAndUrlDecodeParameter(params[1]);
+        // We currently only support signing with SHA256withRSA, this test should be updated if we add support for more
+        assertThat(sigAlg, equalTo("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"));
+        return parseAndUrlDecodeParameter(params[2]);
+    }
+
+    private boolean validateSignature(String queryParam, String signature, X509Credential credential) {
         try {
-            Signature sig = Signature.getInstance(sigAlg);
+            // We currently only support signing with SHA256withRSA, this test should be updated if we add support for more
+            Signature sig = Signature.getInstance("SHA256withRSA");
             sig.initVerify(credential.getPublicKey());
             sig.update(queryParam.getBytes(StandardCharsets.UTF_8));
             return sig.verify(Base64.getDecoder().decode(signature));
         } catch (NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
             return false;
         }
-
     }
 
     private LogoutRequest buildLogoutRequest(String logoutUrl) {

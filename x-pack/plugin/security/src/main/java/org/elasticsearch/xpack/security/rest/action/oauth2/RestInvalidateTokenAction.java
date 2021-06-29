@@ -1,40 +1,40 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.oauth2;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
  * Rest handler for handling access token invalidation requests
  */
-public final class RestInvalidateTokenAction extends TokenBaseRestHandler {
+public final class RestInvalidateTokenAction extends TokenBaseRestHandler implements RestRequestFilter {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestInvalidateTokenAction.class));
     static final ConstructingObjectParser<InvalidateTokenRequest, Void> PARSER =
         new ConstructingObjectParser<>("invalidate_token", a -> {
             final String token = (String) a[0];
@@ -63,12 +63,16 @@ public final class RestInvalidateTokenAction extends TokenBaseRestHandler {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("username"));
     }
 
-    public RestInvalidateTokenAction(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
+    public RestInvalidateTokenAction(Settings settings, XPackLicenseState xPackLicenseState) {
         super(settings, xPackLicenseState);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            DELETE, "/_security/oauth2/token", this,
-            DELETE, "/_xpack/security/oauth2/token", deprecationLogger);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(DELETE, "/_security/oauth2/token")
+                .replaces(DELETE, "/_xpack/security/oauth2/token", RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -86,9 +90,16 @@ public final class RestInvalidateTokenAction extends TokenBaseRestHandler {
                     public RestResponse buildResponse(InvalidateTokenResponse invalidateResp,
                                                       XContentBuilder builder) throws Exception {
                         invalidateResp.toXContent(builder, channel.request());
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                        return new BytesRestResponse(invalidateResp.getResult().getRestStatus(), builder);
                     }
                 });
         }
+    }
+
+    private static final Set<String> FILTERED_FIELDS = Set.of("token", "refresh_token");
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
     }
 }

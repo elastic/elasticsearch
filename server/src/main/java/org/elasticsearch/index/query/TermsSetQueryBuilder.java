@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.query;
 
@@ -29,7 +18,7 @@ import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,14 +29,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.TermsSetQueryScript;
 
 import java.io.IOException;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.elasticsearch.script.TermsSetQueryScript;
+import java.util.stream.Collectors;
 
 public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQueryBuilder> {
 
@@ -64,8 +55,17 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     private Script minimumShouldMatchScript;
 
     public TermsSetQueryBuilder(String fieldName, List<?> values) {
+        this(fieldName, values, true);
+    }
+
+    private TermsSetQueryBuilder(String fieldName, List<?> values, boolean convert) {
         this.fieldName = Objects.requireNonNull(fieldName);
-        this.values = TermsQueryBuilder.convert(Objects.requireNonNull(values));
+        Objects.requireNonNull(values);
+        if (convert) {
+            this.values = values.stream().map(AbstractQueryBuilder::maybeConvertToBytesRef).collect(Collectors.toList());
+        } else {
+            this.values = values;
+        }
     }
 
     public TermsSetQueryBuilder(StreamInput in) throws IOException {
@@ -139,7 +139,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field(TERMS_FIELD.getPreferredName(), TermsQueryBuilder.convertBack(values));
+        builder.field(TERMS_FIELD.getPreferredName(), convertBack(values));
         if (minimumShouldMatchField != null) {
             builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatchField);
         }
@@ -209,7 +209,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] unknown token [" + token + "]");
         }
 
-        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(fieldName, values)
+        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(fieldName, values, false)
                 .queryName(queryName).boost(boost);
         if (minimumShouldMatchField != null) {
             queryBuilder.setMinimumShouldMatchField(minimumShouldMatchField);
@@ -221,7 +221,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) {
+    protected Query doToQuery(SearchExecutionContext context) {
         if (values.isEmpty()) {
             return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
@@ -238,8 +238,8 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     /**
      * Visible only for testing purposes.
      */
-    List<Query> createTermQueries(QueryShardContext context) {
-        final MappedFieldType fieldType = context.fieldMapper(fieldName);
+    List<Query> createTermQueries(SearchExecutionContext context) {
+        final MappedFieldType fieldType = context.getFieldType(fieldName);
         final List<Query> queries = new ArrayList<>(values.size());
         for (Object value : values) {
             if (fieldType != null) {
@@ -251,10 +251,10 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         return queries;
     }
 
-    private LongValuesSource createValuesSource(QueryShardContext context) {
+    private LongValuesSource createValuesSource(SearchExecutionContext context) {
         LongValuesSource longValuesSource;
         if (minimumShouldMatchField != null) {
-            MappedFieldType msmFieldType = context.fieldMapper(minimumShouldMatchField);
+            MappedFieldType msmFieldType = context.getFieldType(minimumShouldMatchField);
             if (msmFieldType == null) {
                 throw new QueryShardException(context, "failed to find minimum_should_match field [" + minimumShouldMatchField + "]");
             }
@@ -262,7 +262,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             IndexNumericFieldData fieldData = context.getForField(msmFieldType);
             longValuesSource = new FieldValuesSource(fieldData);
         } else if (minimumShouldMatchScript != null) {
-            TermsSetQueryScript.Factory factory = context.getScriptService().compile(minimumShouldMatchScript,
+            TermsSetQueryScript.Factory factory = context.compile(minimumShouldMatchScript,
                 TermsSetQueryScript.CONTEXT);
             Map<String, Object> params = new HashMap<>();
             params.putAll(minimumShouldMatchScript.getParams());
@@ -342,14 +342,32 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     }
 
+    /**
+     * Convert the internal {@link List} of values back to a user-friendly list.
+     */
+    private static List<Object> convertBack(List<?> list) {
+        return new AbstractList<Object>() {
+            @Override
+            public int size() {
+                return list.size();
+            }
+            @Override
+            public Object get(int index) {
+                return maybeConvertToString(list.get(index));
+            }
+        };
+    }
+
     // Forked from LongValuesSource.FieldValuesSource and changed getValues() method to always use sorted numeric
     // doc values, because that is what is being used in NumberFieldMapper.
     static class FieldValuesSource extends LongValuesSource {
 
-        private final IndexNumericFieldData field;
+        private final String fieldName;
+        private final IndexNumericFieldData fieldData;
 
-        FieldValuesSource(IndexNumericFieldData field) {
-            this.field = field;
+        FieldValuesSource(IndexNumericFieldData fieldData) {
+            this.fieldData = fieldData;
+            this.fieldName = fieldData.getFieldName();
         }
 
         @Override
@@ -357,22 +375,22 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             FieldValuesSource that = (FieldValuesSource) o;
-            return Objects.equals(field, that.field);
+            return Objects.equals(fieldName, that.fieldName);
         }
 
         @Override
         public String toString() {
-            return "long(" + field + ")";
+            return "long(" + fieldName + ")";
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(field);
+            return Objects.hash(fieldName);
         }
 
         @Override
         public LongValues getValues(LeafReaderContext ctx, DoubleValues scores) throws IOException {
-            SortedNumericDocValues values = field.load(ctx).getLongValues();
+            SortedNumericDocValues values = fieldData.load(ctx).getLongValues();
             return new LongValues() {
 
                 long current = -1;

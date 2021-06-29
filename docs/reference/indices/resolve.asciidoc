@@ -1,0 +1,149 @@
+[[indices-resolve-index-api]]
+=== Resolve index API
+++++
+<titleabbrev>Resolve index</titleabbrev>
+++++
+
+Resolves the specified name(s) and/or index patterns for indices, aliases, and
+data streams. Multiple patterns and remote clusters are supported.
+
+////
+[source,console]
+----
+PUT /foo_closed
+
+POST /foo_closed/_close
+
+PUT /remotecluster-bar-01
+
+PUT /freeze-index
+
+POST /freeze-index/_freeze
+
+PUT /my-index-000001
+
+PUT /freeze-index/_alias/f-alias
+
+PUT /my-index-000001/_alias/f-alias
+
+PUT /_index_template/foo_data_stream
+{
+  "index_patterns": [ "foo" ],
+  "data_stream": { }
+}
+
+PUT /_data_stream/foo
+----
+// TESTSETUP
+
+[source,console]
+----
+DELETE /_data_stream/*
+
+DELETE /_index_template/foo_data_stream
+----
+// TEARDOWN
+////
+
+[source,console]
+----
+GET /_resolve/index/my-index-*
+----
+// TEST[skip:unable to ignore deprecation warning]
+
+[[resolve-index-api-request]]
+==== {api-request-title}
+
+`GET /_resolve/index/<name>`
+
+[[resolve-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the target data stream, index, or index alias.
+
+[[resolve-index-api-path-params]]
+==== {api-path-parms-title}
+
+`<name>`::
++
+--
+(Required, string) Comma-separated name(s) or index pattern(s) of the
+indices, aliases, and data streams to resolve. Resources on
+<<modules-remote-clusters,remote clusters>> can be specified using the
+`<cluster>:<name>` syntax.
+--
+
+[[resolve-index-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+[[resolve-index-api-example]]
+==== {api-examples-title}
+
+[source,console]
+----
+GET /_resolve/index/f*,remoteCluster1:bar*?expand_wildcards=all
+----
+// TEST[continued]
+// TEST[s/remoteCluster1:/remotecluster-/]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "indices": [                                 <1>
+    {
+      "name": "foo_closed",
+      "attributes": [
+        "closed"
+      ]
+    },
+    {
+      "name": "freeze-index",
+      "aliases": [
+        "f-alias"
+      ],
+      "attributes": [
+        "frozen",
+        "open"
+      ]
+    },
+    {
+      "name": "remoteCluster1:bar-01",
+      "attributes": [
+        "open"
+      ]
+    }
+  ],
+  "aliases": [                                 <2>
+    {
+      "name": "f-alias",
+      "indices": [
+        "freeze-index",
+        "my-index-000001"
+      ]
+    }
+  ],
+  "data_streams": [                            <3>
+    {
+      "name": "foo",
+      "backing_indices": [
+        ".ds-foo-2099.03.07-000001"
+      ],
+      "timestamp_field": "@timestamp"
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/remoteCluster1:/remotecluster-/]
+// TESTRESPONSE[s/.ds-foo-2099.03.07-000001/$body.data_streams.0.backing_indices.0/]
+
+<1> All indices matching the supplied names or expressions
+<2> All aliases matching the supplied names or expressions
+<3> All data streams matching the supplied names or expressions

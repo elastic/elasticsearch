@@ -1,0 +1,109 @@
+version: '3'
+services:
+  s3-fixture:
+    build:
+      context: .
+      args:
+        fixtureClass: fixture.s3.S3HttpFixture
+        port: 80
+        bucket: "bucket"
+        basePath: "base_path_integration_tests"
+        accessKey: "s3_test_access_key"
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"
+
+  s3-fixture-other:
+    build:
+      context: .
+      args:
+        fixtureClass: fixture.s3.S3HttpFixture
+        port: 80
+        bucket: "bucket"
+        basePath: "base_path"
+        accessKey: "s3_test_access_key"
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"
+
+  s3-fixture-repositories-metering:
+    build:
+      context: .
+      args:
+        fixtureClass: fixture.s3.S3HttpFixture
+        port: 80
+        bucket: "bucket"
+        basePath: "base_path"
+        accessKey: "s3_test_access_key"
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"
+
+  s3-fixture-repository-test-kit:
+    build:
+      context: .
+      args:
+        fixtureClass: fixture.s3.S3HttpFixture
+        port: 80
+        bucket: "bucket"
+        basePath: "base_path"
+        accessKey: "s3_test_access_key"
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"
+
+  s3-fixture-with-session-token:
+    build:
+      context: .
+      args:
+        fixtureClass: fixture.s3.S3HttpFixtureWithSessionToken
+        port: 80
+        bucket: "session_token_bucket"
+        basePath: "session_token_base_path_integration_tests"
+        accessKey: "session_token_access_key"
+        sessionToken: "session_token"
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"
+
+  s3-fixture-with-ec2:
+      build:
+          context: .
+          args:
+              fixtureClass: fixture.s3.S3HttpFixtureWithEC2
+              port: 80
+              bucket: "ec2_bucket"
+              basePath: "ec2_base_path"
+              accessKey: "ec2_access_key"
+              sessionToken: "ec2_session_token"
+          dockerfile: Dockerfile
+      volumes:
+          - ./testfixtures_shared/shared:/fixture/shared
+      ports:
+          - "80"
+
+  s3-fixture-with-ecs:
+      build:
+          context: .
+          args:
+              fixtureClass: fixture.s3.S3HttpFixtureWithECS
+              port: 80
+              bucket: "ecs_bucket"
+              basePath: "ecs_base_path"
+              accessKey: "ecs_access_key"
+              sessionToken: "ecs_session_token"
+          dockerfile: Dockerfile
+      volumes:
+          - ./testfixtures_shared/shared:/fixture/shared
+      ports:
+          - "80"

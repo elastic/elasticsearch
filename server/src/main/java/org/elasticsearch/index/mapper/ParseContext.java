@@ -1,171 +1,31 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
-public abstract class ParseContext implements Iterable<ParseContext.Document>{
-
-    /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
-    public static class Document implements Iterable<IndexableField> {
-
-        private final Document parent;
-        private final String path;
-        private final String prefix;
-        private final List<IndexableField> fields;
-        private ObjectObjectMap<Object, IndexableField> keyedFields;
-
-        private Document(String path, Document parent) {
-            fields = new ArrayList<>();
-            this.path = path;
-            this.prefix = path.isEmpty() ? "" : path + ".";
-            this.parent = parent;
-        }
-
-        public Document() {
-            this("", null);
-        }
-
-        /**
-         * Return the path associated with this document.
-         */
-        public String getPath() {
-            return path;
-        }
-
-        /**
-         * Return a prefix that all fields in this document should have.
-         */
-        public String getPrefix() {
-            return prefix;
-        }
-
-        /**
-         * Return the parent document, or null if this is the root document.
-         */
-        public Document getParent() {
-            return parent;
-        }
-
-        @Override
-        public Iterator<IndexableField> iterator() {
-            return fields.iterator();
-        }
-
-        public List<IndexableField> getFields() {
-            return fields;
-        }
-
-        public void add(IndexableField field) {
-            // either a meta fields or starts with the prefix
-            assert field.name().startsWith("_") || field.name().startsWith(prefix) : field.name() + " " + prefix;
-            fields.add(field);
-        }
-
-        /** Add fields so that they can later be fetched using {@link #getByKey(Object)}. */
-        public void addWithKey(Object key, IndexableField field) {
-            if (keyedFields == null) {
-                keyedFields = new ObjectObjectHashMap<>();
-            } else if (keyedFields.containsKey(key)) {
-                throw new IllegalStateException("Only one field can be stored per key");
-            }
-            keyedFields.put(key, field);
-            add(field);
-        }
-
-        /** Get back fields that have been previously added with {@link #addWithKey(Object, IndexableField)}. */
-        public IndexableField getByKey(Object key) {
-            return keyedFields == null ? null : keyedFields.get(key);
-        }
-
-        public IndexableField[] getFields(String name) {
-            List<IndexableField> f = new ArrayList<>();
-            for (IndexableField field : fields) {
-                if (field.name().equals(name)) {
-                    f.add(field);
-                }
-            }
-            return f.toArray(new IndexableField[f.size()]);
-        }
-
-        /**
-         * Returns an array of values of the field specified as the method parameter.
-         * This method returns an empty array when there are no
-         * matching fields.  It never returns null.
-         * If you want the actual numeric field instances back, use {@link #getFields}.
-         * @param name the name of the field
-         * @return a <code>String[]</code> of field values
-         */
-        public final String[] getValues(String name) {
-            List<String> result = new ArrayList<>();
-            for (IndexableField field : fields) {
-                if (field.name().equals(name) && field.stringValue() != null) {
-                    result.add(field.stringValue());
-                }
-            }
-            return result.toArray(new String[result.size()]);
-        }
-
-        public IndexableField getField(String name) {
-            for (IndexableField field : fields) {
-                if (field.name().equals(name)) {
-                    return field;
-                }
-            }
-            return null;
-        }
-
-        public String get(String name) {
-            for (IndexableField f : fields) {
-                if (f.name().equals(name) && f.stringValue() != null) {
-                    return f.stringValue();
-                }
-            }
-            return null;
-        }
-
-        public BytesRef getBinaryValue(String name) {
-            for (IndexableField f : fields) {
-                if (f.name().equals(name) && f.binaryValue() != null) {
-                    return f.binaryValue();
-                }
-            }
-            return null;
-        }
-
-    }
+public abstract class ParseContext {
 
     private static class FilterParseContext extends ParseContext {
 
@@ -176,13 +36,18 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public Iterable<Document> nonRootDocuments() {
+        public ObjectMapper getObjectMapper(String name) {
+            return in.getObjectMapper(name);
+        }
+
+        @Override
+        public Iterable<LuceneDocument> nonRootDocuments() {
             return in.nonRootDocuments();
         }
 
         @Override
-        public DocumentMapperParser docMapperParser() {
-            return in.docMapperParser();
+        public MappingParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {
+            return in.dynamicTemplateParserContext(dateFormatter);
         }
 
         @Override
@@ -216,17 +81,17 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public Document rootDoc() {
+        public LuceneDocument rootDoc() {
             return in.rootDoc();
         }
 
         @Override
-        public Document doc() {
+        public LuceneDocument doc() {
             return in.doc();
         }
 
         @Override
-        protected void addDoc(Document doc) {
+        protected void addDoc(LuceneDocument doc) {
             in.addDoc(doc);
         }
 
@@ -236,13 +101,18 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public DocumentMapper docMapper() {
-            return in.docMapper();
+        public MappingLookup mappingLookup() {
+            return in.mappingLookup();
         }
 
         @Override
-        public MapperService mapperService() {
-            return in.mapperService();
+        public MetadataFieldMapper getMetadataMapper(String mapperName) {
+            return in.getMetadataMapper(mapperName);
+        }
+
+        @Override
+        public IndexAnalyzers indexAnalyzers() {
+            return in.indexAnalyzers();
         }
 
         @Override
@@ -266,16 +136,6 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public boolean externalValueSet() {
-            return in.externalValueSet();
-        }
-
-        @Override
-        public Object externalValue() {
-            return in.externalValue();
-        }
-
-        @Override
         public void addDynamicMapper(Mapper update) {
             in.addDynamicMapper(update);
         }
@@ -286,8 +146,13 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public Iterator<Document> iterator() {
-            return in.iterator();
+        public void addDynamicRuntimeField(RuntimeField runtimeField) {
+            in.addDynamicRuntimeField(runtimeField);
+        }
+
+        @Override
+        public List<RuntimeField> getDynamicRuntimeFields() {
+            return in.getDynamicRuntimeFields();
         }
 
         @Override
@@ -299,60 +164,62 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         public Collection<String> getIgnoredFields() {
             return in.getIgnoredFields();
         }
+
+        @Override
+        public void addToFieldNames(String field) {
+            in.addToFieldNames(field);
+        }
+
+        @Override
+        public Collection<String> getFieldNames() {
+            return in.getFieldNames();
+        }
     }
 
     public static class InternalParseContext extends ParseContext {
-
-        private final DocumentMapper docMapper;
-
-        private final DocumentMapperParser docMapperParser;
-
-        private final ContentPath path;
-
-        private final XContentParser parser;
-
-        private Document document;
-
-        private final List<Document> documents;
-
+        private final MappingLookup mappingLookup;
         private final IndexSettings indexSettings;
-
+        private final IndexAnalyzers indexAnalyzers;
+        private final Function<DateFormatter, MappingParserContext> parserContextFunction;
+        private final ContentPath path = new ContentPath(0);
+        private final XContentParser parser;
+        private final LuceneDocument document;
+        private final List<LuceneDocument> documents = new ArrayList<>();
         private final SourceToParse sourceToParse;
-
-        private Field version;
-
-        private SeqNoFieldMapper.SequenceIDFields seqID;
-
         private final long maxAllowedNumNestedDocs;
-
+        private final List<Mapper> dynamicMappers = new ArrayList<>();
+        private final Set<String> newFieldsSeen = new HashSet<>();
+        private final Map<String, ObjectMapper> dynamicObjectMappers = new HashMap<>();
+        private final List<RuntimeField> dynamicRuntimeFields = new ArrayList<>();
+        private final Set<String> ignoredFields = new HashSet<>();
+        private final Set<String> fieldNameFields = new HashSet<>();
+        private Field version;
+        private SeqNoFieldMapper.SequenceIDFields seqID;
         private long numNestedDocs;
-
-        private final List<Mapper> dynamicMappers;
-
         private boolean docsReversed = false;
 
-        private final Set<String> ignoredFields = new HashSet<>();
-
-        public InternalParseContext(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
-                                    SourceToParse source, XContentParser parser) {
+        public InternalParseContext(MappingLookup mappingLookup,
+                                    IndexSettings indexSettings,
+                                    IndexAnalyzers indexAnalyzers,
+                                    Function<DateFormatter, MappingParserContext> parserContext,
+                                    SourceToParse source,
+                                    XContentParser parser) {
+            this.mappingLookup = mappingLookup;
             this.indexSettings = indexSettings;
-            this.docMapper = docMapper;
-            this.docMapperParser = docMapperParser;
-            this.path = new ContentPath(0);
+            this.indexAnalyzers = indexAnalyzers;
+            this.parserContextFunction = parserContext;
             this.parser = parser;
-            this.document = new Document();
-            this.documents = new ArrayList<>();
+            this.document = new LuceneDocument();
             this.documents.add(document);
             this.version = null;
             this.sourceToParse = source;
-            this.dynamicMappers = new ArrayList<>();
-            this.maxAllowedNumNestedDocs = indexSettings.getValue(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
+            this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
         }
 
         @Override
-        public DocumentMapperParser docMapperParser() {
-            return this.docMapperParser;
+        public MappingParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {
+            return parserContextFunction.apply(dateFormatter);
         }
 
         @Override
@@ -376,21 +243,21 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public Document rootDoc() {
+        public LuceneDocument rootDoc() {
             return documents.get(0);
         }
 
-        List<Document> docs() {
+        List<LuceneDocument> docs() {
             return this.documents;
         }
 
         @Override
-        public Document doc() {
+        public LuceneDocument doc() {
             return this.document;
         }
 
         @Override
-        protected void addDoc(Document doc) {
+        protected void addDoc(LuceneDocument doc) {
             numNestedDocs ++;
             if (numNestedDocs > maxAllowedNumNestedDocs) {
                 throw new MapperParsingException(
@@ -403,17 +270,22 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         @Override
         public RootObjectMapper root() {
-            return docMapper.root();
+            return this.mappingLookup.getMapping().getRoot();
         }
 
         @Override
-        public DocumentMapper docMapper() {
-            return this.docMapper;
+        public MappingLookup mappingLookup() {
+            return mappingLookup;
         }
 
         @Override
-        public MapperService mapperService() {
-            return docMapperParser.mapperService;
+        public MetadataFieldMapper getMetadataMapper(String mapperName) {
+            return mappingLookup.getMapping().getMetadataMapperByName(mapperName);
+        }
+
+        @Override
+        public IndexAnalyzers indexAnalyzers() {
+            return this.indexAnalyzers;
         }
 
         @Override
@@ -438,6 +310,17 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         @Override
         public void addDynamicMapper(Mapper mapper) {
+            // eagerly check field name limit here to avoid OOM errors
+            // only check fields that are not already mapped or tracked in order to avoid hitting field limit too early via double-counting
+            // note that existing fields can also receive dynamic mapping updates (e.g. constant_keyword to fix the value)
+            if (mappingLookup.getMapper(mapper.name()) == null &&
+                mappingLookup.objectMappers().containsKey(mapper.name()) == false &&
+                newFieldsSeen.add(mapper.name())) {
+                mappingLookup.checkFieldLimit(indexSettings.getMappingTotalFieldsLimit(), newFieldsSeen.size());
+            }
+            if (mapper instanceof ObjectMapper) {
+                dynamicObjectMappers.put(mapper.name(), (ObjectMapper)mapper);
+            }
             dynamicMappers.add(mapper);
         }
 
@@ -447,7 +330,22 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public Iterable<Document> nonRootDocuments() {
+        public ObjectMapper getObjectMapper(String name) {
+            return dynamicObjectMappers.get(name);
+        }
+
+        @Override
+        public void addDynamicRuntimeField(RuntimeField runtimeField) {
+            dynamicRuntimeFields.add(runtimeField);
+        }
+
+        @Override
+        public List<RuntimeField> getDynamicRuntimeFields() {
+            return Collections.unmodifiableList(dynamicRuntimeFields);
+        }
+
+        @Override
+        public Iterable<LuceneDocument> nonRootDocuments() {
             if (docsReversed) {
                 throw new IllegalStateException("documents are already reversed");
             }
@@ -458,7 +356,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             if (documents.size() > 1) {
                 docsReversed = true;
                 // We preserve the order of the children while ensuring that parents appear after them.
-                List<Document> newDocs = reorderParent(documents);
+                List<LuceneDocument> newDocs = reorderParent(documents);
                 documents.clear();
                 documents.addAll(newDocs);
             }
@@ -468,10 +366,10 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
          * Returns a copy of the provided {@link List} where parent documents appear
          * after their children.
          */
-        private List<Document> reorderParent(List<Document> docs) {
-            List<Document> newDocs = new ArrayList<>(docs.size());
-            LinkedList<Document> parents = new LinkedList<>();
-            for (Document doc : docs) {
+        private List<LuceneDocument> reorderParent(List<LuceneDocument> docs) {
+            List<LuceneDocument> newDocs = new ArrayList<>(docs.size());
+            LinkedList<LuceneDocument> parents = new LinkedList<>();
+            for (LuceneDocument doc : docs) {
                 while (parents.peek() != doc.getParent()){
                     newDocs.add(parents.poll());
                 }
@@ -482,12 +380,6 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public Iterator<Document> iterator() {
-            return documents.iterator();
-        }
-
-
-        @Override
         public void addIgnoredField(String field) {
             ignoredFields.add(field);
         }
@@ -496,13 +388,23 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         public Collection<String> getIgnoredFields() {
             return Collections.unmodifiableCollection(ignoredFields);
         }
+
+        @Override
+        public void addToFieldNames(String field) {
+            fieldNameFields.add(field);
+        }
+
+        @Override
+        public Collection<String> getFieldNames() {
+            return Collections.unmodifiableCollection(fieldNameFields);
+        }
     }
 
     /**
      * Returns an Iterable over all non-root documents. If there are no non-root documents
      * the iterable will return an empty iterator.
      */
-    public abstract Iterable<Document> nonRootDocuments();
+    public abstract Iterable<LuceneDocument> nonRootDocuments();
 
 
     /**
@@ -515,7 +417,20 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
      */
     public abstract Collection<String> getIgnoredFields();
 
-    public abstract DocumentMapperParser docMapperParser();
+    /**
+     * Add the given {@code field} to the _field_names field
+     *
+     * Use this if an exists query run against the field cannot use docvalues
+     * or norms.
+     */
+    public abstract void addToFieldNames(String field);
+
+    /**
+     * Return the collection of fields to be added to the _field_names field
+     */
+    public abstract Collection<String> getFieldNames();
+
+    public abstract MappingParserContext dynamicTemplateParserContext(DateFormatter dateFormatter);
 
     /**
      * Return a new context that will be within a copy-to operation.
@@ -549,7 +464,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
      * Return a new context that will be used within a nested document.
      */
     public final ParseContext createNestedContext(String fullPath) {
-        final Document doc = new Document(fullPath, doc());
+        final LuceneDocument doc = new LuceneDocument(fullPath, doc());
         addDoc(doc);
         return switchDoc(doc);
     }
@@ -557,10 +472,10 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
     /**
      * Return a new context that has the provided document as the current document.
      */
-    public final ParseContext switchDoc(final Document document) {
+    public final ParseContext switchDoc(final LuceneDocument document) {
         return new FilterParseContext(this) {
             @Override
-            public Document doc() {
+            public LuceneDocument doc() {
                 return document;
             }
         };
@@ -578,6 +493,20 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         };
     }
 
+    /**
+     * @deprecated we are actively deprecating and removing the ability to pass
+     *             complex objects to multifields, so try and avoid using this method
+     */
+    @Deprecated
+    public final ParseContext switchParser(XContentParser parser) {
+        return new FilterParseContext(this) {
+            @Override
+            public XContentParser parser() {
+                return parser;
+            }
+        };
+    }
+
     public boolean isWithinMultiFields() {
         return false;
     }
@@ -590,17 +519,19 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
     public abstract XContentParser parser();
 
-    public abstract Document rootDoc();
+    public abstract LuceneDocument rootDoc();
 
-    public abstract Document doc();
+    public abstract LuceneDocument doc();
 
-    protected abstract void addDoc(Document doc);
+    protected abstract void addDoc(LuceneDocument doc);
 
     public abstract RootObjectMapper root();
 
-    public abstract DocumentMapper docMapper();
+    public abstract MappingLookup mappingLookup();
 
-    public abstract MapperService mapperService();
+    public abstract MetadataFieldMapper getMetadataMapper(String mapperName);
+
+    public abstract IndexAnalyzers indexAnalyzers();
 
     public abstract Field version();
 
@@ -611,53 +542,47 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
     public abstract void seqID(SeqNoFieldMapper.SequenceIDFields seqID);
 
     /**
-     * Return a new context that will have the external value set.
-     */
-    public final ParseContext createExternalValueContext(final Object externalValue) {
-        return new FilterParseContext(this) {
-            @Override
-            public boolean externalValueSet() {
-                return true;
-            }
-            @Override
-            public Object externalValue() {
-                return externalValue;
-            }
-        };
-    }
-
-    public boolean externalValueSet() {
-        return false;
-    }
-
-    public Object externalValue() {
-        throw new IllegalStateException("External value is not set");
-    }
-
-    /**
-     * Try to parse an externalValue if any
-     * @param clazz Expected class for external value
-     * @return null if no external value has been set or the value
-     */
-    public final <T> T parseExternalValue(Class<T> clazz) {
-        if (!externalValueSet() || externalValue() == null) {
-            return null;
-        }
-
-        if (!clazz.isInstance(externalValue())) {
-            throw new IllegalArgumentException("illegal external value class ["
-                    + externalValue().getClass().getName() + "]. Should be " + clazz.getName());
-        }
-        return clazz.cast(externalValue());
-    }
-
-    /**
      * Add a new mapper dynamically created while parsing.
      */
     public abstract void addDynamicMapper(Mapper update);
+
+    public abstract ObjectMapper getObjectMapper(String name);
 
     /**
      * Get dynamic mappers created while parsing.
      */
     public abstract List<Mapper> getDynamicMappers();
+
+    /**
+     * Add a new runtime field dynamically created while parsing.
+     */
+    public abstract void addDynamicRuntimeField(RuntimeField runtimeField);
+
+    /**
+     * Get dynamic runtime fields created while parsing.
+     */
+    public abstract List<RuntimeField> getDynamicRuntimeFields();
+
+    /**
+     * Find a dynamic mapping template for the given field and its matching type
+     *
+     * @param fieldName the name of the field
+     * @param matchType the expecting matchType of the field
+     * @return the matching template; otherwise returns null
+     * @throws MapperParsingException if the given field has a dynamic template name specified, but no template matches that name.
+     */
+    public final DynamicTemplate findDynamicTemplate(String fieldName, DynamicTemplate.XContentFieldType matchType) {
+        final String pathAsString = path().pathAsText(fieldName);
+        final String matchTemplateName = sourceToParse().dynamicTemplates().get(pathAsString);
+        for (DynamicTemplate template : root().dynamicTemplates()) {
+            if (template.match(matchTemplateName, pathAsString, fieldName, matchType)) {
+                return template;
+            }
+        }
+        if (matchTemplateName != null) {
+            throw new MapperParsingException(
+                "Can't find dynamic template for dynamic template name [" + matchTemplateName + "] of field [" + pathAsString + "]");
+        }
+        return null;
+    }
 }

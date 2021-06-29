@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap.support;
 
@@ -11,11 +12,11 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.network.InetAddressHelper;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.mocksocket.MockServerSocket;
@@ -292,7 +293,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).put(settings).build();
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
-        return new TestSessionFactory(config, new SSLService(Settings.EMPTY, TestEnvironment.newEnvironment(config.settings())),
+        return new TestSessionFactory(config, new SSLService(TestEnvironment.newEnvironment(config.settings())),
                 threadPool);
     }
 
@@ -322,11 +323,11 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             try {
                 final boolean allSocketsOpened = waitUntil(() -> {
                     try {
-                        InetAddress[] allAddresses = InetAddressHelper.getAllAddresses();
+                        final InetAddress[] allAddresses;
                         if (serverAddress instanceof Inet4Address) {
-                            allAddresses = InetAddressHelper.filterIPV4(allAddresses);
+                            allAddresses = NetworkUtils.getAllIPV4Addresses();
                         } else {
-                            allAddresses = InetAddressHelper.filterIPV6(allAddresses);
+                            allAddresses = NetworkUtils.getAllIPV6Addresses();
                         }
                         final List<InetAddress> inetAddressesToBind = Arrays.stream(allAddresses)
                             .filter(addr -> openedSockets.stream().noneMatch(s -> addr.equals(s.getLocalAddress())))

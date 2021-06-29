@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -59,12 +60,12 @@ public class ScoresUpdaterTests extends ESTestCase {
     private Job job;
     private ScoresUpdater scoresUpdater;
 
-    private Bucket generateBucket(Date timestamp) throws IOException {
+    private Bucket generateBucket(Date timestamp) {
         return new Bucket(JOB_ID, timestamp, DEFAULT_BUCKET_SPAN);
     }
 
     @Before
-    public void setUpMocks() throws IOException {
+    public void setUpMocks() {
         MockitoAnnotations.initMocks(this);
 
         Job.Builder jobBuilder = new Job.Builder(JOB_ID);

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -27,8 +16,9 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -51,7 +42,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknown
 
 /**
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
- * of the relevant action, and if it has failed or not (with the failure message incase it failed).
+ * of the relevant action, and if it has failed or not (with the failure message in case it failed).
  */
 public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
@@ -74,6 +65,10 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             builder.field(STATUS, response.status().getStatus());
         } else {
             builder.field(_INDEX, failure.getIndex());
+            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+                builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+            }
+
             builder.field(_ID, failure.getId());
             builder.field(STATUS, failure.getStatus().getStatus());
             builder.startObject(ERROR);
@@ -93,16 +88,16 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
      *           the item in the {@link BulkResponse#getItems} array.
      */
     public static BulkItemResponse fromXContent(XContentParser parser, int id) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
 
         String currentFieldName = parser.currentName();
         token = parser.nextToken();
 
         final OpType opType = OpType.fromString(currentFieldName);
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         DocWriteResponse.Builder builder = null;
         CheckedConsumer<XContentParser, IOException> itemParser = null;
@@ -145,9 +140,9 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             }
         }
 
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser);
         token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser);
 
         BulkItemResponse bulkItemResponse;
         if (exception != null) {
@@ -176,7 +171,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         private final long term;
         private final boolean aborted;
 
-        public static ConstructingObjectParser<Failure, Void> PARSER =
+        public static final ConstructingObjectParser<Failure, Void> PARSER =
             new ConstructingObjectParser<>(
                 "bulk_failures",
                 true,
@@ -241,11 +236,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             cause = in.readException();
             status = ExceptionsHelper.status(cause);
             seqNo = in.readZLong();
-            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-                term = in.readVLong();
-            } else {
-                term = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-            }
+            term = in.readVLong();
             aborted = in.readBoolean();
         }
 
@@ -258,9 +249,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             out.writeOptionalString(id);
             out.writeException(cause);
             out.writeZLong(seqNo);
-            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-                out.writeVLong(term);
-            }
+            out.writeVLong(term);
             out.writeBoolean(aborted);
         }
 
@@ -329,6 +318,9 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(INDEX_FIELD, index);
+            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+                builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+            }
             if (id != null) {
                 builder.field(ID_FIELD, id);
             }
@@ -359,6 +351,26 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
     BulkItemResponse() {}
 
+    BulkItemResponse(ShardId shardId, StreamInput in) throws IOException {
+        id = in.readVInt();
+        opType = OpType.fromId(in.readByte());
+
+        byte type = in.readByte();
+        if (type == 0) {
+            response = new IndexResponse(shardId, in);
+        } else if (type == 1) {
+            response = new DeleteResponse(shardId, in);
+        } else if (type == 3) { // make 3 instead of 2, because 2 is already in use for 'no responses'
+            response = new UpdateResponse(shardId, in);
+        } else if (type != 2) {
+            throw new IllegalArgumentException("Unexpected type [" + type + "]");
+        }
+
+        if (in.readBoolean()) {
+            failure = new Failure(in);
+        }
+    }
+
     BulkItemResponse(StreamInput in) throws IOException {
         id = in.readVInt();
         opType = OpType.fromId(in.readByte());
@@ -370,6 +382,8 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             response = new DeleteResponse(in);
         } else if (type == 3) { // make 3 instead of 2, because 2 is already in use for 'no responses'
             response = new UpdateResponse(in);
+        } else if (type != 2) {
+            throw new IllegalArgumentException("Unexpected type [" + type + "]");
         }
 
         if (in.readBoolean()) {
@@ -473,13 +487,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         if (response == null) {
             out.writeByte((byte) 2);
         } else {
-            if (response instanceof IndexResponse) {
-                out.writeByte((byte) 0);
-            } else if (response instanceof DeleteResponse) {
-                out.writeByte((byte) 1);
-            } else if (response instanceof UpdateResponse) {
-                out.writeByte((byte) 3); // make 3 instead of 2, because 2 is already in use for 'no responses'
-            }
+            writeResponseType(out);
             response.writeTo(out);
         }
         if (failure == null) {
@@ -487,6 +495,36 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         } else {
             out.writeBoolean(true);
             failure.writeTo(out);
+        }
+    }
+
+    public void writeThin(StreamOutput out) throws IOException {
+        out.writeVInt(id);
+        out.writeByte(opType.getId());
+
+        if (response == null) {
+            out.writeByte((byte) 2);
+        } else {
+            writeResponseType(out);
+            response.writeThin(out);
+        }
+        if (failure == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            failure.writeTo(out);
+        }
+    }
+
+    private void writeResponseType(StreamOutput out) throws IOException {
+        if (response instanceof IndexResponse) {
+            out.writeByte((byte) 0);
+        } else if (response instanceof DeleteResponse) {
+            out.writeByte((byte) 1);
+        } else if (response instanceof UpdateResponse) {
+            out.writeByte((byte) 3); // make 3 instead of 2, because 2 is already in use for 'no responses'
+        } else {
+            throw new IllegalStateException("Unexpected response type found [" + response.getClass() + "]");
         }
     }
 }

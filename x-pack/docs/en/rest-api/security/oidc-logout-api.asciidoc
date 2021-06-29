@@ -1,9 +1,12 @@
 [role="xpack"]
 [[security-api-oidc-logout]]
 === OpenID Connect logout API
+++++
+<titleabbrev>OpenID Connect logout</titleabbrev>
+++++
 
 Submits a request to invalidate a refresh token and an access token that was
-generated as a response to a call to `/_security/oidc/authenticate`. 
+generated as a response to a call to `/_security/oidc/authenticate`.
 
 [[security-api-oidc-logout-request]]
 ==== {api-request-title}
@@ -48,7 +51,7 @@ POST /_security/oidc/logout
   "refresh_token": "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
-// TEST[catch:unauthorized]
+// TEST[catch:request]
 
 The following example output of the response contains the URI pointing to the
 End Session Endpoint of the OpenID Connect Provider with all the parameters of

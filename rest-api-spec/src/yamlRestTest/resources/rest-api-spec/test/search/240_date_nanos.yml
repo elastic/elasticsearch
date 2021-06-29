@@ -1,0 +1,147 @@
+setup:
+
+
+  - do:
+      indices.create:
+          index: date_ns
+          body:
+            settings:
+              number_of_shards: 3
+              number_of_replicas: 0
+            mappings:
+              properties:
+                date:
+                  type: date_nanos
+                field:
+                  type: long
+
+  - do:
+      indices.create:
+          index: date_ms
+          body:
+            settings:
+              number_of_shards: 3
+              number_of_replicas: 0
+            mappings:
+              properties:
+                date:
+                  type: date
+                field:
+                  type: long
+
+---
+"test sorting against date_nanos only fields":
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index" : "date_ns", "_id" : "first" } }'
+          # millis [1540815132987] to nanos [1540815132987654321]
+          - '{"date" : "2018-10-29T12:12:12.123456789Z", "field" : 1 }'
+          - '{ "index" : { "_index" : "date_ns", "_id" : "second" } }'
+          # millis [1540815132123] to nanos [1540815132123456789]
+          - '{"date" : "2018-10-29T12:12:12.987654321Z", "field" : 2 }'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: date_ns*
+        body:
+          sort: [ { "date": "desc" } ]
+
+  - match: { hits.total: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "second" }
+  - match: { hits.hits.0.sort: [1540815132987654321] }
+  - match: { hits.hits.1._id: "first" }
+  - match: { hits.hits.1.sort: [1540815132123456789] }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: date_ns*
+        body:
+          sort: [ { "date": "asc" } ]
+
+  - match: { hits.total: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "first" }
+  - match: { hits.hits.0.sort: [1540815132123456789] }
+  - match: { hits.hits.1._id: "second" }
+  - match: { hits.hits.1.sort: [1540815132987654321] }
+
+---
+"doc value fields are working as expected across date and date_nanos fields":
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index" : "date_ns", "_id" : "date_ns_1" } }'
+          - '{"date" : "2018-10-29T12:12:12.123456789Z", "field" : 1 }'
+          - '{ "index" : { "_index" : "date_ms", "_id" : "date_ms_1" } }'
+          - '{"date" : "2018-10-29T12:12:12.987Z" }'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: date*
+        body:
+          docvalue_fields:
+            - field: date
+              format: strict_date_optional_time
+            - field: date
+              format: epoch_millis
+            - field: date
+              format: uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSX
+          sort:
+            - date: desc
+
+  - match: { hits.total: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "date_ns_1" }
+  - match: { hits.hits.1._id: "date_ms_1" }
+  - match: { hits.hits.0.fields.date: [ "2018-10-29T12:12:12.123Z", "1540815132123.456789", "2018-10-29T12:12:12.123456789Z" ] }
+  - match: { hits.hits.1.fields.date: [ "2018-10-29T12:12:12.987Z", "1540815132987", "2018-10-29T12:12:12.987000000Z" ] }
+
+---
+"date histogram aggregation with date and date_nanos mapping":
+  - skip:
+      version: " - 7.1.99"
+      reason:  calendar_interval introduced in 7.2.0
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index" : "date_ns", "_id" : "date_ns_1" } }'
+          - '{"date" : "2018-10-29T12:12:12.123456789Z" }'
+          - '{ "index" : { "_index" : "date_ms", "_id" : "date_ms_1" } }'
+          - '{"date" : "2018-10-29T12:12:12.987Z" }'
+          - '{ "index" : { "_index" : "date_ns", "_id" : "date_ns_2" } }'
+          - '{"date" : "2018-10-30T12:12:12.123456789Z" }'
+          - '{ "index" : { "_index" : "date_ms", "_id" : "date_ms_2" } }'
+          - '{"date" : "2018-10-30T12:12:12.987Z" }'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: date*
+        body:
+          size: 0
+          aggs:
+            date:
+              date_histogram:
+                field: date
+                calendar_interval: 1d
+
+  - match: { hits.total: 4 }
+  - length: { aggregations.date.buckets: 2 }
+  - match: { aggregations.date.buckets.0.key: 1540771200000 }
+  - match: { aggregations.date.buckets.0.key_as_string: "2018-10-29T00:00:00.000Z" }
+  - match: { aggregations.date.buckets.0.doc_count: 2 }
+  - match: { aggregations.date.buckets.1.key: 1540857600000 }
+  - match: { aggregations.date.buckets.1.key_as_string: "2018-10-30T00:00:00.000Z" }
+  - match: { aggregations.date.buckets.1.doc_count: 2 }
+

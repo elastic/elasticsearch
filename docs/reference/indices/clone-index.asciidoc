@@ -8,9 +8,9 @@ Clones an existing index.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_clone/cloned-twitter-index
+POST /my-index-000001/_clone/cloned-my-index-000001
 --------------------------------------------------
-// TEST[s/^/PUT twitter\n{"settings":{"index.number_of_shards" : 5,"blocks.write":true}}\n/]
+// TEST[s/^/PUT my-index-000001\n{"settings":{"index.number_of_shards" : 5,"blocks.write":true}}\n/]
 
 
 [[clone-index-api-request]]
@@ -20,13 +20,14 @@ POST /twitter/_clone/cloned-twitter-index
 
 `PUT /<index>/_clone/<target-index>`
 
-
 [[clone-index-api-prereqs]]
 ==== {api-prereq-title}
 
-To clone an index,
-the index must be marked as read-only
-and have a <<cluster-health,cluster health>> status of `green`.
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the index you want to clone.
+
+* To clone an index, the index must be marked as read-only and have a
+<<cluster-health,cluster health>> status of `green`.
 
 For example,
 the following request prevents write operations on `my_source_index`
@@ -44,14 +45,30 @@ PUT /my_source_index/_settings
 --------------------------------------------------
 // TEST[s/^/PUT my_source_index\n/]
 
+The current write index on a data stream cannot be cloned. In order to clone
+the current write index, the data stream must first be
+<<data-streams-rollover,rolled over>> so that a new write index is created
+and then the previous write index can be cloned.
 
 [[clone-index-api-desc]]
 ==== {api-description-title}
 
-Use the clone index API
-to clone an existing index into a new index,
-where each original primary shard is cloned
-into a new primary shard in the new index.
+Use the clone index API to clone an existing index into a new index, where each
+original primary shard is cloned into a new primary shard in the new index.
+
+[IMPORTANT]
+====
+{es} doesn't apply index templates to the resulting index. The API
+also doesn't copy index metadata from the original index. Index metadata
+includes aliases, {ilm-init} phase definitions, and {ccr-init} follower
+information. For example, if you clone a {ccr-init} follower index, the
+resulting clone won't be a follower index.
+
+The clone API copies most index settings from the source index to the resulting
+index, with the exception of `index.number_of_replicas` and
+`index.auto_expand_replicas`. To set the number of replicas in the resulting
+index, configure these settings in the clone request.
+====
 
 [[cloning-works]]
 ===== How cloning works
@@ -137,7 +154,7 @@ can be allocated on that node.
 
 Once the primary shard is allocated, it moves to state `initializing`, and the
 clone process begins. When the clone operation completes, the shard will
-become `active`. At that  point, {es} will try to allocate any
+become `active`. At that point, {es} will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
 [[clone-wait-active-shards]]
@@ -155,20 +172,23 @@ on index creation applies to the clone index action as well.
 (Required, string)
 Name of the source index to clone.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=target-index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index]
 
 
 [[clone-index-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-
+[role="child_attributes"]
 [[clone-index-api-request-body]]
 ==== {api-request-body-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=target-index-aliases]
+`aliases`::
+(Optional, object of objects) Aliases for the resulting index.
++
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=target-index-settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-settings]

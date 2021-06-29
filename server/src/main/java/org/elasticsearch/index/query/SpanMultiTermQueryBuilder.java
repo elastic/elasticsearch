@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.query;
 
@@ -26,7 +15,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -125,12 +114,17 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
-        if (multiTermQueryBuilder instanceof PrefixQueryBuilder) {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        // We do the rewrite in toQuery to not have to deal with the case when a multi-term builder rewrites to a non-multi-term
+        // builder.
+        QueryBuilder multiTermQueryBuilder = Rewriteable.rewrite(this.multiTermQueryBuilder, context);
+        if (multiTermQueryBuilder instanceof MatchNoneQueryBuilder) {
+            return new SpanMatchNoDocsQuery(this.multiTermQueryBuilder.fieldName(), "Inner query rewrote to match_none");
+        } else if (multiTermQueryBuilder instanceof PrefixQueryBuilder) {
             PrefixQueryBuilder prefixBuilder = (PrefixQueryBuilder) multiTermQueryBuilder;
-            MappedFieldType fieldType = context.fieldMapper(multiTermQueryBuilder.fieldName());
+            MappedFieldType fieldType = context.getFieldType(prefixBuilder.fieldName());
             if (fieldType == null) {
-                return new SpanMatchNoDocsQuery(multiTermQueryBuilder.fieldName(), "unknown field");
+                throw new IllegalStateException("Rewrite first");
             }
             final SpanMultiTermQueryWrapper.SpanRewriteMethod spanRewriteMethod;
             if (prefixBuilder.rewrite() != null) {
@@ -159,7 +153,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                 }
             }
             if (subQuery instanceof MatchNoDocsQuery) {
-                return new SpanMatchNoDocsQuery(multiTermQueryBuilder.fieldName(), subQuery.toString());
+                return new SpanMatchNoDocsQuery(this.multiTermQueryBuilder.fieldName(), subQuery.toString());
             } else if (subQuery instanceof MultiTermQuery == false) {
                 throw new UnsupportedOperationException("unsupported inner query, should be "
                     + MultiTermQuery.class.getName() + " but was " + subQuery.getClass().getName());

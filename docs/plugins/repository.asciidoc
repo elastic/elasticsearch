@@ -5,7 +5,7 @@ Repository plugins extend the {ref}/modules-snapshots.html[Snapshot/Restore]
 functionality in Elasticsearch by adding repositories backed by the cloud or
 by distributed file systems:
 
-[float]
+[discrete]
 ==== Core repository plugins
 
 The core repository plugins are:
@@ -27,7 +27,7 @@ The Hadoop HDFS Repository plugin adds support for using HDFS as a repository.
 The GCS repository plugin adds support for using Google Cloud Storage service as a repository.
 
 
-[float]
+[discrete]
 === Community contributed repository plugins
 
 The following plugin has been contributed by our community:

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
@@ -37,24 +38,6 @@ public class WatcherSearchTemplateRequestTests extends ESTestCase {
         boolean hitCountsAsInt = randomBoolean();
         String source = "{ \"rest_total_hits_as_int\" : " + hitCountsAsInt  + " }";
         assertHitCount(source, hitCountsAsInt);
-    }
-
-    public void testDeprecationForSingleType() throws IOException {
-        String source = "{\"types\":\"mytype\"}";
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            parser.nextToken();
-            WatcherSearchTemplateRequest.fromXContent(parser, SearchType.QUERY_THEN_FETCH);
-        }
-        assertWarnings(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    public void testDeprecationForMultiType() throws IOException {
-        String source = "{\"types\":[\"mytype1\",\"mytype2\"]}";
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            parser.nextToken();
-            WatcherSearchTemplateRequest.fromXContent(parser, SearchType.QUERY_THEN_FETCH);
-        }
-        assertWarnings(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
     }
 
     private void assertHitCount(String source, boolean expectedHitCountAsInt) throws IOException {

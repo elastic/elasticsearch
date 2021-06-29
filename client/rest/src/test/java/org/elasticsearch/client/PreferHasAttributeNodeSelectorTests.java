@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -27,6 +27,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -61,9 +63,19 @@ public class PreferHasAttributeNodeSelectorTests extends RestClientTestCase {
     }
 
     private static Node dummyNode(Map<String, List<String>> attributes) {
+        final Set<String> roles = new TreeSet<>();
+        if (randomBoolean()) {
+            roles.add("master");
+        }
+        if (randomBoolean()) {
+            roles.add("data");
+        }
+        if (randomBoolean()) {
+            roles.add("ingest");
+        }
         return new Node(new HttpHost("dummy"), Collections.<HttpHost>emptySet(),
             randomAsciiAlphanumOfLength(5), randomAsciiAlphanumOfLength(5),
-            new Roles(randomBoolean(), randomBoolean(), randomBoolean()),
+            new Roles(roles),
             attributes);
     }
 }

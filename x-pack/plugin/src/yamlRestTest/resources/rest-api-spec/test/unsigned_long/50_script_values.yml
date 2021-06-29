@@ -1,0 +1,111 @@
+setup:
+
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/64361"
+
+  - do:
+      indices.create:
+        index:  test1
+        body:
+          mappings:
+            properties:
+              ul:
+                type: unsigned_long
+
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "ul": 0 }
+          { "index": {"_id" : "2"} }
+          { "ul": 9223372036854775807 }
+          { "index": {"_id" : "3"} }
+          { "ul": 9223372036854775808 }
+          { "index": {"_id" : "4"} }
+          { "ul": 18446744073709551614 }
+          { "index": {"_id" : "5"} }
+          { "ul": 18446744073709551615 }
+
+---
+"Scripted fields values return BigInteger or Long":
+  - do:
+      search:
+        index: test1
+        body:
+          sort: [ { ul: desc } ]
+          script_fields:
+            scripted_ul:
+              script:
+                source: "doc['ul'].value"
+
+  - match: { hits.hits.0.fields.scripted_ul.0: 18446744073709551615 }
+  - match: { hits.hits.1.fields.scripted_ul.0: 18446744073709551614 }
+  - match: { hits.hits.2.fields.scripted_ul.0: 9223372036854775808 }
+  - match: { hits.hits.3.fields.scripted_ul.0: 9223372036854775807 }
+  - match: { hits.hits.4.fields.scripted_ul.0: 0 }
+
+---
+"Scripted sort values":
+  - do:
+      search:
+        index: test1
+        body:
+          sort:
+            _script:
+              order: desc
+              type: number
+              script:
+                source: "doc['ul'].value"
+
+  - match: { hits.hits.0.sort: [1.8446744073709552E19] }
+  - match: { hits.hits.1.sort: [1.8446744073709552E19] }
+  - match: { hits.hits.2.sort: [9.223372036854776E18] }
+  - match: { hits.hits.3.sort: [9.223372036854776E18] }
+  - match: { hits.hits.4.sort: [0.0] }
+
+---
+"Script query":
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            bool:
+              filter:
+               script:
+                 script:
+                   source: "doc['ul'].value.doubleValue() > 10E18"
+          sort: [ { ul: asc } ]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.1._id: "5" }
+
+  - do:
+      search:
+        index: test1
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                script:
+                  script:
+                    source: "doc['ul'].size() > 0"
+  - match: { hits.total.value: 5 }
+
+---
+"script_score query":
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            script_score:
+              query: {match_all: {}}
+              script:
+                source: "doc['ul'].value"
+
+  - match: { hits.total.value: 5 }

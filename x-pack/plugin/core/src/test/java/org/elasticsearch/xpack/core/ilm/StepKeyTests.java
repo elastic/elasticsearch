@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -15,6 +16,10 @@ public class StepKeyTests extends AbstractSerializingTestCase<StepKey> {
 
     @Override
     public StepKey createTestInstance() {
+        return randomStepKey();
+    }
+
+    public static StepKey randomStepKey() {
         return new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 

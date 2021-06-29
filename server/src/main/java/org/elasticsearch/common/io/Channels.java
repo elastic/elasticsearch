@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.io;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -40,7 +29,7 @@ public final class Channels {
     /**
      * The maximum chunk size for writes in bytes
      */
-    private static final int WRITE_CHUNK_SIZE = 8192;
+    public static final int WRITE_CHUNK_SIZE = 8192;
 
     /**
      * read <i>length</i> bytes from <i>position</i> of a file channel
@@ -95,13 +84,15 @@ public final class Channels {
      * @param channel         channel to read from
      * @param channelPosition position to read from
      * @param dest            destination {@link java.nio.ByteBuffer} to put data in
+     * @return total bytes read
      */
-    public static void readFromFileChannelWithEofException(FileChannel channel, long channelPosition, ByteBuffer dest) throws IOException {
+    public static int readFromFileChannelWithEofException(FileChannel channel, long channelPosition, ByteBuffer dest) throws IOException {
         int read = readFromFileChannel(channel, channelPosition, dest);
         if (read < 0) {
             throw new EOFException("read past EOF. pos [" + channelPosition +
                 "] length: [" + dest.limit() + "] end: [" + channel.size() + "]");
         }
+        return read;
     }
 
     /**
@@ -172,7 +163,6 @@ public final class Channels {
         writeToChannel(source, 0, source.length, channel);
     }
 
-
     /**
      * Writes part of a byte array to a {@link java.nio.channels.WritableByteChannel}
      *
@@ -190,6 +180,39 @@ public final class Channels {
             toWrite = Math.min(length, WRITE_CHUNK_SIZE);
             buffer.limit(buffer.position() + toWrite);
             written = channel.write(buffer);
+            length -= written;
+        }
+        assert length == 0 : "wrote more then expected bytes (length=" + length + ")";
+    }
+
+    /**
+     * Writes part of a byte array to a {@link java.nio.channels.WritableByteChannel} at the provided
+     * position.
+     *
+     * @param source          byte array to copy from
+     * @param channel         target WritableByteChannel
+     * @param channelPosition position to write at
+     */
+    public static void writeToChannel(byte[] source, FileChannel channel, long channelPosition) throws IOException {
+        writeToChannel(source, 0, source.length, channel, channelPosition);
+    }
+
+    /**
+     * Writes part of a byte array to a {@link java.nio.channels.WritableByteChannel} at the provided
+     * position.
+     *
+     * @param source          byte array to copy from
+     * @param offset          start copying from this offset
+     * @param length          how many bytes to copy
+     * @param channel         target WritableByteChannel
+     * @param channelPosition position to write at
+     */
+    public static void writeToChannel(byte[] source, int offset, int length, FileChannel channel, long channelPosition) throws IOException {
+        ByteBuffer buffer = ByteBuffer.wrap(source, offset, length);
+        int written = channel.write(buffer, channelPosition);
+        length -= written;
+        while (length > 0) {
+            written = channel.write(buffer, channelPosition + buffer.position());
             length -= written;
         }
         assert length == 0 : "wrote more then expected bytes (length=" + length + ")";

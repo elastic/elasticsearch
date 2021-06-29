@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
@@ -49,7 +38,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -248,8 +239,8 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                         () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
                 assertThat(responseException.getMessage(),
-                        containsString("missing required setting [cluster.remote.remote1.seeds] " +
-                                "for setting [cluster.remote.remote1.skip_unavailable]"));
+                        containsString("Cannot configure setting [cluster.remote.remote1.skip_unavailable] if remote cluster is " +
+                            "not enabled."));
             }
 
             Map<String, Object> settingsMap = new HashMap<>();
@@ -264,8 +255,8 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 ResponseException responseException = expectThrows(ResponseException.class,
                         () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-                assertThat(responseException.getMessage(), containsString("missing required setting [cluster.remote.remote1.seeds] " +
-                        "for setting [cluster.remote.remote1.skip_unavailable]"));
+                assertThat(responseException.getMessage(), containsString("Cannot configure setting " +
+                    "[cluster.remote.remote1.skip_unavailable] if remote cluster is not enabled."));
             }
 
             if (randomBoolean()) {
@@ -337,5 +328,13 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
         private HighLevelClient(RestClient restClient) {
             super(restClient, (client) -> {}, Collections.emptyList());
         }
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
     }
 }

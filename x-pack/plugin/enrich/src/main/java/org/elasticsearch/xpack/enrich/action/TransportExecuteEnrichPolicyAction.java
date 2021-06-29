@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich.action;
 
@@ -15,7 +16,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
@@ -23,14 +23,12 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
-import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
 import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 
-import java.io.IOException;
-
-public class TransportExecuteEnrichPolicyAction extends
-    TransportMasterNodeAction<ExecuteEnrichPolicyAction.Request, ExecuteEnrichPolicyAction.Response> {
+public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeAction<
+    ExecuteEnrichPolicyAction.Request,
+    ExecuteEnrichPolicyAction.Response> {
 
     private final EnrichPolicyExecutor executor;
 
@@ -52,7 +50,9 @@ public class TransportExecuteEnrichPolicyAction extends
             threadPool,
             actionFilters,
             ExecuteEnrichPolicyAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            ExecuteEnrichPolicyAction.Response::new,
+            ThreadPool.Names.SAME
         );
         this.executor = new EnrichPolicyExecutor(
             settings,
@@ -60,20 +60,10 @@ public class TransportExecuteEnrichPolicyAction extends
             client,
             transportService.getTaskManager(),
             threadPool,
-            new IndexNameExpressionResolver(),
+            indexNameExpressionResolver,
             enrichPolicyLocks,
             System::currentTimeMillis
         );
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected ExecuteEnrichPolicyAction.Response read(StreamInput in) throws IOException {
-        return new ExecuteEnrichPolicyAction.Response(in);
     }
 
     @Override
@@ -90,17 +80,10 @@ public class TransportExecuteEnrichPolicyAction extends
         }
 
         if (request.isWaitForCompletion()) {
-            executor.runPolicy(request, new ActionListener<>() {
-                @Override
-                public void onResponse(ExecuteEnrichPolicyStatus executionStatus) {
-                    listener.onResponse(new ExecuteEnrichPolicyAction.Response(executionStatus));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            executor.runPolicy(
+                request,
+                listener.delegateFailure((l, executionStatus) -> l.onResponse(new ExecuteEnrichPolicyAction.Response(executionStatus)))
+            );
         } else {
             Task executeTask = executor.runPolicy(request, LoggingTaskListener.instance());
             TaskId taskId = new TaskId(clusterService.localNode().getId(), executeTask.getId());

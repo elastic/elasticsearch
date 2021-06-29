@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.enrich.action;
@@ -9,8 +10,10 @@ package org.elasticsearch.xpack.enrich.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -24,6 +27,7 @@ import org.junit.After;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -116,6 +120,14 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         AtomicReference<Exception> error = saveEnrichPolicy(name, policy, clusterService);
         assertThat(error.get(), nullValue());
 
+        boolean destructiveRequiresName = randomBoolean();
+        if (destructiveRequiresName) {
+            Settings settings = Settings.builder()
+                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), destructiveRequiresName)
+                .build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        }
+
         createIndex(EnrichPolicy.getBaseName(name) + "-foo1");
         createIndex(EnrichPolicy.getBaseName(name) + "-foo2");
 
@@ -151,6 +163,11 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
                 .setIndices(EnrichPolicy.getBaseName(name) + "-foo1", EnrichPolicy.getBaseName(name) + "-foo2")
                 .get()
         );
+
+        if (destructiveRequiresName) {
+            Settings settings = Settings.builder().putNull(DestructiveOperations.REQUIRES_NAME_SETTING.getKey()).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        }
 
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
         assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());

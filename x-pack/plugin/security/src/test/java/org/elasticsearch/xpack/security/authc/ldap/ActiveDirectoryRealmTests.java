@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -35,11 +36,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapLoadBalancingSettings;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataResolverSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
@@ -143,13 +145,13 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         threadPool = new TestThreadPool("active directory realm tests");
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        sslService = new SSLService(globalSettings, TestEnvironment.newEnvironment(globalSettings));
+        sslService = new SSLService(TestEnvironment.newEnvironment(globalSettings));
         licenseState = new TestUtils.UpdatableLicenseState();
     }
 
     @After
     public void stop() throws InterruptedException {
-        resourceWatcherService.stop();
+        resourceWatcherService.close();
         terminate(threadPool);
         for (int i = 0; i < numberOfLdapServers; i++) {
             directoryServers[i].shutDown(true);
@@ -166,9 +168,10 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
      * the RealmConfig
      */
     private RealmConfig setupRealm(RealmConfig.RealmIdentifier realmIdentifier, Settings localSettings) {
-        final Settings mergedSettings = Settings.builder().put(globalSettings).put(localSettings).build();
+        final Settings mergedSettings = Settings.builder().put(globalSettings).put(localSettings)
+            .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), "0").build();
         final Environment env = TestEnvironment.newEnvironment(mergedSettings);
-        this.sslService = new SSLService(mergedSettings, env);
+        this.sslService = new SSLService(env);
         return new RealmConfig(
             realmIdentifier,
             mergedSettings,
@@ -187,10 +190,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
-        final AuthenticationResult result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        final User user = result.getUser();
-        assertThat(user, is(notNullValue()));
+        final User user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContaining(containsString("Avengers")));
     }
 
@@ -206,8 +206,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         // Thor does not have a UPN of form CN=Thor@ad.test.elasticsearch.com
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD)), future);
-        User user = future.actionGet().getUser();
-        assertThat(user, is(notNullValue()));
+        final User user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContaining(containsString("Avengers")));
     }
 
@@ -343,8 +342,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
-        User user = future.actionGet().getUser();
-        assertThat(user, is(notNullValue()));
+        final User user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContaining(equalTo("group_role")));
     }
 
@@ -361,20 +359,19 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD)), future);
-        User user = future.actionGet().getUser();
-        assertThat(user, is(notNullValue()));
+        final User user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContainingInAnyOrder(equalTo("group_role"), equalTo("user_role")));
     }
 
     /**
      * This tests template role mappings (see
      * {@link TemplateRoleName}) with an LDAP realm, using a additional
-     * metadata field (see {@link LdapMetaDataResolverSettings#ADDITIONAL_META_DATA_SETTING}).
+     * metadata field (see {@link LdapMetadataResolverSettings#ADDITIONAL_METADATA_SETTING}).
      */
     public void testRealmWithTemplatedRoleMapping() throws Exception {
         final RealmConfig.RealmIdentifier realmId = realmId("testRealmWithTemplatedRoleMapping");
         Settings settings = settings(realmId, Settings.builder()
-                .put(getFullSettingKey(realmId, LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING), "departmentNumber")
+                .put(getFullSettingKey(realmId, LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING), "departmentNumber")
                 .build());
         RealmConfig config = setupRealm(realmId, settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
@@ -382,7 +379,6 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         SecurityIndexManager mockSecurityIndex = mock(SecurityIndexManager.class);
         when(mockSecurityIndex.isAvailable()).thenReturn(true);
         when(mockSecurityIndex.isIndexUpToDate()).thenReturn(true);
-        when(mockSecurityIndex.isMappingUpToDate()).thenReturn(true);
 
         Client mockClient = mock(Client.class);
         when(mockClient.threadPool()).thenReturn(threadPool);
@@ -407,18 +403,12 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD)), future);
-        AuthenticationResult result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        User user = result.getUser();
-        assertThat(user, notNullValue());
+        User user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContaining("_role_13"));
 
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
-        result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        user = result.getUser();
-        assertThat(user, notNullValue());
+        user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContaining("_role_12"));
     }
 
@@ -485,7 +475,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     public void testBuildUrlFromDomainNameAndDefaultPort() throws Exception {
         final RealmConfig.RealmIdentifier realmId = realmId("testBuildUrlFromDomainNameAndDefaultPort");
         Settings settings = Settings.builder()
-            .put(getFullSettingKey(realmId.getName(), ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
+            .put(getFullSettingKey(realmId, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
                 "ad.test.elasticsearch.com")
             .build();
         RealmConfig config = setupRealm(realmId, settings);
@@ -496,7 +486,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     public void testBuildUrlFromDomainNameAndCustomPort() throws Exception {
         final RealmConfig.RealmIdentifier realmId = realmId("testBuildUrlFromDomainNameAndCustomPort");
         Settings settings = Settings.builder()
-            .put(getFullSettingKey(realmId.getName(), ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
+            .put(getFullSettingKey(realmId, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
                 "ad.test.elasticsearch.com")
             .put(getFullSettingKey(realmId.getName(), ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), 10389)
             .build();
@@ -508,13 +498,26 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     public void testUrlConfiguredInSettings() throws Exception {
         final RealmConfig.RealmIdentifier realmId = realmId("testBuildUrlFromDomainNameAndCustomPort");
         Settings settings = Settings.builder()
-            .put(getFullSettingKey(realmId.getName(), ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
+            .put(getFullSettingKey(realmId, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
                 "ad.test.elasticsearch.com")
             .put(getFullSettingKey(realmId, SessionFactorySettings.URLS_SETTING), "ldap://ad01.testing.elastic.co:20389/")
             .build();
         RealmConfig config = setupRealm(realmId, settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         assertSingleLdapServer(sessionFactory, "ad01.testing.elastic.co", 20389);
+    }
+
+    public void testMandatorySettings() throws Exception {
+        final RealmConfig.RealmIdentifier realmId = realmId("testMandatorySettingsTestRealm");
+        Settings settings = Settings.builder()
+            .put(getFullSettingKey(realmId, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
+                randomBoolean() ? null : "")
+            .build();
+        RealmConfig config = setupRealm(realmId, settings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new ActiveDirectorySessionFactory(config, sslService, threadPool));
+        assertThat(e.getMessage(), containsString(getFullSettingKey(realmId,
+            ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING)));
     }
 
     private void assertSingleLdapServer(ActiveDirectorySessionFactory sessionFactory, String hostname, int port) {
@@ -530,7 +533,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     private Settings settings(RealmConfig.RealmIdentifier realmIdentifier, Settings extraSettings) throws Exception {
         Settings.Builder builder = Settings.builder()
                 .putList(getFullSettingKey(realmIdentifier, URLS_SETTING), ldapUrls())
-                .put(getFullSettingKey(realmIdentifier.getName(), ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
+                .put(getFullSettingKey(realmIdentifier, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
                         "ad.test.elasticsearch.com")
                 .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), true);
         if (inFipsJvm()) {
@@ -541,5 +544,13 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
                     randomBoolean() ? VerificationMode.CERTIFICATE : VerificationMode.NONE);
         }
         return builder.put(extraSettings).build();
+    }
+
+    private User getAndVerifyAuthUser(PlainActionFuture<AuthenticationResult> future) {
+        final AuthenticationResult result = future.actionGet();
+        assertThat(result.toString(), result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        final User user = result.getUser();
+        assertThat(user, is(notNullValue()));
+        return user;
     }
 }

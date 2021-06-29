@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.enrich;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,6 +34,7 @@ import java.util.Objects;
 public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     public static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
+    public static final String ENRICH_INDEX_PATTERN = ENRICH_INDEX_NAME_BASE + "*";
 
     public static final String MATCH_TYPE = "match";
     public static final String GEO_MATCH_TYPE = "geo_match";
@@ -257,7 +259,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBytesReference(query);
-            out.writeEnum(contentType);
+            XContentHelper.writeTo(out, contentType);
         }
 
         @Override

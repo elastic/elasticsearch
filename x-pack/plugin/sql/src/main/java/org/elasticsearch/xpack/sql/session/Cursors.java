@@ -1,26 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamOutput;
 import org.elasticsearch.xpack.sql.execution.search.CompositeAggCursor;
 import org.elasticsearch.xpack.sql.execution.search.PivotCursor;
 import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractors;
-import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
+import org.elasticsearch.xpack.sql.execution.search.extractor.SqlBucketExtractors;
+import org.elasticsearch.xpack.sql.execution.search.extractor.SqlHitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.literal.Literals;
 import org.elasticsearch.xpack.sql.plugin.TextFormatterCursor;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -53,8 +54,8 @@ public final class Cursors {
 
         // plus all their dependencies
         entries.addAll(Processors.getNamedWriteables());
-        entries.addAll(HitExtractors.getNamedWriteables());
-        entries.addAll(BucketExtractors.getNamedWriteables());
+        entries.addAll(SqlHitExtractors.getNamedWriteables());
+        entries.addAll(SqlBucketExtractors.getNamedWriteables());
 
         // and custom types
         entries.addAll(Literals.getNamedWriteables());
@@ -81,14 +82,6 @@ public final class Cursors {
         } catch (IOException ex) {
             throw new SqlIllegalArgumentException("Unexpected failure retrieving next page", ex);
         }
-    }
-
-
-    /**
-     * Read a {@linkplain Cursor} from a string.
-     */
-    public static Cursor decodeFromString(String base64) {
-        return decodeFromStringWithZone(base64).v1();
     }
 
     /**

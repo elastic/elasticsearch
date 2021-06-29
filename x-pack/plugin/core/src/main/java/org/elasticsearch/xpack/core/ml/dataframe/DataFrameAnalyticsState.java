@@ -1,11 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -16,6 +16,9 @@ import java.util.Locale;
 
 public enum DataFrameAnalyticsState implements Writeable {
 
+    // States reindexing and analyzing are no longer used.
+    // However, we need to keep them for BWC as tasks may be
+    // awaiting assignment in older versioned nodes.
     STARTED, REINDEXING, ANALYZING, STOPPING, STOPPED, FAILED, STARTING;
 
     public static DataFrameAnalyticsState fromString(String name) {
@@ -28,13 +31,7 @@ public enum DataFrameAnalyticsState implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        DataFrameAnalyticsState toWrite = this;
-        if (out.getVersion().before(Version.V_7_5_0) && toWrite == STARTING) {
-            // Before 7.5.0 there was no STARTING state and jobs for which
-            // tasks existed but were unassigned were considered STOPPED
-            toWrite = STOPPED;
-        }
-        out.writeEnum(toWrite);
+        out.writeEnum(this);
     }
 
     @Override
@@ -47,5 +44,12 @@ public enum DataFrameAnalyticsState implements Writeable {
      */
     public boolean isAnyOf(DataFrameAnalyticsState... candidates) {
         return Arrays.stream(candidates).anyMatch(candidate -> this == candidate);
+    }
+
+    /**
+     * @return {@code false} if state matches any of the given {@code candidates}
+     */
+    public boolean isNoneOf(DataFrameAnalyticsState... candidates) {
+        return Arrays.stream(candidates).noneMatch(candidate -> this == candidate);
     }
 }

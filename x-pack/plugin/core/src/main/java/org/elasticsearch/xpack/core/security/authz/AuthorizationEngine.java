@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
@@ -22,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * <p>
@@ -128,23 +132,23 @@ public interface AuthorizationEngine {
      * @param listener the listener to be notified of the authorization result
      */
     void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                              AsyncSupplier<ResolvedIndices> indicesAsyncSupplier, Map<String, AliasOrIndex> aliasOrIndexLookup,
+                              AsyncSupplier<ResolvedIndices> indicesAsyncSupplier, Map<String, IndexAbstraction> aliasOrIndexLookup,
                               ActionListener<IndexAuthorizationResult> listener);
 
     /**
-     * Asynchronously loads a list of alias and index names for which the user is authorized
+     * Asynchronously loads a set of alias and index names for which the user is authorized
      * to execute the requested action.
      *
      * @param requestInfo object contain the request and associated information such as the action
      *                    and associated user(s)
      * @param authorizationInfo information needed from authorization that was previously retrieved
      *                          from {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}
-     * @param aliasOrIndexLookup a map of a string name to the cluster metadata specific to that
+     * @param indicesLookup a map of a string name to the cluster metadata specific to that
      *                            alias or index
      * @param listener the listener to be notified of the authorization result
      */
     void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                               Map<String, AliasOrIndex> aliasOrIndexLookup, ActionListener<List<String>> listener);
+                               Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener);
 
 
     /**
@@ -293,6 +297,14 @@ public interface AuthorizationEngine {
         }
 
         /**
+         * Returns additional context about an authorization failure, if {@link #isGranted()} is false.
+         */
+        @Nullable
+        public String getFailureContext() {
+            return null;
+        }
+
+        /**
          * Returns a new authorization result that is granted and auditable
          */
         public static AuthorizationResult granted() {
@@ -319,6 +331,22 @@ public interface AuthorizationEngine {
         public IndexAuthorizationResult(boolean auditable, IndicesAccessControl indicesAccessControl) {
             super(indicesAccessControl == null || indicesAccessControl.isGranted(), auditable);
             this.indicesAccessControl = indicesAccessControl;
+        }
+
+        @Override
+        public String getFailureContext() {
+            if (isGranted()) {
+                return null;
+            } else {
+                return getFailureDescription(indicesAccessControl.getDeniedIndices());
+            }
+        }
+
+        public static String getFailureDescription(Collection<?> deniedIndices) {
+            if (deniedIndices.isEmpty()) {
+                return null;
+            }
+            return "on indices [" + Strings.collectionToCommaDelimitedString(deniedIndices) + "]";
         }
 
         public IndicesAccessControl getIndicesAccessControl() {

@@ -5,7 +5,8 @@ setup:
         index: bwc_ml_outlier_detection_job_source
         body: >
           {
-            "numeric_field_1": 42.0
+            "numeric_field_1": 42.0,
+            "user": "Kimchy"
           }
 
   - do:
@@ -14,7 +15,18 @@ setup:
         body: >
           {
             "numeric_field_1": 1.0,
-            "foo": 10.0
+            "foo": 10.0,
+            "user": "Kimchy"
+          }
+
+  - do:
+      index:
+        index: bwc_ml_classification_job_source
+        body: >
+          {
+            "numeric_field_1": 1.0,
+            "foo": "a",
+            "user": "Kimchy"
           }
 
   - do:
@@ -31,7 +43,7 @@ setup:
           {
             "source": {
               "index": "bwc_ml_outlier_detection_job_source",
-              "query": {"term" : { "user" : "Kimchy" }}
+              "query": {"term" : { "user.keyword" : "Kimchy" }}
             },
             "dest": {
               "index": "old_cluster_outlier_detection_job_results"
@@ -50,7 +62,7 @@ setup:
           {
             "source": {
               "index": "bwc_ml_regression_job_source",
-              "query": {"term" : { "user" : "Kimchy" }}
+              "query": {"term" : { "user.keyword" : "Kimchy" }}
             },
             "dest": {
               "index": "old_cluster_regression_job_results"
@@ -62,3 +74,26 @@ setup:
             }
           }
   - match: { id: "old_cluster_regression_job" }
+
+---
+"Put classification job on the old cluster":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "old_cluster_classification_job"
+        body: >
+          {
+            "source": {
+              "index": "bwc_ml_classification_job_source",
+              "query": {"term" : { "user.keyword" : "Kimchy" }}
+            },
+            "dest": {
+              "index": "old_cluster_classification_job_results"
+            },
+            "analysis": {
+              "classification":{
+                "dependent_variable": "foo"
+              }
+            }
+          }
+  - match: { id: "old_cluster_classification_job" }

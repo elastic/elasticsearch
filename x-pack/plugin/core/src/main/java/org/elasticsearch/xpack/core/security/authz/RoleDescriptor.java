@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -23,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.Validation;
@@ -189,12 +192,12 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         RoleDescriptor that = (RoleDescriptor) o;
 
-        if (!name.equals(that.name)) return false;
-        if (!Arrays.equals(clusterPrivileges, that.clusterPrivileges)) return false;
-        if (!Arrays.equals(configurableClusterPrivileges, that.configurableClusterPrivileges)) return false;
-        if (!Arrays.equals(indicesPrivileges, that.indicesPrivileges)) return false;
-        if (!Arrays.equals(applicationPrivileges, that.applicationPrivileges)) return false;
-        if (!metadata.equals(that.getMetadata())) return false;
+        if (name.equals(that.name) == false) return false;
+        if (Arrays.equals(clusterPrivileges, that.clusterPrivileges) == false) return false;
+        if (Arrays.equals(configurableClusterPrivileges, that.configurableClusterPrivileges) == false) return false;
+        if (Arrays.equals(indicesPrivileges, that.indicesPrivileges) == false) return false;
+        if (Arrays.equals(applicationPrivileges, that.applicationPrivileges) == false) return false;
+        if (metadata.equals(that.getMetadata()) == false) return false;
         return Arrays.equals(runAs, that.runAs);
     }
 
@@ -208,6 +211,16 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         result = 31 * result + Arrays.hashCode(runAs);
         result = 31 * result + metadata.hashCode();
         return result;
+    }
+
+
+    public boolean isEmpty() {
+        return clusterPrivileges.length == 0
+            && configurableClusterPrivileges.length == 0
+            && indicesPrivileges.length == 0
+            && applicationPrivileges.length == 0
+            && runAs.length == 0
+            && metadata.size() == 0;
     }
 
     @Override
@@ -532,6 +545,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. {} requires {} if {} is given",
                     roleName, Fields.FIELD_PERMISSIONS, Fields.GRANT_FIELDS, Fields.EXCEPT_FIELDS);
         }
+        checkIfExceptFieldsIsSubsetOfGrantedFields(roleName, grantedFields, deniedFields);
         return RoleDescriptor.IndicesPrivileges.builder()
                 .indices(names)
                 .privileges(privileges)
@@ -540,6 +554,14 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 .query(query)
                 .allowRestrictedIndices(allowRestrictedIndices)
                 .build();
+    }
+
+    private static void checkIfExceptFieldsIsSubsetOfGrantedFields(String roleName, String[] grantedFields, String[] deniedFields) {
+        try {
+            FieldPermissions.buildPermittedFieldsAutomaton(grantedFields, deniedFields);
+        } catch (ElasticsearchSecurityException e) {
+            throw new ElasticsearchParseException("failed to parse indices privileges for role [{}] - {}", e, roleName, e.getMessage());
+        }
     }
 
     private static ApplicationResourcePrivileges[] parseApplicationPrivileges(String roleName, XContentParser parser)
@@ -652,11 +674,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             return allowRestrictedIndices;
         }
 
-        private boolean hasDeniedFields() {
+        public boolean hasDeniedFields() {
             return deniedFields != null && deniedFields.length > 0;
         }
 
-        private boolean hasGrantedFields() {
+        public boolean hasGrantedFields() {
             if (grantedFields != null && grantedFields.length >= 0) {
                 // we treat just '*' as no FLS since that's what the UI defaults to
                 if (grantedFields.length == 1 && "*".equals(grantedFields[0])) {
@@ -708,12 +730,12 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
             IndicesPrivileges that = (IndicesPrivileges) o;
 
-            if (!Arrays.equals(indices, that.indices)) return false;
+            if (Arrays.equals(indices, that.indices) == false) return false;
             if (allowRestrictedIndices != that.allowRestrictedIndices) return false;
-            if (!Arrays.equals(privileges, that.privileges)) return false;
-            if (!Arrays.equals(grantedFields, that.grantedFields)) return false;
-            if (!Arrays.equals(deniedFields, that.deniedFields)) return false;
-            return !(query != null ? !query.equals(that.query) : that.query != null);
+            if (Arrays.equals(privileges, that.privileges) == false) return false;
+            if (Arrays.equals(grantedFields, that.grantedFields) == false) return false;
+            if (Arrays.equals(deniedFields, that.deniedFields) == false) return false;
+            return Objects.equals(query, that.query);
         }
 
         @Override

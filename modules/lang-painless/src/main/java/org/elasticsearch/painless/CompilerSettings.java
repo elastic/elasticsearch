@@ -1,36 +1,37 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.painless.api.Augmentation;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Settings to use when compiling a script.
  */
 public final class CompilerSettings {
     /**
-     * Are regexes enabled? This is a node level setting because regexes break out of painless's lovely sandbox and can cause stack
-     * overflows and we can't analyze the regex to be sure it won't.
+     * Are regexes enabled? If {@code true}, regexes are enabled and unlimited by the limit factor.  If {@code false}, they are completely
+     * disabled. If {@code use-limit}, the default, regexes are enabled but limited in complexity according to the
+     * {@code script.painless.regex.limit-factor} setting.
      */
-    public static final Setting<Boolean> REGEX_ENABLED = Setting.boolSetting("script.painless.regex.enabled", false, Property.NodeScope);
+    public static final Setting<RegexEnabled> REGEX_ENABLED =
+        new Setting<>("script.painless.regex.enabled", RegexEnabled.LIMITED.value, RegexEnabled::parse, Property.NodeScope);
+
+    /**
+     * How complex can a regex be?  This is the number of characters that can be considered expressed as a multiple of string length.
+     */
+    public static final Setting<Integer> REGEX_LIMIT_FACTOR =
+        Setting.intSetting("script.painless.regex.limit-factor", 6, 1, Property.NodeScope);
 
     /**
      * Constant to be used when specifying the maximum loop counter when compiling a script.
@@ -65,12 +66,20 @@ public final class CompilerSettings {
      * For testing. Do not use.
      */
     private int initialCallSiteDepth = 0;
+    private int testInject0 = 2;
+    private int testInject1 = 4;
+    private int testInject2 = 6;
 
     /**
-     * Are regexes enabled? They are currently disabled by default because they break out of the loop counter and even fairly simple
-     * <strong>looking</strong> regexes can cause stack overflows.
+     * Are regexes enabled? Defaults to using the factor setting.
      */
-    private boolean regexesEnabled = false;
+    private RegexEnabled regexesEnabled = RegexEnabled.LIMITED;
+
+
+    /**
+     * How complex can regexes be?  Expressed as a multiple of the input string.
+     */
+    private int regexLimitFactor = 0;
 
     /**
      * Returns the value for the cumulative total number of statements that can be made in all loops
@@ -123,18 +132,82 @@ public final class CompilerSettings {
     }
 
     /**
-     * Are regexes enabled? They are currently disabled by default because they break out of the loop counter and even fairly simple
-     * <strong>looking</strong> regexes can cause stack overflows.
+     * Are regexes enabled?
      */
-    public boolean areRegexesEnabled() {
+    public RegexEnabled areRegexesEnabled() {
         return regexesEnabled;
     }
 
     /**
-     * Are regexes enabled? They are currently disabled by default because they break out of the loop counter and even fairly simple
-     * <strong>looking</strong> regexes can cause stack overflows.
+     * Are regexes enabled or limited?
      */
-    public void setRegexesEnabled(boolean regexesEnabled) {
+    public void setRegexesEnabled(RegexEnabled regexesEnabled) {
         this.regexesEnabled = regexesEnabled;
+    }
+
+    /**
+     * What is the limitation on regex complexity?  How many multiples of input length can a regular expression consider?
+     */
+    public void setRegexLimitFactor(int regexLimitFactor) {
+        this.regexLimitFactor = regexLimitFactor;
+    }
+
+    /**
+     * What is the limit factor for regexes?
+     */
+    public int getRegexLimitFactor() {
+        return regexLimitFactor;
+    }
+
+    /**
+     * Get compiler settings as a map.  This is used to inject compiler settings into augmented methods with the {@code @inject_constant}
+     * annotation.
+     */
+    public Map<String, Object> asMap() {
+        int regexLimitFactor = this.regexLimitFactor;
+        if (regexesEnabled == RegexEnabled.TRUE) {
+            regexLimitFactor = Augmentation.UNLIMITED_PATTERN_FACTOR;
+        } else if (regexesEnabled == RegexEnabled.FALSE) {
+            regexLimitFactor = Augmentation.DISABLED_PATTERN_FACTOR;
+        }
+        Map<String, Object> map = new HashMap<>();
+        map.put("regex_limit_factor", regexLimitFactor);
+
+        // for testing only
+        map.put("testInject0", testInject0);
+        map.put("testInject1", testInject1);
+        map.put("testInject2", testInject2);
+
+        return map;
+    }
+
+    /**
+     * Options for {@code script.painless.regex.enabled} setting.
+     */
+    public enum RegexEnabled {
+        TRUE("true"),
+        FALSE("false"),
+        LIMITED("limited");
+        final String value;
+
+        RegexEnabled(String value) {
+            this.value = value;
+        }
+
+        /**
+         * Parse string value, necessary because `valueOf` would require strings to be upper case.
+         */
+        public static RegexEnabled parse(String value) {
+            if (TRUE.value.equals(value)) {
+                return TRUE;
+            } else if (FALSE.value.equals(value)) {
+                return FALSE;
+            } else if (LIMITED.value.equals(value)) {
+                return LIMITED;
+            }
+            throw new IllegalArgumentException(
+                "invalid value [" + value + "] must be one of [" + TRUE.value + "," + FALSE.value + "," + LIMITED.value + "]"
+            );
+        }
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql;
@@ -33,22 +34,17 @@ public abstract class AbstractSqlWireSerializingTestCase<T extends Writeable> ex
         }
     }
 
+    /**
+     * Returns a {@link Writeable.Reader} that can be used to de-serialize the instance
+     */
+    protected abstract Writeable.Reader<T> instanceReader();
+
     protected ZoneId instanceZoneId(T instance) {
-        return randomSafeZone();
+        return randomZone();
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(Cursors.getNamedWriteables());
-    }
-
-
-    /**
-     * We need to exclude SystemV/* time zones because they cannot be converted
-     * back to DateTimeZone which we currently still need to do internally,
-     * e.g. in bwc serialization and in the extract() method
-     */
-    protected static ZoneId randomSafeZone() {
-        return randomValueOtherThanMany(zi -> zi.getId().startsWith("SystemV"), () -> randomZone());
     }
 }

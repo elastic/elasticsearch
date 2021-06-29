@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -9,7 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -63,13 +64,14 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();
         when(state.blocks()).thenReturn(noBlock);
-        MetaData metaData = mock(MetaData.class);
-        when(metaData.custom(LicensesMetaData.TYPE)).thenReturn(new LicensesMetaData(license, null));
-        when(state.metaData()).thenReturn(metaData);
+        Metadata metadata = mock(Metadata.class);
+        when(metadata.custom(LicensesMetadata.TYPE)).thenReturn(new LicensesMetadata(license, null));
+        when(state.metadata()).thenReturn(metadata);
         final DiscoveryNode mockNode = getLocalNode();
         when(discoveryNodes.getMasterNode()).thenReturn(mockNode);
         when(discoveryNodes.spliterator()).thenReturn(Arrays.asList(mockNode).spliterator());
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(false);
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(mockNode.getVersion());
         when(state.nodes()).thenReturn(discoveryNodes);
         when(state.getNodes()).thenReturn(discoveryNodes); // it is really ridiculous we have nodes() and getNodes()...
         when(clusterService.state()).thenReturn(state);

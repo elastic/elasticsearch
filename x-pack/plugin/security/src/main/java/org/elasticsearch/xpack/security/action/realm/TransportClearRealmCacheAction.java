@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.realm;
 
@@ -21,7 +22,7 @@ import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRespons
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.elasticsearch.xpack.security.authc.support.CachingRealm;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 
 import java.io.IOException;
 import java.util.List;
@@ -92,7 +93,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
     }
 
     private void clearCache(Realm realm, String[] usernames) {
-        if (!(realm instanceof CachingRealm)) {
+        if ((realm instanceof CachingRealm) == false) {
             return;
         }
         CachingRealm cachingRealm = (CachingRealm) realm;

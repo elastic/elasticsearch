@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryOptionalMathProcessor.BinaryOptionalMathOperation;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
@@ -31,11 +32,7 @@ public class BinaryOptionalMathPipe extends Pipe {
 
     @Override
     public final Pipe replaceChildren(List<Pipe> newChildren) {
-        int childrenSize = newChildren.size();
-        if (childrenSize > 2 || childrenSize < 1) {
-            throw new IllegalArgumentException("expected [1 or 2] children but received [" + newChildren.size() + "]");
-        }
-        return replaceChildren(newChildren.get(0), childrenSize == 1 ? null : newChildren.get(1));
+        return replaceChildren(newChildren.get(0), newChildren.size() == 1 ? null : newChildren.get(1));
     }
 
     @Override
@@ -63,7 +60,7 @@ public class BinaryOptionalMathPipe extends Pipe {
     }
 
     @Override
-    public final void collectFields(SqlSourceBuilder sourceBuilder) {
+    public final void collectFields(QlSourceBuilder sourceBuilder) {
         left.collectFields(sourceBuilder);
         if (right != null) {
             right.collectFields(sourceBuilder);
@@ -79,15 +76,15 @@ public class BinaryOptionalMathPipe extends Pipe {
     public BinaryOptionalMathProcessor asProcessor() {
         return new BinaryOptionalMathProcessor(left.asProcessor(), right == null ? null : right.asProcessor(), operation);
     }
-    
+
     public Pipe right() {
         return right;
     }
-    
+
     public Pipe left() {
         return left;
     }
-    
+
     public BinaryOptionalMathOperation operation() {
         return operation;
     }
@@ -108,7 +105,7 @@ public class BinaryOptionalMathPipe extends Pipe {
         }
 
         BinaryOptionalMathPipe other = (BinaryOptionalMathPipe) obj;
-        return Objects.equals(left, other.left) 
+        return Objects.equals(left, other.left)
                 && Objects.equals(right, other.right)
                 && Objects.equals(operation, other.operation);
     }

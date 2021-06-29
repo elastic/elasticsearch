@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.support;
@@ -11,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 
@@ -25,7 +27,8 @@ public class TokensInvalidationResultTests extends ESTestCase {
         TokensInvalidationResult result = new TokensInvalidationResult(Arrays.asList("token1", "token2"),
             Arrays.asList("token3", "token4"),
             Arrays.asList(new ElasticsearchException("foo", new IllegalStateException("bar")),
-                new ElasticsearchException("boo", new IllegalStateException("far"))));
+                new ElasticsearchException("boo", new IllegalStateException("far"))),
+            RestStatus.OK);
 
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -56,7 +59,7 @@ public class TokensInvalidationResultTests extends ESTestCase {
 
     public void testToXcontentWithNoErrors() throws Exception{
         TokensInvalidationResult result = new TokensInvalidationResult(Arrays.asList("token1", "token2"), Collections.emptyList(),
-            Collections.emptyList());
+            Collections.emptyList(), RestStatus.OK);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertThat(Strings.toString(builder),

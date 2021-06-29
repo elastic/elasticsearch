@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.query;
 
@@ -49,6 +38,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -71,13 +61,13 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(CustomScriptPlugin.class);
+        return Arrays.asList(CustomScriptPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         String docType = "_doc";
-        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
                 "m_s_m", "type=long"
         ))), MapperService.MergeReason.MAPPING_UPDATE);
     }
@@ -88,7 +78,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
             value -> value.equals(GEO_POINT_FIELD_NAME) || value.equals(GEO_SHAPE_FIELD_NAME),
             () -> randomFrom(MAPPED_FIELD_NAMES));
         List<?> randomTerms = randomValues(fieldName);
-        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, randomTerms);
+        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, randomTerms);
         if (randomBoolean()) {
             queryBuilder.setMinimumShouldMatchField("m_s_m");
         } else {
@@ -99,7 +89,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(TermsSetQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(TermsSetQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         if (queryBuilder.getValues().isEmpty()) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
@@ -117,40 +107,36 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         TermsSetQueryBuilder queryBuilder = createTestQueryBuilder();
         boolean isCacheable = queryBuilder.getMinimumShouldMatchField() != null ||
                 (queryBuilder.getMinimumShouldMatchScript() != null && queryBuilder.getValues().isEmpty());
-        QueryShardContext context = createShardContext();
-        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        SearchExecutionContext context = createSearchExecutionContext();
+        rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(queryBuilder.doToQuery(context));
         assertEquals("query should " + (isCacheable ? "" : "not") + " be cacheable: " + queryBuilder.toString(), isCacheable,
                 context.isCacheable());
 
         // specifically trigger the two cases where query is cacheable
-        queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, Collections.singletonList("foo"));
+        queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, Collections.singletonList("foo"));
         queryBuilder.setMinimumShouldMatchField("m_s_m");
-        context = createShardContext();
-        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        context = createSearchExecutionContext();
+        rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(queryBuilder.doToQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
 
-        queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, Collections.emptyList());
+        queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, Collections.emptyList());
         queryBuilder.setMinimumShouldMatchScript(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap()));
-        context = createShardContext();
-        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        context = createSearchExecutionContext();
+        rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(queryBuilder.doToQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
 
         // also test one case where query is not cacheable
-        queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, Collections.singletonList("foo"));
+        queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, Collections.singletonList("foo"));
         queryBuilder.setMinimumShouldMatchScript(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap()));
-        context = createShardContext();
-        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        context = createSearchExecutionContext();
+        rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(queryBuilder.doToQuery(context));
         assertFalse("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
-    @Override
-    protected boolean builderGeneratesCacheableQueries() {
-        return false;
-    }
 
     @Override
     public TermsSetQueryBuilder mutateInstance(final TermsSetQueryBuilder instance) throws IOException {
@@ -234,7 +220,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
             }
 
             try (IndexReader ir = DirectoryReader.open(directory)) {
-                QueryShardContext context = createShardContext();
+                SearchExecutionContext context = createSearchExecutionContext();
                 Query query = new TermsSetQueryBuilder("message", Arrays.asList("c", "d"))
                         .setMinimumShouldMatchField("m_s_m").doToQuery(context);
                 IndexSearcher searcher = new IndexSearcher(ir);
@@ -279,7 +265,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
             }
 
             try (IndexReader ir = DirectoryReader.open(directory)) {
-                QueryShardContext context = createShardContext();
+                SearchExecutionContext context = createSearchExecutionContext();
                 Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap());
                 Query query = new TermsSetQueryBuilder("message", Arrays.asList("a", "b", "c", "d"))
                         .setMinimumShouldMatchScript(script).doToQuery(context);
@@ -295,10 +281,10 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
 
     public void testFieldAlias() {
         List<String> randomTerms = Arrays.asList(generateRandomStringArray(5, 10, false, false));
-        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(STRING_ALIAS_FIELD_NAME, randomTerms)
+        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(TEXT_ALIAS_FIELD_NAME, randomTerms)
             .setMinimumShouldMatchField("m_s_m");
 
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         List<Query> termQueries = queryBuilder.createTermQueries(context);
         assertEquals(randomTerms.size(), termQueries.size());
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
@@ -17,17 +18,20 @@ import java.io.IOException;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.transform.transforms.TransformStats.State.STARTED;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformStats.State.WAITING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransformStatsTests extends AbstractSerializingTestCase<TransformStats> {
 
-    public static TransformStats randomDataFrameTransformStats() {
-        return new TransformStats(randomAlphaOfLength(10),
+    public static TransformStats randomTransformStats() {
+        return new TransformStats(
+            randomAlphaOfLength(10),
             randomFrom(TransformStats.State.values()),
             randomBoolean() ? null : randomAlphaOfLength(100),
             randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
             TransformIndexerStatsTests.randomStats(),
-            TransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
+            TransformCheckpointingInfoTests.randomTransformCheckpointingInfo()
+        );
     }
 
     @Override
@@ -37,7 +41,7 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
 
     @Override
     protected TransformStats createTestInstance() {
-        return randomDataFrameTransformStats();
+        return randomTransformStats();
     }
 
     @Override
@@ -57,21 +61,26 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     public void testBwcWith73() throws IOException {
-        for(int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
-            TransformStats stats = new TransformStats("bwc-id",
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
+            TransformStats stats = new TransformStats(
+                "bwc-id",
                 STARTED,
                 randomBoolean() ? null : randomAlphaOfLength(100),
                 randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
-                new TransformIndexerStats(1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+                new TransformIndexerStats(1, 2, 3, 0, 5, 6, 7, 0, 0, 10, 11, 0, 13, 14, 0.0, 0.0, 0.0),
                 new TransformCheckpointingInfo(
                     new TransformCheckpointStats(0, null, null, 10, 100),
                     new TransformCheckpointStats(0, null, null, 100, 1000),
                     // changesLastDetectedAt aren't serialized back
-                    100, null));
+                    100,
+                    null,
+                    null
+                )
+            );
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 output.setVersion(Version.V_7_3_0);
                 stats.writeTo(output);
@@ -79,6 +88,64 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
                     in.setVersion(Version.V_7_3_0);
                     TransformStats statsFromOld = new TransformStats(in);
                     assertThat(statsFromOld, equalTo(stats));
+                }
+            }
+        }
+    }
+
+    public void testBwcWith76() throws IOException {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
+            TransformStats stats = new TransformStats(
+                "bwc-id",
+                STARTED,
+                randomBoolean() ? null : randomAlphaOfLength(100),
+                randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
+                new TransformIndexerStats(1, 2, 3, 0, 5, 6, 7, 0, 0, 10, 11, 0, 13, 14, 15.0, 16.0, 17.0),
+                new TransformCheckpointingInfo(
+                    new TransformCheckpointStats(0, null, null, 10, 100),
+                    new TransformCheckpointStats(0, null, null, 100, 1000),
+                    // changesLastDetectedAt aren't serialized back
+                    100,
+                    null,
+                    null
+                )
+            );
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                output.setVersion(Version.V_7_6_0);
+                stats.writeTo(output);
+                try (StreamInput in = output.bytes().streamInput()) {
+                    in.setVersion(Version.V_7_6_0);
+                    TransformStats statsFromOld = new TransformStats(in);
+                    assertThat(statsFromOld, equalTo(stats));
+                }
+            }
+        }
+    }
+
+    public void testBwcWith712() throws IOException {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
+            TransformStats stats = new TransformStats(
+                "bwc-id",
+                WAITING,
+                randomBoolean() ? null : randomAlphaOfLength(100),
+                randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
+                new TransformIndexerStats(1, 2, 3, 0, 5, 6, 7, 0, 0, 10, 11, 0, 13, 14, 15.0, 16.0, 17.0),
+                new TransformCheckpointingInfo(
+                    new TransformCheckpointStats(0, null, null, 10, 100),
+                    new TransformCheckpointStats(0, null, null, 100, 1000),
+                    // changesLastDetectedAt aren't serialized back
+                    100,
+                    null,
+                    null
+                )
+            );
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                output.setVersion(Version.V_7_12_0);
+                stats.writeTo(output);
+                try (StreamInput in = output.bytes().streamInput()) {
+                    in.setVersion(Version.V_7_13_0);
+                    TransformStats statsFromOld = new TransformStats(in);
+                    assertThat(statsFromOld.getState(), equalTo(STARTED));
                 }
             }
         }

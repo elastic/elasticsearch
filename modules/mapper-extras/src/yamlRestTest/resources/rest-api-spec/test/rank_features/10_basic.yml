@@ -1,0 +1,166 @@
+setup:
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                tags:
+                   type: rank_features
+                negative_reviews:
+                   type: rank_features
+                   positive_score_impact: false
+
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          tags:
+            foo: 3
+            bar: 5
+          negative_reviews:
+            1star: 10
+            2star: 1
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body:
+          tags:
+            bar: 6
+            quux: 10
+          negative_reviews:
+            1star: 1
+            2star: 10
+
+  - do:
+      indices.refresh: {}
+
+---
+"Log":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            rank_feature:
+              field: tags.bar
+              log:
+                scaling_factor: 3
+
+  - match:
+      hits.total.value: 2
+
+  - match:
+      hits.hits.0._id: "2"
+
+  - match:
+      hits.hits.1._id: "1"
+
+---
+"Saturation":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            rank_feature:
+              field: tags.bar
+              saturation:
+                pivot: 20
+
+  - match:
+      hits.total.value: 2
+
+  - match:
+      hits.hits.0._id: "2"
+
+  - match:
+      hits.hits.1._id: "1"
+
+---
+"Sigmoid":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            rank_feature:
+              field: tags.bar
+              sigmoid:
+                pivot: 20
+                exponent: 0.6
+
+  - match:
+      hits.total.value: 2
+
+  - match:
+      hits.hits.0._id: "2"
+
+  - match:
+      hits.hits.1._id: "1"
+
+---
+"Linear":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            rank_feature:
+              field: tags.bar
+              linear: {}
+
+  - match:
+      hits.total.value: 2
+
+  - match:
+      hits.hits.0._id: "2"
+  - match:
+      hits.hits.0._score: 6.0
+
+  - match:
+      hits.hits.1._id: "1"
+  - match:
+      hits.hits.1._score: 5.0
+
+
+---
+"Linear negative impact":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            rank_feature:
+              field: negative_reviews.1star
+              linear: {}
+
+  - match:
+      hits.hits.0._id: "2"
+  - match:
+      hits.hits.1._id: "1"
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            rank_feature:
+              field: negative_reviews.2star
+              linear: {}
+
+  - match:
+      hits.hits.0._id: "1"
+  - match:
+      hits.hits.1._id: "2"

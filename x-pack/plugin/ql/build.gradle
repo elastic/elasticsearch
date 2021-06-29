@@ -1,0 +1,20 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
+esplugin {
+  name 'x-pack-ql'
+  description 'Elasticsearch infrastructure plugin for EQL and SQL for Elasticsearch'
+  classname 'org.elasticsearch.xpack.ql.plugin.QlPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+archivesBaseName = 'x-pack-ql'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(project(xpackModule('ql:test-fixtures'))) {
+    exclude group: 'org.elasticsearch.plugin', module: 'ql'
+  }
+}

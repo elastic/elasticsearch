@@ -1,31 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -77,8 +64,7 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
 
     @Override
     protected InternalDateRange createTestInstance(String name,
-                                                   List<PipelineAggregator> pipelineAggregators,
-                                                   Map<String, Object> metaData,
+                                                   Map<String, Object> metadata,
                                                    InternalAggregations aggregations,
                                                    boolean keyed) {
         final List<InternalDateRange.Bucket> buckets = new ArrayList<>();
@@ -89,16 +75,11 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
             double to = range.v2();
             buckets.add(new InternalDateRange.Bucket("range_" + i, from, to, docCount, aggregations, keyed, format));
         }
-        return new InternalDateRange(name, buckets, format, keyed, pipelineAggregators, metaData);
+        return new InternalDateRange(name, buckets, format, keyed, metadata);
     }
 
     @Override
-    protected Writeable.Reader<InternalDateRange> instanceReader() {
-        return InternalDateRange::new;
-    }
-
-    @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedDateRange> implementationClass() {
         return ParsedDateRange.class;
     }
 
@@ -118,8 +99,7 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
         DocValueFormat format = instance.format;
         boolean keyed = instance.keyed;
         List<InternalDateRange.Bucket> buckets = instance.getBuckets();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -134,16 +114,16 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
                     InternalAggregations.EMPTY, false, format));
             break;
         case 3:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalDateRange(name, buckets, format, keyed, pipelineAggregators, metaData);
+        return new InternalDateRange(name, buckets, format, keyed, metadata);
     }
 }

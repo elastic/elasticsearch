@@ -168,6 +168,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitNamedQuery(SqlBaseParser.NamedQueryContext ctx);
   /**
+   * Visit a parse tree produced by {@link SqlBaseParser#topClause}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitTopClause(SqlBaseParser.TopClauseContext ctx);
+  /**
    * Visit a parse tree produced by {@link SqlBaseParser#setQuantifier}.
    * @param ctx the parse tree
    * @return the visitor result

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc;
 
@@ -184,7 +185,7 @@ public class RealmSettingsTests extends ESTestCase {
                 .put("unmapped_groups_as_roles", randomBoolean())
                 .put("files.role_mapping", "x-pack/" + randomAlphaOfLength(8) + ".yml")
                 .put("timeout.tcp_connect", randomPositiveTimeValue())
-                .put("timeout.tcp_read", randomPositiveTimeValue())
+                .put("timeout.response", randomPositiveTimeValue())
                 .put("timeout.ldap_search", randomPositiveTimeValue());
         if (configureSSL) {
             configureSsl("ssl.", builder, randomBoolean(), randomBoolean());

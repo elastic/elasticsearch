@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.documentation;
@@ -53,6 +42,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.RethrottleRequest;
+import org.elasticsearch.client.core.GetSourceRequest;
+import org.elasticsearch.client.core.GetSourceResponse;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.MultiTermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
@@ -64,7 +55,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -83,7 +74,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.Collections;
@@ -833,10 +823,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::reindex-request-pipeline
             request.setDestPipeline("my_pipeline"); // <1>
             // end::reindex-request-pipeline
-            // tag::reindex-request-sort
-            request.addSortField("field1", SortOrder.DESC); // <1>
-            request.addSortField("field2", SortOrder.ASC); // <2>
-            // end::reindex-request-sort
             // tag::reindex-request-script
             request.setScript(
                 new Script(
@@ -848,7 +834,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             Integer remotePort = host.getPort();
             String remoteHost = host.getHostName();
             String user = "test_user";
-            String password = "test-password";
+            String password = "test-user-password";
 
             // tag::reindex-request-remote
             request.setRemoteInfo(
@@ -1403,6 +1389,103 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetSource() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            Request createIndex = new Request("PUT", "/posts");
+            createIndex.setJsonEntity(
+                "{\n" +
+                    "    \"mappings\" : {\n" +
+                    "        \"properties\" : {\n" +
+                    "            \"message\" : {\n" +
+                    "                \"type\": \"text\",\n" +
+                    "                \"store\": true\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
+                    "}");
+            Response response = client().performRequest(createIndex);
+            assertEquals(200, response.getStatusLine().getStatusCode());
+
+            IndexRequest indexRequest = new IndexRequest("posts").id("1")
+                .source("user", "kimchy",
+                    "postDate", new Date(),
+                    "message", "trying out Elasticsearch");
+            IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
+            assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+        }
+
+        // tag::get-source-request
+        GetSourceRequest getSourceRequest = new GetSourceRequest(
+            "posts", // <1>
+            "1");   // <2>
+        // end::get-source-request
+
+        //tag::get-source-request-optional
+        String[] includes = Strings.EMPTY_ARRAY;  // <2>
+        String[] excludes = new String[]{"postDate"};
+        getSourceRequest.fetchSourceContext(
+            new FetchSourceContext(true, includes, excludes)); // <1>
+        // end::get-source-request-optional
+
+        //tag::get-source-request-routing
+        getSourceRequest.routing("routing"); // <1>
+        //end::get-source-request-routing
+        //tag::get-source-request-preference
+        getSourceRequest.preference("preference"); // <1>
+        //end::get-source-request-preference
+        //tag::get-source-request-realtime
+        getSourceRequest.realtime(false); // <1>
+        //end::get-source-request-realtime
+        //tag::get-source-request-refresh
+        getSourceRequest.refresh(true); // <1>
+        //end::get-source-request-refresh
+
+        {
+            // tag::get-source-execute
+            GetSourceResponse response =
+                client.getSource(getSourceRequest, RequestOptions.DEFAULT);
+            // end::get-source-execute
+            // tag::get-source-response
+            Map<String, Object> source = response.getSource();
+            // end::get-source-response
+
+            Map<String, Object> expectSource = new HashMap<>();
+            expectSource.put("user", "kimchy");
+            expectSource.put("message", "trying out Elasticsearch");
+            assertEquals(expectSource, source);
+        }
+        {
+            GetSourceRequest request = new GetSourceRequest("posts", "1");
+
+            // tag::get-source-execute-listener
+            ActionListener<GetSourceResponse> listener =
+                new ActionListener<GetSourceResponse>() {
+                    @Override
+                    public void onResponse(GetSourceResponse getResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-source-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::get-source-execute-async
+            client.getSourceAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            //end::get-source-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+    }
+
     public void testExists() throws Exception {
         RestHighLevelClient client = highLevelClient();
         // tag::exists-request
@@ -1471,7 +1554,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             BulkProcessor bulkProcessor = BulkProcessor.builder(
                     (request, bulkListener) ->
                         client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
-                    listener).build(); // <5>
+                    listener, "bulk-processor-name").build(); // <5>
             // end::bulk-processor-init
             assertNotNull(bulkProcessor);
 
@@ -1533,7 +1616,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             BulkProcessor.Builder builder = BulkProcessor.builder(
                     (request, bulkListener) ->
                         client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
-                    listener);
+                    listener, "bulk-processor-name");
             builder.setBulkActions(500); // <1>
             builder.setBulkSize(new ByteSizeValue(1L, ByteSizeUnit.MB)); // <2>
             builder.setConcurrentRequests(0); // <3>

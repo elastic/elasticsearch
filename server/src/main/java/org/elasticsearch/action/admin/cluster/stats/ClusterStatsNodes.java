@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -23,22 +12,24 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -80,13 +71,13 @@ public class ClusterStatsNodes implements ToXContentFragment {
             nodeInfos.add(nodeResponse.nodeInfo());
             nodeStats.add(nodeResponse.nodeStats());
             this.versions.add(nodeResponse.nodeInfo().getVersion());
-            this.plugins.addAll(nodeResponse.nodeInfo().getPlugins().getPluginInfos());
+            this.plugins.addAll(nodeResponse.nodeInfo().getInfo(PluginsAndModules.class).getPluginInfos());
 
             // now do the stats that should be deduped by hardware (implemented by ip deduping)
             TransportAddress publishAddress =
-                    nodeResponse.nodeInfo().getTransport().address().publishAddress();
+                    nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
             final InetAddress inetAddress = publishAddress.address().getAddress();
-            if (!seenAddresses.add(inetAddress)) {
+            if (seenAddresses.add(inetAddress) == false) {
                 continue;
             }
             if (nodeResponse.nodeStats().getFs() != null) {
@@ -196,10 +187,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
         private Counts(final List<NodeInfo> nodeInfos) {
             // TODO: do we need to report zeros?
-            final Map<String, Integer> roles = new HashMap<>(DiscoveryNode.getPossibleRoleNames().size());
+            final Map<String, Integer> roles = new HashMap<>(DiscoveryNodeRole.roles().size() + 1);
             roles.put(COORDINATING_ONLY, 0);
-            for (final String possibleRoleName : DiscoveryNode.getPossibleRoleNames()) {
-                roles.put(possibleRoleName, 0);
+            for (final DiscoveryNodeRole role : DiscoveryNodeRole.roles()) {
+                roles.put(role.roleName(), 0);
             }
 
             int total = 0;
@@ -245,6 +236,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         final int allocatedProcessors;
         final ObjectIntHashMap<String> names;
         final ObjectIntHashMap<String> prettyNames;
+        final ObjectIntHashMap<String> architectures;
         final org.elasticsearch.monitor.os.OsStats.Mem mem;
 
         /**
@@ -253,17 +245,21 @@ public class ClusterStatsNodes implements ToXContentFragment {
         private OsStats(List<NodeInfo> nodeInfos, List<NodeStats> nodeStatsList) {
             this.names = new ObjectIntHashMap<>();
             this.prettyNames = new ObjectIntHashMap<>();
+            this.architectures = new ObjectIntHashMap<>();
             int availableProcessors = 0;
             int allocatedProcessors = 0;
             for (NodeInfo nodeInfo : nodeInfos) {
-                availableProcessors += nodeInfo.getOs().getAvailableProcessors();
-                allocatedProcessors += nodeInfo.getOs().getAllocatedProcessors();
+                availableProcessors += nodeInfo.getInfo(OsInfo.class).getAvailableProcessors();
+                allocatedProcessors += nodeInfo.getInfo(OsInfo.class).getAllocatedProcessors();
 
-                if (nodeInfo.getOs().getName() != null) {
-                    names.addTo(nodeInfo.getOs().getName(), 1);
+                if (nodeInfo.getInfo(OsInfo.class).getName() != null) {
+                    names.addTo(nodeInfo.getInfo(OsInfo.class).getName(), 1);
                 }
-                if (nodeInfo.getOs().getPrettyName() != null) {
-                    prettyNames.addTo(nodeInfo.getOs().getPrettyName(), 1);
+                if (nodeInfo.getInfo(OsInfo.class).getPrettyName() != null) {
+                    prettyNames.addTo(nodeInfo.getInfo(OsInfo.class).getPrettyName(), 1);
+                }
+                if (nodeInfo.getInfo(OsInfo.class).getArch() != null) {
+                    architectures.addTo(nodeInfo.getInfo(OsInfo.class).getArch(), 1);
                 }
             }
             this.availableProcessors = availableProcessors;
@@ -305,6 +301,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
             static final String NAMES = "names";
             static final String PRETTY_NAME = "pretty_name";
             static final String PRETTY_NAMES = "pretty_names";
+            static final String ARCH = "arch";
+            static final String ARCHITECTURES = "architectures";
             static final String COUNT = "count";
         }
 
@@ -332,6 +330,18 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     {
                         builder.field(Fields.PRETTY_NAME, prettyName.key);
                         builder.field(Fields.COUNT, prettyName.value);
+                    }
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+            builder.startArray(Fields.ARCHITECTURES);
+            {
+                for (final ObjectIntCursor<String> arch : architectures) {
+                    builder.startObject();
+                    {
+                        builder.field(Fields.ARCH, arch.key);
+                        builder.field(Fields.COUNT, arch.value);
                     }
                     builder.endObject();
                 }
@@ -454,7 +464,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             long heapMax = 0;
             long heapUsed = 0;
             for (NodeInfo nodeInfo : nodeInfos) {
-                versions.addTo(new JvmVersion(nodeInfo.getJvm()), 1);
+                versions.addTo(new JvmVersion(nodeInfo.getInfo(JvmInfo.class)), 1);
             }
 
             for (NodeStats nodeStats : nodeStatsList) {

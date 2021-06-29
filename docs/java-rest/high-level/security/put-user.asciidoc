@@ -5,10 +5,10 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put User API
+=== Create or update user API
 
 [id="{upid}-{api}-request"]
-==== Put User Request Request
+==== Request
 
 The +{request}+ class is used to create or update a user in the Native Realm.
 There are 3 different factory methods for creating a request.
@@ -46,7 +46,7 @@ include-tagged::{doc-tests-file}[{api}-update-request]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Put User Response
+==== Response
 
 The returned `PutUserResponse` contains a single field, `created`. This field
 serves as an indication if a user was created or if an existing entry was updated.

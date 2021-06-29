@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.ml.job.process.diagnostics.DataStreamDiagnostics;
 
 import java.util.Date;
 import java.util.Locale;
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 
 /**
@@ -50,7 +50,7 @@ public class DataCountsReporter {
     private long logEvery = 1;
     private long logCount = 0;
 
-    private Function<Long, Boolean> reportingBoundaryFunction;
+    private Predicate<Long> reportingBoundaryFunction;
 
     private DataStreamDiagnostics diagnostics;
 
@@ -74,27 +74,30 @@ public class DataCountsReporter {
      *                        but the actual number of fields in the record
      * @param recordTimeMs    The time of the record written
      *                        in milliseconds from the epoch.
+     * @param latestRecordTimeMs The time of the latest (in time) record written.
+     *                           May be greater than or equal to `recordTimeMs`
      */
-    public void reportRecordWritten(long inputFieldCount, long recordTimeMs) {
-        Date recordDate = new Date(recordTimeMs);
+    public void reportRecordWritten(long inputFieldCount, long recordTimeMs, long latestRecordTimeMs) {
+        final Date latestRecordDate = new Date(latestRecordTimeMs);
 
         totalRecordStats.incrementInputFieldCount(inputFieldCount);
         totalRecordStats.incrementProcessedRecordCount(1);
-        totalRecordStats.setLatestRecordTimeStamp(recordDate);
+        totalRecordStats.setLatestRecordTimeStamp(latestRecordDate);
 
         incrementalRecordStats.incrementInputFieldCount(inputFieldCount);
         incrementalRecordStats.incrementProcessedRecordCount(1);
-        incrementalRecordStats.setLatestRecordTimeStamp(recordDate);
+        incrementalRecordStats.setLatestRecordTimeStamp(latestRecordDate);
 
         boolean isFirstReport = totalRecordStats.getEarliestRecordTimeStamp() == null;
         if (isFirstReport) {
+            final Date recordDate = new Date(recordTimeMs);
             totalRecordStats.setEarliestRecordTimeStamp(recordDate);
             incrementalRecordStats.setEarliestRecordTimeStamp(recordDate);
         }
 
         // report at various boundaries
         long totalRecords = getInputRecordCount();
-        if (reportingBoundaryFunction.apply(totalRecords)) {
+        if (reportingBoundaryFunction.test(totalRecords)) {
             logStatus(totalRecords);
         }
 
@@ -229,13 +232,13 @@ public class DataCountsReporter {
     /**
      * Report the counts now regardless of whether or not we are at a reporting boundary.
      */
-    public void finishReporting(ActionListener<Boolean> listener) {
+    public void finishReporting() {
         Date now = new Date();
         incrementalRecordStats.setLastDataTimeStamp(now);
         totalRecordStats.setLastDataTimeStamp(now);
         diagnostics.flush();
         retrieveDiagnosticsIntermediateResults();
-        dataCountsPersister.persistDataCounts(job.getId(), runningTotalStats(), listener);
+        dataCountsPersister.persistDataCounts(job.getId(), runningTotalStats());
     }
 
     /**

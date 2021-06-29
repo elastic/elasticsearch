@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +41,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class HistogramGroupConfig implements Writeable, ToXContentObject {
 
-    static final String NAME = "histogram";
+    public static final String NAME = "histogram";
     public static final String INTERVAL = "interval";
     private static final String FIELDS = "fields";
     private static final ConstructingObjectParser<HistogramGroupConfig, Void> PARSER;
@@ -67,7 +68,7 @@ public class HistogramGroupConfig implements Writeable, ToXContentObject {
         this.fields = fields;
     }
 
-    HistogramGroupConfig(final StreamInput in) throws IOException {
+    public HistogramGroupConfig(final StreamInput in) throws IOException {
         interval = in.readVLong();
         fields = in.readStringArray();
     }

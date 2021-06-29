@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.engine;
@@ -84,17 +73,17 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             this.safeCommitInfo = SafeCommitInfo.EMPTY;
             this.lastCommit = commits.get(commits.size() - 1);
             this.safeCommit = commits.get(keptPosition);
-            if (keptPosition == commits.size() - 1) {
-                this.maxSeqNoOfNextSafeCommit = Long.MAX_VALUE;
-            } else {
-                this.maxSeqNoOfNextSafeCommit = Long.parseLong(commits.get(keptPosition + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
-            }
             for (int i = 0; i < keptPosition; i++) {
                 if (snapshottedCommits.containsKey(commits.get(i)) == false) {
                     deleteCommit(commits.get(i));
                 }
             }
             updateRetentionPolicy();
+            if (keptPosition == commits.size() - 1) {
+                this.maxSeqNoOfNextSafeCommit = Long.MAX_VALUE;
+            } else {
+                this.maxSeqNoOfNextSafeCommit = Long.parseLong(commits.get(keptPosition + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+            }
             safeCommit = this.safeCommit;
         }
 
@@ -121,16 +110,10 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert Thread.holdsLock(this);
         logger.debug("Safe commit [{}], last commit [{}]", commitDescription(safeCommit), commitDescription(lastCommit));
         assert safeCommit.isDeleted() == false : "The safe commit must not be deleted";
-        final long minRequiredGen = Long.parseLong(safeCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         assert lastCommit.isDeleted() == false : "The last commit must not be deleted";
-        final long lastGen = Long.parseLong(lastCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-
-        assert minRequiredGen <= lastGen : "minRequiredGen must not be greater than lastGen";
-        translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
-        translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
-
-        softDeletesPolicy.setLocalCheckpointOfSafeCommit(
-            Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));
+        final long localCheckpointOfSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        softDeletesPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
+        translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
     }
 
     protected int getDocCountOfCommit(IndexCommit indexCommit) throws IOException {

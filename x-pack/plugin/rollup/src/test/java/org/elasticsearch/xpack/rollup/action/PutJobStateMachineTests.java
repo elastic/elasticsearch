@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.action;
 
@@ -19,9 +20,9 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
@@ -53,7 +54,7 @@ import static org.mockito.Mockito.when;
 
 public class PutJobStateMachineTests extends ESTestCase {
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testCreateIndexException() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
@@ -79,7 +80,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(CreateIndexAction.INSTANCE), any(CreateIndexRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testIndexAlreadyExists() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
@@ -111,8 +112,8 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
-    public void testIndexMetaData() throws InterruptedException {
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testIndexMetadata() throws InterruptedException {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
         ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
@@ -128,8 +129,8 @@ public class PutJobStateMachineTests extends ESTestCase {
         ArgumentCaptor<ActionListener> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         ArgumentCaptor<CreateIndexRequest> requestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         doAnswer(invocation -> {
-            assertNotNull(requestCaptor.getValue().mappings().get("_doc"));
-            String mapping = requestCaptor.getValue().mappings().get("_doc");
+            assertNotNull(requestCaptor.getValue().mappings());
+            String mapping = requestCaptor.getValue().mappings();
 
             // Make sure the version is present, and we have our date template (the most important aspects)
             assertThat(mapping, containsString("\"rollup-version\":\"" + Version.CURRENT.toString() + "\""));
@@ -154,7 +155,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         latch.await(4, TimeUnit.SECONDS);
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testGetMappingFails() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
@@ -178,7 +179,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testNoMetadataInMapping() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
@@ -196,9 +197,9 @@ public class PutJobStateMachineTests extends ESTestCase {
         ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
-            MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME, Collections.emptyMap());
+            MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.emptyMap());
 
-            ImmutableOpenMap.Builder<String, MappingMetaData> builder2 = ImmutableOpenMap.builder(1);
+            ImmutableOpenMap.Builder<String, MappingMetadata> builder2 = ImmutableOpenMap.builder(1);
             builder2.put(job.getConfig().getRollupIndex(), meta);
 
             when(response.getMappings()).thenReturn(builder2.build());
@@ -210,7 +211,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testMetadataButNotRollup() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
@@ -231,10 +232,10 @@ public class PutJobStateMachineTests extends ESTestCase {
             Map<String, Object> m = new HashMap<>(2);
             m.put("random",
                 Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
-            MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
+            MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME,
                 Collections.singletonMap("_meta", m));
 
-            ImmutableOpenMap.Builder<String, MappingMetaData> builder2 = ImmutableOpenMap.builder(1);
+            ImmutableOpenMap.Builder<String, MappingMetadata> builder2 = ImmutableOpenMap.builder(1);
             builder2.put(job.getConfig().getRollupIndex(), meta);
 
             when(response.getMappings()).thenReturn(builder2.build());
@@ -246,7 +247,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testNoMappingVersion() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
@@ -266,10 +267,10 @@ public class PutJobStateMachineTests extends ESTestCase {
             Map<String, Object> m = new HashMap<>(2);
             m.put(RollupField.ROLLUP_META,
                 Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
-            MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
+            MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME,
                 Collections.singletonMap("_meta", m));
 
-            ImmutableOpenMap.Builder<String, MappingMetaData> builder2 = ImmutableOpenMap.builder(1);
+            ImmutableOpenMap.Builder<String, MappingMetadata> builder2 = ImmutableOpenMap.builder(1);
             builder2.put(job.getConfig().getRollupIndex(), meta);
 
             when(response.getMappings()).thenReturn(builder2.build());
@@ -281,7 +282,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testJobAlreadyInMapping() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
@@ -301,10 +302,10 @@ public class PutJobStateMachineTests extends ESTestCase {
             m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, VersionUtils.randomIndexCompatibleVersion(random()));
             m.put(RollupField.ROLLUP_META,
                 Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
-            MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
+            MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME,
                 Collections.singletonMap("_meta", m));
 
-            ImmutableOpenMap.Builder<String, MappingMetaData> builder2 = ImmutableOpenMap.builder(1);
+            ImmutableOpenMap.Builder<String, MappingMetadata> builder2 = ImmutableOpenMap.builder(1);
             builder2.put(job.getConfig().getRollupIndex(), meta);
 
             when(response.getMappings()).thenReturn(builder2.build());
@@ -316,7 +317,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testAddJobToMapping() {
         final RollupJobConfig unrelatedJob =
             ConfigTestHelpers.randomRollupJobConfig(random(), ESTestCase.randomAlphaOfLength(10), "foo", "rollup_index_foo");
@@ -340,10 +341,10 @@ public class PutJobStateMachineTests extends ESTestCase {
             m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, VersionUtils.randomIndexCompatibleVersion(random()));
             m.put(RollupField.ROLLUP_META,
                 Collections.singletonMap(unrelatedJob.getId(), unrelatedJob));
-            MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
+            MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME,
                 Collections.singletonMap("_meta", m));
 
-            ImmutableOpenMap.Builder<String, MappingMetaData> builder2 = ImmutableOpenMap.builder(1);
+            ImmutableOpenMap.Builder<String, MappingMetadata> builder2 = ImmutableOpenMap.builder(1);
             builder2.put(unrelatedJob.getRollupIndex(), meta);
 
             when(response.getMappings()).thenReturn(builder2.build());
@@ -363,7 +364,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(PutMappingAction.INSTANCE), any(PutMappingRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testTaskAlreadyExists() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
@@ -386,7 +387,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testStartTask() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
@@ -400,9 +401,9 @@ public class PutJobStateMachineTests extends ESTestCase {
 
         ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(invocation -> {
-            PersistentTasksCustomMetaData.PersistentTask<RollupJob> response
-                = new PersistentTasksCustomMetaData.PersistentTask<>(job.getConfig().getId(), RollupField.TASK_NAME, job, 123,
-                mock(PersistentTasksCustomMetaData.Assignment.class));
+            PersistentTasksCustomMetadata.PersistentTask<RollupJob> response
+                = new PersistentTasksCustomMetadata.PersistentTask<>(job.getConfig().getId(), RollupField.TASK_NAME, job, 123,
+                mock(PersistentTasksCustomMetadata.Assignment.class));
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), requestCaptor.capture());

@@ -1,0 +1,154 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "joe"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "bob"
+        ignore: 404
+
+---
+"Test put user api":
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password" : "s3krit-password",
+              "roles" : [ "superuser" ],
+              "full_name" : "Bazooka Joe",
+              "email" : "joe@bazooka.gum",
+              "metadata" : {
+                "key1" : "val1",
+                "key2" : "val2"
+              }
+            }
+  - match: { created: true }
+
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+  - do:
+      security.get_user:
+        username: "joe"
+  - match: { joe.username:  "joe" }
+  - match: { joe.roles.0:  "superuser" }
+  - match: { joe.full_name:  "Bazooka Joe" }
+  - match: { joe.email:  "joe@bazooka.gum" }
+  - match: { joe.metadata.key1:  "val1" }
+  - match: { joe.metadata.key2:  "val2" }
+
+---
+"Test put user with username in body":
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "username": "joe",
+              "password" : "s3krit-password",
+              "roles" : [ "superuser" ],
+              "full_name" : "Bazooka Joe",
+              "email" : "joe@bazooka.gum",
+              "metadata" : {
+                "key1" : "val1",
+                "key2" : "val2"
+              }
+            }
+  - match: { created: true }
+
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+  - do:
+      security.get_user:
+        username: "joe"
+  - match: { joe.username:  "joe" }
+  - match: { joe.roles.0:  "superuser" }
+  - match: { joe.full_name:  "Bazooka Joe" }
+  - match: { joe.email:  "joe@bazooka.gum" }
+  - match: { joe.metadata.key1:  "val1" }
+  - match: { joe.metadata.key2:  "val2" }
+
+---
+"Test put user with different username in body":
+  - do:
+      catch: bad_request
+      security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "username": "joey",
+              "password" : "s3krit-password",
+              "roles" : [ "superuser" ],
+              "full_name" : "Bazooka Joe",
+              "email" : "joe@bazooka.gum",
+              "metadata" : {
+                "key1" : "val1",
+                "key2" : "val2"
+              }
+            }
+---
+"Test put user with password hash":
+  - skip:
+      features: warnings
+
+  # Mostly this chain of put_user , search index, set value is to work around the fact that the
+  # rest tests treat anything with a leading "$" as a stashed value, and bcrypt passwords start with "$"
+  # But it has the nice side effect of automatically adjusting to any changes in the default hasher for
+  # the ES cluster
+  - do:
+      security.put_user:
+        username: "bob"
+        body:  >
+          {
+            "password" : "correct horse battery staple",
+            "roles" : [ ]
+          }
+
+  - do:
+      warnings:
+        - "this request accesses system indices: [.security-7], but in a future major version, direct access to system indices will be prevented by default"
+      get:
+        index: .security
+        id: user-bob
+  - set: { _source.password: "hash" }
+
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password_hash" : "$hash",
+              "roles" : [ "superuser" ]
+            }
+
+  # base64("joe:correct horse battery staple") = "am9lOmNvcnJlY3QgaG9yc2UgYmF0dGVyeSBzdGFwbGU="
+  - do:
+      headers:
+        Authorization: "Basic am9lOmNvcnJlY3QgaG9yc2UgYmF0dGVyeSBzdGFwbGU="
+      security.authenticate: {}
+  - match: { username: "joe" }
+
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
+      security.authenticate: {}

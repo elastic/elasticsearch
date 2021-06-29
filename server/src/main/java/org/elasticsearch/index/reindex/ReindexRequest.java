@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -23,13 +12,14 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,7 +41,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
 /**
@@ -176,7 +166,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
      *
      * @param name The name of the field to sort by
      * @param order The order in which to sort
+     * @deprecated Specifying a sort field for reindex is deprecated. If using this in combination with maxDocs, consider using a
+     * query filter instead.
      */
+    @Deprecated
     public ReindexRequest addSortField(String name, SortOrder order) {
         this.getSearchRequest().source().sort(name, order);
         return this;
@@ -230,6 +223,14 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
      */
     public ReindexRequest setRemoteInfo(RemoteInfo remoteInfo) {
         this.remoteInfo = remoteInfo;
+        return this;
+    }
+
+    /**
+     * Sets the require_alias request flag on the destination index
+     */
+    public ReindexRequest setRequireAlias(boolean requireAlias) {
+        this.getDestination().setRequireAlias(requireAlias);
         return this;
     }
 
@@ -346,9 +347,19 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
         PARSER.declareField(sourceParser::parse, new ParseField("source"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical, new ParseField("max_docs"));
+
+        PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical,
+            new ParseField("max_docs", "size")
+                .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)));
+
+        PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical,
+            new ParseField("max_docs")
+                .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8)));
         // avoid silently accepting an ignored size.
-        PARSER.declareInt((r,s) -> failOnSizeSpecified(), new ParseField("size"));
+        PARSER.declareInt((r,s) -> failOnSizeSpecified(),
+            new ParseField("size")
+                .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8)));
+
         PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"),
             ObjectParser.ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
@@ -362,7 +373,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     /**
      * Yank a string array from a map. Emulates XContent's permissive String to
-     * String array conversions.
+     * String array conversions and allow comma separated String.
      */
     private static String[] extractStringArray(Map<String, Object> source, String name) {
         Object value = source.remove(name);
@@ -374,9 +385,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             List<String> list = (List<String>) value;
             return list.toArray(new String[list.size()]);
         } else if (value instanceof String) {
-            return new String[] {(String) value};
+            return Strings.splitStringByCommaToArray((String) value);
         } else {
-            throw new IllegalArgumentException("Expected [" + name + "] to be a list of a string but was [" + value + ']');
+            throw new IllegalArgumentException("Expected [" + name + "] to be a list or a string but was [" + value + ']');
         }
     }
 

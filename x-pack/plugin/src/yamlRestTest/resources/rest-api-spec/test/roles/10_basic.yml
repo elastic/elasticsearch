@@ -1,0 +1,82 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password": "s3krit-password",
+              "roles" : [ "admin_role" ]
+            }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "joe"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "admin_role"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "backwards_role"
+        ignore: 404
+
+---
+"Test put role api":
+  - do:
+      security.put_role:
+        name: "admin_role"
+        body:  >
+            {
+              "cluster": ["all"],
+              "metadata": {
+                "key1" : "val1",
+                "key2" : "val2"
+              },
+              "indices": [
+                {
+                  "names": "*",
+                  "privileges": ["all"]
+                }
+              ]
+            }
+  - match: { role: { created: true } }
+
+  - do:
+      security.put_role:
+        name: "backwards_role"
+        body:  >
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "privileges": ["all"],
+                  "names": "*"
+                }
+              ]
+            }
+  - match: { role: { created: true } }
+
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+  - do:
+      security.get_role:
+        name: "admin_role"
+  - match: { admin_role.cluster.0:  "all" }
+  - match: { admin_role.metadata.key1:  "val1" }
+  - match: { admin_role.metadata.key2:  "val2" }
+  - match: { admin_role.indices.0.names.0: "*" }
+  - match: { admin_role.indices.0.privileges.0:  "all" }

@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -39,7 +40,7 @@ public final class SamlInvalidateSessionRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (Strings.isNullOrEmpty(queryString)) {
-            validationException = addValidationError("queryString is missing", validationException);
+            validationException = addValidationError("query_string is missing", validationException);
         }
         return validationException;
     }
@@ -49,7 +50,11 @@ public final class SamlInvalidateSessionRequest extends ActionRequest {
     }
 
     public void setQueryString(String queryString) {
-        this.queryString = queryString;
+        if (this.queryString == null) {
+            this.queryString = queryString;
+        } else {
+            throw new IllegalArgumentException("Must use either [query_string] or [queryString], not both at the same time");
+        }
     }
 
     public String getRealmName() {

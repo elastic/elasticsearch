@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
@@ -24,12 +13,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -60,9 +49,16 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         totalSize = in.readVLong();
     }
 
-    SnapshotStats(long startTime, long time,
-                  int incrementalFileCount, int totalFileCount, int processedFileCount,
-                  long incrementalSize, long totalSize, long processedSize) {
+    SnapshotStats(
+        long startTime,
+        long time,
+        int incrementalFileCount,
+        int totalFileCount,
+        int processedFileCount,
+        long incrementalSize,
+        long totalSize,
+        long processedSize
+    ) {
         this.startTime = startTime;
         this.time = time;
         assert time >= 0 : "Tried to initialize snapshot stats with negative total time [" + time + "]";
@@ -202,7 +198,7 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         if (token == null) {
             token = parser.nextToken();
         }
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         long startTime = 0;
         long time = 0;
         int incrementalFileCount = 0;
@@ -212,20 +208,20 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         long totalSize = 0;
         long processedSize = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             String currentName = parser.currentName();
             token = parser.nextToken();
             if (currentName.equals(Fields.INCREMENTAL)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                     String innerName = parser.currentName();
                     token = parser.nextToken();
                     if (innerName.equals(Fields.FILE_COUNT)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                         incrementalFileCount = parser.intValue();
                     } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                         incrementalSize = parser.longValue();
                     } else {
                         // Unknown sub field, skip
@@ -235,16 +231,16 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                     }
                 }
             } else if (currentName.equals(Fields.PROCESSED)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                     String innerName = parser.currentName();
                     token = parser.nextToken();
                     if (innerName.equals(Fields.FILE_COUNT)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                         processedFileCount = parser.intValue();
                     } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                         processedSize = parser.longValue();
                     } else {
                         // Unknown sub field, skip
@@ -254,16 +250,16 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                     }
                 }
             } else if (currentName.equals(Fields.TOTAL)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                     String innerName = parser.currentName();
                     token = parser.nextToken();
                     if (innerName.equals(Fields.FILE_COUNT)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                         totalFileCount = parser.intValue();
                     } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                         totalSize = parser.longValue();
                     } else {
                         // Unknown sub field, skip
@@ -273,10 +269,10 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                     }
                 }
             } else if (currentName.equals(Fields.START_TIME_IN_MILLIS)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                 startTime = parser.longValue();
             } else if (currentName.equals(Fields.TIME_IN_MILLIS)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                 time = parser.longValue();
             } else {
                 // Unknown field, skip
@@ -285,8 +281,16 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                 }
             }
         }
-        return new SnapshotStats(startTime, time, incrementalFileCount, totalFileCount, processedFileCount, incrementalSize, totalSize,
-            processedSize);
+        return new SnapshotStats(
+            startTime,
+            time,
+            incrementalFileCount,
+            totalFileCount,
+            processedFileCount,
+            incrementalSize,
+            totalSize,
+            processedSize
+        );
     }
 
     /**

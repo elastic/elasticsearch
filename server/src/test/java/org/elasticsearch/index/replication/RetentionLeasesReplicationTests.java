@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.replication;
@@ -22,7 +11,7 @@ package org.elasticsearch.index.replication;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -32,6 +21,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseUtils;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -76,8 +66,8 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
     public void testOutOfOrderRetentionLeasesRequests() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         int numberOfReplicas = between(1, 2);
-        IndexMetaData indexMetaData = buildIndexMetaData(numberOfReplicas, settings, indexMapping);
-        try (ReplicationGroup group = new ReplicationGroup(indexMetaData) {
+        IndexMetadata indexMetadata = buildIndexMetadata(numberOfReplicas, settings, indexMapping);
+        try (ReplicationGroup group = new ReplicationGroup(indexMetadata) {
             @Override
             protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
                 listener.onResponse(new SyncRetentionLeasesResponse(new RetentionLeaseSyncAction.Request(shardId, leases)));
@@ -103,8 +93,8 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
     public void testSyncRetentionLeasesWithPrimaryPromotion() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         int numberOfReplicas = between(2, 4);
-        IndexMetaData indexMetaData = buildIndexMetaData(numberOfReplicas, settings, indexMapping);
-        try (ReplicationGroup group = new ReplicationGroup(indexMetaData) {
+        IndexMetadata indexMetadata = buildIndexMetadata(numberOfReplicas, settings, indexMapping);
+        try (ReplicationGroup group = new ReplicationGroup(indexMetadata) {
             @Override
             protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
                 listener.onResponse(new SyncRetentionLeasesResponse(new RetentionLeaseSyncAction.Request(shardId, leases)));
@@ -144,6 +134,30 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
             for (IndexShard replica : group.getReplicas()) {
                 assertThat(replica.getRetentionLeases(), equalTo(leasesOnPrimary));
             }
+        }
+    }
+
+    public void testTurnOffTranslogRetentionAfterAllShardStarted() throws Exception {
+        final Settings.Builder settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        if (randomBoolean()) {
+            settings.put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomIndexCompatibleVersion(random()));
+        }
+        try (ReplicationGroup group = createGroup(between(1, 2), settings.build())) {
+            group.startAll();
+            group.indexDocs(randomIntBetween(1, 10));
+            for (IndexShard shard : group) {
+                shard.updateShardState(shard.routingEntry(), shard.getOperationPrimaryTerm(), null, 1L,
+                    group.getPrimary().getReplicationGroup().getInSyncAllocationIds(),
+                    group.getPrimary().getReplicationGroup().getRoutingTable());
+            }
+            group.syncGlobalCheckpoint();
+            group.flush();
+            assertBusy(() -> {
+                // we turn off the translog retention policy using the generic threadPool
+                for (IndexShard shard : group) {
+                    assertThat(shard.translogStats().estimatedNumberOfOperations(), equalTo(0));
+                }
+            });
         }
     }
 

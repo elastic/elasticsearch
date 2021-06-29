@@ -1,26 +1,49 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial;
 
 import org.apache.lucene.util.SloppyMath;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SpatialUtilsTests extends ESTestCase {
 
     public void testCreateRegularGeoShapePolygon() {
-        double lon = randomDoubleBetween(-20, 20, true);
-        double lat = randomDoubleBetween(-20, 20, true);
-        double radiusMeters = randomDoubleBetween(10, 10000, true);
-        Circle circle = new Circle(lon, lat, radiusMeters);
+        final Circle circle = randomValueOtherThanMany(
+            c -> SloppyMath.haversinMeters(c.getLat(), c.getLon(), 90, 0) < c.getRadiusMeters()
+                || SloppyMath.haversinMeters(c.getLat(), c.getLon(), -90, 0) < c.getRadiusMeters(),
+            () -> GeometryTestUtils.randomCircle(true));
+        doRegularGeoShapePolygon(circle);
+    }
+
+    public void testCircleContainsNorthPole() {
+        final Circle circle = randomValueOtherThanMany(
+            c -> SloppyMath.haversinMeters(c.getLat(), c.getLon(), 90, 0) >= c.getRadiusMeters(),
+            () -> GeometryTestUtils.randomCircle(true));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> doRegularGeoShapePolygon(circle));
+        assertThat(ex.getMessage(), containsString("contains the north pole"));
+    }
+
+    public void testCircleContainsSouthPole() {
+        final Circle circle = randomValueOtherThanMany(
+            c -> SloppyMath.haversinMeters(c.getLat(), c.getLon(), -90, 0) >= c.getRadiusMeters(),
+            () -> GeometryTestUtils.randomCircle(true));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> doRegularGeoShapePolygon(circle));
+        assertThat(ex.getMessage(), containsString("contains the south pole"));
+    }
+
+    private void doRegularGeoShapePolygon(Circle circle) {
         int numSides = randomIntBetween(4, 1000);
         Polygon polygon = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
         LinearRing outerShell = polygon.getPolygon();
@@ -34,7 +57,7 @@ public class SpatialUtilsTests extends ESTestCase {
         for (int i = 0; i < numPoints ; i++) {
             double actualDistance = SloppyMath
                 .haversinMeters(circle.getY(), circle.getX(), outerShell.getY(i), outerShell.getX(i));
-            assertThat(actualDistance, closeTo(radiusMeters, 0.1));
+            assertThat(actualDistance, closeTo(circle.getRadiusMeters(), 0.1));
         }
     }
 

@@ -1,0 +1,47 @@
+---
+"binary":
+    - skip:
+        features: ["headers"]
+        version: " - 7.99.99"
+        reason: "docvalues_fields on binary field were corrected in 8.0"
+    - do:
+        indices.create:
+            index: test
+            body:
+                mappings:
+                    properties:
+                        binary:
+                            type: binary
+                            doc_values: true
+
+    - do:
+        #other formats (e.g. cbor) may not support parsing of binary
+        headers:
+            Content-Type: application/json
+        index:
+            index: test
+            refresh: true
+            id: 1
+            body:
+                binary: U29tZSBiaW5hcnkgYmxvYg==
+
+    - do:
+        search:
+            index: test
+            body:
+                docvalue_fields: [ "binary" ]
+    - match: { hits.hits.0.fields.binary.0: "U29tZSBiaW5hcnkgYmxvYg==" }
+
+    - do:
+        search:
+            index: test
+            body:
+                fields: [ "binary" ]
+    - match: { hits.hits.0.fields.binary.0: "U29tZSBiaW5hcnkgYmxvYg==" }
+
+    - do:
+        search:
+            index: test
+            body:
+                _source: ["binary"]
+    - match: { hits.hits.0._source.binary: "U29tZSBiaW5hcnkgYmxvYg==" }

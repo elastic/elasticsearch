@@ -7,9 +7,9 @@
 [id="{upid}-{api}"]
 === Execute watch API
 
-The execute watch API allows clients to immediately execute a watch, either
-one that has been previously added via the
-{ref}/watcher-api-put-watch.html[Put Watch API] or inline as part of the request.
+The execute watch API allows clients to immediately execute a watch, either one
+that has been previously added via the {ref}/watcher-api-put-watch.html[create
+or update watch API] or inline as part of the request.
 
 [id="{upid}-{api}-request-by-id"]
 ==== Execute by id

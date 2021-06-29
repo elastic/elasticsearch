@@ -1,27 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
+import org.elasticsearch.xpack.sql.session.ListCursor;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
-import org.elasticsearch.xpack.sql.type.EsField;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.sql.DatabaseMetaData;
 import java.util.ArrayList;
@@ -31,8 +32,18 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.sql.type.DataType.SHORT;
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.displaySize;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDataType;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDateTimeSub;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlRadix;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.sqlType;
 
 /**
  * System command designed to be used by JDBC / ODBC for column metadata, such as
@@ -62,7 +73,7 @@ public class SysColumns extends Command {
     public List<Attribute> output() {
         return output(false);
     }
-    
+
     private List<Attribute> output(boolean odbcCompatible) {
         // https://github.com/elastic/elasticsearch/issues/35376
         // ODBC expects some fields as SHORT while JDBC as Integer
@@ -119,26 +130,26 @@ public class SysColumns extends Command {
 
         // special case for '%' (translated to *)
         if ("*".equals(idx)) {
-            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen, ActionListener.wrap(esIndices -> {
-                List<List<?>> rows = new ArrayList<>();
-                for (EsIndex esIndex : esIndices) {
-                    fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
-                }
-
-                listener.onResponse(of(session, rows));
+            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen, emptyMap(),
+                ActionListener.wrap(esIndices -> {
+                    List<List<?>> rows = new ArrayList<>();
+                    for (EsIndex esIndex : esIndices) {
+                        fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
+                    }
+                listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
             }, listener::onFailure));
         }
         // otherwise use a merged mapping
         else {
-            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen, ActionListener.wrap(r -> {
-                List<List<?>> rows = new ArrayList<>();
-                // populate the data only when a target is found
-                if (r.isValid() == true) {
-                    EsIndex esIndex = r.get();
-                    fillInRows(cluster, indexName, esIndex.mapping(), null, rows, columnMatcher, mode);
-                }
-
-                listener.onResponse(of(session, rows));
+            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen, emptyMap(),
+                ActionListener.wrap(r -> {
+                    List<List<?>> rows = new ArrayList<>();
+                    // populate the data only when a target is found
+                    if (r.isValid()) {
+                        EsIndex esIndex = r.get();
+                        fillInRows(cluster, indexName, esIndex.mapping(), null, rows, columnMatcher, mode);
+                    }
+                listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
             }, listener::onFailure));
         }
     }
@@ -158,23 +169,23 @@ public class SysColumns extends Command {
             name = prefix != null ? prefix + "." + name : name;
             EsField field = entry.getValue();
             DataType type = field.getDataType();
-            
+
             // skip the nested, object and unsupported types
-            if (type.isPrimitive()) {
+            if (isPrimitive(type)) {
                 if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
                     rows.add(asList(clusterName,
                             // schema is not supported
                             null,
                             indexName,
                             name,
-                            odbcCompatible(type.sqlType.getVendorTypeNumber(), isOdbcClient),
+                            odbcCompatible(sqlType(type).getVendorTypeNumber(), isOdbcClient),
                             type.toString(),
-                            type.displaySize,
+                            displaySize(type),
                             // TODO: is the buffer_length correct?
-                            type.size,
+                            type.size(),
                             // no DECIMAL support
                             null,
-                            odbcCompatible(DataTypes.metaSqlRadix(type), isOdbcClient),
+                            odbcCompatible(metaSqlRadix(type), isOdbcClient),
                             // everything is nullable
                             odbcCompatible(DatabaseMetaData.columnNullable, isOdbcClient),
                             // no remarks
@@ -182,11 +193,11 @@ public class SysColumns extends Command {
                             // no column def
                             null,
                             // SQL_DATA_TYPE apparently needs to be same as DATA_TYPE except for datetime and interval data types
-                            odbcCompatible(DataTypes.metaSqlDataType(type), isOdbcClient),
+                            odbcCompatible(metaSqlDataType(type), isOdbcClient),
                             // SQL_DATETIME_SUB ?
-                            odbcCompatible(DataTypes.metaSqlDateTimeSub(type), isOdbcClient),
+                            odbcCompatible(metaSqlDateTimeSub(type), isOdbcClient),
                             // char octet length
-                            type.isString() || type == DataType.BINARY ? type.size : null,
+                            isString(type) || type == BINARY ? type.size() : null,
                             // position
                             (int) position.get(),
                             "YES",
@@ -200,12 +211,12 @@ public class SysColumns extends Command {
                 }
             }
             // skip nested fields
-            if (field.getProperties() != null && type != DataType.NESTED) {
+            if (field.getProperties() != null && type != NESTED) {
                 fillInRows(clusterName, indexName, field.getProperties(), name, rows, columnMatcher, position, mode);
             }
         }
     }
-    
+
     private static Object odbcCompatible(Integer value, boolean isOdbcClient) {
         if (isOdbcClient && value != null) {
             return Short.valueOf(value.shortValue());

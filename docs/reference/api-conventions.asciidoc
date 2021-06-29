@@ -1,51 +1,93 @@
 [[api-conventions]]
 == API conventions
 
-The *Elasticsearch* REST APIs are exposed using <<modules-http,JSON over HTTP>>.
+The {es} REST APIs are exposed over HTTP.
 
 The conventions listed in this chapter can be applied throughout the REST
 API, unless otherwise specified.
 
 * <<multi-index>>
 * <<date-math-index-names>>
+* <<cron-expressions>>
 * <<common-options>>
 * <<url-access-control>>
 
 [[multi-index]]
-=== Multiple Indices
+=== Multi-target syntax
 
-Most APIs that refer to an `index` parameter support execution across multiple indices,
-using simple `test1,test2,test3` notation (or `_all` for all indices). It also
-supports wildcards, for example: `test*` or `*test` or `te*t` or `*test*`, and the
-ability to "exclude" (`-`), for example: `test*,-test3`.
+Most APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path
+parameter also support _multi-target syntax_.
 
-All multi index APIs support the following url query string parameters:
+In multi-target syntax, you can use a comma-separated list to run a request on
+multiple resources, such as data streams, indices, or aliases:
+`test1,test2,test3`. You can also use {wikipedia}/Glob_(programming)[glob-like]
+wildcard (`*`) expressions to target resources that match a pattern: `test*` or
+`*test` or `te*t` or `*test*`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+You can exclude targets using the `-` character: `test*,-test3`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+IMPORTANT: Aliases are resolved after wildcard expressions. This can result in a
+request that targets an excluded alias. For example, if `test3` is an index
+alias, the pattern `test*,-test3` still targets the indices for `test3`. To
+avoid this, exclude the concrete indices for the alias instead.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+Multi-target APIs that can target indices support the following query
+string parameters:
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 The defaults settings for the above parameters depend on the API being used.
 
-NOTE: Single index APIs such as the <<docs>> and the
-<<indices-aliases,single-index `alias` APIs>> do not support multiple indices.
+Some multi-target APIs that can target indices also support the following query
+string parameter:
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
+
+NOTE: APIs with a single target, such as the <<docs-get,get document API>>, do
+not support multi-target syntax.
+
+[[hidden]]
+==== Hidden data streams and indices
+
+For most APIs, wildcard expressions do not match hidden data streams and indices
+by default. To match hidden data streams and indices using a wildcard
+expression, you must specify the `expand_wildcards` query parameter.
+
+You can create hidden data streams by setting `data_stream.hidden` to `true` in
+the stream's matching <<indices-put-template,index template>>. You can hide
+indices using the <<index-hidden,`index.hidden`>> index setting.
+
+The backing indices for data streams are hidden automatically. Some features,
+such as {ml}, store information in hidden indices.
+
+Global index templates that match all indices are not applied to hidden indices.
+
+[[system-indices]]
+==== System indices
+
+{es} modules and plugins can store configuration and state information in internal _system indices_. 
+You should not directly access or modify system indices 
+as they contain data essential to the operation of the system.
+
+IMPORTANT: Direct access to system indices is deprecated and 
+will no longer be allowed in the next major version.
 
 [[date-math-index-names]]
-=== Date math support in index names
+=== Date math support in index and index alias names
 
-Date math index name resolution enables you to search a range of time-series indices, rather
-than searching all of your time-series indices and filtering the results or maintaining aliases.
-Limiting the number of indices that are searched reduces the load on the cluster and improves
-execution performance. For example, if you are searching for errors in your
-daily logs, you can use a date math name template to restrict the search to the past
-two days.
+Date math name resolution lets you to search a range of time series indices or
+index aliases rather than searching all of your indices and filtering the
+results. Limiting the number of searched indices reduces cluster load and
+improves search performance. For example, if you are searching for errors in
+your daily logs, you can use a date math name template to restrict the search to
+the past two days.
 
-Almost all APIs that have an `index` parameter support date math in the `index` parameter
-value.
-
-A date math index name takes the following form:
+Most APIs that accept an index or index alias argument support date math. A date
+math name takes the following form:
 
 [source,txt]
 ----------------------------------------------------------------------
@@ -55,10 +97,10 @@ A date math index name takes the following form:
 Where:
 
 [horizontal]
-`static_name`:: is the static text part of the name
-`date_math_expr`:: is a dynamic date math expression that computes the date dynamically
-`date_format`:: is the optional format in which the computed date should be rendered. Defaults to `yyyy.MM.dd`. Format should be compatible with java-time https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html
-`time_zone`:: is the optional time zone. Defaults to `utc`.
+`static_name`:: Static text
+`date_math_expr`:: Dynamic date math expression that computes the date dynamically
+`date_format`:: Optional format in which the computed date should be rendered. Defaults to `yyyy.MM.dd`. Format should be compatible with java-time https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html
+`time_zone`:: Optional time zone. Defaults to `UTC`.
 
 NOTE: Pay attention to the usage of small vs capital letters used in the `date_format`. For example:
 `mm` denotes minute of hour, while `MM` denotes month of year. Similarly `hh` denotes the hour in the
@@ -67,23 +109,14 @@ NOTE: Pay attention to the usage of small vs capital letters used in the `date_f
 Date math expressions are resolved locale-independent. Consequently, it is not possible to use any other
 calendars than the Gregorian calendar.
 
-You must enclose date math index name expressions within angle brackets, and
-all special characters should be URI encoded. For example:
+You must enclose date math names in angle brackets. If you use the name in a
+request path, special characters must be URI encoded. For example:
 
 [source,console]
-----------------------------------------------------------------------
-# GET /<logstash-{now/d}>/_search
-GET /%3Clogstash-%7Bnow%2Fd%7D%3E/_search
-{
-  "query" : {
-    "match": {
-      "test": "data"
-    }
-  }
-}
-----------------------------------------------------------------------
-// TEST[s/^/PUT logstash-2016.09.20\n/]
-// TEST[s/now/2016.09.20||/]
+----
+# PUT /<my-index-{now/d}>
+PUT /%3Cmy-index-%7Bnow%2Fd%7D%3E
+----
 
 [NOTE]
 .Percent encoding of date math characters
@@ -102,8 +135,8 @@ The special characters used for date rounding must be URI encoded as follows:
 `,`:: `%2C`
 ======================================================
 
-The following example shows different forms of date math index names and the final index names
-they resolve to given the current time is 22nd March 2024 noon utc.
+The following example shows different forms of date math names and the final names
+they resolve to given the current time is 22nd March 2024 noon UTC.
 
 [options="header"]
 |======
@@ -115,7 +148,7 @@ they resolve to given the current time is 22nd March 2024 noon utc.
 | `<logstash-{now/d{yyyy.MM.dd\|+12:00}}>`  | `logstash-2024.03.23`
 |======
 
-To use the characters `{` and `}` in the static part of an index name template, escape them
+To use the characters `{` and `}` in the static part of a name template, escape them
 with a backslash `\`, for example:
 
  * `<elastic\\{ON\\}-{now/M}>` resolves to `elastic{ON}-2024.03.01`
@@ -137,14 +170,16 @@ GET /%3Clogstash-%7Bnow%2Fd-2d%7D%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogs
 }
 ----------------------------------------------------------------------
 // TEST[s/^/PUT logstash-2016.09.20\nPUT logstash-2016.09.19\nPUT logstash-2016.09.18\n/]
-// TEST[s/now/2016.09.20||/]
+// TEST[s/now/2016.09.20%7C%7C/]
+
+include::rest-api/cron-expressions.asciidoc[]
 
 [[common-options]]
 === Common options
 
 The following options can be applied to all of the REST APIs.
 
-[float]
+[discrete]
 ==== Pretty Results
 
 When appending `?pretty=true` to any request made, the JSON returned
@@ -153,7 +188,7 @@ to set `?format=yaml` which will cause the result to be returned in the
 (sometimes) more readable yaml format.
 
 
-[float]
+[discrete]
 ==== Human readable output
 
 Statistics are returned in a format suitable for humans
@@ -162,11 +197,11 @@ Statistics are returned in a format suitable for humans
 The human readable values can be turned off by adding `?human=false`
 to the query string. This makes sense when the stats results are
 being consumed by a monitoring tool, rather than intended for human
-consumption.  The default for the `human` flag is
+consumption. The default for the `human` flag is
 `false`.
 
 [[date-math]]
-[float]
+[discrete]
 ==== Date Math
 
 Most parameters which accept a formatted date value -- such as `gt` and `lt`
@@ -203,7 +238,7 @@ Assuming `now` is `2001-01-01 12:00:00`, some examples are:
 `now-1h/d`:: `now` in milliseconds minus one hour, rounded down to UTC 00:00. Resolves to: `2001-01-01 00:00:00`
  `2001.02.01\|\|+1M/d`:: `2001-02-01` in milliseconds plus one month. Resolves to: `2001-03-01 00:00:00`
 
-[float]
+[discrete]
 [[common-options-response-filtering]]
 ==== Response Filtering
 
@@ -213,9 +248,9 @@ separated list of filters expressed with the dot notation:
 
 [source,console]
 --------------------------------------------------
-GET /_search?q=elasticsearch&filter_path=took,hits.hits._id,hits.hits._score
+GET /_search?q=kimchy&filter_path=took,hits.hits._id,hits.hits._score
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Responds:
 
@@ -243,7 +278,7 @@ of a field's name:
 --------------------------------------------------
 GET /_cluster/state?filter_path=metadata.indices.*.stat*
 --------------------------------------------------
-// TEST[s/^/PUT twitter\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 Responds:
 
@@ -252,7 +287,7 @@ Responds:
 {
   "metadata" : {
     "indices" : {
-      "twitter": {"state": "open"}
+      "my-index-000001": {"state": "open"}
     }
   }
 }
@@ -266,7 +301,7 @@ of every segment with this request:
 --------------------------------------------------
 GET /_cluster/state?filter_path=routing_table.indices.**.state
 --------------------------------------------------
-// TEST[s/^/PUT twitter\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 Responds:
 
@@ -275,7 +310,7 @@ Responds:
 {
   "routing_table": {
     "indices": {
-      "twitter": {
+      "my-index-000001": {
         "shards": {
           "0": [{"state": "STARTED"}, {"state": "UNASSIGNED"}]
         }
@@ -291,7 +326,7 @@ It is also possible to exclude one or more fields by prefixing the filter with t
 --------------------------------------------------
 GET /_count?filter_path=-_shards
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Responds:
 
@@ -310,7 +345,7 @@ inclusive filters:
 --------------------------------------------------
 GET /_cluster/state?filter_path=metadata.indices.*.state,-metadata.indices.logstash-*
 --------------------------------------------------
-// TEST[s/^/PUT index-1\nPUT index-2\nPUT index-3\nPUT logstash-2016.01\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\nPUT my-index-000003\nPUT logstash-2016.01\n/]
 
 Responds:
 
@@ -319,9 +354,9 @@ Responds:
 {
   "metadata" : {
     "indices" : {
-      "index-1" : {"state" : "open"},
-      "index-2" : {"state" : "open"},
-      "index-3" : {"state" : "open"}
+      "my-index-000001" : {"state" : "open"},
+      "my-index-000002" : {"state" : "open"},
+      "my-index-000003" : {"state" : "open"}
     }
   }
 }
@@ -360,54 +395,55 @@ GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
 --------------------------------------------------
 
 
-[float]
+[discrete]
 ==== Flat Settings
 
-The `flat_settings` flag affects rendering of the lists of settings. When the 
+The `flat_settings` flag affects rendering of the lists of settings. When the
 `flat_settings` flag is `true`, settings are returned in a flat format:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_settings?flat_settings=true
+GET my-index-000001/_settings?flat_settings=true
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Returns:
 
 [source,console-result]
 --------------------------------------------------
 {
-  "twitter" : {
+  "my-index-000001" : {
     "settings": {
       "index.number_of_replicas": "1",
       "index.number_of_shards": "1",
       "index.creation_date": "1474389951325",
       "index.uuid": "n6gzFZTgS664GUfx0Xrpjw",
       "index.version.created": ...,
-      "index.provided_name" : "twitter"
+      "index.routing.allocation.include._tier_preference" : "data_content",
+      "index.provided_name" : "my-index-000001"
     }
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/1474389951325/$body.twitter.settings.index\\\\.creation_date/]
-// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.twitter.settings.index\\\\.uuid/]
-// TESTRESPONSE[s/"index.version.created": \.\.\./"index.version.created": $body.twitter.settings.index\\\\.version\\\\.created/]
+// TESTRESPONSE[s/1474389951325/$body.my-index-000001.settings.index\\\\.creation_date/]
+// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.my-index-000001.settings.index\\\\.uuid/]
+// TESTRESPONSE[s/"index.version.created": \.\.\./"index.version.created": $body.my-index-000001.settings.index\\\\.version\\\\.created/]
 
 When the `flat_settings` flag is `false`, settings are returned in a more
 human readable structured format:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_settings?flat_settings=false
+GET my-index-000001/_settings?flat_settings=false
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Returns:
 
 [source,console-result]
 --------------------------------------------------
 {
-  "twitter" : {
+  "my-index-000001" : {
     "settings" : {
       "index" : {
         "number_of_replicas": "1",
@@ -417,43 +453,51 @@ Returns:
         "version": {
           "created": ...
         },
-        "provided_name" : "twitter"
+        "routing": {
+          "allocation": {
+            "include": {
+              "_tier_preference": "data_content"
+            }
+          }
+        },
+        "provided_name" : "my-index-000001"
       }
     }
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/1474389951325/$body.twitter.settings.index.creation_date/]
-// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.twitter.settings.index.uuid/]
-// TESTRESPONSE[s/"created": \.\.\./"created": $body.twitter.settings.index.version.created/]
+// TESTRESPONSE[s/1474389951325/$body.my-index-000001.settings.index.creation_date/]
+// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.my-index-000001.settings.index.uuid/]
+// TESTRESPONSE[s/"created": \.\.\./"created": $body.my-index-000001.settings.index.version.created/]
 
 By default `flat_settings` is set to `false`.
 
-[float]
+[discrete]
+[[api-conventions-parameters]]
 ==== Parameters
 
 Rest parameters (when using HTTP, map to HTTP URL parameters) follow the
 convention of using underscore casing.
 
-[float]
+[discrete]
 ==== Boolean Values
 
 All REST API parameters (both request parameters and JSON body) support
 providing boolean "false" as the value `false` and boolean "true" as the
 value `true`. All other values will raise an error.
 
-[float]
+[discrete]
 ==== Number Values
 
 All REST APIs support providing numbered parameters as `string` on top
 of supporting the native JSON number types.
 
 [[time-units]]
-[float]
+[discrete]
 ==== Time units
 
 Whenever durations need to be specified, e.g. for a `timeout` parameter, the duration must specify
-the unit, like `2d` for 2 days.  The supported units are:
+the unit, like `2d` for 2 days. The supported units are:
 
 [horizontal]
 `d`::       Days
@@ -465,7 +509,7 @@ the unit, like `2d` for 2 days.  The supported units are:
 `nanos`::   Nanoseconds
 
 [[byte-units]]
-[float]
+[discrete]
 ==== Byte size units
 
 Whenever the byte size of data needs to be specified, e.g. when setting a buffer size
@@ -481,7 +525,7 @@ these units use powers of 1024, so `1kb` means 1024 bytes. The supported units a
 `pb`::  Petabytes
 
 [[size-units]]
-[float]
+[discrete]
 ==== Unit-less quantities
 
 Unit-less quantities means that they don't have a "unit" like "bytes" or "Hertz" or "meter" or "long tonne".
@@ -497,7 +541,7 @@ when we mean 87 though. These are the supported multipliers:
 `p`::  Peta
 
 [[distance-units]]
-[float]
+[discrete]
 ==== Distance Units
 
 Wherever distances need to be specified, such as the `distance` parameter in
@@ -519,14 +563,14 @@ Millimeter::    `mm` or `millimeters`
 Nautical mile:: `NM`, `nmi`, or `nauticalmiles`
 
 [[fuzziness]]
-[float]
+[discrete]
 ==== Fuzziness
 
 Some queries and APIs support parameters to allow inexact _fuzzy_ matching,
 using the `fuzziness` parameter.
 
 When querying `text` or `keyword` fields, `fuzziness` is interpreted as a
-http://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein Edit Distance]
+{wikipedia}/Levenshtein_distance[Levenshtein Edit Distance]
 -- the number of one character changes that need to be made to one string to
 make it the same as another string.
 
@@ -551,7 +595,7 @@ the default values are 3 and 6, equivalent to `AUTO:3,6` that make for lengths:
 `AUTO` should generally be the preferred value for `fuzziness`.
 --
 
-[float]
+[discrete]
 [[common-options-error-options]]
 ==== Enabling stack traces
 
@@ -562,7 +606,7 @@ invalid `size` parameter to the `_search` API:
 
 [source,console]
 ----------------------------------------------------------------------
-POST /twitter/_search?size=surprise_me
+POST /my-index-000001/_search?size=surprise_me
 ----------------------------------------------------------------------
 // TEST[s/surprise_me/surprise_me&error_trace=false/ catch:bad_request]
 // Since the test system sends error_trace=true by default we have to override
@@ -594,7 +638,7 @@ But if you set `error_trace=true`:
 
 [source,console]
 ----------------------------------------------------------------------
-POST /twitter/_search?size=surprise_me&error_trace=true
+POST /my-index-000001/_search?size=surprise_me&error_trace=true
 ----------------------------------------------------------------------
 // TEST[catch:bad_request]
 
@@ -627,7 +671,7 @@ The response looks like:
 // TESTRESPONSE[s/"stack_trace": "java.lang.IllegalArgum.+\.\.\."/"stack_trace": $body.error.stack_trace/]
 // TESTRESPONSE[s/"stack_trace": "java.lang.Number.+\.\.\."/"stack_trace": $body.error.caused_by.stack_trace/]
 
-[float]
+[discrete]
 ==== Request body in query string
 
 For libraries that don't accept a request body for non-POST requests,
@@ -636,8 +680,8 @@ instead. When using this method, the `source_content_type` parameter
 should also be passed with a media type value that indicates the format
 of the source, such as `application/json`.
 
-[float]
-==== Content-Type Requirements
+[discrete]
+==== Content-type requirements
 
 The type of the content sent in a request body must be specified using
 the `Content-Type` header. The value of this header must map to one of
@@ -645,23 +689,24 @@ the supported formats that the API supports. Most APIs support JSON,
 YAML, CBOR, and SMILE. The bulk and multi-search APIs support NDJSON,
 JSON, and SMILE; other types will result in an error response.
 
-Additionally, when using the `source` query string parameter, the
-content type must be specified using the `source_content_type` query
-string parameter.
+When using the `source` query string parameter, the content type must be
+specified using the `source_content_type` query string parameter.
+
+{es} only supports UTF-8-encoded JSON. {es} ignores any other encoding headings
+sent with a request. Responses are also UTF-8 encoded.
 
 [[url-access-control]]
 === URL-based access control
 
 Many users use a proxy with URL-based access control to secure access to
-Elasticsearch indices. For <<search-multi-search,multi-search>>,
+{es} data streams and indices. For <<search-multi-search,multi-search>>,
 <<docs-multi-get,multi-get>>, and <<docs-bulk,bulk>> requests, the user has
-the choice of specifying an index in the URL and on each individual request
+the choice of specifying a data stream or  index in the URL and on each individual request
 within the request body. This can make URL-based access control challenging.
 
-To prevent the user from overriding the index which has been specified in the
-URL, add this setting to the `elasticsearch.yml` file:
+To prevent the user from overriding the data stream or index specified in the
+URL, set `rest.action.multi.allow_explicit_index` to `false` in `elasticsearch.yml`.
 
-    rest.action.multi.allow_explicit_index: false
 
-The default value is `true`, but when set to `false`, Elasticsearch will
-reject requests that have an explicit index specified in the request body.
+This causes  {es} to
+reject requests that explicitly specify a data stream or index in the request body.

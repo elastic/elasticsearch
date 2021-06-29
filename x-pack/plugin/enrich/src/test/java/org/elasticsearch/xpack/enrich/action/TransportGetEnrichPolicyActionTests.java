@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.enrich.action;
@@ -175,7 +176,8 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         assertThat(error.get(), nullValue());
 
         // save a second one to verify the count below on GET
-        error = saveEnrichPolicy("something-else", randomEnrichPolicy(XContentType.JSON), clusterService);
+        EnrichPolicy policy2 = randomEnrichPolicy(XContentType.JSON);
+        error = saveEnrichPolicy("something-else", policy2, clusterService);
         assertThat(error.get(), nullValue());
 
         final CountDownLatch latch = new CountDownLatch(1);

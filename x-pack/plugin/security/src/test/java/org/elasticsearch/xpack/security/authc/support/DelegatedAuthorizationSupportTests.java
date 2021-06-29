@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.support;
 
@@ -12,10 +13,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
@@ -63,10 +66,13 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
     }
 
     private RealmConfig buildRealmConfig(String name, Settings settings) {
-        return new RealmConfig(new RealmConfig.RealmIdentifier("test", name),
+        RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("test", name);
+        return new RealmConfig(
+            realmIdentifier,
             Settings.builder().put(settings)
                 .normalizePrefix("xpack.security.authc.realms.test." + name + ".")
                 .put(globalSettings)
+                .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
                 .build(),
             env, threadContext);
     }
@@ -188,7 +194,8 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
 
     private XPackLicenseState getLicenseState(boolean authzRealmsAllowed) {
         final XPackLicenseState license = mock(XPackLicenseState.class);
-        when(license.isAuthorizationRealmAllowed()).thenReturn(authzRealmsAllowed);
+        when(license.isSecurityEnabled()).thenReturn(true);
+        when(license.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(authzRealmsAllowed);
         return license;
     }
 }

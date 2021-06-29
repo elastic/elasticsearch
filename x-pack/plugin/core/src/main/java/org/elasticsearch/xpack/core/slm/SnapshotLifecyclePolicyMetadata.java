@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -23,6 +24,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+
+import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
 
 /**
  * {@code SnapshotLifecyclePolicyMetadata} encapsulates a {@link SnapshotLifecyclePolicy} as well as
@@ -86,6 +89,7 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
                                     SnapshotInvocationRecord lastSuccess, SnapshotInvocationRecord lastFailure) {
         this.policy = policy;
         this.headers = headers;
+        assertNoAuthorizationHeader(this.headers);
         this.version = version;
         this.modifiedDate = modifiedDate;
         this.lastSuccess = lastSuccess;
@@ -96,6 +100,7 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
     SnapshotLifecyclePolicyMetadata(StreamInput in) throws IOException {
         this.policy = new SnapshotLifecyclePolicy(in);
         this.headers = (Map<String, String>) in.readGenericValue();
+        assertNoAuthorizationHeader(this.headers);
         this.version = in.readVLong();
         this.modifiedDate = in.readVLong();
         this.lastSuccess = in.readOptionalWriteable(SnapshotInvocationRecord::new);

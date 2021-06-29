@@ -1,0 +1,43 @@
+{
+  "_doc": {
+    "_meta": {
+      "version": "${xpack.ml.version}"
+    },
+    "dynamic_templates": [
+      {
+        "strings_as_keywords": {
+          "match": "*",
+          "mapping": {
+            "type": "keyword"
+          }
+        }
+      }
+    ],
+    "properties": {
+      "calendar_id": {
+        "type": "keyword"
+      },
+      "job_ids": {
+        "type": "keyword"
+      },
+      "description": {
+        "type": "keyword"
+      },
+      "filter_id": {
+        "type": "keyword"
+      },
+      "items": {
+        "type": "keyword"
+      },
+      "start_time": {
+        "type": "date"
+      },
+      "end_time": {
+        "type": "date"
+      },
+      "type": {
+        "type": "keyword"
+      }
+    }
+  }
+}

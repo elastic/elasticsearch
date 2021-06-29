@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -48,7 +37,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
     @Override
     protected TermsAggregationBuilder createTestAggregatorBuilder() {
         String name = randomAlphaOfLengthBetween(3, 20);
-        TermsAggregationBuilder factory = new TermsAggregationBuilder(name, null);
+        TermsAggregationBuilder factory = new TermsAggregationBuilder(name);
         String field = randomAlphaOfLengthBetween(3, 20);
         randomFieldOrScript(factory, field);
         if (randomBoolean()) {
@@ -102,55 +91,43 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             factory.format("###.##");
         }
         if (randomBoolean()) {
-            IncludeExclude incExc = null;
-            switch (randomInt(6)) {
-            case 0:
-                incExc = new IncludeExclude(new RegExp("foobar"), null);
-                break;
-            case 1:
-                incExc = new IncludeExclude(null, new RegExp("foobaz"));
-                break;
-            case 2:
-                incExc = new IncludeExclude(new RegExp("foobar"), new RegExp("foobaz"));
-                break;
-            case 3:
-                SortedSet<BytesRef> includeValues = new TreeSet<>();
-                int numIncs = randomIntBetween(1, 20);
-                for (int i = 0; i < numIncs; i++) {
-                    includeValues.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
+            RegExp includeRegexp = null, excludeRegexp = null;
+            SortedSet<BytesRef> includeValues = null, excludeValues = null;
+            boolean hasIncludeOrExclude = false;
+
+            if (randomBoolean()) {
+                hasIncludeOrExclude = true;
+                if (randomBoolean()) {
+                    includeRegexp = new RegExp(randomAlphaOfLengthBetween(5, 10));
+                } else {
+                    includeValues = new TreeSet<>();
+                    int numIncs = randomIntBetween(1, 20);
+                    for (int i = 0; i < numIncs; i++) {
+                        includeValues.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
+                    }
                 }
-                SortedSet<BytesRef> excludeValues = null;
-                incExc = new IncludeExclude(includeValues, excludeValues);
-                break;
-            case 4:
-                SortedSet<BytesRef> includeValues2 = null;
-                SortedSet<BytesRef> excludeValues2 = new TreeSet<>();
-                int numExcs2 = randomIntBetween(1, 20);
-                for (int i = 0; i < numExcs2; i++) {
-                    excludeValues2.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
+            }
+
+            if (randomBoolean()) {
+                hasIncludeOrExclude = true;
+                if (randomBoolean()) {
+                    excludeRegexp = new RegExp(randomAlphaOfLengthBetween(5, 10));
+                } else {
+                    excludeValues = new TreeSet<>();
+                    int numIncs = randomIntBetween(1, 20);
+                    for (int i = 0; i < numIncs; i++) {
+                        excludeValues.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
+                    }
                 }
-                incExc = new IncludeExclude(includeValues2, excludeValues2);
-                break;
-            case 5:
-                SortedSet<BytesRef> includeValues3 = new TreeSet<>();
-                int numIncs3 = randomIntBetween(1, 20);
-                for (int i = 0; i < numIncs3; i++) {
-                    includeValues3.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
-                }
-                SortedSet<BytesRef> excludeValues3 = new TreeSet<>();
-                int numExcs3 = randomIntBetween(1, 20);
-                for (int i = 0; i < numExcs3; i++) {
-                    excludeValues3.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
-                }
-                incExc = new IncludeExclude(includeValues3, excludeValues3);
-                break;
-            case 6:
+            }
+
+            IncludeExclude incExc;
+            if (hasIncludeOrExclude) {
+                incExc = new IncludeExclude(includeRegexp, excludeRegexp, includeValues, excludeValues);
+            } else {
                 final int numPartitions = randomIntBetween(1, 100);
                 final int partition = randomIntBetween(0, numPartitions - 1);
                 incExc = new IncludeExclude(partition, numPartitions);
-                break;
-            default:
-                fail();
             }
             factory.includeExclude(incExc);
         }

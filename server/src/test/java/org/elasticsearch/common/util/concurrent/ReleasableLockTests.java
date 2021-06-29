@@ -1,32 +1,33 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ReleasableLockTests extends ESTestCase {
 
@@ -79,10 +80,10 @@ public class ReleasableLockTests extends ESTestCase {
     }
 
     private void acquire(final ReleasableLock lockToAcquire, final ReleasableLock otherLock) {
-        try (@SuppressWarnings("unused") Releasable outer = lockToAcquire.acquire()) {
+        try (@SuppressWarnings("unused") Releasable outer = randomAcquireMethod(lockToAcquire)) {
             assertTrue(lockToAcquire.isHeldByCurrentThread());
             assertFalse(otherLock.isHeldByCurrentThread());
-            try (@SuppressWarnings("unused") Releasable inner = lockToAcquire.acquire()) {
+            try (@SuppressWarnings("unused") Releasable inner = randomAcquireMethod(lockToAcquire)) {
                 assertTrue(lockToAcquire.isHeldByCurrentThread());
                 assertFalse(otherLock.isHeldByCurrentThread());
             }
@@ -94,4 +95,56 @@ public class ReleasableLockTests extends ESTestCase {
         assertFalse(otherLock.isHeldByCurrentThread());
     }
 
+    private ReleasableLock randomAcquireMethod(ReleasableLock lock) {
+        if (randomBoolean()) {
+            return lock.acquire();
+        } else {
+            try {
+                ReleasableLock releasableLock = lock.tryAcquire(TimeValue.timeValueSeconds(30));
+                assertThat(releasableLock, notNullValue());
+                return releasableLock;
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
+        }
+    }
+
+    public void testTryAcquire() throws Exception {
+        ReleasableLock lock = new ReleasableLock(new ReentrantLock());
+        int numberOfThreads = randomIntBetween(1, 10);
+        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
+        AtomicInteger lockedCounter = new AtomicInteger();
+        int timeout = randomFrom(0, 5, 10);
+        List<Thread> threads =
+            IntStream.range(0, numberOfThreads).mapToObj(i -> new Thread(() -> {
+                try {
+                    barrier.await(10, TimeUnit.SECONDS);
+                    try (ReleasableLock locked = lock.tryAcquire(TimeValue.timeValueMillis(timeout))) {
+                        if (locked != null) {
+                            lockedCounter.incrementAndGet();
+                        }
+                    }
+                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+                    throw new AssertionError(e);
+                }
+            })).collect(Collectors.toList());
+        threads.forEach(Thread::start);
+        try (ReleasableLock locked = randomBoolean() ? lock.acquire() : null) {
+            barrier.await(10, TimeUnit.SECONDS);
+            for (Thread thread : threads) {
+                thread.join(10000);
+            }
+            threads.forEach(t -> assertThat(t.isAlive(), is(false)));
+
+            if (locked != null) {
+                assertThat(lockedCounter.get(), equalTo(0));
+            } else {
+                assertThat(lockedCounter.get(), greaterThanOrEqualTo(1));
+            }
+        }
+
+        try (ReleasableLock locked = lock.tryAcquire(TimeValue.ZERO)) {
+            assertThat(locked, notNullValue());
+        }
+    }
 }

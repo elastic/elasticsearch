@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
@@ -20,7 +21,7 @@ final class ConnectionProxy extends DebuggingInvoker {
             return Debug.proxy(result, new StatementProxy(log, result, proxy));
         }
         if (result instanceof DatabaseMetaData) {
-            return Debug.proxy(new DatabaseMetadataProxy(log, result, proxy));
+            return Debug.proxy(new DatabaseMetaDataProxy(log, result, proxy));
         }
 
         return result;

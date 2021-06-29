@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -193,9 +194,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         if (in.readBoolean()) {
             influences = in.readList(Influence::new);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-            geoResults = in.readOptionalWriteable(GeoResults::new);
-        }
+        geoResults = in.readOptionalWriteable(GeoResults::new);
     }
 
     @Override
@@ -239,20 +238,12 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         if (hasInfluencers) {
             out.writeList(influences);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-            out.writeOptionalWriteable(geoResults);
-        }
+        out.writeOptionalWriteable(geoResults);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        innerToXContent(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(PROBABILITY.getPreferredName(), probability);
@@ -315,6 +306,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         for (String fieldName : inputFields.keySet()) {
             builder.field(fieldName, inputFields.get(fieldName));
         }
+        builder.endObject();
         return builder;
     }
 
@@ -338,7 +330,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     }
 
     private void addInputFieldsToMap(Map<String, LinkedHashSet<String>> inputFields, String fieldName, String fieldValue) {
-        if (!Strings.isNullOrEmpty(fieldName) && fieldValue != null) {
+        if (Strings.isNullOrEmpty(fieldName) == false && fieldValue != null) {
             if (ReservedFieldNames.isValidFieldName(fieldName)) {
                 inputFields.computeIfAbsent(fieldName, k -> new LinkedHashSet<>()).add(fieldValue);
             }
@@ -353,12 +345,13 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
      * Data store ID of this record.
      */
     public String getId() {
-        int valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
-        int length = (byFieldValue == null ? 0 : byFieldValue.length()) +
-                (overFieldValue == null ? 0 : overFieldValue.length()) +
-                (partitionFieldValue == null ? 0 : partitionFieldValue.length());
+        return buildId(jobId, timestamp, bucketSpan, detectorIndex, byFieldValue, overFieldValue, partitionFieldValue);
+    }
 
-        return jobId + "_record_" + timestamp.getTime() + "_" + bucketSpan + "_" + detectorIndex + "_" + valuesHash + "_" + length;
+    static String buildId(String jobId, Date timestamp, long bucketSpan, int detectorIndex,
+                          String byFieldValue, String overFieldValue, String partitionFieldValue) {
+        return jobId + "_record_" + timestamp.getTime() + "_" + bucketSpan + "_" + detectorIndex + "_"
+            + MachineLearningField.valuesToId(byFieldValue, overFieldValue, partitionFieldValue);
     }
 
     public int getDetectorIndex() {

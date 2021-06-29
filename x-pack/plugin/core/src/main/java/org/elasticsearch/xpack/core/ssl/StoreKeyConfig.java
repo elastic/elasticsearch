@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -31,13 +33,15 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A key configuration that is backed by a {@link KeyStore}
  */
-class StoreKeyConfig extends KeyConfig {
+public class StoreKeyConfig extends KeyConfig {
 
     private static final String KEYSTORE_FILE = "keystore";
 
@@ -125,6 +129,24 @@ class StoreKeyConfig extends KeyConfig {
         return certificates;
     }
 
+    /**
+     * Returns all certificates that can be found in the keystore, either as part of a PrivateKeyEntry or a TrustedCertificateEntry.
+     * Duplicates are removed.
+     */
+    public Collection<X509Certificate> x509Certificates(Environment environment) throws GeneralSecurityException, IOException {
+        final KeyStore trustStore = getStore(CertParsingUtils.resolvePath(keyStorePath, environment), keyStoreType, keyStorePassword);
+        final Set<X509Certificate> certificates = new HashSet<>();
+        final Enumeration<String> aliases = trustStore.aliases();
+        while (aliases.hasMoreElements()) {
+            String alias = aliases.nextElement();
+            final Certificate certificate = trustStore.getCertificate(alias);
+            if (certificate instanceof X509Certificate) {
+                certificates.add((X509Certificate) certificate);
+            }
+        }
+        return certificates;
+    }
+
     @Override
     List<Path> filesToMonitor(@Nullable Environment environment) {
         if (keyStorePath == null) {
@@ -153,6 +175,26 @@ class StoreKeyConfig extends KeyConfig {
         }
     }
 
+    public List<Tuple<PrivateKey, X509Certificate>> getPrivateKeyEntries(Environment environment) {
+        try {
+            final KeyStore keyStore = getStore(CertParsingUtils.resolvePath(keyStorePath, environment), keyStoreType, keyStorePassword);
+            List<Tuple<PrivateKey, X509Certificate>> entries = new ArrayList<>();
+            for (Enumeration<String> e = keyStore.aliases(); e.hasMoreElements(); ) {
+                final String alias = e.nextElement();
+                if (keyStore.isKeyEntry(alias)) {
+                    Key key = keyStore.getKey(alias, keyPassword.getChars());
+                    Certificate certificate = keyStore.getCertificate(alias);
+                    if (key instanceof PrivateKey && certificate instanceof X509Certificate) {
+                        entries.add(Tuple.tuple((PrivateKey) key, (X509Certificate) certificate));
+                    }
+                }
+            }
+            return entries;
+        } catch (Exception e) {
+            throw new ElasticsearchException("failed to list keys and certificates", e);
+        }
+    }
+
     private void checkKeyStore(KeyStore keyStore) throws KeyStoreException {
         Enumeration<String> aliases = keyStore.aliases();
         while (aliases.hasMoreElements()) {
@@ -166,30 +208,27 @@ class StoreKeyConfig extends KeyConfig {
             "the configured PKCS#11 token does not contain a private key entry";
         throw new IllegalArgumentException(message);
     }
+
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         StoreKeyConfig that = (StoreKeyConfig) o;
-
-        if (keyStorePath != null ? !keyStorePath.equals(that.keyStorePath) : that.keyStorePath != null) return false;
-        if (keyStorePassword != null ? !keyStorePassword.equals(that.keyStorePassword) : that.keyStorePassword != null)
-            return false;
-        if (keyStoreAlgorithm != null ? !keyStoreAlgorithm.equals(that.keyStoreAlgorithm) : that.keyStoreAlgorithm != null)
-            return false;
-        if (keyPassword != null ? !keyPassword.equals(that.keyPassword) : that.keyPassword != null) return false;
-        return trustStoreAlgorithm != null ? trustStoreAlgorithm.equals(that.trustStoreAlgorithm) : that.trustStoreAlgorithm == null;
+        return Objects.equals(keyStorePath, that.keyStorePath)
+            && Objects.equals(keyStoreType, that.keyStoreType)
+            && Objects.equals(keyStorePassword, that.keyStorePassword)
+            && Objects.equals(keyStoreAlgorithm, that.keyStoreAlgorithm)
+            && Objects.equals(keyPassword, that.keyPassword)
+            && Objects.equals(trustStoreAlgorithm, that.trustStoreAlgorithm);
     }
 
     @Override
     public int hashCode() {
-        int result = keyStorePath != null ? keyStorePath.hashCode() : 0;
-        result = 31 * result + (keyStorePassword != null ? keyStorePassword.hashCode() : 0);
-        result = 31 * result + (keyStoreAlgorithm != null ? keyStoreAlgorithm.hashCode() : 0);
-        result = 31 * result + (keyPassword != null ? keyPassword.hashCode() : 0);
-        result = 31 * result + (trustStoreAlgorithm != null ? trustStoreAlgorithm.hashCode() : 0);
-        return result;
+        return Objects.hash(keyStorePath, keyStoreType, keyStorePassword, keyStoreAlgorithm, keyPassword, trustStoreAlgorithm);
     }
 
     @Override

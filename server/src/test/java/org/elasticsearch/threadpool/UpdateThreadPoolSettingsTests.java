@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -61,7 +50,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
     }
 
     public void testWriteThreadPoolsMaxSize() throws InterruptedException {
-        final int maxSize = 1 + EsExecutors.numberOfProcessors(Settings.EMPTY);
+        final int maxSize = 1 + EsExecutors.allocatedProcessors(Settings.EMPTY);
         final int tooBig = randomIntBetween(1 + maxSize, Integer.MAX_VALUE);
 
         // try to create a too big thread pool
@@ -87,8 +76,8 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
     }
 
     private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
-        if (name.equals(ThreadPool.Names.WRITE)) {
-            return Math.min(size, EsExecutors.numberOfProcessors(settings));
+        if (name.equals(ThreadPool.Names.WRITE) || name.equals(Names.SYSTEM_WRITE) || name.equals(Names.SYSTEM_CRITICAL_WRITE)) {
+            return Math.min(size, EsExecutors.allocatedProcessors(settings));
         } else {
             return size;
         }
@@ -132,7 +121,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             final int expectedMinimum = "generic".equals(threadPoolName) ? 4 : 1;
             assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedMinimum));
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(10));
-            final long expectedKeepAlive = "generic".equals(threadPoolName) ? 30 : 300;
+            final long expectedKeepAlive = "generic".equals(threadPoolName) || Names.SNAPSHOT_META.equals(threadPoolName) ? 30 : 300;
             assertThat(info(threadPool, threadPoolName).getKeepAlive().seconds(), equalTo(expectedKeepAlive));
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.SCALING);
             assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
@@ -184,10 +173,10 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 new ScalingExecutorBuilder(
                     "my_pool1",
                     1,
-                    EsExecutors.numberOfProcessors(Settings.EMPTY),
+                    EsExecutors.allocatedProcessors(Settings.EMPTY),
                     TimeValue.timeValueMinutes(1));
 
-            final FixedExecutorBuilder fixed = new FixedExecutorBuilder(Settings.EMPTY, "my_pool2", 1, 1);
+            final FixedExecutorBuilder fixed = new FixedExecutorBuilder(Settings.EMPTY, "my_pool2", 1, 1, false);
 
             threadPool = new ThreadPool(Settings.builder().put("node.name", "testCustomThreadPool").build(), scaling, fixed);
 

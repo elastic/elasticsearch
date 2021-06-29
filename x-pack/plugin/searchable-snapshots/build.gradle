@@ -1,0 +1,24 @@
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
+esplugin {
+  name 'searchable-snapshots'
+  description 'A plugin for the searchable snapshots functionality'
+  classname 'org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-searchable-snapshots'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  implementation project(path: 'preallocate')
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+addQaCheckDependencies()
+
+tasks.named("internalClusterTest").configure {
+  // Reduce the buffer size per cache-fetch thread to keep direct memory usage under control.
+  systemProperty 'es.searchable.snapshot.shared_cache.write_buffer.size', '256k'
+}

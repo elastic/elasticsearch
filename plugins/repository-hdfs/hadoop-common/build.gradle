@@ -1,0 +1,10 @@
+apply plugin: 'elasticsearch.java'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+dependencies {
+  implementation "org.apache.hadoop:hadoop-common:${project.parent.versions.hadoop2}"
+}
+
+tasks.named('shadowJar').configure {
+  exclude 'org/apache/hadoop/util/ShutdownHookManager$*.class'
+}

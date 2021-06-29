@@ -1,0 +1,16 @@
+# tests that the custom suggester plugin is installed
+---
+"plugin loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
+
+    # Get master node id
+    - do:
+        cluster.state: {}
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - contains: { nodes.$master.plugins: { name: custom-significance-heuristic } }

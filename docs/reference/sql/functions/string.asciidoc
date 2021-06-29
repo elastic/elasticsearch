@@ -16,13 +16,11 @@ ASCII(string_exp) <1>
 
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
-.Description:
-
-Returns the ASCII code value of the leftmost character of `string_exp` as an integer.
+*Description*: Returns the ASCII code value of the leftmost character of `string_exp` as an integer.
 
 [source, sql]
 --------------------------------------------------
@@ -39,13 +37,11 @@ BIT_LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
-.Description:
-
-Returns the length in bits of the `string_exp` input expression.
+*Description*: Returns the length in bits of the `string_exp` input expression.
 
 [source, sql]
 --------------------------------------------------
@@ -62,13 +58,12 @@ CHAR(code) <1>
 --------------------------------------------------
 *Input*:
 
-<1> integer expression
+<1> integer expression between `0` and `255`. If `null`, negative, or greater
+than `255`, the function returns `null`.
 
 *Output*: string
 
-.Description:
-
-Returns the character that has the ASCII code value specified by the numeric input. The value should be between 0 and 255; otherwise, the return value is data source–dependent.
+*Description*: Returns the character that has the ASCII code value specified by the numeric input.
 
 [source, sql]
 --------------------------------------------------
@@ -85,13 +80,11 @@ CHAR_LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
-.Description:
-
-Returns the length in characters of the input, if the string expression is of a character data type; otherwise, returns the length in bytes of the string expression (the smallest integer not less than the number of bits divided by 8).
+*Description*: Returns the length in characters of the input, if the string expression is of a character data type; otherwise, returns the length in bytes of the string expression (the smallest integer not less than the number of bits divided by 8).
 
 [source, sql]
 --------------------------------------------------
@@ -110,14 +103,12 @@ CONCAT(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> string expression
+<1> string expression. Treats `null` as an empty string.
+<2> string expression. Treats `null` as an empty string.
 
 *Output*: string
 
-.Description:
-
-Returns a character string that is the result of concatenating `string_exp1` to `string_exp2`. If one of the string is `NULL`, the other string will be returned.
+*Description*: Returns a character string that is the result of concatenating `string_exp1` to `string_exp2`.
 
 [source, sql]
 --------------------------------------------------
@@ -138,16 +129,14 @@ INSERT(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> integer expression
-<3> integer expression
-<4> string expression
+<1> string expression. If `null`, the function returns `null`.
+<2> integer expression. If `null`, the function returns `null`.
+<3> integer expression. If `null`, the function returns `null`.
+<4> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
-
-Returns a string where `length` characters have been deleted from `source`, beginning at `start`, and where `replacement` has been inserted into `source`, beginning at `start`.
+*Description*: Returns a string where `length` characters have been deleted from `source`, beginning at `start`, and where `replacement` has been inserted into `source`, beginning at `start`.
 
 [source, sql]
 --------------------------------------------------
@@ -164,13 +153,11 @@ LCASE(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
-
-Returns a string equal to that in `string_exp`, with all uppercase characters converted to lowercase.
+*Description*: Returns a string equal to that in `string_exp`, with all uppercase characters converted to lowercase.
 
 [source, sql]
 --------------------------------------------------
@@ -189,14 +176,13 @@ LEFT(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> integer expression
+<1> string expression. If `null`, the function returns `null`.
+<2> integer expression. If `null`, the function returns `null`. If `0` or
+negative, the function returns an empty string.
 
 *Output*: string
 
-.Description:
-
-Returns the leftmost count characters of `string_exp`.
+*Description*: Returns the leftmost count characters of `string_exp`.
 
 [source, sql]
 --------------------------------------------------
@@ -213,13 +199,11 @@ LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
-.Description:
-
-Returns the number of characters in `string_exp`, excluding trailing blanks.
+*Description*: Returns the number of characters in `string_exp`, excluding trailing blanks.
 
 [source, sql]
 --------------------------------------------------
@@ -240,15 +224,17 @@ LOCATE(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> string expression
-<3> integer expression; optional
+<1> string expression.  If `null`, the function returns `null`.
+<2> string expression.  If `null`, the function returns `null`.
+<3> integer expression; optional. If `null`, `0`, `1`, negative, or not
+specified, the search starts at the first character position.
 
 *Output*: integer
 
-.Description:
-
-Returns the starting position of the first occurrence of `pattern` within `source`. The search for the first occurrence of `pattern` begins with the first character position in `source` unless the optional argument, `start`, is specified. If `start` is specified, the search begins with the character position indicated by the value of `start`. The first character position in `source` is indicated by the value 1. If `pattern` is not found within `source`, the value 0 is returned.
+*Description*: Returns the starting position of the first occurrence of
+`pattern` within `source`. The optional `start` specifies the character position
+to start the search with. If the `pattern` is not found within `source`, the
+function returns `0`.
 
 [source, sql]
 --------------------------------------------------
@@ -270,13 +256,11 @@ LTRIM(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
-
-Returns the characters of `string_exp`, with leading blanks removed.
+*Description*: Returns the characters of `string_exp`, with leading blanks removed.
 
 [source, sql]
 --------------------------------------------------
@@ -293,13 +277,11 @@ OCTET_LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
-.Description:
-
-Returns the length in bytes of the `string_exp` input expression.
+*Description*: Returns the length in bytes of the `string_exp` input expression.
 
 [source, sql]
 --------------------------------------------------
@@ -318,14 +300,12 @@ POSITION(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> string expression
+<1> string expression. If `null`, the function returns `null`.
+<2> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
-.Description:
-
-Returns the position of the `string_exp1` in `string_exp2`. The result is an exact numeric.
+*Description*: Returns the position of the `string_exp1` in `string_exp2`. The result is an exact numeric.
 
 [source, sql]
 --------------------------------------------------
@@ -344,14 +324,12 @@ REPEAT(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> integer expression
+<1> string expression. If `null`, the function returns `null`.
+<2> integer expression. If `0`, negative, or `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
-
-Returns a character string composed of `string_exp` repeated `count` times.
+*Description*: Returns a character string composed of `string_exp` repeated `count` times.
 
 [source, sql]
 --------------------------------------------------
@@ -371,15 +349,13 @@ REPLACE(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> string expression
-<3> string expression
+<1> string expression. If `null`, the function returns `null`.
+<2> string expression. If `null`, the function returns `null`.
+<3> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
-
-Search `source` for occurrences of `pattern`, and replace with `replacement`.
+*Description*: Search `source` for occurrences of `pattern`, and replace with `replacement`.
 
 [source, sql]
 --------------------------------------------------
@@ -398,14 +374,13 @@ RIGHT(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> integer expression
+<1> string expression. If `null`, the function returns `null`.
+<2> integer expression. If `null`, the function returns `null`. If `0` or
+negative, the function returns an empty string.
 
 *Output*: string
 
-.Description:
-
-Returns the rightmost count characters of `string_exp`.
+*Description*: Returns the rightmost count characters of `string_exp`.
 
 [source, sql]
 --------------------------------------------------
@@ -422,13 +397,11 @@ RTRIM(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
-
-Returns the characters of `string_exp` with trailing blanks removed.
+*Description*: Returns the characters of `string_exp` with trailing blanks removed.
 
 [source, sql]
 --------------------------------------------------
@@ -445,17 +418,45 @@ SPACE(count) <1>
 --------------------------------------------------
 *Input*:
 
-<1> integer expression
+<1> integer expression. If `null` or negative, the function returns `null`.
 
 *Output*: string
 
-.Description:
-
-Returns a character string consisting of `count` spaces.
+*Description*: Returns a character string consisting of `count` spaces.
 
 [source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[stringSpace]
+--------------------------------------------------
+
+[[sql-functions-string-startswith]]
+==== `STARTS_WITH`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+STARTS_WITH(
+    source,   <1>
+    pattern)  <2>
+--------------------------------------------------
+*Input*:
+
+<1> string expression. If `null`, the function returns `null`.
+<2> string expression. If `null`, the function returns `null`.
+
+*Output*: boolean value
+
+*Description*: Returns `true` if the source expression starts with the specified
+pattern, `false` otherwise. The matching is case sensitive.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringStartsWithTrue]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringStartsWithFalse]
 --------------------------------------------------
 
 [[sql-functions-string-substring]]
@@ -471,19 +472,37 @@ SUBSTRING(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> integer expression
-<3> integer expression
+<1> string expression. If `null`, the function returns `null`.
+<2> integer expression. If `null`, the function returns `null`.
+<3> integer expression. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
-
-Returns a character string that is derived from `source`, beginning at the character position specified by `start` for `length` characters.
+*Description*: Returns a character string that is derived from `source`, beginning at the character position specified by `start` for `length` characters.
 
 [source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[stringSubString]
+--------------------------------------------------
+[[sql-functions-string-trim]]
+==== `TRIM`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+TRIM(string_exp) <1>
+--------------------------------------------------
+*Input*:
+
+<1> string expression. If `null`, the function returns `null`.
+
+*Output*: string
+
+*Description*: Returns the characters of `string_exp`, with leading and trailing blanks removed.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringTrim]
 --------------------------------------------------
 
 [[sql-functions-string-ucase]]
@@ -496,13 +515,11 @@ UCASE(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
-
-Returns a string equal to that of the input, with all lowercase characters converted to uppercase.
+*Description*: Returns a string equal to that of the input, with all lowercase characters converted to uppercase.
 
 [source, sql]
 --------------------------------------------------

@@ -1,15 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -22,10 +26,13 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
+
+    private static final Logger logger = LogManager.getLogger(SetStepInfoUpdateTask.class);
+
     private final Index index;
     private final String policy;
     private final Step.StepKey currentStepKey;
-    private ToXContentObject stepInfo;
+    private final ToXContentObject stepInfo;
 
     public SetStepInfoUpdateTask(Index index, String policy, Step.StepKey currentStepKey, ToXContentObject stepInfo) {
         this.index = index;
@@ -52,7 +59,7 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) throws IOException {
-        IndexMetaData idxMeta = currentState.getMetaData().index(index);
+        IndexMetadata idxMeta = currentState.getMetadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             return currentState;
@@ -60,8 +67,8 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
         Settings indexSettings = idxMeta.getSettings();
         LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(idxMeta);
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-                && Objects.equals(currentStepKey, IndexLifecycleRunner.getCurrentStepKey(indexILMData))) {
-            return IndexLifecycleRunner.addStepInfoToClusterState(index, currentState, stepInfo);
+                && Objects.equals(currentStepKey, LifecycleExecutionState.getCurrentStepKey(indexILMData))) {
+            return IndexLifecycleTransition.addStepInfoToClusterState(index, currentState, stepInfo);
         } else {
             // either the policy has changed or the step is now
             // not the same as when we submitted the update task. In
@@ -72,8 +79,8 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public void onFailure(String source, Exception e) {
-        throw new ElasticsearchException("policy [" + policy + "] for index [" + index.getName()
-                + "] failed trying to set step info for step [" + currentStepKey + "].", e);
+        logger.warn(new ParameterizedMessage("policy [{}] for index [{}] failed trying to set step info for step [{}].",
+                policy, index.getName(), currentStepKey), e);
     }
 
     public static class ExceptionWrapper implements ToXContentObject {

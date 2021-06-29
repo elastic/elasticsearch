@@ -1,0 +1,40 @@
+--
+:api: put-trained-model-alias
+:request: PutTrainedModelAliasRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Create or update trained model alias API
+
+
+Creates or reassigns a trained model alias.
+The API accepts a +{request}+ object as a request and returns a +{response}+.
+The created trained model alias can then be used for other APIs in the stack
+instead of the referenced model id.
+
+[id="{upid}-{api}-request"]
+==== Request
+
+A +{request}+ requires the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The trained model alias to create or reassign
+<2> The trained model id to which to assign the alias
+<3> (Optional) whether or not to reassign the model alias if it
+is already pointing to a model. Defaults to false.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

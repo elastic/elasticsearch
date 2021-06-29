@@ -1,41 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.nio;
 
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandler;
 import io.netty.handler.codec.ByteToMessageDecoder;
-import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.http.CorsHandler;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpReadTimeoutException;
-import org.elasticsearch.http.nio.cors.NioCorsHandler;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioChannelHandler;
@@ -63,14 +47,14 @@ public class HttpReadWriteHandler implements NioChannelHandler {
     private int inFlightRequests = 0;
 
     public HttpReadWriteHandler(NioHttpChannel nioHttpChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
-                                CorsHandler.Config corsConfig, TaskScheduler taskScheduler, LongSupplier nanoClock) {
+                                TaskScheduler taskScheduler, LongSupplier nanoClock) {
         this.nioHttpChannel = nioHttpChannel;
         this.transport = transport;
         this.taskScheduler = taskScheduler;
         this.nanoClock = nanoClock;
         this.readTimeoutNanos = TimeUnit.MILLISECONDS.toNanos(settings.getReadTimeoutMillis());
 
-        List<ChannelHandler> handlers = new ArrayList<>(5);
+        List<ChannelHandler> handlers = new ArrayList<>(8);
         HttpRequestDecoder decoder = new HttpRequestDecoder(settings.getMaxInitialLineLength(), settings.getMaxHeaderSize(),
             settings.getMaxChunkSize());
         decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
@@ -81,9 +65,8 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         if (settings.isCompression()) {
             handlers.add(new HttpContentCompressor(settings.getCompressionLevel()));
         }
-        if (settings.isCorsEnabled()) {
-            handlers.add(new NioCorsHandler(corsConfig));
-        }
+        handlers.add(new NioHttpRequestCreator());
+        handlers.add(new NioHttpResponseCreator());
         handlers.add(new NioHttpPipeliningHandler(transport.getLogger(), settings.getPipeliningMaxEvents()));
 
         adaptor = new NettyAdaptor(handlers.toArray(new ChannelHandler[0]));
@@ -114,15 +97,13 @@ public class HttpReadWriteHandler implements NioChannelHandler {
 
     @Override
     public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Exception> listener) {
-        assert message instanceof NioHttpResponse : "This channel only supports messages that are of type: "
-            + NioHttpResponse.class + ". Found type: " + message.getClass() + ".";
-        return new HttpWriteOperation(context, (NioHttpResponse) message, listener);
+        assert assertMessageTypes(message);
+        return new HttpWriteOperation(context, (HttpPipelinedResponse) message, listener);
     }
 
     @Override
     public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {
-        assert writeOperation.getObject() instanceof NioHttpResponse : "This channel only supports messages that are of type: "
-            + NioHttpResponse.class + ". Found type: " + writeOperation.getObject().getClass() + ".";
+        assert assertMessageTypes(writeOperation.getObject());
         assert channelActive : "channelActive should have been called";
         --inFlightRequests;
         assert inFlightRequests >= 0 : "Inflight requests should never drop below zero, found: " + inFlightRequests;
@@ -154,36 +135,16 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private void handleRequest(Object msg) {
-        final HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = (HttpPipelinedRequest<FullHttpRequest>) msg;
-        FullHttpRequest request = pipelinedRequest.getRequest();
-
-        final FullHttpRequest copiedRequest;
+        final HttpPipelinedRequest pipelinedRequest = (HttpPipelinedRequest) msg;
+        boolean success = false;
         try {
-            copiedRequest = new DefaultFullHttpRequest(
-                request.protocolVersion(),
-                request.method(),
-                request.uri(),
-                Unpooled.copiedBuffer(request.content()),
-                request.headers(),
-                request.trailingHeaders());
+            transport.incomingRequest(pipelinedRequest, nioHttpChannel);
+            success = true;
         } finally {
-            // As we have copied the buffer, we can release the request
-            request.release();
-        }
-        NioHttpRequest httpRequest = new NioHttpRequest(copiedRequest, pipelinedRequest.getSequence());
-
-        if (request.decoderResult().isFailure()) {
-            Throwable cause = request.decoderResult().cause();
-            if (cause instanceof Error) {
-                ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                transport.incomingRequestError(httpRequest, nioHttpChannel, new Exception(cause));
-            } else {
-                transport.incomingRequestError(httpRequest, nioHttpChannel, (Exception) cause);
+            if (success == false) {
+                pipelinedRequest.release();
             }
-        } else {
-            transport.incomingRequest(httpRequest, nioHttpChannel);
         }
     }
 
@@ -198,5 +159,14 @@ public class HttpReadWriteHandler implements NioChannelHandler {
 
     private void scheduleReadTimeout() {
         taskScheduler.scheduleAtRelativeTime(this::maybeReadTimeout, nanoClock.getAsLong() + readTimeoutNanos);
+    }
+
+    private static boolean assertMessageTypes(Object message) {
+        assert message instanceof HttpPipelinedResponse : "This channel only supports messages that are of type: "
+            + HttpPipelinedResponse.class + ". Found type: " + message.getClass() + ".";
+        assert ((HttpPipelinedResponse) message).getDelegateRequest() instanceof NioHttpResponse :
+            "This channel only pipelined responses with a delegate of type: " + NioHttpResponse.class +
+                ". Found type: " + ((HttpPipelinedResponse) message).getDelegateRequest().getClass() + ".";
+        return true;
     }
 }

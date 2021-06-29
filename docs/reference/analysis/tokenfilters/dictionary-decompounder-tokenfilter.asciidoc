@@ -17,7 +17,7 @@ Uses a specified list of words and a brute force approach to find subwords in
 compound words. If found, these subwords are included in the token output.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/compound/DictionaryCompoundWordTokenFilter.html[DictionaryCompoundWordTokenFilter],
+{lucene-analysis-docs}/compound/DictionaryCompoundWordTokenFilter.html[DictionaryCompoundWordTokenFilter],
 which was built for Germanic languages.
 
 [[analysis-dict-decomp-tokenfilter-analyze-ex]]
@@ -130,7 +130,7 @@ Minimum word character length. Shorter word tokens are excluded from the
 output. Defaults to `5`.
 
 `only_longest_match`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, only include the longest matching subword. Defaults to `false`.
 
 [[analysis-dict-decomp-tokenfilter-customize]]

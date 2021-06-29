@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -25,29 +26,37 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
 
     public static final String NAME = TransformField.TASK_NAME;
     public static final ParseField FREQUENCY = TransformField.FREQUENCY;
+    public static final ParseField REQUIRES_REMOTE = new ParseField("requires_remote");
 
     private final String transformId;
     private final Version version;
     private final TimeValue frequency;
+    private final Boolean requiresRemote;
 
     public static final ConstructingObjectParser<TransformTaskParams, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
-            a -> new TransformTaskParams((String) a[0], (String) a[1], (String) a[2]));
+            a -> new TransformTaskParams((String) a[0], (String) a[1], (String) a[2], (Boolean) a[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TransformField.ID);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TransformField.VERSION);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FREQUENCY);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), REQUIRES_REMOTE);
     }
 
-    private TransformTaskParams(String transformId, String version, String frequency) {
-        this(transformId, version == null ? null : Version.fromString(version),
-            frequency == null ? null : TimeValue.parseTimeValue(frequency, FREQUENCY.getPreferredName()));
+    private TransformTaskParams(String transformId, String version, String frequency, Boolean remote) {
+        this(
+            transformId,
+            version == null ? null : Version.fromString(version),
+            frequency == null ? null : TimeValue.parseTimeValue(frequency, FREQUENCY.getPreferredName()),
+            remote == null ? false : remote.booleanValue()
+        );
     }
 
-    public TransformTaskParams(String transformId, Version version, TimeValue frequency) {
+    public TransformTaskParams(String transformId, Version version, TimeValue frequency, boolean remote) {
         this.transformId = transformId;
         this.version = version == null ? Version.V_7_2_0 : version;
         this.frequency = frequency;
+        this.requiresRemote = remote;
     }
 
     public TransformTaskParams(StreamInput in) throws IOException {
@@ -61,6 +70,11 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
             this.frequency = in.readOptionalTimeValue();
         } else {
             this.frequency = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            this.requiresRemote = in.readBoolean();
+        } else {
+            this.requiresRemote = false;
         }
     }
 
@@ -83,6 +97,9 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeOptionalTimeValue(frequency);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            out.writeBoolean(requiresRemote);
+        }
     }
 
     @Override
@@ -93,6 +110,7 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
         if (frequency != null) {
             builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
+        builder.field(REQUIRES_REMOTE.getPreferredName(), requiresRemote);
         builder.endObject();
         return builder;
     }
@@ -107,6 +125,10 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
 
     public TimeValue getFrequency() {
         return frequency;
+    }
+
+    public boolean requiresRemote() {
+        return requiresRemote;
     }
 
     public static TransformTaskParams fromXContent(XContentParser parser) throws IOException {
@@ -127,11 +149,12 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
 
         return Objects.equals(this.transformId, that.transformId)
             && Objects.equals(this.version, that.version)
-            && Objects.equals(this.frequency, that.frequency);
+            && Objects.equals(this.frequency, that.frequency)
+            && this.requiresRemote == that.requiresRemote;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(transformId, version, frequency);
+        return Objects.hash(transformId, version, frequency, requiresRemote);
     }
 }

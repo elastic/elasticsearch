@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
-import org.elasticsearch.xpack.sql.tree.NodeSubclassTests;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.SourceTests;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
+import org.elasticsearch.xpack.ql.tree.NodeSubclassTests;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.SourceTests;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -21,11 +22,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
+import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.literal;
 
 /**
  * Needed to override tests in {@link NodeSubclassTests} as Case is special since its children are not usual
@@ -38,7 +42,8 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         List<Expression> expressions = new ArrayList<>(noConditionals + 1);
         for (int i = 0; i < noConditionals; i++) {
             expressions.add(new IfConditional(
-                randomSource(), new Equals(randomSource(), randomStringLiteral(), randomStringLiteral()), randomIntLiteral()));
+                randomSource(), new Equals(randomSource(), randomStringLiteral(), randomStringLiteral(), randomZone()),
+                randomIntLiteral()));
 
         }
         // default else
@@ -68,11 +73,7 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
 
         Source newSource = randomValueOtherThan(c.source(), SourceTests::randomSource);
         assertEquals(new Case(c.source(), c.children()),
-            c.transformPropertiesOnly(p -> Objects.equals(p, c.source()) ? newSource: p, Object.class));
-
-        String newName = randomValueOtherThan(c.name(), () -> randomAlphaOfLength(5));
-        assertEquals(new Case(c.source(), c.children()),
-            c.transformPropertiesOnly(p -> Objects.equals(p, c.name()) ? newName : p, Object.class));
+            c.transformPropertiesOnly(Object.class, p -> Objects.equals(p, c.source()) ? newSource: p));
     }
 
     @Override
@@ -88,40 +89,39 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         // ELSE 'default'
         // END
         Case c = new Case(EMPTY, Arrays.asList(
-            new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.NULL),
-            Literal.of(EMPTY, "default")));
-        assertEquals(DataType.KEYWORD, c.dataType());
+                new IfConditional(EMPTY, equalsOf(literal(1), literal(1)), Literal.NULL), literal("default")));
+        assertEquals(KEYWORD, c.dataType());
 
         // CASE WHEN 1 = 1 THEN 'foo'
         // ELSE NULL
         // END
         c = new Case(EMPTY, Arrays.asList(
-            new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.of(EMPTY, "foo")),
+                new IfConditional(EMPTY, equalsOf(literal(1), literal(1)), literal("foo")),
             Literal.NULL));
-        assertEquals(DataType.KEYWORD, c.dataType());
+        assertEquals(KEYWORD, c.dataType());
 
         // CASE WHEN 1 = 1 THEN NULL
         // ELSE NULL
         // END
         c = new Case(EMPTY, Arrays.asList(
-            new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.NULL),
+                new IfConditional(EMPTY, equalsOf(literal(1), literal(1)), Literal.NULL),
             Literal.NULL));
-        assertEquals(DataType.NULL, c.dataType());
+        assertEquals(NULL, c.dataType());
 
         // CASE WHEN 1 = 1 THEN NULL
         //      WHEN 2 = 2 THEN 'foo'
         // ELSE NULL
         // END
         c = new Case(EMPTY, Arrays.asList(
-            new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.NULL),
-            new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 2), Literal.of(EMPTY, 2)), Literal.of(EMPTY, "foo")),
+                new IfConditional(EMPTY, equalsOf(literal(1), literal(1)), Literal.NULL),
+                new IfConditional(EMPTY, equalsOf(literal(2), literal(2)), literal("foo")),
             Literal.NULL));
-        assertEquals(DataType.KEYWORD, c.dataType());
+        assertEquals(KEYWORD, c.dataType());
     }
 
     public void testAllConditionsFolded() {
-        Case c = new Case(EMPTY, Collections.singletonList(Literal.of(EMPTY, "foo")));
-        assertEquals(DataType.KEYWORD, c.dataType());
+        Case c = new Case(EMPTY, Collections.singletonList(literal("foo")));
+        assertEquals(KEYWORD, c.dataType());
         assertEquals(TypeResolution.TYPE_RESOLVED, c.typeResolved());
         assertNotNull(c.info());
     }
@@ -136,7 +136,7 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
             for (int i = 0; i < c.conditions().size(); i++) {
                 if (i == rndIdx) {
                     expressions.add(new IfConditional(randomValueOtherThan(c.conditions().get(i).source(), SourceTests::randomSource),
-                        new Equals(randomSource(), randomStringLiteral(), randomStringLiteral()),
+                        new Equals(randomSource(), randomStringLiteral(), randomStringLiteral(), randomZone()),
                         randomValueOtherThan(c.conditions().get(i).condition(), FunctionTestUtils::randomStringLiteral)));
                 } else {
                     expressions.add(c.conditions().get(i));

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.netty4;
 
@@ -15,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTransportTestCase;
@@ -22,6 +24,13 @@ import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTranspor
 import java.util.Collections;
 
 public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecurityTransportTestCase {
+
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/67427")
+    @Override
+    public void testThreadContext() {
+        // This empty method is here just for the purpose of muting the
+        // test defined in the base class
+    }
 
     @Override
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
@@ -32,7 +41,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
             .put("xpack.security.transport.ssl.enabled", true).build();
         return new SecurityNetty4ServerTransport(settings1, version, threadPool,
             networkService, PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
-            new NoneCircuitBreakerService(), null, createSSLService(settings1)) {
+            new NoneCircuitBreakerService(), null, createSSLService(settings1), new SharedGroupFactory(settings1)) {
 
             @Override
             public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,

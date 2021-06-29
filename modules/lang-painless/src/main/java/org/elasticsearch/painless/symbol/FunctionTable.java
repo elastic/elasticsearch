@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.symbol;
@@ -36,32 +25,45 @@ import java.util.Objects;
  */
 public class FunctionTable {
 
+    private static final String MANGLED_FUNCTION_NAME_PREFIX = "&";
+
     public static class LocalFunction {
 
         protected final String functionName;
+        protected final String mangledName;
         protected final Class<?> returnType;
         protected final List<Class<?>> typeParameters;
         protected final boolean isInternal;
+        protected final boolean isStatic;
 
         protected final MethodType methodType;
         protected final Method asmMethod;
 
-        public LocalFunction(String functionName, Class<?> returnType, List<Class<?>> typeParameters, boolean isInternal) {
+        public LocalFunction(
+                String functionName, Class<?> returnType, List<Class<?>> typeParameters, boolean isInternal, boolean isStatic) {
+            this(functionName, "", returnType, typeParameters, isInternal, isStatic);
+        }
+
+        private LocalFunction(String functionName, String mangle,
+                Class<?> returnType, List<Class<?>> typeParameters, boolean isInternal, boolean isStatic) {
+
             this.functionName = Objects.requireNonNull(functionName);
+            this.mangledName = Objects.requireNonNull(mangle) + this.functionName;
             this.returnType = Objects.requireNonNull(returnType);
             this.typeParameters = Collections.unmodifiableList(Objects.requireNonNull(typeParameters));
             this.isInternal = isInternal;
+            this.isStatic = isStatic;
 
             Class<?> javaReturnType = PainlessLookupUtility.typeToJavaType(returnType);
             Class<?>[] javaTypeParameters = typeParameters.stream().map(PainlessLookupUtility::typeToJavaType).toArray(Class<?>[]::new);
 
             this.methodType = MethodType.methodType(javaReturnType, javaTypeParameters);
-            this.asmMethod = new org.objectweb.asm.commons.Method(functionName,
+            this.asmMethod = new org.objectweb.asm.commons.Method(mangledName,
                     MethodType.methodType(javaReturnType, javaTypeParameters).toMethodDescriptorString());
         }
 
-        public String getFunctionName() {
-            return functionName;
+        public String getMangledName() {
+            return mangledName;
         }
 
         public Class<?> getReturnType() {
@@ -74,6 +76,10 @@ public class FunctionTable {
 
         public boolean isInternal() {
             return isInternal;
+        }
+
+        public boolean isStatic() {
+            return isStatic;
         }
 
         public MethodType getMethodType() {
@@ -97,15 +103,20 @@ public class FunctionTable {
 
     protected Map<String, LocalFunction> localFunctions = new HashMap<>();
 
-    public LocalFunction addFunction(String functionName, Class<?> returnType, List<Class<?>> typeParameters, boolean isInternal) {
+    public LocalFunction addFunction(
+            String functionName, Class<?> returnType, List<Class<?>> typeParameters, boolean isInternal, boolean isStatic) {
+
         String functionKey = buildLocalFunctionKey(functionName, typeParameters.size());
-        LocalFunction function = new LocalFunction(functionName, returnType, typeParameters, isInternal);
+        LocalFunction function = new LocalFunction(functionName, returnType, typeParameters, isInternal, isStatic);
         localFunctions.put(functionKey, function);
         return function;
     }
 
-    public LocalFunction addFunction(LocalFunction function) {
-        String functionKey = buildLocalFunctionKey(function.getFunctionName(), function.getTypeParameters().size());
+    public LocalFunction addMangledFunction(String functionName,
+            Class<?> returnType, List<Class<?>> typeParameters, boolean isInternal, boolean isStatic) {
+        String functionKey = buildLocalFunctionKey(functionName, typeParameters.size());
+        LocalFunction function =
+                new LocalFunction(functionName, MANGLED_FUNCTION_NAME_PREFIX, returnType, typeParameters, isInternal, isStatic);
         localFunctions.put(functionKey, function);
         return function;
     }

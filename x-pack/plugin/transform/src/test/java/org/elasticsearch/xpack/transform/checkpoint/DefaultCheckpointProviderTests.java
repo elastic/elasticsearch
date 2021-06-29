@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.checkpoint;
@@ -11,6 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -19,7 +22,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor.AuditExpectation;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -32,14 +35,14 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
     private Client client;
 
     private MockTransformAuditor transformAuditor;
-    private TransformConfigManager transformConfigManager;
+    private IndexBasedTransformConfigManager transformConfigManager;
     private Logger checkpointProviderlogger = LogManager.getLogger(DefaultCheckpointProvider.class);
 
     @Before
-    public void setUpMocks() throws IllegalAccessException {
+    public void setUpMocks() {
         client = mock(Client.class);
-        transformConfigManager = mock(TransformConfigManager.class);
-        transformAuditor = new MockTransformAuditor();
+        transformConfigManager = mock(IndexBasedTransformConfigManager.class);
+        transformAuditor = MockTransformAuditor.createMockAuditor();
     }
 
     public void testReportSourceIndexChangesRunsEmpty() throws Exception {
@@ -48,6 +51,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             client,
+            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             transformConfigManager,
             transformAuditor,
             transformConfig
@@ -92,6 +96,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             client,
+            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             transformConfigManager,
             transformAuditor,
             transformConfig
@@ -151,6 +156,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             client,
+            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             transformConfigManager,
             transformAuditor,
             transformConfig

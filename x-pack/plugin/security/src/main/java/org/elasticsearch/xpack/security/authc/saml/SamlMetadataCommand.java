@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -32,14 +33,14 @@ import joptsimple.OptionSpec;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
@@ -68,7 +69,7 @@ import org.xml.sax.SAXException;
 /**
  * CLI tool to generate SAML Metadata for a Service Provider (realm)
  */
-public class SamlMetadataCommand extends EnvironmentAwareCommand {
+public class SamlMetadataCommand extends KeyStoreAwareCommand {
 
     static final String METADATA_SCHEMA = "saml-schema-metadata-2.0.xsd";
 
@@ -415,13 +416,12 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
     /**
      * @TODO REALM-SETTINGS[TIM] This can be redone a lot now the realm settings are keyed by type
      */
-    private RealmConfig findRealm(Terminal terminal, OptionSet options, Environment env) throws UserException, IOException, Exception {
+    private RealmConfig findRealm(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
         keyStoreWrapper = keyStoreFunction.apply(env);
         final Settings settings;
         if (keyStoreWrapper != null) {
-            // TODO: We currently do not support keystore passwords
-            keyStoreWrapper.decrypt(new char[0]);
+            decryptKeyStore(keyStoreWrapper, terminal);
 
             final Settings.Builder settingsBuilder = Settings.builder();
             settingsBuilder.put(env.settings(), true);

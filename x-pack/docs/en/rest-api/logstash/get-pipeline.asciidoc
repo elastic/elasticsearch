@@ -1,0 +1,103 @@
+[role="xpack"]
+[testenv="basic"]
+[[logstash-api-get-pipeline]]
+=== Get pipeline API
+++++
+<titleabbrev>Get {ls} pipeline</titleabbrev>
+++++
+
+This API retrieves pipelines used for
+{logstash-ref}/logstash-centralized-pipeline-management.html[{ls} Central
+Management].
+
+[[logstash-api-get-pipeline-request]]
+==== {api-request-title}
+
+`GET _logstash/pipeline`
+
+`GET _logstash/pipeline/<pipeline_id>`
+
+[[logstash-api-get-pipeline-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_logstash_pipelines` cluster privilege to use this API.
+
+[[logstash-api-get-pipeline-desc]]
+==== {api-description-title}
+
+Retrieve one or more {ls} pipelines.
+
+[[logstash-api-get-pipeline-params]]
+==== {api-path-parms-title}
+
+`<pipeline_id>`::
+  (Optional, string) Comma-separated list of pipeline identifiers.
+
+[[logstash-api-get-pipeline-example]]
+==== {api-examples-title}
+
+The following example retrieves the pipeline named `my_pipeline`:
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT _logstash/pipeline/my_pipeline
+{
+  "description": "Sample pipeline for illustration purposes",
+  "last_modified": "2021-01-02T02:50:51.250Z",
+  "pipeline_metadata": {
+    "type": "logstash_pipeline",
+    "version": "1"
+  },
+  "username": "elastic",
+  "pipeline": "input {}\n filter { grok {} }\n output {}",
+  "pipeline_settings": {
+    "pipeline.workers": 1,
+    "pipeline.batch.size": 125,
+    "pipeline.batch.delay": 50,
+    "queue.type": "memory",
+    "queue.max_bytes.number": 1,
+    "queue.max_bytes.units": "gb",
+    "queue.checkpoint.writes": 1024
+  }
+}
+--------------------------------------------------
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+GET _logstash/pipeline/my_pipeline
+--------------------------------------------------
+// TEST[continued]
+
+
+If the request succeeds, the body of the response contains the pipeline definition:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "my_pipeline": {
+    "description": "Sample pipeline for illustration purposes",
+    "last_modified": "2021-01-02T02:50:51.250Z",
+    "pipeline_metadata": {
+      "type": "logstash_pipeline",
+      "version": "1"
+    },
+    "username": "elastic",
+    "pipeline": "input {}\n filter { grok {} }\n output {}",
+    "pipeline_settings": {
+      "pipeline.workers": 1,
+      "pipeline.batch.size": 125,
+      "pipeline.batch.delay": 50,
+      "queue.type": "memory",
+      "queue.max_bytes.number": 1,
+      "queue.max_bytes.units": "gb",
+      "queue.checkpoint.writes": 1024
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE

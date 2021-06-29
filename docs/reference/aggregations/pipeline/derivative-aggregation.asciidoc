@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-derivative-aggregation]]
-=== Derivative Aggregation
+=== Derivative aggregation
+++++
+<titleabbrev>Derivative</titleabbrev>
+++++
 
 A parent pipeline aggregation which calculates the derivative of a specified metric in a parent histogram (or date_histogram)
 aggregation. The specified metric must be numeric and the enclosing histogram must have `min_doc_count` set to `0` (default
@@ -38,27 +41,27 @@ The following snippet calculates the derivative of the total monthly `sales`:
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                },
-                "sales_deriv": {
-                    "derivative": {
-                        "buckets_path": "sales" <1>
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
+        },
+        "sales_deriv": {
+          "derivative": {
+            "buckets_path": "sales" <1>
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -131,32 +134,32 @@ monthly sales:
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                },
-                "sales_deriv": {
-                    "derivative": {
-                        "buckets_path": "sales"
-                    }
-                },
-                "sales_2nd_deriv": {
-                    "derivative": {
-                        "buckets_path": "sales_deriv" <1>
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
+        },
+        "sales_deriv": {
+          "derivative": {
+            "buckets_path": "sales"
+          }
+        },
+        "sales_2nd_deriv": {
+          "derivative": {
+            "buckets_path": "sales_deriv" <1>
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -223,35 +226,35 @@ second derivative
 ==== Units
 
 The derivative aggregation allows the units of the derivative values to be specified. This returns an extra field in the response
-`normalized_value` which reports the derivative value in the desired x-axis units.  In the below example we calculate the derivative
+`normalized_value` which reports the derivative value in the desired x-axis units. In the below example we calculate the derivative
 of the total sales per month but ask for the derivative of the sales as in the units of sales per day:
 
 [source,console]
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                },
-                "sales_deriv": {
-                    "derivative": {
-                        "buckets_path": "sales",
-                        "unit": "day" <1>
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
+        },
+        "sales_deriv": {
+          "derivative": {
+            "buckets_path": "sales",
+            "unit": "day" <1>
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]

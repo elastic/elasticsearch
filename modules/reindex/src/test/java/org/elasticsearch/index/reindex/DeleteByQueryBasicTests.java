@@ -1,27 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoServiceUtils;
+import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -35,8 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -47,9 +43,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class DeleteByQueryBasicTests extends ReindexTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(InternalSettingsPlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), InternalSettingsPlugin.class);
     }
 
     public void testBasics() throws Exception {
@@ -214,16 +208,65 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         }
         indexRandom(true, true, true, builders);
 
-        String block = randomFrom(SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE);
         try {
-            enableIndexBlock("test", block);
+            enableIndexBlock("test", SETTING_READ_ONLY);
             assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(),
-                    matcher().deleted(0).failures(docs));
+                matcher().deleted(0).failures(docs));
         } finally {
-            disableIndexBlock("test", block);
+            disableIndexBlock("test", SETTING_READ_ONLY);
         }
 
         assertHitCount(client().prepareSearch("test").setSize(0).get(), docs);
+    }
+
+    public void testDeleteByQueryOnReadOnlyAllowDeleteIndex() throws Exception {
+        createIndex("test");
+
+        final int docs = randomIntBetween(1, 50);
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < docs; i++) {
+            builders.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", 1));
+        }
+        indexRandom(true, true, true, builders);
+
+        // Because the index level read_only_allow_delete block can be automatically released by disk allocation decider,
+        // so we should test both case of disk allocation decider is enabled and disabled
+        boolean diskAllocationDeciderEnabled = randomBoolean();
+        try {
+            if (diskAllocationDeciderEnabled == false) {
+                // Disable the disk allocation decider to ensure the read_only_allow_delete block cannot be released
+                setDiskAllocationDeciderEnabled(false);
+            }
+            // When a read_only_allow_delete block is set on the index,
+            // it will trigger a retry policy in the delete by query request because the rest status of the block is 429
+            enableIndexBlock("test", SETTING_READ_ONLY_ALLOW_DELETE);
+            if (diskAllocationDeciderEnabled) {
+                // Fire off the delete-by-query first
+                final ActionFuture<BulkByScrollResponse> deleteByQueryResponse
+                    = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).execute();
+                // Then refresh the cluster info which checks the disk threshold and releases the block on the index
+                final InternalClusterInfoService clusterInfoService
+                        = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
+                ClusterInfoServiceUtils.refresh(clusterInfoService);
+                // The delete by query request will be executed successfully because it retries after the block is released
+                assertThat(deleteByQueryResponse.actionGet(), matcher().deleted(docs));
+            } else {
+                // The delete by query request will not be executed successfully because the block cannot be released
+                assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true)
+                        .setMaxRetries(2).setRetryBackoffInitialTime(TimeValue.timeValueMillis(50)).get(),
+                    matcher().deleted(0).failures(docs));
+            }
+        } finally {
+            disableIndexBlock("test", SETTING_READ_ONLY_ALLOW_DELETE);
+            if (diskAllocationDeciderEnabled == false) {
+                setDiskAllocationDeciderEnabled(true);
+            }
+        }
+        if (diskAllocationDeciderEnabled) {
+            assertHitCount(client().prepareSearch("test").setSize(0).get(), 0);
+        } else {
+            assertHitCount(client().prepareSearch("test").setSize(0).get(), docs);
+        }
     }
 
     public void testSlices() throws Exception {
@@ -315,4 +358,12 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         assertThat(response, matcher().deleted(0).slices(hasSize(0)));
     }
 
+    /** Enables or disables the cluster disk allocation decider **/
+    private void setDiskAllocationDeciderEnabled(boolean value) {
+        Settings settings = value ? Settings.builder().putNull(
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()).build() :
+            Settings.builder().put(
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), value).build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+    }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
@@ -13,10 +14,10 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -26,25 +27,28 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
+import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggExtractorInput;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggPathInput;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.HitExtractorInput;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.ReferenceInput;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.type.Schema;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.CompositeKeyExtractor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.ComputingExtractor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.ConstantExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.MetricAggExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.PivotExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.TopHitsAggExtractor;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.ExpressionId;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggExtractorInput;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.HitExtractorInput;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.ReferenceInput;
 import org.elasticsearch.xpack.sql.planner.PlanningException;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
@@ -56,20 +60,19 @@ import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
-import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.ListCursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.type.Schema;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -82,13 +85,14 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.SWITCH_TO_FIELDS_API_VERSION;
+
 // TODO: add retry/back-off
 public class Querier {
-
-    private final Logger log = LogManager.getLogger(getClass());
+    private static final Logger log = LogManager.getLogger(Querier.class);
 
     private final PlanExecutor planExecutor;
-    private final Configuration cfg;
+    private final SqlConfiguration cfg;
     private final TimeValue keepAlive, timeout;
     private final int size;
     private final Client client;
@@ -111,6 +115,11 @@ public class Querier {
         // set query timeout
         if (timeout.getSeconds() > 0) {
             sourceBuilder.timeout(timeout);
+        }
+
+        // set runtime mappings
+        if (this.cfg.runtimeMappings() != null) {
+            sourceBuilder.runtimeMappings(this.cfg.runtimeMappings());
         }
 
         if (log.isTraceEnabled()) {
@@ -136,43 +145,70 @@ public class Querier {
             l = new ScrollActionListener(listener, client, cfg, output, query);
         }
 
+        if (cfg.task() != null && cfg.task().isCancelled()) {
+            listener.onFailure(new TaskCancelledException("cancelled"));
+            return;
+        }
         client.search(search, l);
     }
 
     public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
             String... indices) {
-        return client.prepareSearch(indices)
-                // always track total hits accurately
-                .setTrackTotalHits(true)
-                .setAllowPartialSearchResults(false)
-                .setSource(source)
-                .setTimeout(timeout)
-                .setIndicesOptions(
-                        includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
-                .request();
+        source.timeout(timeout);
+
+        SearchRequest searchRequest = new SearchRequest(SWITCH_TO_FIELDS_API_VERSION);
+        searchRequest.indices(indices);
+        searchRequest.source(source);
+        searchRequest.allowPartialSearchResults(false);
+        searchRequest.indicesOptions(
+            includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS);
+
+        return searchRequest;
+    }
+
+    protected static void logSearchResponse(SearchResponse response, Logger logger) {
+        List<Aggregation> aggs = Collections.emptyList();
+        if (response.getAggregations() != null) {
+            aggs = response.getAggregations().asList();
+        }
+        StringBuilder aggsNames = new StringBuilder();
+        for (int i = 0; i < aggs.size(); i++) {
+            aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
+        }
+
+        logger.trace("Got search response [hits {} {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
+                + "{} successful shards, {} total shards, took {}, timed out [{}]]",
+                response.getHits().getTotalHits().relation.toString(),
+                response.getHits().getTotalHits().value,
+                aggs.size(),
+                aggsNames,
+                response.getFailedShards(),
+                response.getSkippedShards(),
+                response.getSuccessfulShards(),
+                response.getTotalShards(),
+                response.getTook(),
+                response.isTimedOut());
     }
 
     /**
      * Listener used for local sorting (typically due to aggregations used inside `ORDER BY`).
-     * 
+     *
      * This listener consumes the whole result set, sorts it in memory then sends the paginated
      * results back to the client.
      */
     @SuppressWarnings("rawtypes")
-    class LocalAggregationSorterListener implements ActionListener<Page> {
-
-        private final ActionListener<Page> listener;
-
+    class LocalAggregationSorterListener extends ActionListener.Delegating<Page, Page> {
         // keep the top N entries.
         private final AggSortingQueue data;
         private final AtomicInteger counter = new AtomicInteger();
         private volatile Schema schema;
 
+        // Note: when updating this value propagate it to the limitations.asciidoc page as well.
         private static final int MAXIMUM_SIZE = MultiBucketConsumerService.DEFAULT_MAX_BUCKETS;
         private final boolean noLimit;
 
         LocalAggregationSorterListener(ActionListener<Page> listener, List<Tuple<Integer, Comparator>> sortingColumns, int limit) {
-            this.listener = listener;
+            super(listener);
 
             int size = MAXIMUM_SIZE;
             if (limit < 0) {
@@ -203,7 +239,9 @@ public class Querier {
             }
 
             // 1. consume all pages received
-            consumeRowSet(page.rowSet());
+            if (consumeRowSet(page.rowSet()) == false) {
+                return;
+            }
 
             Cursor cursor = page.next();
             // 1a. trigger a next call if there's still data
@@ -219,7 +257,7 @@ public class Querier {
             sendResponse();
         }
 
-        private void consumeRowSet(RowSet rowSet) {
+        private boolean consumeRowSet(RowSet rowSet) {
             ResultRowSet<?> rrs = (ResultRowSet<?>) rowSet;
             for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
                 List<Object> row = new ArrayList<>(rrs.columnCount());
@@ -227,18 +265,15 @@ public class Querier {
                 // if the queue overflows and no limit was specified, throw an error
                 if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
                     onFailure(new SqlIllegalArgumentException(
-                        "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT", MAXIMUM_SIZE));
+                            "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT", MAXIMUM_SIZE));
+                    return false;
                 }
             }
+            return true;
         }
 
         private void sendResponse() {
-            listener.onResponse(ListCursor.of(schema, data.asList(), cfg.pageSize()));
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
+            delegate.onResponse(ListCursor.of(schema, data.asList(), cfg.pageSize()));
         }
     }
 
@@ -247,7 +282,7 @@ public class Querier {
      */
     static class ImplicitGroupActionListener extends BaseAggActionListener {
 
-        private static List<? extends Bucket> EMPTY_BUCKET = singletonList(new Bucket() {
+        private static final List<? extends Bucket> EMPTY_BUCKET = singletonList(new Bucket() {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -275,13 +310,17 @@ public class Querier {
             }
         });
 
-        ImplicitGroupActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output,
+        ImplicitGroupActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
                 QueryContainer query, SearchRequest request) {
             super(listener, client, cfg, output, query, request);
         }
 
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
+            if (log.isTraceEnabled()) {
+                logSearchResponse(response, log);
+            }
+
             Aggregations aggs = response.getAggregations();
             if (aggs != null) {
                 Aggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
@@ -308,11 +347,10 @@ public class Querier {
                 for (int i = mask.nextSetBit(0); i >= 0; i = mask.nextSetBit(i + 1)) {
                     values[index++] = extractors.get(i).extract(implicitGroup);
                 }
-                listener.onResponse(Page.last(Rows.singleton(schema, values)));
+                delegate.onResponse(Page.last(Rows.singleton(schema, values)));
 
             } else if (buckets.isEmpty()) {
-                listener.onResponse(Page.last(Rows.empty(schema)));
-
+                delegate.onResponse(Page.last(Rows.empty(schema)));
             } else {
                 throw new SqlIllegalArgumentException("Too many groups returned by the implicit group; expected 1, received {}",
                         buckets.size());
@@ -320,7 +358,7 @@ public class Querier {
         }
     }
 
-        
+
     /**
      * Dedicated listener for composite aggs/group-by results.
      */
@@ -328,8 +366,8 @@ public class Querier {
 
         private final boolean isPivot;
 
-        CompositeActionListener(ActionListener<Page> listener, Client client, Configuration cfg,
-                List<Attribute> output, QueryContainer query, SearchRequest request) {
+        CompositeActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
+                QueryContainer query, SearchRequest request) {
             super(listener, client, cfg, output, query, request);
 
             isPivot = query.fields().stream().anyMatch(t -> t.v1() instanceof PivotColumnRef);
@@ -337,27 +375,19 @@ public class Querier {
 
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
-            
-            Supplier<CompositeAggRowSet> makeRowSet = isPivot ?
-                    () -> new PivotRowSet(schema, initBucketExtractors(response), mask, response,
-                            query.sortingColumns().isEmpty() ? query.limit() : -1, null) :
-                    () -> new SchemaCompositeAggRowSet(schema, initBucketExtractors(response), mask, response,
-                            query.sortingColumns().isEmpty() ? query.limit() : -1);
-                    
-            BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor = isPivot ?
-                    (q, r) -> {
-                        Map<String, Object> lastAfterKey = r instanceof PivotRowSet ? ((PivotRowSet) r).lastAfterKey() : null;
-                        return new PivotCursor(lastAfterKey, q, r.extractors(), r.mask(), r.remainingData(), query.shouldIncludeFrozen(),
-                                request.indices());
-                    } :
-                    (q, r) -> new CompositeAggCursor(q, r.extractors(), r.mask(), r.remainingData, query.shouldIncludeFrozen(),
-                            request.indices());
-                    
-            CompositeAggCursor.handle(response, request.source(),
-                    makeRowSet,
-                    makeCursor,
-                    () -> client.search(request, this),
-                    listener,
+
+            Supplier<CompositeAggRowSet> makeRowSet = isPivot ? () -> new PivotRowSet(schema, initBucketExtractors(response), mask,
+                    response, query.sortingColumns().isEmpty() ? query.limit() : -1, null) : () -> new SchemaCompositeAggRowSet(schema,
+                            initBucketExtractors(response), mask, response, query.sortingColumns().isEmpty() ? query.limit() : -1);
+
+            BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor = isPivot ? (q, r) -> {
+                Map<String, Object> lastAfterKey = r instanceof PivotRowSet ? ((PivotRowSet) r).lastAfterKey() : null;
+                return new PivotCursor(lastAfterKey, q, r.extractors(), r.mask(), r.remainingData(), query.shouldIncludeFrozen(),
+                        request.indices());
+            } : (q, r) -> new CompositeAggCursor(q, r.extractors(), r.mask(), r.remainingData, query.shouldIncludeFrozen(),
+                    request.indices());
+
+            CompositeAggCursor.handle(response, request.source(), makeRowSet, makeCursor, () -> client.search(request, this), listener,
                     schema);
         }
     }
@@ -367,7 +397,7 @@ public class Querier {
         final SearchRequest request;
         final BitSet mask;
 
-        BaseAggActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output,
+        BaseAggActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
                 QueryContainer query, SearchRequest request) {
             super(listener, client, cfg, output);
 
@@ -378,11 +408,11 @@ public class Querier {
 
         protected List<BucketExtractor> initBucketExtractors(SearchResponse response) {
             // create response extractors for the first time
-            List<Tuple<FieldExtraction, ExpressionId>> refs = query.fields();
+            List<Tuple<FieldExtraction, String>> refs = query.fields();
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
             ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits().value);
-            for (Tuple<FieldExtraction, ExpressionId> ref : refs) {
+            for (Tuple<FieldExtraction, String> ref : refs) {
                 exts.add(createExtractor(ref.v1(), totalCount));
             }
             return exts;
@@ -396,7 +426,7 @@ public class Querier {
 
             if (ref instanceof MetricAggRef) {
                 MetricAggRef r = (MetricAggRef) ref;
-                return new MetricAggExtractor(r.name(), r.property(), r.innerKey(), cfg.zoneId(), r.isDateTimeBased());
+                return new MetricAggExtractor(r.name(), r.property(), r.innerKey(), cfg.zoneId(), r.dataType());
             }
 
             if (ref instanceof TopHitsAggRef) {
@@ -417,10 +447,10 @@ public class Querier {
                 Pipe proc = ((ComputedRef) ref).processor();
 
                 // wrap only agg inputs
-                proc = proc.transformDown(l -> {
+                proc = proc.transformDown(AggPathInput.class, l -> {
                     BucketExtractor be = createExtractor(l.context(), totalCount);
                     return new AggExtractorInput(l.source(), l.expression(), l.action(), be);
-                }, AggPathInput.class);
+                });
 
                 return new ComputingExtractor(proc.asProcessor());
             }
@@ -437,8 +467,8 @@ public class Querier {
         private final BitSet mask;
         private final boolean multiValueFieldLeniency;
 
-        ScrollActionListener(ActionListener<Page> listener, Client client, Configuration cfg,
-                List<Attribute> output, QueryContainer query) {
+        ScrollActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
+                QueryContainer query) {
             super(listener, client, cfg, output);
             this.query = query;
             this.mask = query.columnMask(output);
@@ -448,36 +478,34 @@ public class Querier {
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
             // create response extractors for the first time
-            List<Tuple<FieldExtraction, ExpressionId>> refs = query.fields();
+            List<Tuple<FieldExtraction, String>> refs = query.fields();
 
             List<HitExtractor> exts = new ArrayList<>(refs.size());
-            for (Tuple<FieldExtraction, ExpressionId> ref : refs) {
+            for (Tuple<FieldExtraction, String> ref : refs) {
                 exts.add(createExtractor(ref.v1()));
             }
 
             ScrollCursor.handle(response, () -> new SchemaSearchHitRowSet(schema, exts, mask, query.limit(), response),
                     p -> listener.onResponse(p),
-                    p -> clear(response.getScrollId(), wrap(success -> listener.onResponse(p), listener::onFailure)),
-                    schema);
+                    p -> clear(response.getScrollId(), wrap(success -> listener.onResponse(p), listener::onFailure)), schema);
         }
 
         private HitExtractor createExtractor(FieldExtraction ref) {
             if (ref instanceof SearchHitFieldRef) {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
-                return new FieldHitExtractor(f.name(), f.fullFieldName(), f.getDataType(), cfg.zoneId(),
-                    f.useDocValue(), f.hitName(), multiValueFieldLeniency);
+                return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(), f.hitName(), multiValueFieldLeniency);
             }
 
             if (ref instanceof ScriptFieldRef) {
                 ScriptFieldRef f = (ScriptFieldRef) ref;
-                return new FieldHitExtractor(f.name(), null, cfg.zoneId(), true, multiValueFieldLeniency);
+                return new FieldHitExtractor(f.name(), null, cfg.zoneId(), multiValueFieldLeniency);
             }
 
             if (ref instanceof ComputedRef) {
                 Pipe proc = ((ComputedRef) ref).processor();
                 // collect hitNames
                 Set<String> hitNames = new LinkedHashSet<>();
-                proc = proc.transformDown(l -> {
+                proc = proc.transformDown(ReferenceInput.class, l -> {
                     HitExtractor he = createExtractor(l.context());
                     hitNames.add(he.hitName());
 
@@ -486,7 +514,7 @@ public class Querier {
                     }
 
                     return new HitExtractorInput(l.source(), l.expression(), he);
-                }, ReferenceInput.class);
+                });
                 String hitName = null;
                 if (hitNames.size() == 1) {
                     hitName = hitNames.iterator().next();
@@ -502,17 +530,15 @@ public class Querier {
      * Base listener class providing clean-up and exception handling.
      * Handles both scroll queries (scan/scroll) and regular/composite-aggs queries.
      */
-    abstract static class BaseActionListener implements ActionListener<SearchResponse> {
-
-        final ActionListener<Page> listener;
+    abstract static class BaseActionListener extends ActionListener.Delegating<SearchResponse, Page> {
 
         final Client client;
-        final Configuration cfg;
+        final SqlConfiguration cfg;
         final TimeValue keepAlive;
         final Schema schema;
 
-        BaseActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output) {
-            this.listener = listener;
+        BaseActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output) {
+            super(listener);
 
             this.client = client;
             this.cfg = cfg;
@@ -525,10 +551,10 @@ public class Querier {
         public void onResponse(final SearchResponse response) {
             try {
                 ShardSearchFailure[] failure = response.getShardFailures();
-                if (!CollectionUtils.isEmpty(failure)) {
+                if (CollectionUtils.isEmpty(failure) == false) {
                     cleanup(response, new SqlIllegalArgumentException(failure[0].reason(), failure[0].getCause()));
                 } else {
-                    handleResponse(response, ActionListener.wrap(listener::onResponse, e -> cleanup(response, e)));
+                    handleResponse(response, ActionListener.wrap(delegate::onResponse, e -> cleanup(response, e)));
                 }
             } catch (Exception ex) {
                 cleanup(response, ex);
@@ -541,30 +567,23 @@ public class Querier {
         protected final void cleanup(SearchResponse response, Exception ex) {
             if (response != null && response.getScrollId() != null) {
                 client.prepareClearScroll().addScrollId(response.getScrollId())
-                    // in case of failure, report the initial exception instead of the one resulting from cleaning the scroll
-                    .execute(ActionListener.wrap(r -> listener.onFailure(ex), e -> {
-                        ex.addSuppressed(e);
-                        listener.onFailure(ex);
-                    }));
+                        // in case of failure, report the initial exception instead of the one resulting from cleaning the scroll
+                        .execute(ActionListener.wrap(r -> delegate.onFailure(ex), e -> {
+                            ex.addSuppressed(e);
+                            delegate.onFailure(ex);
+                        }));
             } else {
-                listener.onFailure(ex);
+                delegate.onFailure(ex);
             }
         }
 
         protected final void clear(String scrollId, ActionListener<Boolean> listener) {
             if (scrollId != null) {
-                client.prepareClearScroll().addScrollId(scrollId).execute(
-                        ActionListener.wrap(
-                                clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()),
-                                listener::onFailure));
+                client.prepareClearScroll().addScrollId(scrollId).execute(ActionListener
+                        .wrap(clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()), listener::onFailure));
             } else {
                 listener.onResponse(false);
             }
-        }
-
-        @Override
-        public final void onFailure(Exception ex) {
-            listener.onFailure(ex);
         }
     }
 
@@ -578,36 +597,51 @@ public class Querier {
             this.sortingColumns = sortingColumns;
         }
 
-        // compare row based on the received attribute sort
-        // if a sort item is not in the list, it is assumed the sorting happened in ES
-        // and the results are left as is (by using the row ordering), otherwise it is sorted based on the given criteria.
-        //
-        // Take for example ORDER BY a, x, b, y
-        // a, b - are sorted in ES
-        // x, y - need to be sorted client-side
-        // sorting on x kicks in, only if the values for a are equal.
-
+        /**
+         * Compare row based on the received attribute sort
+         * <ul>
+         *     <li>
+         *         If a tuple in {@code sortingColumns} has a null comparator, it is assumed the sorting
+         *         happened in ES and the results are left as is (by using the row ordering), otherwise it is
+         *         sorted based on the given criteria.
+         *     </li>
+         *     <li>
+         *         If no tuple exists in {@code sortingColumns} for an output column, it means this column
+         *         is not included at all in the ORDER BY
+         *     </li>
+         *</ul>
+         *
+         * Take for example ORDER BY a, x, b, y
+         * a, b - are sorted in ES
+         * x, y - need to be sorted client-side
+         * sorting on x kicks in only if the values for a are equal.
+         * sorting on y kicks in only if the values for a, x and b are all equal
+         *
+         */
         // thanks to @jpountz for the row ordering idea as a way to preserve ordering
         @SuppressWarnings("unchecked")
         @Override
         protected boolean lessThan(Tuple<List<?>, Integer> l, Tuple<List<?>, Integer> r) {
             for (Tuple<Integer, Comparator> tuple : sortingColumns) {
-                int i = tuple.v1().intValue();
+                int columnIdx = tuple.v1().intValue();
                 Comparator comparator = tuple.v2();
 
-                Object vl = l.v1().get(i);
-                Object vr = r.v1().get(i);
+                // Get the values for left and right rows at the current column index
+                Object vl = l.v1().get(columnIdx);
+                Object vr = r.v1().get(columnIdx);
                 if (comparator != null) {
                     int result = comparator.compare(vl, vr);
-                    // if things are equals, move to the next comparator
+                    // if things are not equal: return the comparison result,
+                    // otherwise: move to the next comparator to solve the tie.
                     if (result != 0) {
                         return result > 0;
                     }
                 }
-                // no comparator means the existing order needs to be preserved
+                // no comparator means the rows are pre-ordered by ES for the column at
+                // the current index and the existing order needs to be preserved
                 else {
-                    // check the values - if they are equal move to the next comparator
-                    // otherwise return the row order
+                    // check the values - if they are not equal return the row order
+                    // otherwise: move to the next comparator to solve the tie.
                     if (Objects.equals(vl, vr) == false) {
                         return l.v2().compareTo(r.v2()) > 0;
                     }

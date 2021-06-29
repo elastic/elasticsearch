@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -30,7 +19,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -46,6 +36,7 @@ import java.time.ZonedDateTime;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
@@ -97,8 +88,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
                 .field(fieldName)
                 .calendarInterval(DateHistogramInterval.MONTH);
 
-            MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, rangeType).fieldType();
-            fieldType.setName(fieldName);
+            MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
@@ -659,12 +649,155 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testHardBounds() throws Exception {
+        RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T02:15:00"),
+            asLong("2019-08-02T05:45:00"), true, true);
+        RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T05:15:00"),
+            asLong("2019-08-02T17:45:00"), true, true);
+
+        testCase(
+            Queries.newMatchAllQuery(),
+            builder -> builder.calendarInterval(DateHistogramInterval.HOUR).hardBounds(
+                new LongBounds("2019-08-02T03:00:00", "2019-08-02T10:00:00")),
+            writer -> {
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
+            },
+            histo -> {
+                assertEquals(8, histo.getBuckets().size());
+
+                assertEquals(asZDT("2019-08-02T03:00:00"), histo.getBuckets().get(0).getKey());
+                assertEquals(1, histo.getBuckets().get(0).getDocCount());
+
+                assertEquals(asZDT("2019-08-02T05:00:00"), histo.getBuckets().get(2).getKey());
+                assertEquals(2, histo.getBuckets().get(2).getDocCount());
+
+                assertEquals(asZDT("2019-08-02T10:00:00"), histo.getBuckets().get(7).getKey());
+                assertEquals(1, histo.getBuckets().get(7).getDocCount());
+
+                assertTrue(AggregationInspectionHelper.hasValue(histo));
+            }
+        );
+    }
+    public void testHardBoundsWithOpenRanges() throws Exception {
+        RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(RangeType.DATE, Long.MIN_VALUE,
+            asLong("2019-08-02T05:45:00"), true, true);
+        RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T05:15:00"),
+            Long.MAX_VALUE, true, true);
+
+        testCase(
+            Queries.newMatchAllQuery(),
+            builder -> builder.calendarInterval(DateHistogramInterval.HOUR).hardBounds(
+                new LongBounds("2019-08-02T03:00:00", "2019-08-02T10:00:00")),
+            writer -> {
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
+            },
+            histo -> {
+                assertEquals(8, histo.getBuckets().size());
+
+                assertEquals(asZDT("2019-08-02T03:00:00"), histo.getBuckets().get(0).getKey());
+                assertEquals(1, histo.getBuckets().get(0).getDocCount());
+
+                assertEquals(asZDT("2019-08-02T05:00:00"), histo.getBuckets().get(2).getKey());
+                assertEquals(2, histo.getBuckets().get(2).getDocCount());
+
+                assertEquals(asZDT("2019-08-02T10:00:00"), histo.getBuckets().get(7).getKey());
+                assertEquals(1, histo.getBuckets().get(7).getDocCount());
+
+                assertTrue(AggregationInspectionHelper.hasValue(histo));
+            }
+        );
+    }
+
+    public void testBothBounds() throws Exception {
+        RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T02:15:00"),
+            asLong("2019-08-02T05:45:00"), true, true);
+        RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T05:15:00"),
+            asLong("2019-08-02T17:45:00"), true, true);
+
+        testCase(
+            Queries.newMatchAllQuery(),
+            builder -> builder.calendarInterval(DateHistogramInterval.HOUR)
+                .hardBounds(new LongBounds("2019-08-02T00:00:00", "2019-08-02T10:00:00"))
+                .extendedBounds(new LongBounds("2019-08-02T01:00:00", "2019-08-02T08:00:00")),
+            writer -> {
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
+            },
+            histo -> {
+                assertEquals(10, histo.getBuckets().size());
+
+                assertEquals(asZDT("2019-08-02T01:00:00"), histo.getBuckets().get(0).getKey());
+                assertEquals(0, histo.getBuckets().get(0).getDocCount());
+
+                assertEquals(asZDT("2019-08-02T02:00:00"), histo.getBuckets().get(1).getKey());
+                assertEquals(1, histo.getBuckets().get(1).getDocCount());
+
+                assertEquals(asZDT("2019-08-02T10:00:00"), histo.getBuckets().get(9).getKey());
+                assertEquals(1, histo.getBuckets().get(9).getDocCount());
+
+                assertTrue(AggregationInspectionHelper.hasValue(histo));
+            }
+        );
+    }
+
+    public void testOverlappingBounds() throws Exception {
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> testCase(
+            Queries.newMatchAllQuery(),
+            builder -> builder.calendarInterval(DateHistogramInterval.HOUR)
+                .hardBounds(new LongBounds("2019-08-02T01:00:00", "2019-08-02T08:00:00"))
+                .extendedBounds(new LongBounds("2019-08-02T00:00:00", "2019-08-02T10:00:00")),
+            writer -> {
+
+            },
+            histo -> {
+               fail("Shouldn't be here");
+            }
+        ));
+
+        assertThat(ex.getMessage(), equalTo("Extended bounds have to be inside hard bounds, " +
+            "hard bounds: [2019-08-02T01:00:00--2019-08-02T08:00:00], extended bounds: [2019-08-02T00:00:00--2019-08-02T10:00:00]"));
+    }
+
+    public void testEqualBounds() throws Exception {
+        RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T02:15:00"),
+            asLong("2019-08-02T05:45:00"), true, true);
+        RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T05:15:00"),
+            asLong("2019-08-02T17:45:00"), true, true);
+
+        testCase(
+            Queries.newMatchAllQuery(),
+            builder -> builder.calendarInterval(DateHistogramInterval.HOUR)
+                .hardBounds(new LongBounds("2019-08-02T00:00:00", "2019-08-02T10:00:00"))
+                .extendedBounds(new LongBounds("2019-08-02T00:00:00", "2019-08-02T10:00:00")),
+            writer -> {
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
+            },
+            histo -> {
+                assertEquals(11, histo.getBuckets().size());
+
+                assertEquals(asZDT("2019-08-02T00:00:00"), histo.getBuckets().get(0).getKey());
+                assertEquals(0, histo.getBuckets().get(0).getDocCount());
+
+                assertEquals(asZDT("2019-08-02T02:00:00"), histo.getBuckets().get(2).getKey());
+                assertEquals(1, histo.getBuckets().get(2).getDocCount());
+
+                assertEquals(asZDT("2019-08-02T10:00:00"), histo.getBuckets().get(10).getKey());
+                assertEquals(1, histo.getBuckets().get(10).getDocCount());
+
+                assertTrue(AggregationInspectionHelper.hasValue(histo));
+            }
+        );
+    }
+
     private void testCase(Query query,
                           Consumer<DateHistogramAggregationBuilder> configure,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalDateHistogram> verify) throws IOException {
-        MappedFieldType fieldType = new RangeFieldMapper.Builder(FIELD_NAME, RangeType.DATE).fieldType();
-        fieldType.setName(FIELD_NAME);
+        MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(FIELD_NAME, RangeFieldMapper.Defaults.DATE_FORMATTER);
         final DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("_name").field(FIELD_NAME);
         if (configure != null) {
             configure.accept(aggregationBuilder);
@@ -675,19 +808,18 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
     private void testCase(DateHistogramAggregationBuilder aggregationBuilder, Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalDateHistogram> verify,
                           MappedFieldType fieldType) throws IOException {
-        Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        buildIndex.accept(indexWriter);
-        indexWriter.close();
+        try(Directory directory = newDirectory();
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            buildIndex.accept(indexWriter);
+            indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-        InternalDateHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
-        verify.accept(histogram);
-
-        indexReader.close();
-        directory.close();
+                InternalDateHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                verify.accept(histogram);
+            }
+        }
     }
 
     private static long asLong(String dateTime) {

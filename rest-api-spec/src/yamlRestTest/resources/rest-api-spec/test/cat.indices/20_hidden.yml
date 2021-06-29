@@ -1,0 +1,238 @@
+---
+"Test cat indices output for hidden index":
+  - skip:
+      version: "- 7.6.99"
+      reason: "hidden indices were added in 7.7.0"
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+            index:
+              hidden: true
+  - do:
+      cat.indices: {}
+  - match:
+      $body: |
+        /^$/
+
+  - do:
+      cat.indices:
+        expand_wildcards: ["all"]
+  - match:
+      $body: |
+        /^(green  \s+
+           open   \s+
+           index1 \s+
+           ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+           1      \s+
+           0      \s+
+           0      \s+
+           0      \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s*
+         )
+         $/
+
+---
+"Test cat indices output for dot-hidden index and dot-prefixed pattern":
+  - skip:
+      version: "- 7.6.99"
+      reason: "hidden indices were added in 7.7.0"
+  - do:
+      indices.create:
+        index: .index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+            index:
+              hidden: true
+  - do:
+      cat.indices: {}
+  - match:
+      $body: |
+        /^$/
+
+  - do:
+      cat.indices:
+        index: ".*"
+  - match:
+      $body: |
+        /^(green  \s+
+           open   \s+
+           \.index1 \s+
+           ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+           1      \s+
+           0      \s+
+           0      \s+
+           0      \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s*
+         )
+         $/
+
+---
+"Test cat indices output with a hidden index with a visible alias":
+  - skip:
+      version: "- 7.6.99"
+      reason: "hidden indices were added in 7.7.0"
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+            index:
+              hidden: true
+          aliases:
+            alias1: {}
+  - do:
+      cat.indices:
+        index: "i*"
+        # Can't use a bare wildcard here because Security replaces wildcards
+        # it with all matching authorized indices/aliases, including the visible
+        # alias
+  - match:
+      $body: |
+        /^$/
+
+  - do:
+      cat.indices:
+        expand_wildcards: ["open", "hidden"]
+  - match:
+      $body: |
+        /^(green  \s+
+           open   \s+
+           index1 \s+
+           ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+           1      \s+
+           0      \s+
+           0      \s+
+           0      \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s*
+         )
+         $/
+
+  - do:
+      cat.indices:
+        index: alias1
+  - match:
+      $body: |
+        /^(green  \s+
+           open   \s+
+           index1 \s+
+           ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+           1      \s+
+           0      \s+
+           0      \s+
+           0      \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s*
+         )
+         $/
+---
+"Test cat indices output with a hidden index with a hidden alias":
+  - skip:
+      version: "- 7.6.99"
+      reason: "hidden indices and aliases were added in 7.7.0"
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+            index:
+              hidden: true
+          aliases:
+            alias1:
+              is_hidden: true
+  - do:
+      cat.indices: {}
+
+  - match:
+      $body: |
+        /^$/
+
+  - do:
+      cat.indices:
+        expand_wildcards: ["all"]
+  - match:
+      $body: |
+        /^(green  \s+
+           open   \s+
+           index1 \s+
+           ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+           1      \s+
+           0      \s+
+           0      \s+
+           0      \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s*
+         )
+         $/
+
+  - do:
+      cat.indices:
+        index: alias1
+  - match:
+      $body: |
+        /^(green  \s+
+           open   \s+
+           index1 \s+
+           ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+           1      \s+
+           0      \s+
+           0      \s+
+           0      \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s*
+         )
+         $/
+---
+"Test cat indices output with a hidden index, dot-hidden alias and dot pattern":
+  - skip:
+      version: "- 7.6.99"
+      reason: "hidden indices and aliases were added in 7.7.0"
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+            index:
+              hidden: true
+          aliases:
+            .alias1:
+              is_hidden: true
+  - do:
+      cat.indices: {}
+  - match:
+      $body: |
+        /^$/
+  - do:
+      cat.indices:
+        index: ".*"
+  - match:
+      $body: |
+        /^(green  \s+
+           open   \s+
+           index1 \s+
+           ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+           1      \s+
+           0      \s+
+           0      \s+
+           0      \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s*
+         )
+         $/

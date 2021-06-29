@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -40,6 +41,86 @@ public abstract class HttpResource {
          * The resource needs to be checked before it can be used.
          */
         DIRTY
+    }
+
+    /**
+     * Encapsulates the results of a check-and-publish operation, listing the operational state of the resource.
+     */
+    public static class ResourcePublishResult {
+        private final boolean success;
+        private final String reason;
+        private final State resourceState;
+
+        public ResourcePublishResult(boolean success) {
+            this(success, null, success ? State.CLEAN : State.DIRTY);
+        }
+
+        public ResourcePublishResult(boolean success, String reason, State resourceState) {
+            this.success = success;
+            this.reason = reason;
+            this.resourceState = resourceState;
+        }
+
+        /**
+         * The publish operation succeeded without any problems.
+         */
+        public static ResourcePublishResult ready() {
+            return new ResourcePublishResult(true, null, State.CLEAN);
+        }
+
+        /**
+         * The publish operation succeeded without any problems.
+         */
+        public static ResourcePublishResult notReady(String reason) {
+            return new ResourcePublishResult(false, reason, State.DIRTY);
+        }
+
+        /**
+         * The publish operation was not attempted, since another publishing operation is already in flight.
+         */
+        public static ResourcePublishResult inProgress() {
+            return new ResourcePublishResult(false, null, State.CHECKING);
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public String getReason() {
+            return reason;
+        }
+
+        public State getResourceState() {
+            return resourceState;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            ResourcePublishResult that = (ResourcePublishResult) o;
+            return success == that.success &&
+                Objects.equals(reason, that.reason) &&
+                resourceState == that.resourceState;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(success, reason, resourceState);
+        }
+
+        @Override
+        public String toString() {
+            return "ResourcePublishResult{" +
+                "success=" + success +
+                ", reason='" + reason + '\'' +
+                ", resourceState=" + resourceState +
+                '}';
+        }
     }
 
     /**
@@ -116,7 +197,7 @@ public abstract class HttpResource {
         if (state.get() == State.CLEAN) {
             listener.onResponse(true);
         } else {
-            checkAndPublish(client, listener);
+            checkAndPublish(client, listener.map(ResourcePublishResult::isSuccess));
         }
     }
 
@@ -134,18 +215,18 @@ public abstract class HttpResource {
      * @param listener Returns {@code true} if the resource is available for use. {@code false} to stop.
      * @see #isDirty()
      */
-    public final void checkAndPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    public final void checkAndPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         // we always check when asked, regardless of clean or dirty, but we do not run parallel checks
         if (state.getAndSet(State.CHECKING) != State.CHECKING) {
-            doCheckAndPublish(client, ActionListener.wrap(success -> {
-                state.compareAndSet(State.CHECKING, success ? State.CLEAN : State.DIRTY);
-                listener.onResponse(success);
+            doCheckAndPublish(client, ActionListener.wrap(publishResult -> {
+                state.compareAndSet(State.CHECKING, publishResult.success ? State.CLEAN : State.DIRTY);
+                listener.onResponse(publishResult);
             }, e -> {
                 state.compareAndSet(State.CHECKING, State.DIRTY);
                 listener.onFailure(e);
             }));
         } else {
-            listener.onResponse(false);
+            listener.onResponse(ResourcePublishResult.inProgress());
         }
     }
 
@@ -155,6 +236,6 @@ public abstract class HttpResource {
      * @param client The REST client to make the request(s).
      * @param listener Returns {@code true} if the resource is available for use. {@code false} to stop.
      */
-    protected abstract void doCheckAndPublish(RestClient client, ActionListener<Boolean> listener);
+    protected abstract void doCheckAndPublish(RestClient client, ActionListener<ResourcePublishResult> listener);
 
 }

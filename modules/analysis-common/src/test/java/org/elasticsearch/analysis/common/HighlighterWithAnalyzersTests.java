@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.analysis.common;
@@ -57,9 +46,9 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
 
     public void testNgramHighlightingWithBrokenPositions() throws IOException {
         assertAcked(prepareCreate("test")
-                .addMapping("test", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                            .startObject("test")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("name")
                                         .field("type", "text")
@@ -121,7 +110,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
          * query. We cut off and extract terms if there are more than 16 terms in the query
          */
         assertAcked(prepareCreate("test")
-                .addMapping("test", "body", "type=text,analyzer=custom_analyzer,"
+                .setMapping("body", "type=text,analyzer=custom_analyzer,"
                         + "search_analyzer=custom_analyzer,term_vector=with_positions_offsets")
                 .setSettings(
                         Settings.builder().put(indexSettings())
@@ -173,7 +162,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             .putList("index.analysis.filter.synonym.synonyms", "fast,quick");
 
         assertAcked(prepareCreate("test").setSettings(builder.build())
-            .addMapping("type1", "field1",
+            .setMapping("field1",
                 "type=text,term_vector=with_positions_offsets,search_analyzer=synonym," +
                     "analyzer=standard,index_options=offsets"));
         ensureGreen();
@@ -213,7 +202,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             .put("index.analysis.filter.synonym.type", "synonym")
             .putList("index.analysis.filter.synonym.synonyms", "quick => fast");
 
-        assertAcked(prepareCreate("first_test_index").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping()));
+        assertAcked(prepareCreate("first_test_index").setSettings(builder.build()).setMapping(type1TermVectorMapping()));
 
         ensureGreen();
 
@@ -269,7 +258,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             equalTo("The <x>quick</x> <x>browse</x> button is a fancy thing, right bro?"),
             equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog")));
 
-        assertAcked(prepareCreate("second_test_index").setSettings(builder.build()).addMapping("doc",
+        assertAcked(prepareCreate("second_test_index").setSettings(builder.build()).setMapping(
             "field4", "type=text,term_vector=with_positions_offsets,analyzer=synonym",
             "field3", "type=text,analyzer=synonym"));
         // with synonyms
@@ -317,7 +306,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
     }
 
     public static XContentBuilder type1TermVectorMapping() throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("type1")
+        return XContentFactory.jsonBuilder().startObject().startObject("_doc")
             .startObject("properties")
             .startObject("field1").field("type", "text").field("term_vector", "with_positions_offsets").endObject()
             .startObject("field2").field("type", "text").field("term_vector", "with_positions_offsets").endObject()

@@ -6,7 +6,7 @@
 {es-sql} integrates with security, if this is enabled on your cluster. 
 In such a scenario, {es-sql} supports both security at the transport layer (by encrypting the communication between the consumer and the server) and authentication (for the access layer).
 
-[float]
+[discrete]
 [[ssl-tls-config]]
 ==== SSL/TLS configuration
 
@@ -14,7 +14,7 @@ In case of an encrypted transport, the SSL/TLS support needs to be enabled in {e
 Depending on your SSL configuration (whether the certificates are signed by a CA or not, whether they are global at JVM level or just local to one application), might require setting up the `keystore` and/or `truststore`, that is where the _credentials_ are stored (`keystore` - which typically stores private keys and certificates) and how to _verify_ them (`truststore` - which typically stores certificates from third party also known as CA - certificate authorities). +
 Typically (and again, do note that your environment might differ significantly), if the SSL setup for {es-sql} is not already done at the JVM level, one needs to setup the keystore if the {es-sql} security requires client authentication (PKI - Public Key Infrastructure), and setup `truststore` if SSL is enabled.
 
-[float]
+[discrete]
 ==== Authentication
 
 The authentication support in {es-sql} is of two types:
@@ -22,7 +22,7 @@ The authentication support in {es-sql} is of two types:
 Username/Password:: Set these through `user` and `password` properties.
 PKI/X.509:: Use X.509 certificates to authenticate {es-sql} to {es}. For this, one would need to setup the `keystore` containing the private key and certificate to the appropriate user (configured in {es}) and the `truststore` with the CA certificate used to sign the SSL/TLS certificates in the {es} cluster. That is, one should setup the key to authenticate {es-sql} and also to verify that is the right one. To do so, one should set the `ssl.keystore.location` and `ssl.truststore.location` properties to indicate the `keystore` and `truststore` to use. It is recommended to have these secured through a password in which case `ssl.keystore.pass` and `ssl.truststore.pass` properties are required.
 
-[float]
+[discrete]
 [[sql-security-permissions]]
 ==== Permissions (server-side)
 Lastly, one the server one need to add a few permissions to
@@ -35,6 +35,6 @@ indices:
 
 [source, yaml]
 --------------------------------------------------
-include-tagged::{sql-tests}/security/roles.yml[cli_drivers]
+include-tagged::{sql-tests}server/security/roles.yml[cli_drivers]
 --------------------------------------------------
 

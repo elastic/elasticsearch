@@ -1,16 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.ingest;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -18,7 +23,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
@@ -31,29 +38,58 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
     public static final String TYPE = "set_security_user";
 
-    private final ThreadContext threadContext;
+    private final Logger logger = LogManager.getLogger();
+
+    private final SecurityContext securityContext;
+    private final XPackLicenseState licenseState;
     private final String field;
     private final Set<Property> properties;
 
-    public SetSecurityUserProcessor(String tag, ThreadContext threadContext, String field, Set<Property> properties) {
-        super(tag);
-        this.threadContext = threadContext;
+    public SetSecurityUserProcessor(String tag, String description, SecurityContext securityContext, XPackLicenseState licenseState,
+                                    String field, Set<Property> properties) {
+        super(tag, description);
+        this.securityContext = securityContext;
+        this.licenseState = Objects.requireNonNull(licenseState, "license state cannot be null");
+        if (licenseState.isSecurityEnabled() == false) {
+            logger.warn("Creating processor [{}] (tag [{}]) on field [{}] but authentication is not currently enabled on this cluster " +
+                " - this processor is likely to fail at runtime if it is used", TYPE, tag, field);
+        } else if (this.securityContext == null) {
+            throw new IllegalArgumentException("Authentication is allowed on this cluster state, but there is no security context");
+        }
         this.field = field;
         this.properties = properties;
     }
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        Authentication authentication = Authentication.getAuthentication(threadContext);
-        if (authentication == null) {
-            throw new IllegalStateException("No user authenticated, only use this processor via authenticated user");
-        }
-        User user = authentication.getUser();
-        if (user == null) {
-            throw new IllegalStateException("No user for authentication");
+        Authentication authentication = null;
+        User user = null;
+        if (this.securityContext != null) {
+            authentication = securityContext.getAuthentication();
+            if (authentication != null) {
+                user = authentication.getUser();
+            }
         }
 
-        Map<String, Object> userObject = new HashMap<>();
+        if (user == null) {
+            logger.debug(
+                "Failed to find active user. SecurityContext=[{}] Authentication=[{}] User=[{}]", securityContext, authentication, user);
+            if (licenseState.isSecurityEnabled()) {
+                // This shouldn't happen. If authentication is allowed (and active), then there _should_ always be an authenticated user.
+                // If we ever see this error message, then one of our assumptions are wrong.
+                throw new IllegalStateException("There is no authenticated user - the [" + TYPE
+                    + "] processor requires an authenticated user");
+            } else {
+                throw new IllegalStateException("Security (authentication) is not enabled on this cluster, so there is no active user - " +
+                    "the [" + TYPE + "] processor cannot be used without security");
+            }
+        }
+
+        Object fieldValue = ingestDocument.getFieldValue(field, Object.class, true);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> userObject = fieldValue instanceof Map ? (Map<String, Object>) fieldValue : new HashMap<>();
+
         for (Property property : properties) {
             switch (property) {
                 case USERNAME:
@@ -81,6 +117,54 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                         userObject.put("metadata", user.metadata());
                     }
                     break;
+                case API_KEY:
+                    if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+                        final String apiKey = "api_key";
+                        final Object existingApiKeyField = userObject.get(apiKey);
+                        @SuppressWarnings("unchecked")
+                        final Map<String, Object> apiKeyField =
+                            existingApiKeyField instanceof Map ? (Map<String, Object>) existingApiKeyField : new HashMap<>();
+                        Object apiKeyName = authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY);
+                        if (apiKeyName != null) {
+                            apiKeyField.put("name", apiKeyName);
+                        }
+                        Object apiKeyId = authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
+                        if (apiKeyId != null) {
+                            apiKeyField.put("id", apiKeyId);
+                        }
+                        final Map<String,Object> apiKeyMetadata = ApiKeyService.getApiKeyMetadata(authentication);
+                        if (false == apiKeyMetadata.isEmpty()) {
+                            apiKeyField.put("metadata", apiKeyMetadata);
+                        }
+                        if (false == apiKeyField.isEmpty()) {
+                            userObject.put(apiKey, apiKeyField);
+                        }
+                    }
+                    break;
+                case REALM:
+                    final String realmKey = "realm";
+                    final Object existingRealmField = userObject.get(realmKey);
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> realmField =
+                        existingRealmField instanceof Map ? (Map<String, Object>) existingRealmField : new HashMap<>();
+
+                    final Object realmName = ApiKeyService.getCreatorRealmName(authentication);
+                    if (realmName != null) {
+                        realmField.put("name", realmName);
+                    }
+                    final Object realmType = ApiKeyService.getCreatorRealmType(authentication);
+                    if (realmType != null) {
+                        realmField.put("type", realmType);
+                    }
+                    if (false == realmField.isEmpty()) {
+                        userObject.put(realmKey, realmField);
+                    }
+                    break;
+                case AUTHENTICATION_TYPE:
+                    if (authentication.getAuthenticationType() != null) {
+                        userObject.put("authentication_type", authentication.getAuthenticationType().toString());
+                    }
+                    break;
                 default:
                     throw new UnsupportedOperationException("unsupported property [" + property + "]");
             }
@@ -104,15 +188,17 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final ThreadContext threadContext;
+        private final Supplier<SecurityContext> securityContext;
+        private final Supplier<XPackLicenseState> licenseState;
 
-        public Factory(ThreadContext threadContext) {
-            this.threadContext = threadContext;
+        public Factory(Supplier<SecurityContext> securityContext, Supplier<XPackLicenseState> licenseState) {
+            this.securityContext = securityContext;
+            this.licenseState = licenseState;
         }
 
         @Override
         public SetSecurityUserProcessor create(Map<String, Processor.Factory> processorFactories, String tag,
-                                               Map<String, Object> config) throws Exception {
+                                               String description, Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
             List<String> propertyNames = readOptionalList(TYPE, tag, config, "properties");
             Set<Property> properties;
@@ -124,7 +210,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             } else {
                 properties = EnumSet.allOf(Property.class);
             }
-            return new SetSecurityUserProcessor(tag, threadContext, field, properties);
+            return new SetSecurityUserProcessor(tag, description, securityContext.get(), licenseState.get(), field, properties);
         }
     }
 
@@ -134,7 +220,10 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         FULL_NAME,
         EMAIL,
         ROLES,
-        METADATA;
+        METADATA,
+        API_KEY,
+        REALM,
+        AUTHENTICATION_TYPE;
 
         static Property parse(String tag, String value) {
             try {

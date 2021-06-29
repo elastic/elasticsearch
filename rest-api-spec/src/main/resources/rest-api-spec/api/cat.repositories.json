@@ -5,6 +5,10 @@
       "description":"Returns information about snapshot repositories registered in the cluster."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {

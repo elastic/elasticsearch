@@ -1,42 +1,37 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.core.RestApiVersion.equalTo;
+
 /**
  * Encapsulates the parameters needed to fetch terms.
  */
 public class TermsLookup implements Writeable, ToXContentFragment {
+
     private final String index;
     private final String id;
     private final String path;
@@ -102,40 +97,24 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         return this;
     }
 
+    private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup",
+        args -> {
+            String index = (String) args[0];
+            String id = (String) args[1];
+            String path = (String) args[2];
+            return new TermsLookup(index, id, path);
+        });
+    static {
+        PARSER.declareString(constructorArg(), new ParseField("index"));
+        PARSER.declareString(constructorArg(), new ParseField("id"));
+        PARSER.declareString(constructorArg(), new ParseField("path"));
+        PARSER.declareString(TermsLookup::routing, new ParseField("routing"));
+        PARSER.declareString((termLookup,type)-> {}, new ParseField("type")
+            .forRestApiVersion(equalTo(RestApiVersion.V_7)));
+    }
+
     public static TermsLookup parseTermsLookup(XContentParser parser) throws IOException {
-        String index = null;
-        String id = null;
-        String path = null;
-        String routing = null;
-        XContentParser.Token token;
-        String currentFieldName = "";
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                switch (currentFieldName) {
-                case "index":
-                    index = parser.text();
-                    break;
-                case "id":
-                    id = parser.text();
-                    break;
-                case "routing":
-                    routing = parser.textOrNull();
-                    break;
-                case "path":
-                    path = parser.text();
-                    break;
-                default:
-                    throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME +
-                        "] query does not support [" + currentFieldName + "] within lookup element");
-                }
-            } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] unknown token ["
-                    + token + "] after [" + currentFieldName + "]");
-            }
-        }
-        return new TermsLookup(index, id, path).routing(routing);
+        return PARSER.parse(parser, null);
     }
 
     @Override

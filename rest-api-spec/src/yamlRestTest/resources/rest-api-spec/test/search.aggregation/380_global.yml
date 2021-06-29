@@ -1,0 +1,64 @@
+setup:
+  - do:
+     bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"name": "one"}'
+          - '{"index": {}}'
+          - '{"name": "two"}'
+          - '{"index": {}}'
+          - '{"name": "two"}'
+
+---
+simple:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          query:
+            match:
+              name: two
+          aggs:
+            g:
+              global: {}
+              aggs:
+                t:
+                  terms:
+                    field: name.keyword
+
+  - match: { aggregations.g.doc_count: 3 }
+  - length: { aggregations.g.t.buckets: 2 }
+  - match: { aggregations.g.t.buckets.0.key: two }
+  - match: { aggregations.g.t.buckets.1.key: one }
+
+---
+profile:
+  - skip:
+      version: " - 7.12.99"
+      reason: fix introduced in 7.13.0
+
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          size: 0
+          query:
+            match:
+              name: two
+          aggs:
+            g:
+              global: {}
+              aggs:
+                t:
+                  terms:
+                    field: name.keyword
+
+  - match: { aggregations.g.doc_count: 3 }
+  - length: { aggregations.g.t.buckets: 2 }
+  - match: { aggregations.g.t.buckets.0.key: two }
+  - match: { aggregations.g.t.buckets.1.key: one }
+  - match: { profile.shards.0.aggregations.0.description: g }

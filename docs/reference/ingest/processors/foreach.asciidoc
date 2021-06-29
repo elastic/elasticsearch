@@ -1,5 +1,8 @@
 [[foreach-processor]]
-=== Foreach Processor
+=== Foreach processor
+++++
+<titleabbrev>Foreach</titleabbrev>
+++++
 
 Processes elements in an array of unknown length.
 

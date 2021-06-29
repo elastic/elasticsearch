@@ -18,24 +18,3 @@ chain.
 In order to simplify the process of configuring SAML authentication within the
 Elastic Stack, there is a step-by-step guide to
 <<saml-guide, Configuring Elasticsearch and Kibana to use SAML single sign-on>>.
-
-The remainder of this document will describe {es} specific configuration options
-for SAML realms.
-
-[[saml-settings]]
-==== SAML realm settings
-
-See <<ref-saml-settings>>. 
-
-==== SAML realm signing settings
-
-See <<ref-saml-signing-settings>>. 
-
-==== SAML realm encryption settings
-
-See <<ref-saml-encryption-settings>>. 
-
-==== SAML realm SSL settings
-
-See <<ref-saml-ssl-settings>>. 
-

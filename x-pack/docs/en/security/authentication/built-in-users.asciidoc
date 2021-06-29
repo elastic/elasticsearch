@@ -7,17 +7,21 @@ up and running. These users have a fixed set of privileges and cannot be
 authenticated until their passwords have been set. The `elastic` user can be
 used to <<set-built-in-user-passwords,set all of the built-in user passwords>>.
 
-`elastic`:: A built-in _superuser_. See <<built-in-roles>>.
-`kibana`:: The user Kibana uses to connect and communicate with Elasticsearch.
-`logstash_system`:: The user Logstash uses when storing monitoring information in Elasticsearch.
-`beats_system`:: The user the Beats use when storing monitoring information in Elasticsearch.
+`elastic`:: A built-in <<built-in-roles,superuser>>.
+`kibana_system`:: The user Kibana uses to connect and communicate with {es}.
+`logstash_system`:: The user Logstash uses when storing monitoring information in {es}.
+`beats_system`:: The user the Beats use when storing monitoring information in {es}.
 `apm_system`:: The user the APM server uses when storing monitoring information in {es}.
-`remote_monitoring_user`:: The user {metricbeat} uses when collecting and 
-storing monitoring information in {es}. It has the `remote_monitoring_agent` and 
-`remote_monitoring_collector` built-in roles. 
+`remote_monitoring_user`:: The user {metricbeat} uses when collecting and
+storing monitoring information in {es}. It has the `remote_monitoring_agent` and
+`remote_monitoring_collector` built-in roles.
 
+TIP: The built-in users serve specific purposes and are not intended for general
+use. In particular, do not use the `elastic` superuser unless full access to
+the cluster is required. Instead, create users that have the minimum necessary
+roles or privileges for their activities.
 
-[float]
+[discrete]
 [[built-in-user-explanation]]
 ==== How the built-in users work
 These built-in users are stored in a special `.security` index, which is managed
@@ -32,7 +36,7 @@ realm will not have any effect on the built-in users. The built-in users can
 be disabled individually, using the
 <<security-api-disable-user,disable users API>>.
 
-[float]
+[discrete]
 [[bootstrap-elastic-passwords]]
 ==== The Elastic bootstrap password
 
@@ -51,7 +55,7 @@ NOTE: After you <<set-built-in-user-passwords,set passwords for the built-in use
 in particular for the `elastic` user, there is no further use for the bootstrap
 password.
 
-[float]
+[discrete]
 [[set-built-in-user-passwords]]
 ==== Setting built-in user passwords
 
@@ -61,7 +65,7 @@ The +elasticsearch-setup-passwords+ tool is the simplest method to set the
 built-in users' passwords for the first time. It uses the `elastic` user's
 bootstrap password to run user management API requests. For example, you can run
 the command in an "interactive" mode, which prompts you to enter new passwords
-for the `elastic`, `kibana`, `logstash_system`, `beats_system`, `apm_system`, 
+for the `elastic`, `kibana_system`, `logstash_system`, `beats_system`, `apm_system`,
 and `remote_monitoring_user` users:
 
 [source,shell]
@@ -80,7 +84,7 @@ Alternatively, you can set the initial passwords for the built-in users by using
 the *Management > Users* page in {kib} or the
 <<security-api-change-password,change password API>>. These methods are
 more complex. You must supply the `elastic` user and its bootstrap password to
-log into {kib} or run the API. This requirement means that you cannot use the
+log in to {kib} or run the API. This requirement means that you cannot use the
 default bootstrap password that is derived from the `keystore.seed` setting.
 Instead, you must explicitly set a `bootstrap.password` setting in the keystore
 before you start {es}. For example, the following command prompts you to enter a
@@ -92,18 +96,18 @@ bin/elasticsearch-keystore add "bootstrap.password"
 ----------------------------------------------------
 
 You can then start {es} and {kib} and use the `elastic` user and bootstrap
-password to log into {kib} and change the passwords. Alternatively, you can
+password to log in to {kib} and change the passwords. Alternatively, you can
 submit Change Password API requests for each built-in user. These methods are
 better suited for changing your passwords after the initial setup is complete,
 since at that point the bootstrap password is no longer required.
 
 [[add-built-in-user-passwords]]
 
-[float]
+[discrete]
 [[add-built-in-user-kibana]]
 ==== Adding built-in user passwords to {kib}
 
-After the `kibana` user password is set, you need to update the {kib} server
+After the `kibana_system` user password is set, you need to update the {kib} server
 with the new password by setting `elasticsearch.password` in the `kibana.yml`
 configuration file:
 
@@ -114,9 +118,9 @@ elasticsearch.password: kibanapassword
 
 See {kibana-ref}/using-kibana-with-security.html[Configuring security in {kib}].
 
-[float]
+[discrete]
 [[add-built-in-user-logstash]]
-==== Adding built-in user passwords to {ls} 
+==== Adding built-in user passwords to {ls}
 
 The `logstash_system` user is used internally within Logstash when
 monitoring is enabled for Logstash.
@@ -130,18 +134,18 @@ the `logstash.yml` configuration file:
 xpack.monitoring.elasticsearch.password: logstashpassword
 ----------------------------------------------------------
 
-If you have upgraded from an older version of Elasticsearch,
-the `logstash_system` user may have defaulted to _disabled_ for security reasons.
-Once the password has been changed, you can enable the user via the following API call:
+If you have upgraded from an older version of {es}, the `logstash_system` user
+may have defaulted to _disabled_ for security reasons. Once the password has
+been changed, you can enable the user via the following API call:
 
 [source,console]
 ---------------------------------------------------------------------
 PUT _security/user/logstash_system/_enable
 ---------------------------------------------------------------------
 
-See {logstash-ref}/ls-security.html#ls-monitoring-user[Configuring credentials for {ls} monitoring]. 
+See {logstash-ref}/ls-security.html#ls-monitoring-user[Configuring credentials for {ls} monitoring].
 
-[float]
+[discrete]
 [[add-built-in-user-beats]]
 ==== Adding built-in user passwords to Beats
 
@@ -157,25 +161,25 @@ xpack.monitoring.elasticsearch.username: beats_system
 xpack.monitoring.elasticsearch.password: beatspassword
 ----------------------------------------------------------
 
-For example, see {metricbeat-ref}/monitoring.html[Monitoring {metricbeat}]. 
+For example, see {metricbeat-ref}/monitoring.html[Monitoring {metricbeat}].
 
-The `remote_monitoring_user` is used when {metricbeat} collects and stores 
-monitoring data for the {stack}. See <<monitoring-production>>. 
+The `remote_monitoring_user` is used when {metricbeat} collects and stores
+monitoring data for the {stack}. See <<monitoring-production>>.
 
 If you have upgraded from an older version of {es}, then you may not have set a
-password for the `beats_system` or `remote_monitoring_user` users. If this is 
+password for the `beats_system` or `remote_monitoring_user` users. If this is
 the case, then you should use the *Management > Users* page in {kib} or the
 <<security-api-change-password,change password API>> to set a password
 for these users.
 
-[float]
+[discrete]
 [[add-built-in-user-apm]]
 ==== Adding built-in user passwords to APM
 
 The `apm_system` user is used internally within APM when monitoring is enabled.
 
-To enable this feature in APM, you need to update the 
-{apm-server-ref}/configuring-howto-apm-server.html[APM configuration file] to 
+To enable this feature in APM, you need to update the
+{apm-server-ref}/configuring-howto-apm-server.html[APM configuration file] to
 reference the correct username and password. For example:
 
 [source,yaml]
@@ -184,15 +188,15 @@ xpack.monitoring.elasticsearch.username: apm_system
 xpack.monitoring.elasticsearch.password: apmserverpassword
 ----------------------------------------------------------
 
-See {apm-server-ref}/monitoring.html[Monitoring APM Server]. 
+See {apm-server-ref}/monitoring.html[Monitoring APM Server].
 
 If you have upgraded from an older version of {es}, then you may not have set a
-password for the `apm_system` user. If this is the case, 
+password for the `apm_system` user. If this is the case,
 then you should use the *Management > Users* page in {kib} or the
 <<security-api-change-password,change password API>> to set a password
 for these users.
 
-[float]
+[discrete]
 [[disabling-default-password]]
 ==== Disabling default password functionality
 [IMPORTANT]

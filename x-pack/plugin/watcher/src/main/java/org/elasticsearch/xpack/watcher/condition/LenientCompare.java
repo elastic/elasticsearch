@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.condition;
 
@@ -35,7 +36,7 @@ public class LenientCompare {
 
         // special case for numbers. If v1 is not a number, we'll try to convert it to a number
         if (v2 instanceof Number) {
-            if (!(v1 instanceof Number)) {
+            if ((v1 instanceof Number) == false) {
                 try {
                     v1 = Double.valueOf(String.valueOf(v1));
                 } catch (NumberFormatException nfe) {

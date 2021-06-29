@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.support;
 
@@ -81,11 +82,9 @@ public class MonthTimes implements Times {
 
         MonthTimes that = (MonthTimes) o;
 
-        if (!Arrays.equals(days, that.days)) return false;
-        // order doesn't matter
-        if (!newHashSet(times).equals(newHashSet(that.times))) return false;
-
-        return true;
+        return Arrays.equals(days, that.days)
+            // order doesn't matter
+            && newHashSet(times).equals(newHashSet(that.times));
     }
 
     @Override

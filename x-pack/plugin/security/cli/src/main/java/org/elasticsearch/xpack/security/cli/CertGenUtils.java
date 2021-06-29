@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.cli;
 
@@ -31,14 +32,13 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.network.InetAddressHelper;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.x500.X500Principal;
-
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -147,7 +147,7 @@ public class CertGenUtils {
      *                           empty, then use default algorithm {@link CertGenUtils#getDefaultSignatureAlgorithm(PrivateKey)}
      * @return a signed {@link X509Certificate}
      */
-    private static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
+    public static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
                                                              X509Certificate caCert, PrivateKey caPrivKey, boolean isCa,
                                                              int days, String signatureAlgorithm)
         throws NoSuchAlgorithmException, CertificateException, CertIOException, OperatorCreationException {
@@ -157,6 +157,14 @@ public class CertGenUtils {
             throw new IllegalArgumentException("the certificate must be valid for at least one day");
         }
         final ZonedDateTime notAfter = notBefore.plusDays(days);
+        return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, isCa, notBefore, notAfter,
+            signatureAlgorithm);
+    }
+
+    public static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
+                                                             X509Certificate caCert, PrivateKey caPrivKey, boolean isCa,
+                                                             ZonedDateTime notBefore, ZonedDateTime notAfter, String signatureAlgorithm)
+        throws NoSuchAlgorithmException, CertIOException, OperatorCreationException, CertificateException {
         final BigInteger serial = CertGenUtils.getSerial();
         JcaX509ExtensionUtils extUtils = new JcaX509ExtensionUtils();
 
@@ -272,7 +280,7 @@ public class CertGenUtils {
         for (InetAddress address : addresses) {
             if (address.isAnyLocalAddress()) {
                 // it is a wildcard address
-                for (InetAddress inetAddress : InetAddressHelper.getAllAddresses()) {
+                for (InetAddress inetAddress : NetworkUtils.getAllAddresses()) {
                     addSubjectAlternativeNames(resolveName, inetAddress, generalNameList);
                 }
             } else {

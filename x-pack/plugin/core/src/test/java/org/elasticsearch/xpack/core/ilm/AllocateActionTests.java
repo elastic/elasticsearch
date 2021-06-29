@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -114,7 +115,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Map<String, String> map = new HashMap<>();
         int numIncludes = randomIntBetween(minEntries, maxEntries);
         for (int i = 0; i < numIncludes; i++) {
-            map.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+            map.put(randomAlphaOfLengthBetween(2, 20), randomAlphaOfLengthBetween(2, 20));
         }
         return map;
     }
@@ -134,14 +135,14 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         assertEquals(expectedSecondStepKey, firstStep.getNextStepKey());
         Settings.Builder expectedSettings = Settings.builder();
         if (action.getNumberOfReplicas() != null) {
-            expectedSettings.put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, action.getNumberOfReplicas());
+            expectedSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, action.getNumberOfReplicas());
         }
         action.getInclude().forEach(
-            (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + key, value));
+            (key, value) -> expectedSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + key, value));
         action.getExclude().forEach(
-            (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + key, value));
+            (key, value) -> expectedSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + key, value));
         action.getRequire().forEach(
-            (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + key, value));
+            (key, value) -> expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + key, value));
         assertThat(firstStep.getSettings(), equalTo(expectedSettings.build()));
         AllocationRoutedStep secondStep = (AllocationRoutedStep) steps.get(1);
         assertEquals(expectedSecondStepKey, secondStep.getKey());

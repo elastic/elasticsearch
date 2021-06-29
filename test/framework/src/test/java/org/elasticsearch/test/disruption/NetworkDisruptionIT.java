@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.disruption;
@@ -23,7 +12,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.NodeConnectionsService;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -31,7 +20,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -77,8 +65,7 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
         Set<String> side2 = new HashSet<>(nodes);
         side2.removeAll(side1);
         assertThat(side2.size(), greaterThanOrEqualTo(1));
-        NetworkDisruption networkDisruption = new NetworkDisruption(new TwoPartitions(side1, side2),
-                new NetworkDisruption.NetworkDisconnect());
+        NetworkDisruption networkDisruption = new NetworkDisruption(new TwoPartitions(side1, side2), NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
@@ -124,8 +111,8 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
             disruptedLinks = NetworkDisruption.Bridge.random(random(), internalCluster().getNodeNames());
         }
 
-        NetworkDisruption networkDisruption = new NetworkDisruption(disruptedLinks, randomFrom(new NetworkDisruption.NetworkUnresponsive(),
-            new NetworkDisruption.NetworkDisconnect(), NetworkDisruption.NetworkDelay.random(random())));
+        NetworkDisruption networkDisruption = new NetworkDisruption(disruptedLinks, randomFrom(NetworkDisruption.UNRESPONSIVE,
+            NetworkDisruption.DISCONNECT, NetworkDisruption.NetworkDelay.random(random())));
         internalCluster().setDisruptionScheme(networkDisruption);
 
         networkDisruption.startDisrupting();
@@ -144,7 +131,7 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
 
         // give a bit of time to send something under disruption.
         assertFalse(latch.await(500, TimeUnit.MILLISECONDS)
-            && networkDisruption.getNetworkLinkDisruptionType() instanceof NetworkDisruption.NetworkDisconnect == false);
+            && networkDisruption.getNetworkLinkDisruptionType() != NetworkDisruption.DISCONNECT);
         networkDisruption.stopDisrupting();
 
         latch.await(30, TimeUnit.SECONDS);
@@ -177,11 +164,6 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
                 public void handleException(TransportException exp) {
                     assertTrue(responded.compareAndSet(false, true));
                     latch.countDown();
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
                 }
 
                 @Override

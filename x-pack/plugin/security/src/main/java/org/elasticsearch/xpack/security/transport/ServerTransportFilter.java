@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport;
 
@@ -27,7 +28,6 @@ import org.elasticsearch.transport.nio.NioTcpChannel;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -100,18 +100,18 @@ final class ServerTransportFilter {
         }
 
         final Version version = transportChannel.getVersion();
-        authcService.authenticate(securityAction, request, (User)null, ActionListener.wrap((authentication) -> {
+        authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
                     SystemUser.is(authentication.getUser()) == false) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
-                        final Authentication replaced = Authentication.getAuthentication(threadContext);
+                        final Authentication replaced = securityContext.getAuthentication();
                         authzService.authorize(replaced, securityAction, request, listener);
                     }, version);
                 } else {
                     authzService.authorize(authentication, securityAction, request, listener);
                 }
-            } else if (licenseState.isAuthAllowed() == false) {
+            } else if (licenseState.isSecurityEnabled() == false) {
                 listener.onResponse(null);
             } else {
                 listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));

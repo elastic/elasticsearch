@@ -5,6 +5,11 @@
       "description":"Allows you to split an existing index into a new index with more primary shards."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.execution.search;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
-import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
-import org.elasticsearch.xpack.sql.type.Schema;
+import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
+import org.elasticsearch.xpack.ql.type.Schema;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -79,7 +80,7 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
                 }
             }
         }
-        
+
         // check the last group using the following:
         // a. limit has been reached, the rest of the data is ignored.
         if (limit > 0 && data.size() == limit) {

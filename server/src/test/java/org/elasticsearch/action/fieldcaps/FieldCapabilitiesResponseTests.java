@@ -1,27 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.ElasticsearchExceptionTests;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.VersionUtils;
+import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,13 +35,15 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
 
     @Override
     protected FieldCapabilitiesResponse createTestInstance() {
+        FieldCapabilitiesResponse randomResponse;
         List<FieldCapabilitiesIndexResponse> responses = new ArrayList<>();
         int numResponse = randomIntBetween(0, 10);
 
         for (int i = 0; i < numResponse; i++) {
             responses.add(createRandomIndexResponse());
         }
-        return new FieldCapabilitiesResponse(responses);
+        randomResponse = new FieldCapabilitiesResponse(responses, Collections.emptyList());
+        return randomResponse;
     }
 
     @Override
@@ -49,15 +52,33 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
     }
 
     private FieldCapabilitiesIndexResponse createRandomIndexResponse() {
-        Map<String, FieldCapabilities> responses = new HashMap<>();
+        Map<String, IndexFieldCapabilities> responses = new HashMap<>();
 
         String[] fields = generateRandomStringArray(5, 10, false, true);
         assertNotNull(fields);
 
         for (String field : fields) {
-            responses.put(field, FieldCapabilitiesTests.randomFieldCaps(field));
+            responses.put(field, randomFieldCaps(field));
         }
-        return new FieldCapabilitiesIndexResponse(randomAsciiLettersOfLength(10), responses);
+        return new FieldCapabilitiesIndexResponse(randomAsciiLettersOfLength(10), responses, randomBoolean());
+    }
+
+    private static IndexFieldCapabilities randomFieldCaps(String fieldName) {
+        Map<String, String> meta;
+        switch (randomInt(2)) {
+            case 0:
+                meta = Collections.emptyMap();
+                break;
+            case 1:
+                meta = Map.of("key", "value");
+                break;
+            default:
+                meta = Map.of("key1", "value1", "key2", "value2");
+                break;
+        }
+
+        return new IndexFieldCapabilities(fieldName, randomAlphaOfLengthBetween(5, 20),
+            randomBoolean(), randomBoolean(), randomBoolean(), meta);
     }
 
     @Override
@@ -84,6 +105,126 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                     FieldCapabilitiesTests.randomFieldCaps(toReplace)));
                 break;
         }
-        return new FieldCapabilitiesResponse(null, mutatedResponses);
+        return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyList());
+    }
+
+    public void testFailureSerialization() throws IOException {
+        FieldCapabilitiesResponse randomResponse = createResponseWithFailures();
+        FieldCapabilitiesResponse deserialized = copyInstance(randomResponse);
+        assertThat(deserialized.getIndices(), Matchers.equalTo(randomResponse.getIndices()));
+        // only match size of failure list and indices, most exceptions don't support 'equals'
+        List<FieldCapabilitiesFailure> deserializedFailures = deserialized.getFailures();
+        assertEquals(deserializedFailures.size(), randomResponse.getFailures().size());
+        int i = 0;
+        for (FieldCapabilitiesFailure originalFailure : randomResponse.getFailures()) {
+            FieldCapabilitiesFailure deserializedFaliure = deserializedFailures.get(i);
+            assertThat(deserializedFaliure.getIndices(), Matchers.equalTo(originalFailure.getIndices()));
+            i++;
+        }
+    }
+
+    /**
+     * check that failure serialization between different minor versions after 7.13 works
+     */
+    public void testMixedVersionFailureSerialization_post_7_13() throws IOException {
+        FieldCapabilitiesResponse original = createResponseWithFailures();
+        FieldCapabilitiesResponse deserialized;
+        Version outVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT);
+        Version inVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT);
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(outVersion);
+            original.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+
+                in.setVersion(inVersion);
+                deserialized = new FieldCapabilitiesResponse(in);
+                assertEquals(-1, in.read());
+            }
+        }
+        assertThat(deserialized.getIndices(), Matchers.equalTo(original.getIndices()));
+
+        // only match size of failure list and indices, most exceptions don't support 'equals'
+        List<FieldCapabilitiesFailure> deserializedFailures = deserialized.getFailures();
+        assertEquals(deserializedFailures.size(), original.getFailures().size());
+        int i = 0;
+        for (FieldCapabilitiesFailure originalFailure : original.getFailures()) {
+            FieldCapabilitiesFailure deserializedFaliure = deserializedFailures.get(i);
+            assertThat(deserializedFaliure.getIndices(), Matchers.equalTo(originalFailure.getIndices()));
+            i++;
+        }
+    }
+
+    /**
+     * check that failure serialization to minor versions before 7.13 works without serializing the failures part
+     */
+    public void testSerialization_pre_7_13() throws IOException {
+        FieldCapabilitiesResponse original = createResponseWithFailures();
+        FieldCapabilitiesResponse deserialized;
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_6_0, VersionUtils.getPreviousVersion(Version.V_7_13_0));
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(version);
+            original.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setVersion(version);
+                deserialized = new FieldCapabilitiesResponse(in);
+                assertEquals(-1, in.read());
+            }
+        }
+        assertThat(deserialized.getIndices(), Matchers.equalTo(original.getIndices()));
+
+        // only match size of failure list and indices, most exceptions don't support 'equals'
+        assertEquals(0, deserialized.getFailures().size());
+    }
+
+    public void testReadFromPre7_13() throws IOException {
+        String msg = "AQpzb21lLWluZGV4AgdmaWVsZC0xAQdrZXl3b3JkB2ZpZWxkLTEHa2V5d29yZAEBAQABAAEAAAdmaWVsZC0y"
+            + "AgdrZXl3b3JkB2ZpZWxkLTIHa2V5d29yZAEBAQABAAEAAARsb25nB2ZpZWxkLTIEbG9uZwEBAQABAAEAAAAAAAA=";
+        try (StreamInput in = StreamInput.wrap(java.util.Base64.getDecoder().decode(msg))) {
+            // minimum version set to 7.6 because the nested FieldCapabilities had another serialization change there
+            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_7_6_0, VersionUtils.getPreviousVersion(Version.V_7_13_0)));
+            FieldCapabilitiesResponse deserialized = new FieldCapabilitiesResponse(in);
+            assertArrayEquals(new String[]{"some-index"}, deserialized.getIndices());
+            assertEquals(2, deserialized.get().size());
+            assertNotNull(deserialized.get().get("field-1").get("keyword"));
+            assertNotNull(deserialized.get().get("field-2").get("keyword"));
+            assertEquals(0, deserialized.getIndexResponses().size());
+            assertEquals(0, deserialized.getFailures().size());
+        }
+    }
+
+    public void testFailureParsing() throws IOException {
+        FieldCapabilitiesResponse randomResponse = createResponseWithFailures();
+        boolean humanReadable = randomBoolean();
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toShuffledXContent(randomResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        FieldCapabilitiesResponse parsedResponse;
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            parsedResponse = FieldCapabilitiesResponse.fromXContent(parser);
+            assertNull(parser.nextToken());
+        }
+        assertNotSame(parsedResponse, randomResponse);
+        assertThat(parsedResponse.getIndices(), Matchers.equalTo(randomResponse.getIndices()));
+        // only match size of failure list and indices, most exceptions don't support 'equals'
+        List<FieldCapabilitiesFailure> deserializedFailures = parsedResponse.getFailures();
+        assertEquals(deserializedFailures.size(), randomResponse.getFailures().size());
+        int i = 0;
+        for (FieldCapabilitiesFailure originalFailure : randomResponse.getFailures()) {
+            FieldCapabilitiesFailure deserializedFaliure = deserializedFailures.get(i);
+            assertThat(deserializedFaliure.getIndices(), Matchers.equalTo(originalFailure.getIndices()));
+            i++;
+        }
+    }
+
+    private FieldCapabilitiesResponse createResponseWithFailures() {
+        String[] indices = randomArray(randomIntBetween(1, 5), String[]::new, () -> randomAlphaOfLength(5));
+        List<FieldCapabilitiesFailure> failures = new ArrayList<>();
+        for (String index : indices) {
+            if (randomBoolean() || failures.size() == 0) {
+                failures.add(new FieldCapabilitiesFailure(new String[] {index}, ElasticsearchExceptionTests.randomExceptions().v2()));
+            } else {
+                failures.get(failures.size() - 1).addIndex(index);
+            }
+        }
+        return new FieldCapabilitiesResponse(indices, Collections.emptyMap(), failures);
     }
 }

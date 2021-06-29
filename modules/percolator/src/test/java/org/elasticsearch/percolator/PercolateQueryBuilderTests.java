@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -36,11 +26,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -56,7 +47,10 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQueryBuilder> {
 
@@ -80,7 +74,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(PercolatorPlugin.class);
+        return Arrays.asList(PercolatorPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override
@@ -89,11 +83,11 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         aliasField = randomAlphaOfLength(4);
 
         docType = "_doc";
-        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
                 queryField, "type=percolator", aliasField, "type=alias,path=" + queryField
         ))), MapperService.MergeReason.MAPPING_UPDATE);
-        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
-                STRING_FIELD_NAME, "type=text"
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
+                TEXT_FIELD_NAME, "type=text"
         ))), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
@@ -163,7 +157,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     @Override
-    protected void doAssertLuceneQuery(PercolateQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(PercolateQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         assertThat(query, Matchers.instanceOf(PercolateQuery.class));
         PercolateQuery percolateQuery = (PercolateQuery) query;
         assertThat(percolateQuery.getDocuments(), Matchers.equalTo(documentSource));
@@ -172,9 +166,9 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     @Override
     public void testMustRewrite() throws IOException {
         PercolateQueryBuilder pqb = doCreateTestQueryBuilder(true);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> pqb.toQuery(createShardContext()));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> pqb.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), equalTo("query builder must be rewritten first"));
-        QueryBuilder rewrite = rewriteAndFetch(pqb, createShardContext());
+        QueryBuilder rewrite = rewriteAndFetch(pqb, createSearchExecutionContext());
         PercolateQueryBuilder geoShapeQueryBuilder =
             new PercolateQueryBuilder(pqb.getField(), documentSource, XContentType.JSON);
         assertEquals(geoShapeQueryBuilder, rewrite);
@@ -184,7 +178,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         indexedDocumentExists = false;
         PercolateQueryBuilder pqb = doCreateTestQueryBuilder(true);
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> rewriteAndFetch(pqb,
-            createShardContext()));
+            createSearchExecutionContext()));
         String expectedString = "indexed document [" + indexedDocumentIndex + "/" +
                 indexedDocumentId +  "] couldn't be found";
         assertThat(e.getMessage() , equalTo(expectedString));
@@ -224,9 +218,9 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     public void testFromJsonNoDocumentType() throws IOException {
-        QueryShardContext queryShardContext = createShardContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         QueryBuilder queryBuilder = parseQuery("{\"percolate\" : { \"document\": {}, \"field\":\"" + queryField + "\"}}");
-        queryBuilder.toQuery(queryShardContext);
+        queryBuilder.toQuery(searchExecutionContext);
     }
 
     public void testFromJsonNoType() throws IOException {
@@ -235,15 +229,16 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         indexedDocumentVersion = Versions.MATCH_ANY;
         documentSource = Collections.singletonList(randomSource(new HashSet<>()));
 
-        QueryShardContext queryShardContext = createShardContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         QueryBuilder queryBuilder =  parseQuery("{\"percolate\" : { \"index\": \"" + indexedDocumentIndex + "\", \"id\": \"" +
                 indexedDocumentId + "\", \"field\":\"" + queryField + "\"}}");
-        rewriteAndFetch(queryBuilder, queryShardContext).toQuery(queryShardContext);
+        rewriteAndFetch(queryBuilder, searchExecutionContext).toQuery(searchExecutionContext);
     }
 
-    public void testBothDocumentAndDocumentsSpecified() throws IOException {
-        expectThrows(IllegalArgumentException.class,
+    public void testBothDocumentAndDocumentsSpecified() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> parseQuery("{\"percolate\" : { \"document\": {}, \"documents\": [{}, {}], \"field\":\"" + queryField + "\"}}"));
+        assertThat(e.getMessage(), containsString("The following fields are not allowed together: [document, documents]"));
     }
 
     private static BytesReference randomSource(Set<String> usedFields) {
@@ -278,9 +273,9 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     @Override
     public void testCacheability() throws IOException {
         PercolateQueryBuilder queryBuilder = createTestQueryBuilder();
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         assert context.isCacheable();
-        QueryBuilder rewritten = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        QueryBuilder rewritten = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewritten.toQuery(context));
         assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
@@ -292,25 +287,25 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     public void testSerializationFailsUnlessFetched() throws IOException {
         QueryBuilder builder = doCreateTestQueryBuilder(true);
-        QueryBuilder queryBuilder = Rewriteable.rewrite(builder, createShardContext());
+        QueryBuilder queryBuilder = Rewriteable.rewrite(builder, createSearchExecutionContext());
         IllegalStateException ise = expectThrows(IllegalStateException.class, () -> queryBuilder.writeTo(new BytesStreamOutput(10)));
         assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
-        builder = rewriteAndFetch(builder, createShardContext());
+        builder = rewriteAndFetch(builder, createSearchExecutionContext());
         builder.writeTo(new BytesStreamOutput(10));
     }
 
     public void testFieldAlias() throws IOException {
-        QueryShardContext shardContext = createShardContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
         PercolateQueryBuilder builder = doCreateTestQueryBuilder(false);
-        QueryBuilder rewrittenBuilder = rewriteAndFetch(builder, shardContext);
-        PercolateQuery query = (PercolateQuery) rewrittenBuilder.toQuery(shardContext);
+        QueryBuilder rewrittenBuilder = rewriteAndFetch(builder, searchExecutionContext);
+        PercolateQuery query = (PercolateQuery) rewrittenBuilder.toQuery(searchExecutionContext);
 
         PercolateQueryBuilder aliasBuilder = new PercolateQueryBuilder(aliasField,
             builder.getDocuments(),
             builder.getXContentType());
-        QueryBuilder rewrittenAliasBuilder = rewriteAndFetch(aliasBuilder, shardContext);
-        PercolateQuery aliasQuery = (PercolateQuery) rewrittenAliasBuilder.toQuery(shardContext);
+        QueryBuilder rewrittenAliasBuilder = rewriteAndFetch(aliasBuilder, searchExecutionContext);
+        PercolateQuery aliasQuery = (PercolateQuery) rewrittenAliasBuilder.toQuery(searchExecutionContext);
 
         assertEquals(query.getCandidateMatchesQuery(), aliasQuery.getCandidateMatchesQuery());
         assertEquals(query.getVerifiedMatchesQuery(), aliasQuery.getVerifiedMatchesQuery());
@@ -318,11 +313,11 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     public void testSettingNameWhileRewriting() {
         String testName = "name1";
-        QueryShardContext shardContext = createShardContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         PercolateQueryBuilder percolateQueryBuilder = doCreateTestQueryBuilder(true);
         percolateQueryBuilder.setName(testName);
 
-        QueryBuilder rewrittenQueryBuilder = percolateQueryBuilder.doRewrite(shardContext);
+        QueryBuilder rewrittenQueryBuilder = percolateQueryBuilder.doRewrite(searchExecutionContext);
 
         assertEquals(testName, ((PercolateQueryBuilder) rewrittenQueryBuilder).getQueryName());
         assertNotEquals(rewrittenQueryBuilder, percolateQueryBuilder);
@@ -331,14 +326,24 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     public void testSettingNameWhileRewritingWhenDocumentSupplierAndSourceNotNull() {
         Supplier<BytesReference> supplier = () -> new BytesArray("{\"test\": \"test\"}");
         String testName = "name1";
-        QueryShardContext shardContext = createShardContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         PercolateQueryBuilder percolateQueryBuilder = new PercolateQueryBuilder(queryField, supplier);
         percolateQueryBuilder.setName(testName);
 
-        QueryBuilder rewrittenQueryBuilder = percolateQueryBuilder.doRewrite(shardContext);
+        QueryBuilder rewrittenQueryBuilder = percolateQueryBuilder.doRewrite(searchExecutionContext);
 
         assertEquals(testName, ((PercolateQueryBuilder) rewrittenQueryBuilder).getQueryName());
         assertNotEquals(rewrittenQueryBuilder, percolateQueryBuilder);
     }
 
+    public void testDisallowExpensiveQueries() {
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.allowExpensiveQueries()).thenReturn(false);
+
+        PercolateQueryBuilder queryBuilder = doCreateTestQueryBuilder(true);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> queryBuilder.toQuery(searchExecutionContext));
+        assertEquals("[percolate] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+                e.getMessage());
+    }
 }

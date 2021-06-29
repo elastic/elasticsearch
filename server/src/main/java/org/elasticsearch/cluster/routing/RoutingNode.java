@@ -1,35 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -48,6 +42,8 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     private final LinkedHashSet<ShardRouting> relocatingShards;
 
+    private final HashMap<Index, LinkedHashSet<ShardRouting>> shardsByIndex;
+
     public RoutingNode(String nodeId, DiscoveryNode node, ShardRouting... shards) {
         this(nodeId, node, buildShardRoutingMap(shards));
     }
@@ -58,12 +54,14 @@ public class RoutingNode implements Iterable<ShardRouting> {
         this.shards = shards;
         this.relocatingShards = new LinkedHashSet<>();
         this.initializingShards = new LinkedHashSet<>();
+        this.shardsByIndex = new LinkedHashMap<>();
         for (ShardRouting shardRouting : shards.values()) {
             if (shardRouting.initializing()) {
                 initializingShards.add(shardRouting);
             } else if (shardRouting.relocating()) {
                 relocatingShards.add(shardRouting);
             }
+            shardsByIndex.computeIfAbsent(shardRouting.index(), k -> new LinkedHashSet<>()).add(shardRouting);
         }
         assert invariant();
     }
@@ -113,7 +111,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     /**
      * Add a new shard to this node
-     * @param shard Shard to crate on this Node
+     * @param shard Shard to create on this Node
      */
     void add(ShardRouting shard) {
         assert invariant();
@@ -128,6 +126,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         } else if (shard.relocating()) {
             relocatingShards.add(shard);
         }
+        shardsByIndex.computeIfAbsent(shard.index(), k -> new LinkedHashSet<>()).add(shard);
         assert invariant();
     }
 
@@ -148,11 +147,16 @@ public class RoutingNode implements Iterable<ShardRouting> {
             boolean exist = relocatingShards.remove(oldShard);
             assert exist : "expected shard " + oldShard + " to exist in relocatingShards";
         }
+        shardsByIndex.get(oldShard.index()).remove(oldShard);
+        if (shardsByIndex.get(oldShard.index()).isEmpty()) {
+            shardsByIndex.remove(oldShard.index());
+        }
         if (newShard.initializing()) {
             initializingShards.add(newShard);
         } else if (newShard.relocating()) {
             relocatingShards.add(newShard);
         }
+        shardsByIndex.computeIfAbsent(newShard.index(), k -> new LinkedHashSet<>()).add(newShard);
         assert invariant();
     }
 
@@ -166,6 +170,10 @@ public class RoutingNode implements Iterable<ShardRouting> {
         } else if (shard.relocating()) {
             boolean exist = relocatingShards.remove(shard);
             assert exist : "expected shard " + shard + " to exist in relocatingShards";
+        }
+        shardsByIndex.get(shard.index()).remove(shard);
+        if (shardsByIndex.get(shard.index()).isEmpty()) {
+            shardsByIndex.remove(shard.index());
         }
         assert invariant();
     }
@@ -250,7 +258,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         }
 
         for (ShardRouting shardEntry : this) {
-            if (!shardEntry.getIndexName().equals(index)) {
+            if (shardEntry.getIndexName().equals(index) == false) {
                 continue;
             }
             for (ShardRoutingState state : states) {
@@ -267,6 +275,15 @@ public class RoutingNode implements Iterable<ShardRouting> {
      */
     public int numberOfOwningShards() {
         return shards.size() - relocatingShards.size();
+    }
+
+    public int numberOfOwningShardsForIndex(final Index index) {
+        final LinkedHashSet<ShardRouting> shardRoutings = shardsByIndex.get(index);
+        if (shardRoutings == null) {
+            return 0;
+        } else {
+            return Math.toIntExact(shardRoutings.stream().filter(Predicate.not(ShardRouting::relocating)).count());
+        }
     }
 
     public String prettyPrint() {
@@ -315,6 +332,10 @@ public class RoutingNode implements Iterable<ShardRouting> {
             shards.values().stream().filter(ShardRouting::relocating).collect(Collectors.toList());
         assert relocatingShards.size() == shardRoutingsRelocating.size();
         assert relocatingShards.containsAll(shardRoutingsRelocating);
+
+        final Map<Index, Set<ShardRouting>> shardRoutingsByIndex =
+            shards.values().stream().collect(Collectors.groupingBy(ShardRouting::index, Collectors.toSet()));
+        assert shardRoutingsByIndex.equals(shardsByIndex);
 
         return true;
     }

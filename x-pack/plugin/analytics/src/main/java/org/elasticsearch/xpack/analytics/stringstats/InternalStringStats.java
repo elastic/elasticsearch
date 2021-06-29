@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -64,9 +64,8 @@ public class InternalStringStats extends InternalAggregation {
     public InternalStringStats(String name, long count, long totalLength, int minLength, int maxLength,
                                Map<String, Long> charOccurences, boolean showDistribution,
                                DocValueFormat formatter,
-                               List<PipelineAggregator> pipelineAggregators,
-                               Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                               Map<String, Object> metadata) {
+        super(name, metadata);
         this.format = formatter;
         this.showDistribution = showDistribution;
         this.count = count;
@@ -105,6 +104,10 @@ public class InternalStringStats extends InternalAggregation {
 
     public long getCount() {
         return count;
+    }
+
+    long getTotalLength () {
+        return totalLength;
     }
 
     public int getMinLength() {
@@ -153,6 +156,14 @@ public class InternalStringStats extends InternalAggregation {
         return Math.log(d) / Math.log(2.0);
     }
 
+    Map<String, Long> getCharOccurrences() {
+        return charOccurrences;
+    }
+
+    boolean getShowDistribution() {
+        return showDistribution;
+    }
+
     public String getCountAsString() {
         return format.format(getCount()).toString();
     }
@@ -182,7 +193,7 @@ public class InternalStringStats extends InternalAggregation {
     }
 
     @Override
-    public InternalStringStats doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalStringStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long count = 0;
         long totalLength = 0;
         int minLength = Integer.MAX_VALUE;
@@ -201,7 +212,12 @@ public class InternalStringStats extends InternalAggregation {
         }
 
         return new InternalStringStats(name, count, totalLength, minLength, maxLength, occurs,
-            showDistribution, format, pipelineAggregators(), getMetaData());
+            showDistribution, format, getMetadata());
+    }
+
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return false;
     }
 
     @Override
@@ -237,7 +253,7 @@ public class InternalStringStats extends InternalAggregation {
             builder.field(Fields.MAX_LENGTH.getPreferredName(), maxLength);
             builder.field(Fields.AVG_LENGTH.getPreferredName(), getAvgLength());
             builder.field(Fields.ENTROPY.getPreferredName(), getEntropy());
-            if (showDistribution == true) {
+            if (showDistribution) {
                 builder.field(Fields.DISTRIBUTION.getPreferredName(), getDistribution());
             }
             if (format != DocValueFormat.RAW) {
@@ -245,7 +261,7 @@ public class InternalStringStats extends InternalAggregation {
                 builder.field(Fields.MAX_LENGTH_AS_STRING.getPreferredName(), format.format(getMaxLength()));
                 builder.field(Fields.AVG_LENGTH_AS_STRING.getPreferredName(), format.format(getAvgLength()));
                 builder.field(Fields.ENTROPY_AS_STRING.getPreferredName(), format.format(getEntropy()));
-                if (showDistribution == true) {
+                if (showDistribution) {
                     builder.startObject(Fields.DISTRIBUTION_AS_STRING.getPreferredName());
                     for (Map.Entry<String, Double> e: getDistribution().entrySet()) {
                         builder.field(e.getKey(), format.format(e.getValue()).toString());
@@ -259,7 +275,7 @@ public class InternalStringStats extends InternalAggregation {
             builder.nullField(Fields.AVG_LENGTH.getPreferredName());
             builder.field(Fields.ENTROPY.getPreferredName(), 0.0);
 
-            if (showDistribution == true) {
+            if (showDistribution) {
                 builder.nullField(Fields.DISTRIBUTION.getPreferredName());
             }
         }
@@ -282,6 +298,7 @@ public class InternalStringStats extends InternalAggregation {
             minLength == other.minLength &&
             maxLength == other.maxLength &&
             totalLength == other.totalLength &&
+            Objects.equals(charOccurrences, other.charOccurrences) &&
             showDistribution == other.showDistribution;
     }
 }

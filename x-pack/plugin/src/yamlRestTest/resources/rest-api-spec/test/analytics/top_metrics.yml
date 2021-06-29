@@ -1,0 +1,670 @@
+---
+"sort by long field":
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": 1, "v": 3.1415}'
+          - '{"index": {}}'
+          - '{"s": 2, "v": 1.0}'
+          - '{"index": {}}'
+          - '{"s": 3, "v": 2.71828}'
+
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: v
+                sort:
+                  s: desc
+  - match: { aggregations.tm.top.0.metrics.v: 2.718280076980591 }
+  - match: { aggregations.tm.top.0.sort: [3] }
+
+  - do:
+      search:
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: v
+                sort:
+                  s: asc
+  - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.0.sort: [1] }
+
+  - do:
+      search:
+        index: test
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: v
+                sort:
+                  s:
+                    order: asc
+                    numeric_type: date
+  - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.0.sort: [1] }
+
+---
+"sort by double field":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              s:
+                type: scaled_float
+                scaling_factor: 10
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": 1.0, "v": 3.1415}'
+          - '{"index": {}}'
+          - '{"s": 2.0, "v": 1.0}'
+          - '{"index": {}}'
+          - '{"s": 3.0, "v": 2.71828}'
+
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: v
+                sort:
+                  s: desc
+  - match: { aggregations.tm.top.0.metrics.v: 2.718280076980591 }
+  - match: { aggregations.tm.top.0.sort: [3.0] }
+
+  - do:
+      search:
+        index: test
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: v
+                sort:
+                  s: asc
+  - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.0.sort: [1.0] }
+
+---
+"sort by scaled float field":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              s:
+                type: scaled_float
+                scaling_factor: 10
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": 1, "v": 3.1415}'
+          - '{"index": {}}'
+          - '{"s": 2, "v": 1.0}'
+          - '{"index": {}}'
+          - '{"s": 3, "v": 2.71828}'
+
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: v
+                sort:
+                  s: desc
+  - match: { aggregations.tm.top.0.metrics.v: 2.718280076980591 }
+  - match: { aggregations.tm.top.0.sort: [3.0] }
+
+  - do:
+      search:
+        index: test
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: v
+                sort:
+                  s: asc
+  - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.0.sort: [1.0] }
+
+---
+"sort by keyword field fails":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The failure message isn't predictable with more than one shard
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": "cow", "v": 3.1415}'
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: v
+                sort: s.keyword
+  - match: { error.root_cause.0.reason: "error building sort for field [s.keyword] of type [keyword] in index [test]: only supported on numeric fields" }
+
+---
+"sort by score":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The score isn't predictable with more than one shard
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": "big cat", "v": 3.1415}'
+          - '{"index": {}}'
+          - '{"s": "cat", "v": 1.0}'
+          - '{"index": {}}'
+          - '{"s": "the small dog", "v": 2.71828}'
+
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          query:
+            match:
+              s: big cat
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: v
+                sort: _score
+  - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.0.sort: [1.450832724571228] }
+
+---
+"sort by numeric script":
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": "cow", "v": 3.1415}'
+
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: v
+                sort:
+                  _script:
+                    type: number
+                    script:
+                      source: doc['s.keyword'].value.length()
+  - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.0.sort: [3.0] }
+
+---
+"sort by string script fails":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The failure message isn't predictable with more than one shard
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": "cow", "v": 3.1415}'
+
+  - do:
+      catch: bad_request
+      search:
+        size: 0
+        index: test
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: v
+                sort:
+                  _script:
+                    type: string
+                    script:
+                      source: doc['s'].value
+  - match: { error.root_cause.0.reason: "error building sort for [_script]: script sorting only supported on [numeric] scripts but was [string]" }
+
+---
+"sort by geo_distance":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"location": {"lat" : 40.7128, "lon" : -74.0060}, "name": "New York", "population": 8623000}'
+          - '{"index": {}}'
+          - '{"location": {"lat" : 34.0522, "lon" : -118.2437}, "name": "Los Angeles", "population": 4000000}'
+          - '{"index": {}}'
+          - '{"location": {"lat" : 41.8781, "lon" : -87.6298}, "name": "Chicago", "population": 2716000}'
+
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            pop:
+              top_metrics:
+                metrics:
+                  field: population
+                sort:
+                  _geo_distance:
+                    location: "35.7796, -78.6382"
+  - match: { aggregations.pop.top.0.metrics.population: 8623000 }
+  - match: { aggregations.pop.top.0.sort: [681335.0456554737] }
+
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            pop:
+              top_metrics:
+                size: 3
+                metrics:
+                  field: population
+                sort:
+                  _geo_distance:
+                    location: "35.7796, -78.6382"
+  - match: { aggregations.pop.top.0.metrics.population: 8623000 }
+  - match: { aggregations.pop.top.0.sort: [681335.0456554737] }
+  - match: { aggregations.pop.top.1.metrics.population: 2716000 }
+  - match: { aggregations.pop.top.1.sort: [1031665.3103809588] }
+  - match: { aggregations.pop.top.2.metrics.population: 4000000 }
+  - match: { aggregations.pop.top.2.sort: [3591714.92471555] }
+
+---
+"inside terms":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              ip:
+                type: ip
+              date:
+                type: date
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"ip": "192.168.0.1", "date": "2020-01-01T01:01:01", "v": 1}'
+          - '{"index": {}}'
+          - '{"ip": "192.168.0.1", "date": "2020-01-01T02:01:01", "v": 2}'
+          - '{"index": {}}'
+          - '{"ip": "192.168.0.2", "date": "2020-01-01T02:01:01", "v": 3}'
+
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            ip:
+              terms:
+                field: ip
+              aggs:
+                tm:
+                  top_metrics:
+                    metrics:
+                      field: v
+                    sort:
+                      date: desc
+  - length: { aggregations.ip.buckets: 2 }
+  - match: { aggregations.ip.buckets.0.key: 192.168.0.1 }
+  - match: { aggregations.ip.buckets.0.tm.top.0.metrics.v: 2 }
+  - match: { aggregations.ip.buckets.0.tm.top.0.sort: ['2020-01-01T02:01:01.000Z'] }
+  - match: { aggregations.ip.buckets.1.key: 192.168.0.2 }
+  - match: { aggregations.ip.buckets.1.tm.top.0.metrics.v: 3 }
+  - match: { aggregations.ip.buckets.1.tm.top.0.sort: ['2020-01-01T02:01:01.000Z'] }
+
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            ip:
+              terms:
+                field: ip
+                order:
+                  tm.v: desc
+              aggs:
+                tm:
+                  top_metrics:
+                    metrics:
+                      field: v
+                    sort:
+                      date: desc
+  - length: { aggregations.ip.buckets: 2 }
+  - match: { aggregations.ip.buckets.0.key: 192.168.0.2 }
+  - match: { aggregations.ip.buckets.0.tm.top.0.metrics.v: 3 }
+  - match: { aggregations.ip.buckets.0.tm.top.0.sort: ['2020-01-01T02:01:01.000Z'] }
+  - match: { aggregations.ip.buckets.1.key: 192.168.0.1 }
+  - match: { aggregations.ip.buckets.1.tm.top.0.metrics.v: 2 }
+  - match: { aggregations.ip.buckets.1.tm.top.0.sort: ['2020-01-01T02:01:01.000Z'] }
+
+---
+"with sum_buckets":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              ip:
+                type: ip
+              date:
+                type: date
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"ip": "192.168.0.1", "date": "2020-01-01T01:01:01", "v": 1}'
+          - '{"index": {}}'
+          - '{"ip": "192.168.0.1", "date": "2020-01-01T02:01:01", "v": 2}'
+          - '{"index": {}}'
+          - '{"ip": "192.168.0.2", "date": "2020-01-01T02:01:01", "v": 3}'
+
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            ip:
+              terms:
+                field: ip
+              aggs:
+                tm:
+                  top_metrics:
+                    metrics:
+                      field: v
+                    sort:
+                      date: desc
+            sum:
+              sum_bucket:
+                buckets_path: ip>tm[v]
+  - length: { aggregations.ip.buckets: 2 }
+  - match: { aggregations.ip.buckets.0.key: 192.168.0.1 }
+  - match: { aggregations.sum.value: 5 }
+
+  # Now add a doc without the metric. Its value should count as 0 because the gap_policy should skip it.
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"ip": "192.168.0.2", "date": "2020-01-01T03:01:01"}'
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            ip:
+              terms:
+                field: ip
+              aggs:
+                tm:
+                  top_metrics:
+                    metrics:
+                      field: v
+                    sort:
+                      date: desc
+            sum:
+              sum_bucket:
+                buckets_path: ip>tm[v]
+  - length: { aggregations.ip.buckets: 2 }
+  - match: { aggregations.ip.buckets.0.key: 192.168.0.1 }
+  - match: { aggregations.sum.value: 2 }
+
+
+---
+"size is index setting":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The failure message isn't predictable with more than one shard
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": 1, "v": 3.1415}'
+          - '{"index": {}}'
+          - '{"s": 2, "v": 1.0}'
+          - '{"index": {}}'
+          - '{"s": 3, "v": 2.71828}'
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                size: 100
+                metrics:
+                  field: v
+                sort:
+                  s: desc
+  - match: { error.root_cause.0.reason: "[top_metrics.size] must not be more than [10] but was [100]. This limit can be set by changing the [index.top_metrics_max_size] index level setting." }
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          top_metrics_max_size: 100
+
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                size: 100
+                metrics:
+                  field: v
+                sort:
+                  s: desc
+  - match: { aggregations.tm.top.0.metrics.v: 2.718280076980591 }
+  - match: { aggregations.tm.top.0.sort: [3] }
+  - match: { aggregations.tm.top.1.metrics.v: 1.0 }
+  - match: { aggregations.tm.top.1.sort: [2] }
+  - match: { aggregations.tm.top.2.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.2.sort: [1] }
+
+---
+"fetch keyword":
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": 1, "animal": "cat"}'
+          - '{"index": {}}'
+          - '{"s": 2, "animal": "dog"}'
+          - '{"index": {}}'
+          - '{"s": 3, "animal": "chicken"}'
+
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: animal.keyword
+                sort:
+                  s: asc
+                size: 3
+  - match: { aggregations.tm.top.0.metrics.animal\.keyword: cat}
+  - match: { aggregations.tm.top.0.sort: [1] }
+  - match: { aggregations.tm.top.1.metrics.animal\.keyword: dog}
+  - match: { aggregations.tm.top.1.sort: [2] }
+  - match: { aggregations.tm.top.2.metrics.animal\.keyword: chicken}
+  - match: { aggregations.tm.top.2.sort: [3] }
+
+---
+"fetch runtime keyword fails with nice error message":
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": 1, "animal": "cat"}'
+          - '{"index": {}}'
+          - '{"s": 2, "animal": "dog"}'
+          - '{"index": {}}'
+          - '{"s": 3, "animal": "chicken"}'
+
+  - do:
+      catch: /top_metrics can only collect bytes that have segment ordinals but Field \[species\] of type \[keyword\] does not/
+      search:
+        index: test
+        size: 0
+        body:
+          runtime_mappings:
+            species:
+              type: keyword
+              script: |
+                emit(doc['animal.keyword'].value)
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: species
+                sort:
+                  s: asc
+                size: 3
+
+---
+"fetch keyword fields with some missing":
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": 1, "animal": "cat"}'
+          - '{"index": {}}'
+          - '{"s": 2, "animal": "dog"}'
+          - '{"index": {}}'
+          - '{"s": 3}'
+
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: animal.keyword
+                sort:
+                  s: asc
+                size: 3
+  - match: { aggregations.tm.top.0.metrics.animal\.keyword: cat}
+  - match: { aggregations.tm.top.0.sort: [1] }
+  - match: { aggregations.tm.top.1.metrics.animal\.keyword: dog}
+  - match: { aggregations.tm.top.1.sort: [2] }
+  - match: { aggregations.tm.top.2.metrics.animal\.keyword: null}
+  - match: { aggregations.tm.top.2.sort: [3] }

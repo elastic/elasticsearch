@@ -1,0 +1,1572 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// DateTime
+//
+
+//
+// Time (H2 doesn't support these for Timezone with timestamp)
+//
+//
+
+castStringToDateTime
+SELECT CAST('2020-06-01T10:20:30Z' AS DATETIME) AS cast1, CAST('2020-06-01 10:20:30.000Z' AS DATETIME) AS cast2;
+
+        cast1             | cast2
+--------------------------+-------------------------
+2020-06-01T10:20:30.000Z  | 2020-06-01T10:20:30.000Z
+;
+
+castStringToDateTimeWithField
+SELECT CAST(CAST(birth_date AS STRING) AS DATETIME) AS cast1, CAST(REPLACE(CAST(birth_date AS STRING), 'T', ' ') AS DATETIME) AS cast2
+FROM test_emp ORDER BY emp_no LIMIT 5;
+
+        cast1             | cast2
+--------------------------+-------------------------
+1953-09-02T00:00:00.000Z  | 1953-09-02T00:00:00.000Z
+1964-06-02T00:00:00.000Z  | 1964-06-02T00:00:00.000Z
+1959-12-03T00:00:00.000Z  | 1959-12-03T00:00:00.000Z
+1954-05-01T00:00:00.000Z  | 1954-05-01T00:00:00.000Z
+1955-01-21T00:00:00.000Z  | 1955-01-21T00:00:00.000Z
+;
+
+dateTimeSecond
+SELECT SECOND(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+d:i                  | l:s
+0                    | Facello
+0                    | Simmel
+0                    | Bamford
+0                    | Koblick
+0                    | Maliniak
+0                    | Preusig
+0                    | Zielinski
+0                    | Kalloufi
+0                    | Peac
+;
+
+dateTimeMinute
+SELECT MINUTE(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+d:i                  | l:s
+0                    | Facello
+0                    | Simmel
+0                    | Bamford
+0                    | Koblick
+0                    | Maliniak
+0                    | Preusig
+0                    | Zielinski
+0                    | Kalloufi
+0                    | Peac
+;
+
+dateTimeHour
+SELECT HOUR(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+d:i                  | l:s
+0                    | Facello
+0                    | Simmel
+0                    | Bamford
+0                    | Koblick
+0                    | Maliniak
+0                    | Preusig
+0                    | Zielinski
+0                    | Kalloufi
+0                    | Peac
+
+;
+
+//
+// DateTime
+//
+dateTimeIsoDayOfWeek
+SELECT ISO_DAY_OF_WEEK(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY ISO_DAY_OF_WEEK(birth_date);
+
+d:i                  | l:s
+1                    | Preusig
+2                    | Simmel
+3                    | Facello
+3                    | Kalloufi
+4                    | Bamford
+4                    | Zielinski
+5                    | Maliniak
+6                    | Koblick
+6                    | Peac
+;
+
+dateTimeDayOfYear
+SELECT DAY_OF_YEAR(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+d:i                  | l:s
+245                  | Facello
+154                  | Simmel
+337                  | Bamford
+121                  | Koblick
+21                   | Maliniak
+110                  | Preusig
+143                  | Zielinski
+50                   | Kalloufi
+110                  | Peac
+;
+
+weekOfYear
+SELECT WEEK(birth_date) week, birth_date FROM test_emp ORDER BY WEEK(birth_date) DESC, birth_date DESC LIMIT 15;
+
+    week:i     |     birth_date:ts
+---------------+------------------------
+52             |1962-12-29T00:00:00.000Z
+52             |1959-12-25T00:00:00.000Z
+52             |1952-12-24T00:00:00.000Z
+51             |1960-12-17T00:00:00.000Z
+50             |1956-12-13T00:00:00.000Z
+49             |1959-12-03T00:00:00.000Z
+49             |1957-12-03T00:00:00.000Z
+48             |1963-11-26T00:00:00.000Z
+48             |1962-11-26T00:00:00.000Z
+47             |1962-11-19T00:00:00.000Z
+46             |1956-11-14T00:00:00.000Z
+46             |1952-11-13T00:00:00.000Z
+45             |1962-11-07T00:00:00.000Z
+45             |1953-11-07T00:00:00.000Z
+44             |1961-11-02T00:00:00.000Z
+;
+
+isoDayOfWeek
+SELECT ISO_DAY_OF_WEEK(birth_date) AS d, SUM(salary) s FROM test_emp GROUP BY d ORDER BY d DESC;
+
+      d:i      |      s:l
+---------------+---------------
+7              |386466       
+6              |643304       
+5              |653130       
+4              |740669       
+3              |655169       
+2              |888011       
+1              |428067       
+null           |430039
+;
+
+isoWeekOfYear
+schema::birth_date:ts|iso_week:i|week:i
+SELECT birth_date, IW(birth_date) iso_week, WEEK(birth_date) week FROM test_emp WHERE IW(birth_date) < 8 AND week >2 ORDER BY iso_week;
+
+       birth_date       |   iso_week    |     week      
+------------------------+---------------+---------------
+1955-01-21T00:00:00.000Z|3              |4              
+1953-01-23T00:00:00.000Z|4              |4              
+1958-01-21T00:00:00.000Z|4              |4              
+1959-01-27T00:00:00.000Z|5              |5              
+1956-02-12T00:00:00.000Z|6              |7              
+1953-02-08T00:00:00.000Z|6              |7              
+1960-02-20T00:00:00.000Z|7              |8              
+;
+
+isoWeekOfYearFilterEquality
+SELECT ISO_WEEK_OF_YEAR(CONCAT(CONCAT('2021-01-22T14:26:06.', (salary % 2)::text), 'Z')::datetime) AS iso_week 
+FROM test_emp WHERE iso_week = 3 LIMIT 2;
+
+   iso_week:i  
+---------------
+3              
+3              
+;
+
+weekOfYearVsIsoWeekOfYearEdgeCases
+SELECT ISO_WEEK_OF_YEAR('2005-01-01T00:00:00.000Z'::datetime) AS "isow2005", WEEK('2005-01-01T00:00:00.000Z'::datetime) AS "w2005",
+ISO_WEEK_OF_YEAR('2007-12-31T00:00:00.000Z'::datetime) AS "isow2007", WEEK('2007-12-31T00:00:00.000Z'::datetime) AS "w2007";
+
+   isow2005    |     w2005     |   isow2007    |     w2007
+---------------+---------------+---------------+---------------
+53             |1              |1              |53
+;
+
+weekOfYearWithFilter
+SELECT WEEK(birth_date) week, birth_date FROM test_emp WHERE WEEK(birth_date) > 50 OR WEEK(birth_date) < 4 ORDER BY WEEK(birth_date) DESC, birth_date DESC;
+
+    week:i     |     birth_date:ts
+---------------+------------------------
+52             |1962-12-29T00:00:00.000Z
+52             |1959-12-25T00:00:00.000Z
+52             |1952-12-24T00:00:00.000Z
+51             |1960-12-17T00:00:00.000Z
+2              |1965-01-03T00:00:00.000Z
+2              |1953-01-07T00:00:00.000Z
+;
+
+minuteOfDayFilterEquality
+SELECT MINUTE_OF_DAY(CONCAT(CONCAT('2021-01-22T14:26:06.', (salary % 2)::text), 'Z')::datetime) AS min_of_day 
+FROM test_emp WHERE min_of_day = 866 LIMIT 2;
+
+  min_of_day:i 
+---------------
+866            
+866            
+;
+
+selectAddWithDateTime
+schema::dt_year:s|dt_quarter:s|dt_month:s|dt_week:s|dt_day:s|dt_hours:s|dt_min:s|dt_sec:s|dt_millis:s|dt_mcsec:s|dt_nsec:s
+SELECT DATE_ADD('year', 10, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_year, DATE_ADD('quarter', -10, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_quarter, DATE_ADD('month', 20, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_month,
+DATE_ADD('week', -50, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_week, DATE_ADD('day', 200, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_day,
+DATE_ADD('hours', -3000, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_hours, DATE_ADD('minutes', 5678, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_min,
+DATE_ADD('second', 987654, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_sec, DATE_ADD('milliseconds', -12345678, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_millis,
+DATE_ADD('mcs', -12345678, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_mcsec, DATE_ADD('nanosecond', 12345678, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_nsec;
+
+        dt_year          |       dt_quarter         |        dt_month          |         dt_week          |         dt_day           |        dt_hours          |         dt_min           |         dt_sec           |        dt_millis         |         dt_mcsec            |         dt_nsec
+-------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+-----------------------------+-------------------------------
+2029-09-04T11:22:33.123Z | 2017-03-04T11:22:33.123Z | 2021-05-04T11:22:33.123Z | 2018-09-19T11:22:33.123Z | 2020-03-22T11:22:33.123Z | 2019-05-02T11:22:33.123Z | 2019-09-08T10:00:33.123Z | 2019-09-15T21:43:27.123Z | 2019-09-04T07:56:47.445Z | 2019-09-04T11:22:20.777322Z | 2019-09-04T11:22:33.135345678Z
+;
+
+selectAddWithDate
+schema::dt_year:ts|dt_quarter:ts|dt_month:ts|dt_week:ts|dt_day:ts|dt_hours:ts|dt_min:ts|dt_sec:ts|dt_millis:s|dt_mcsec:s|dt_nsec:s
+SELECT DATEADD('year', 10, '2019-09-04'::date) as dt_year, DATEADD('quarter', -10, '2019-09-04'::date) as dt_quarter, DATEADD('month', 20, '2019-09-04'::date) as dt_month,
+DATEADD('week', -50, '2019-09-04'::date) as dt_week, DATEADD('day', 200, '2019-09-04'::date) as dt_day,
+DATEADD('hours', -3000, '2019-09-04'::date) as dt_hours, DATEADD('minutes', 5678, '2019-09-04'::date) as dt_min, DATEADD('second', 987654, '2019-09-04'::date) as dt_sec,
+DATEADD('milliseconds', 4314144, '2019-09-04'::date)::string as dt_millis, DATEADD('mcs', -12345678, '2019-09-04'::date)::string as dt_mcsec, DATEADD('nanosecond', 12345678, '2019-09-04'::date)::string as dt_nsec;
+
+       dt_year           |      dt_quarter          |       dt_month           |        dt_week           |        dt_day            |       dt_hours           |        dt_min            |        dt_sec            |         dt_millis        |       dt_mcsec              |         dt_nsec
+-------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+-----------------------------+-------------------------------
+2029-09-04 00:00:00.000Z | 2017-03-04 00:00:00.000Z | 2021-05-04 00:00:00.000Z | 2018-09-19 00:00:00.000Z | 2020-03-22 00:00:00.000Z | 2019-05-02 00:00:00.000Z | 2019-09-07 22:38:00.000Z | 2019-09-15 10:20:54.000Z | 2019-09-04T01:11:54.144Z | 2019-09-03T23:59:47.654322Z | 2019-09-04T00:00:00.012345678Z
+;
+
+selectDateAddWithField
+schema::emp_no:i|birth_date:ts|dt_year:ts|dt_quarter:ts|dt_month:ts|dt_week:ts|dt_day:ts|dt_min:ts|dt_sec:ts
+SELECT emp_no, birth_date, TIMESTAMP_ADD('year', 10, birth_date) as dt_year, TIMESTAMP_ADD('quarter', -10, birth_date) as dt_quarter,
+TIMESTAMP_ADD('month', 20, birth_date) as dt_month, TIMESTAMP_ADD('week', -20, birth_date) as dt_week, TIMESTAMP_ADD('day', 300, birth_date) as dt_day,
+TIMESTAMP_ADD('minutes', 10000, birth_date) as dt_min, TIMESTAMP_ADD('second', 100000, birth_date) as dt_sec
+FROM test_emp WHERE emp_no >= 10032 AND emp_no <= 10042 ORDER BY 1;
+
+  emp_no  |     birth_date           |       dt_year            |     dt_quarter           |      dt_month            |       dt_week            |       dt_day             |       dt_min             |       dt_sec
+----------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+-------------------------
+10032     | 1960-08-09 00:00:00.000Z | 1970-08-09 00:00:00.000Z | 1958-02-09 00:00:00.000Z | 1962-04-09 00:00:00.000Z | 1960-03-22 00:00:00.000Z | 1961-06-05 00:00:00.000Z | 1960-08-15 22:40:00.000Z | 1960-08-10 03:46:40.000Z
+10033     | 1956-11-14 00:00:00.000Z | 1966-11-14 00:00:00.000Z | 1954-05-14 00:00:00.000Z | 1958-07-14 00:00:00.000Z | 1956-06-27 00:00:00.000Z | 1957-09-10 00:00:00.000Z | 1956-11-20 22:40:00.000Z | 1956-11-15 03:46:40.000Z
+10034     | 1962-12-29 00:00:00.000Z | 1972-12-29 00:00:00.000Z | 1960-06-29 00:00:00.000Z | 1964-08-29 00:00:00.000Z | 1962-08-11 00:00:00.000Z | 1963-10-25 00:00:00.000Z | 1963-01-04 22:40:00.000Z | 1962-12-30 03:46:40.000Z
+10035     | 1953-02-08 00:00:00.000Z | 1963-02-08 00:00:00.000Z | 1950-08-08 00:00:00.000Z | 1954-10-08 00:00:00.000Z | 1952-09-21 00:00:00.000Z | 1953-12-05 00:00:00.000Z | 1953-02-14 22:40:00.000Z | 1953-02-09 03:46:40.000Z
+10036     | 1959-08-10 00:00:00.000Z | 1969-08-10 00:00:00.000Z | 1957-02-10 00:00:00.000Z | 1961-04-10 00:00:00.000Z | 1959-03-23 00:00:00.000Z | 1960-06-05 00:00:00.000Z | 1959-08-16 22:40:00.000Z | 1959-08-11 03:46:40.000Z
+10037     | 1963-07-22 00:00:00.000Z | 1973-07-22 00:00:00.000Z | 1961-01-22 00:00:00.000Z | 1965-03-22 00:00:00.000Z | 1963-03-04 00:00:00.000Z | 1964-05-17 00:00:00.000Z | 1963-07-28 22:40:00.000Z | 1963-07-23 03:46:40.000Z
+10038     | 1960-07-20 00:00:00.000Z | 1970-07-20 00:00:00.000Z | 1958-01-20 00:00:00.000Z | 1962-03-20 00:00:00.000Z | 1960-03-02 00:00:00.000Z | 1961-05-16 00:00:00.000Z | 1960-07-26 22:40:00.000Z | 1960-07-21 03:46:40.000Z
+10039     | 1959-10-01 00:00:00.000Z | 1969-10-01 00:00:00.000Z | 1957-04-01 00:00:00.000Z | 1961-06-01 00:00:00.000Z | 1959-05-14 00:00:00.000Z | 1960-07-27 00:00:00.000Z | 1959-10-07 22:40:00.000Z | 1959-10-02 03:46:40.000Z
+10040     | null                     |  null                    |  null                    |  null                    |  null                    |  null                    |  null                    |  null
+10041     | null                     |  null                    |  null                    |  null                    |  null                    |  null                    |  null                    |  null
+10042     | null                     |  null                    |  null                    |  null                    |  null                    |  null                    |  null                    |  null
+;
+
+selectAddWithLong
+schema::emp_no:i | birth_date:ts | date_add:date
+SELECT emp_no, birth_date, TIMESTAMP_ADD('months', CAST(CAST({fn TRUNCATE(11.55,0)} AS INTEGER) AS BIGINT), birth_date)::date AS date_add
+FROM test_emp ORDER BY emp_no LIMIT 10;
+
+ emp_no | birth_date               | date_add
+--------+--------------------------+-----------
+10001   | 1953-09-02 00:00:00.000Z | 1954-08-02
+10002   | 1964-06-02 00:00:00.000Z | 1965-05-02
+10003   | 1959-12-03 00:00:00.000Z | 1960-11-03
+10004   | 1954-05-01 00:00:00.000Z | 1955-04-01
+10005   | 1955-01-21 00:00:00.000Z | 1955-12-21
+10006   | 1953-04-20 00:00:00.000Z | 1954-03-20
+10007   | 1957-05-23 00:00:00.000Z | 1958-04-23
+10008   | 1958-02-19 00:00:00.000Z | 1959-01-19
+10009   | 1952-04-19 00:00:00.000Z | 1953-03-19
+10010   | 1963-06-01 00:00:00.000Z | 1964-05-01
+;
+
+selectAddWithComplexExpressions1
+SELECT gender, birth_date, TIMESTAMPADD('months', CASE WHEN gender = 'M' THEN 10 WHEN gender = 'F' THEN -10 ELSE 100 END,
+birth_date + INTERVAL 10 month) AS dt FROM test_emp WHERE dt > '1954-07-01'::date ORDER BY emp_no LIMIT 10;
+
+  gender:s  |   birth_date:ts          |    dt:ts
+------------+--------------------------+-------------------------
+M           | 1953-09-02 00:00:00.000Z | 1955-05-02 00:00:00.000Z
+F           | 1964-06-02 00:00:00.000Z | 1964-06-02 00:00:00.000Z
+M           | 1959-12-03 00:00:00.000Z | 1961-08-03 00:00:00.000Z
+M           | 1954-05-01 00:00:00.000Z | 1956-01-01 00:00:00.000Z
+M           | 1955-01-21 00:00:00.000Z | 1956-09-21 00:00:00.000Z
+F           | 1957-05-23 00:00:00.000Z | 1957-05-23 00:00:00.000Z
+M           | 1958-02-19 00:00:00.000Z | 1959-10-19 00:00:00.000Z
+null        | 1963-06-01 00:00:00.000Z | 1972-08-01 00:00:00.000Z
+null        | 1953-11-07 00:00:00.000Z | 1963-01-07 00:00:00.000Z
+null        | 1960-10-04 00:00:00.000Z | 1969-12-04 00:00:00.000Z
+;
+
+selectAddWithComplexExpressions2
+schema::languages:byte|first_name:s|gender:s|hire_date:ts|date_add:date
+SELECT languages, first_name, gender, hire_date,
+CAST(DATE_ADD(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN NULL ELSE 'quarter' END,
+    5, hire_date + INTERVAL 10 month) AS DATE) AS date_add
+FROM test_emp WHERE languages >= 3 AND first_name LIKE '%y%' ORDER BY date_add ASC, languages DESC;
+
+   languages   |  first_name   |    gender     |      hire_date          |   date_add
+---------------+---------------+---------------+-------------------------+---------------
+5              | Hironoby      | F             | 1988-07-21 00:00:00.00Z | null
+4              | Weiyi         | F             | 1993-02-14 00:00:00.00Z | null
+3              | Magy          | F             | 1993-03-21 00:00:00.00Z | null
+4              | Jayson        | M             | 1990-01-14 00:00:00.00Z | 1991-04-14
+5              | Mary          | null          | 1990-01-22 00:00:00.00Z | 1992-02-22
+5              | Georgy        | M             | 1992-04-27 00:00:00.00Z | 1993-07-27
+4              | Mayumi        | M             | 1995-03-13 00:00:00.00Z | 1996-06-13
+;
+
+selectAddWithComplexExpressions3
+schema::first_name:s|gender:s|hire_date:ts|date_add1:ts|date_add2:i
+SELECT first_name, gender, hire_date, DATE_ADD(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN 'year' ELSE 'quarter' END,
+5, hire_date + INTERVAL 10 month) AS date_add1,
+YEAR(DATE_ADD(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN 'year' ELSE 'quarter' END,
+5, hire_date + INTERVAL 10 month)) AS date_add2
+FROM test_emp WHERE YEAR(date_add1) > 1990 AND first_name LIKE '%y%' ORDER BY date_add1 DESC LIMIT 15;
+
+  first_name   |    gender     |      hire_date          |      date_add1          |   date_add2
+---------------+---------------+-------------------------+-------------------------+------------
+Magy           | F             | 1993-03-21 00:00:00.00Z | 1999-01-21 00:00:00.00Z | 1999
+Weiyi          | F             | 1993-02-14 00:00:00.00Z | 1998-12-14 00:00:00.00Z | 1998
+Mayumi         | M             | 1995-03-13 00:00:00.00Z | 1996-06-13 00:00:00.00Z | 1996
+Saniya         | M             | 1994-09-15 00:00:00.00Z | 1995-12-15 00:00:00.00Z | 1995
+Hironoby       | F             | 1988-07-21 00:00:00.00Z | 1994-05-21 00:00:00.00Z | 1994
+Georgy         | M             | 1992-04-27 00:00:00.00Z | 1993-07-27 00:00:00.00Z | 1993
+Mayuko         | M             | 1991-01-26 00:00:00.00Z | 1992-04-26 00:00:00.00Z | 1992
+Mary           | null          | 1990-01-22 00:00:00.00Z | 1992-02-22 00:00:00.00Z | 1992
+Yishay         | M             | 1990-10-20 00:00:00.00Z | 1992-01-20 00:00:00.00Z | 1992
+Jayson         | M             | 1990-01-14 00:00:00.00Z | 1991-04-14 00:00:00.00Z | 1991
+;
+
+dateAddOrderBy
+schema::emp_no:i|hire_date:ts|dt:ts
+SELECT emp_no, hire_date, DATE_ADD('hours', -4000, hire_date) as dt FROM test_emp ORDER BY dt NULLS LAST, emp_no LIMIT 5;
+
+ emp_no |      hire_date           |         dt
+--------+--------------------------+-------------------------
+10009   | 1985-02-18 00:00:00.000Z | 1984-09-04 08:00:00.000Z
+10048   | 1985-02-24 00:00:00.000Z | 1984-09-10 08:00:00.000Z
+10098   | 1985-05-13 00:00:00.000Z | 1984-11-27 08:00:00.000Z
+10076   | 1985-07-09 00:00:00.000Z | 1985-01-23 08:00:00.000Z
+10061   | 1985-09-17 00:00:00.000Z | 1985-04-03 08:00:00.000Z
+;
+
+dateAddFilter
+schema::emp_no:i|hire_date:ts|dt:ts
+SELECT emp_no, hire_date, DATE_ADD('quarter', 42, hire_date) as dt FROM test_emp WHERE DATE_ADD('quarter', 42, hire_date) > '2000-01-01'::date ORDER BY emp_no LIMIT 5;
+
+ emp_no |      hire_date           |         dt
+--------+--------------------------+-------------------------
+10005   | 1989-09-12 00:00:00.000Z | 2000-03-12 00:00:00.000Z
+10008   | 1994-09-15 00:00:00.000Z | 2005-03-15 00:00:00.000Z
+10010   | 1989-08-24 00:00:00.000Z | 2000-02-24 00:00:00.000Z
+10011   | 1990-01-22 00:00:00.000Z | 2000-07-22 00:00:00.000Z
+10012   | 1992-12-18 00:00:00.000Z | 2003-06-18 00:00:00.000Z
+;
+
+dateAddGroupBy
+schema::count:l|dt:ts
+SELECT count(*) as count, DATE_ADD('weeks', -120, hire_date) dt FROM test_emp GROUP BY dt ORDER BY 2 LIMIT 5;
+
+ count  |         dt
+--------+-------------------------
+1       | 1982-11-01 00:00:00.000Z
+1       | 1982-11-07 00:00:00.000Z
+1       | 1983-01-24 00:00:00.000Z
+1       | 1983-03-22 00:00:00.000Z
+1       | 1983-05-31 00:00:00.000Z
+;
+
+dateAddHaving
+schema::gender:s|dt:ts
+SELECT gender, DATE_ADD('months', 60, max(hire_date)) AS dt FROM test_emp GROUP BY gender HAVING DATE_ADD('months', 60, max(hire_date)) >= '2002-01-01T00:00:00.000Z'::timestamp ORDER BY 1;
+
+ gender |         dt
+--------+-------------------------
+null    | 2004-04-30 00:00:00.000Z
+F       | 2002-05-19 00:00:00.000Z
+;
+
+selectDiffWithDateTime
+schema::diff_year:i|diff_quarter:i|diff_month:i|diff_week:i|diff_day:i|diff_hours:i|diff_min:i|diff_sec:i|diff_millis:i|diff_mcsec:i|diff_nsec:i
+SELECT DATE_DIFF('year', '2019-09-04T11:22:33.123Z'::datetime, '2076-01-12T22:11:55.123Z'::datetime) as diff_year, DATE_DIFF('quarter', '2048-02-14T22:11:55.123Z'::datetime, '2019-09-04T11:22:33.123Z'::datetime) as diff_quarter,
+DATE_DIFF('month', '2019-09-04T11:22:33.123Z'::datetime, '2053-07-02T01:31:13.987Z'::datetime) as diff_month, DATE_DIFF('week', '2019-09-04T11:22:33.123Z'::datetime, '2001-07-14T21:41:43.321Z'::datetime) as diff_week,
+DATE_DIFF('day', '2019-09-04T11:22:33.123Z'::datetime, '2027-05-30T12:44:22.425Z'::datetime) as diff_day,
+DATE_DIFF('hours', '2019-09-04T14:10:12.432Z'::datetime, '2005-08-14T01:12:32.432Z'::datetime) as diff_hours, DATE_DIFF('minutes', '2019-03-05T11:33:22.456Z'::datetime, '2026-04-30T05:29:52.652Z'::datetime) as diff_min,
+DATE_DIFF('second', '2020-01-01T11:22:33.532Z'::datetime, '2019-09-04T15:47:56.987Z'::datetime) as diff_sec, DATE_DIFF('milliseconds', '2019-09-10T11:22:33.123Z'::datetime, '2019-09-12T20:33:22.987Z'::datetime) as diff_millis,
+DATE_DIFF('mcs', '2019-09-04T11:25:21.123456Z'::datetime, '2019-09-04T11:22:33.987654Z'::datetime) as diff_mcsec, DATE_DIFF('nanosecond', '2019-09-04T11:22:43.987654321Z'::datetime, '2019-09-04T11:22:44.123456789Z'::datetime) as diff_nsec;
+
+ diff_year | diff_quarter | diff_month | diff_week | diff_day | diff_hours | diff_min | diff_sec  | diff_millis | diff_mcsec | diff_nsec
+-----------+--------------+------------+-----------+----------+------------+----------+-----------+-------------+------------+----------
+57         | -114         | 406        | -947      | 2825     | -123228    | 3762356  | -10265677 | 205849864   | -167135802 | 135802468
+;
+
+selectDiffWithDate
+schema::diff_year:i|diff_quarter:i|diff_month:i|diff_week:i|diff_day:i|diff_hours:i|diff_min:i|diff_sec:i|diff_millis:i|diff_mcsec:i|diff_nsec:i
+SELECT DATEDIFF('year', '2010-12-10'::date, '2019-09-04'::date) as diff_year, DATEDIFF('quarter', '2042-06-12'::date,'2019-09-04'::date) as diff_quarter,
+DATEDIFF('month', '2019-09-04'::date, '2042-02-24'::date) as diff_month, DATEDIFF('week', '2031-05-17'::date, '2019-09-04'::date) as diff_week, DATEDIFF('day', '2019-09-04'::date, '2051-08-30'::date) as diff_day,
+DATEDIFF('hours', '2027-01-02'::date, '2019-09-04'::date) as diff_hours, DATEDIFF('minutes', '2019-09-04'::date, '2022-11-11'::date) as diff_min, DATEDIFF('second', '2020-02-14'::date, '2019-09-04'::date) as diff_sec,
+DATEDIFF('milliseconds', '2019-09-04'::date, '2019-09-06'::date) as diff_millis, DATEDIFF('mcs', '2019-09-04'::date, '2019-09-04'::date) as diff_mcsec, DATEDIFF('nanosecond', '2019-09-04'::date, '2019-09-04'::date) as diff_nsec;
+
+ diff_year | diff_quarter | diff_month | diff_week | diff_day | diff_hours | diff_min | diff_sec  | diff_millis | diff_mcsec | diff_nsec
+-----------+--------------+------------+-----------+----------+------------+----------+-----------+-------------+------------+----------
+9          | -91          | 269        | -610      | 11683    | -64248     | 1676160  | -14083200 | 172800000   | 0          | 0
+;
+
+selectDateDiffWithField
+schema::emp_no:i|birth_date:ts|hire_date:ts|diff_year:i|diff_quarter:i|diff_month:i|diff_week:i|diff_day:i|diff_min:i|diff_sec:i
+SELECT emp_no, birth_date, hire_date, TIMESTAMP_DIFF('year', birth_date, hire_date) as diff_year, TIMESTAMP_DIFF('quarter', hire_date, birth_date) as diff_quarter,
+TIMESTAMP_DIFF('month', birth_date, hire_date) as diff_month, TIMESTAMP_DIFF('week', hire_date, birth_date) as diff_week, TIMESTAMP_DIFF('day', birth_date, hire_date) as diff_day,
+TIMESTAMP_DIFF('minutes', hire_date, birth_date) as diff_min, TIMESTAMP_DIFF('second', birth_date, hire_date) as diff_sec
+FROM test_emp WHERE emp_no >= 10032 AND emp_no <= 10042 ORDER BY 1;
+
+ emp_no  |      birth_date          |       hire_date          |  diff_year | diff_quarter | diff_month | diff_week | diff_day | diff_min  | diff_sec
+---------+--------------------------+--------------------------+------------+--------------+------------+-----------+----------+-----------+----------
+10032    | 1960-08-09 00:00:00.000Z | 1990-06-20 00:00:00.000Z | 30         | -119         | 358        | -1558     | 10907    | -15706080 | 942364800
+10033    | 1956-11-14 00:00:00.000Z | 1987-03-18 00:00:00.000Z | 31         | -121         | 364        | -1583     | 11081    | -15956640 | 957398400
+10034    | 1962-12-29 00:00:00.000Z | 1988-09-21 00:00:00.000Z | 26         | -103         | 309        | -1343     | 9398     | -13533120 | 811987200
+10035    | 1953-02-08 00:00:00.000Z | 1988-09-05 00:00:00.000Z | 35         | -142         | 427        | -1856     | 12993    | -18709920 | 1122595200
+10036    | 1959-08-10 00:00:00.000Z | 1992-01-03 00:00:00.000Z | 33         | -130         | 389        | -1690     | 11834    | -17040960 | 1022457600
+10037    | 1963-07-22 00:00:00.000Z | 1990-12-05 00:00:00.000Z | 27         | -109         | 329        | -1428     | 9998     | -14397120 | 863827200
+10038    | 1960-07-20 00:00:00.000Z | 1989-09-20 00:00:00.000Z | 29         | -116         | 350        | -1522     | 10654    | -15341760 | 920505600
+10039    | 1959-10-01 00:00:00.000Z | 1988-01-19 00:00:00.000Z | 29         | -113         | 339        | -1477     | 10337    | -14885280 | 893116800
+10040    | null                     | 1993-02-14 00:00:00.000Z | null       | null         | null       | null      | null     | null      | null
+10041    | null                     | 1989-11-12 00:00:00.000Z | null       | null         | null       | null      | null     | null      | null
+10042    | null                     | 1993-03-21 00:00:00.000Z | null       | null         | null       | null      | null     | null      | null
+;
+
+selectDiffWithComplexExpressions1
+schema::gender:s|birth_date:ts|hire_date:ts|diff:i
+SELECT gender, birth_date, hire_date, TIMESTAMPDIFF('months', birth_date + CASE WHEN gender = 'M' THEN INTERVAL 10 years
+WHEN gender = 'F' THEN INTERVAL -10 years ELSE INTERVAL 12 years END, hire_date + INTERVAL 10 month) AS diff
+FROM test_emp WHERE (diff BETWEEN 150 AND 250) OR diff > 500 ORDER BY emp_no LIMIT 10;
+
+  gender  |      birth_date          |       hire_date          | diff
+----------+--------------------------+--------------------------+-----
+M         | 1959-12-03 00:00:00.000Z | 1986-08-28 00:00:00.000Z | 210
+F         | 1953-04-20 00:00:00.000Z | 1989-06-02 00:00:00.000Z | 564
+F         | 1957-05-23 00:00:00.000Z | 1989-02-10 00:00:00.000Z | 511
+F         | 1952-04-19 00:00:00.000Z | 1985-02-18 00:00:00.000Z | 524
+null      | 1963-06-01 00:00:00.000Z | 1989-08-24 00:00:00.000Z | 180
+null      | 1956-02-12 00:00:00.000Z | 1987-03-11 00:00:00.000Z | 239
+null      | 1959-08-19 00:00:00.000Z | 1987-07-02 00:00:00.000Z | 201
+M         | 1960-02-20 00:00:00.000Z | 1988-02-10 00:00:00.000Z | 226
+F         | 1953-09-29 00:00:00.000Z | 1989-12-17 00:00:00.000Z | 565
+F         | 1958-09-05 00:00:00.000Z | 1997-05-19 00:00:00.000Z | 594
+;
+
+selectDiffWithComplexExpressions2
+schema::languages:byte|first_name:s|gender:s|birth_date:ts|hire_date:ts|diff:l
+SELECT languages, first_name, gender, birth_date, hire_date,
+CAST(DATE_DIFF(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN NULL ELSE 'quarter' END,
+    hire_date + INTERVAL 20 month, birth_date - interval 50 month) AS long) AS diff
+FROM test_emp WHERE languages >= 3 AND first_name LIKE '%y%' ORDER BY diff ASC, languages DESC;
+
+   languages  |   first_name  |  gender  |      birth_date          |       hire_date          |  diff
+--------------+---------------+----------+--------------------------+--------------------------+------
+4             | Mayumi        | M        | 1957-04-04 00:00:00.000Z | 1995-03-13 00:00:00.000Z | -525
+5             | Georgy        | M        | 1956-06-06 00:00:00.000Z | 1992-04-27 00:00:00.000Z | -500
+4             | Jayson        | M        | 1954-09-16 00:00:00.000Z | 1990-01-14 00:00:00.000Z | -494
+5             | Mary          | null     | 1953-11-07 00:00:00.000Z | 1990-01-22 00:00:00.000Z | -168
+5             | Hironoby      | F        | 1952-05-15 00:00:00.000Z | 1988-07-21 00:00:00.000Z | null
+4             | Weiyi         | F        | null                     | 1993-02-14 00:00:00.000Z | null
+3             | Magy          | F        | null                     | 1993-03-21 00:00:00.000Z | null
+;
+
+selectDiffWithComplexExpressions3
+schema::first_name:s|gender:s|birth_date:ts|hire_date:ts|date_diff1:i|date_diff2:i
+SELECT first_name, gender, birth_date, hire_date, DATE_DIFF(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN 'year' ELSE 'quarter' END,
+birth_date, hire_date + INTERVAL 10 month) AS date_diff1,
+DATE_DIFF(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN 'year' ELSE 'quarter' END,
+hire_date + INTERVAL 10 month, birth_date - INTERVAL 20 month) AS date_diff2
+FROM test_emp WHERE (date_diff2 IS NULL OR date_diff2 < -455) AND first_name LIKE '%y%' ORDER BY date_diff1 DESC;
+
+  first_name   |     gender |      birth_date          |       hire_date          |   date_diff1  |   date_diff2
+---------------+------------+--------------------------+--------------------------+---------------+-------------
+Mayuko         | M          | 1952-12-24 00:00:00.000Z | 1991-01-26 00:00:00.000Z | 467           | -487
+Mayumi         | M          | 1957-04-04 00:00:00.000Z | 1995-03-13 00:00:00.000Z | 465           | -485
+Saniya         | M          | 1958-02-19 00:00:00.000Z | 1994-09-15 00:00:00.000Z | 449           | -469
+Georgy         | M          | 1956-06-06 00:00:00.000Z | 1992-04-27 00:00:00.000Z | 440           | -460
+Weiyi          | F          | null                     | 1993-02-14 00:00:00.000Z | null          | null
+Magy           | F          | null                     | 1993-03-21 00:00:00.000Z | null          | null
+Yishay         | M          | null                     | 1990-10-20 00:00:00.000Z | null          | null
+;
+
+selectDiffWithComplexExpressions4
+schema::first_name:s|gender:s|birth_date:ts|hire_date:ts|date_diff1:i|date_diff2:i|arithmetics:i
+SELECT first_name, gender, birth_date, hire_date, DATE_DIFF('months', birth_date - INTERVAL 40 months, hire_date + INTERVAL 40 months) AS date_diff1,
+DATE_DIFF('quarter', hire_date + INTERVAL 20 month, birth_date - INTERVAL 20 month) AS date_diff2,
+(DATE_DIFF('months', birth_date - INTERVAL 40 months, hire_date + INTERVAL 40 months) * DATE_DIFF('quarter', hire_date + INTERVAL 20 month, birth_date - INTERVAL 20 month))
+- DATE_DIFF('months', birth_date - INTERVAL 40 months, hire_date + INTERVAL 40 months) + DATE_DIFF('quarter', hire_date + INTERVAL 20 month, birth_date - INTERVAL 20 month) AS arithmetics
+FROM test_emp WHERE ((date_diff1 * date_diff2) - date_diff1 + date_diff2) < -81000 AND first_name LIKE '%y%' ORDER BY date_diff1 DESC;
+
+  first_name | gender | birth_date               | hire_date                | date_diff1 | date_diff2 | arithmetics
+-------------+--------+--------------------------+--------------------------+------------+------------+------------
+Mayuko       | M      | 1952-12-24 00:00:00.000Z | 1991-01-26 00:00:00.000Z | 537        | -165       | -89307
+Mayumi       | M      | 1957-04-04 00:00:00.000Z | 1995-03-13 00:00:00.000Z | 535        | -165       | -88975
+Saniya       | M      | 1958-02-19 00:00:00.000Z | 1994-09-15 00:00:00.000Z | 519        | -160       | -83719
+Mary         | null   | 1953-11-07 00:00:00.000Z | 1990-01-22 00:00:00.000Z | 514        | -158       | -81884
+Hironoby     | F      | 1952-05-15 00:00:00.000Z | 1988-07-21 00:00:00.000Z | 514        | -158       | -81884
+;
+
+dateDiffOrderBy
+schema::emp_no:i | birth_date:ts | hire_date:ts | diff:i
+SELECT emp_no, birth_date, hire_date, DATE_DIFF('hours', hire_date, birth_date) as diff FROM test_emp ORDER BY diff NULLS LAST, emp_no LIMIT 5;
+
+ emp_no   |      birth_date          |       hire_date          |  diff
+----------+--------------------------+--------------------------+--------
+10019     | 1953-01-23 00:00:00.000Z | 1999-04-30 00:00:00.000Z | -405552
+10022     | 1952-07-08 00:00:00.000Z | 1995-08-22 00:00:00.000Z | -378000
+10026     | 1953-04-03 00:00:00.000Z | 1995-03-20 00:00:00.000Z | -367824
+10051     | 1953-07-28 00:00:00.000Z | 1992-10-15 00:00:00.000Z | -343776
+10024     | 1958-09-05 00:00:00.000Z | 1997-05-19 00:00:00.000Z | -339264
+;
+
+dateDiffFilter
+schema::emp_no:i|birth_date:ts|hire_date:ts|diff:i
+SELECT emp_no, birth_date, hire_date, DATE_DIFF('quarter', birth_date, hire_date) as diff FROM test_emp WHERE diff > 100 ORDER BY emp_no LIMIT 5;
+
+ emp_no   |      birth_date          |       hire_date          |  diff
+---------+---------------------------+--------------------------+------
+10001     | 1953-09-02 00:00:00.000Z | 1986-06-26 00:00:00.000Z | 131
+10003     | 1959-12-03 00:00:00.000Z | 1986-08-28 00:00:00.000Z | 107
+10004     | 1954-05-01 00:00:00.000Z | 1986-12-01 00:00:00.000Z | 130
+10005     | 1955-01-21 00:00:00.000Z | 1989-09-12 00:00:00.000Z | 138
+10006     | 1953-04-20 00:00:00.000Z | 1989-06-02 00:00:00.000Z | 144
+;
+
+dateDiffGroupBy
+schema::count:l|diff:i
+SELECT count(*) as count, DATE_DIFF('weeks', birth_date, hire_date) diff FROM test_emp GROUP BY diff ORDER BY 2 LIMIT 5;
+
+  count  |  diff
+---------+------
+10       | null
+1        | 1120
+1        | 1123
+1        | 1168
+1        | 1196
+;
+
+dateDiffHaving
+schema::gender:s|diff:i
+SELECT gender, DATE_DIFF('months', max(birth_date), max(hire_date)) AS diff FROM test_emp GROUP BY gender HAVING DATE_DIFF('months', max(birth_date), max(hire_date)) > 390 ORDER BY 1;
+
+  gender   |  diff
+-----------+------
+null       | 430
+F          | 391
+;
+
+selectDateTimeFormat
+schema::df_date:s|df_datetime:s|df_time:s
+SELECT DATETIME_FORMAT('2020-04-05T11:22:33.123Z'::date, 'dd/MM/YYYY HH:mm:ss.SSS') AS df_date,
+DATETIME_FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.SS') AS df_datetime,
+DATETIME_FORMAT('11:22:33.123456789Z'::time, 'HH:mm:ss.SS') AS df_time;
+
+       df_date          |    df_datetime         |   df_time
+------------------------+------------------------+----------------
+05/04/2020 00:00:00.000 | 05/04/2020 11:22:33.12 | 11:22:33.12
+;
+
+selectDateTimeFormatWithField
+schema::birth_date:ts|df_birth_date1:s|df_birth_date2:s
+SELECT birth_date, DATETIME_FORMAT(birth_date, 'MM/dd/YYYY') AS df_birth_date1, DATETIME_FORMAT(birth_date, concat(gender, 'M/dd')) AS df_birth_date2
+FROM test_emp WHERE gender = 'M' AND emp_no BETWEEN 10037 AND 10052 ORDER BY emp_no;
+
+       birth_date        | df_birth_date1 | df_birth_date2
+-------------------------+----------------+----------------
+1963-07-22 00:00:00.000Z | 07/22/1963     | 07/22
+1960-07-20 00:00:00.000Z | 07/20/1960     | 07/20
+1959-10-01 00:00:00.000Z | 10/01/1959     | 10/01
+null                     | null           | null
+null                     | null           | null
+null                     | null           | null
+null                     | null           | null
+null                     | null           | null
+1958-05-21 00:00:00.000Z | 05/21/1958     | 05/21
+1953-07-28 00:00:00.000Z | 07/28/1953     | 07/28
+1961-02-26 00:00:00.000Z | 02/26/1961     | 02/26
+;
+
+dateTimeFormatWhere
+schema::birth_date:ts|df_birth_date:s
+SELECT birth_date, DATETIME_FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp
+WHERE DATETIME_FORMAT(birth_date, 'MM')::integer > 10 ORDER BY emp_no LIMIT 10;
+
+       birth_date        | df_birth_date
+-------------------------+---------------
+1959-12-03 00:00:00.000Z | 12
+1953-11-07 00:00:00.000Z | 11
+1952-12-24 00:00:00.000Z | 12
+1963-11-26 00:00:00.000Z | 11
+1956-12-13 00:00:00.000Z | 12
+1956-11-14 00:00:00.000Z | 11
+1962-12-29 00:00:00.000Z | 12
+1961-11-02 00:00:00.000Z | 11
+1952-11-13 00:00:00.000Z | 11
+1962-11-26 00:00:00.000Z | 11
+;
+
+dateTimeFormatOrderBy
+schema::birth_date:ts|df_birth_date:s
+SELECT birth_date, DATETIME_FORMAT(birth_date, 'MM/dd/YYYY') AS df_birth_date FROM test_emp ORDER BY 2 DESC NULLS LAST LIMIT 10;
+
+       birth_date        | df_birth_date
+-------------------------+---------------
+1962-12-29 00:00:00.000Z | 12/29/1962
+1959-12-25 00:00:00.000Z | 12/25/1959
+1952-12-24 00:00:00.000Z | 12/24/1952
+1960-12-17 00:00:00.000Z | 12/17/1960
+1956-12-13 00:00:00.000Z | 12/13/1956
+1959-12-03 00:00:00.000Z | 12/03/1959
+1957-12-03 00:00:00.000Z | 12/03/1957
+1963-11-26 00:00:00.000Z | 11/26/1963
+1962-11-26 00:00:00.000Z | 11/26/1962
+1962-11-19 00:00:00.000Z | 11/19/1962
+;
+
+dateTimeFormatGroupBy
+schema::count:l|df_birth_date:s
+SELECT count(*) AS count, DATETIME_FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date ORDER BY 1 DESC, 2 DESC;
+
+ count | df_birth_date
+-------+---------------
+10     | 09
+10     | 05
+10     | null
+9      | 10
+9      | 07
+8      | 11
+8      | 04
+8      | 02
+7      | 12
+7      | 06
+6      | 08
+6      | 01
+2      | 03
+;
+
+dateTimeFormatHaving
+schema::max:ts|df_birth_date:s
+SELECT MAX(birth_date) AS max, DATETIME_FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date
+HAVING DATETIME_FORMAT(MAX(birth_date), 'dd')::integer > 20  ORDER BY 1 DESC;
+
+          max            | df_birth_date
+-------------------------+---------------
+1963-11-26 00:00:00.000Z | 11
+1963-07-22 00:00:00.000Z | 07
+1963-03-21 00:00:00.000Z | 03
+1962-12-29 00:00:00.000Z | 12
+1961-05-30 00:00:00.000Z | 05
+1961-02-26 00:00:00.000Z | 02
+;
+
+selectToChar
+schema::df_date:s|df_datetime:s|df_time:s
+SELECT TO_CHAR('2020-04-05T11:22:33.123Z'::date, 'DD/MM/YYYY HH24:MI:SS.FF3') AS df_date,
+TO_CHAR('2020-04-05T11:22:33.123Z'::datetime, 'DD/MM/YYYY HH24:MI:SS.FF2') AS df_datetime,
+TO_CHAR('11:22:33.123456789Z'::time, 'HH24:MI:SS.FF2') AS df_time;
+
+       df_date          |    df_datetime         |   df_time
+------------------------+------------------------+----------------
+05/04/2020 00:00:00.000 | 05/04/2020 11:22:33.12 | 11:22:33.12
+;
+
+selectToCharWithField
+schema::birth_date:ts|gender:s|df_birth_date1:s|df_birth_date2:s|emp_no:i
+SELECT birth_date, gender, TO_CHAR(birth_date, 'MM/DD/YYYY') AS df_birth_date1, 
+TO_CHAR(birth_date, CONCAT(gender, 'MDD')) AS df_birth_date2, emp_no FROM test_emp WHERE emp_no BETWEEN 10047 AND 10057 ORDER BY emp_no;
+
+       birth_date       |    gender     |df_birth_date1 |df_birth_date2 |    emp_no     
+------------------------+---------------+---------------+---------------+---------------
+null                    |M              |null           |null           |10047          
+null                    |M              |null           |null           |10048          
+null                    |F              |null           |null           |10049          
+1958-05-21T00:00:00.000Z|M              |05/21/1958     |0521           |10050          
+1953-07-28T00:00:00.000Z|M              |07/28/1953     |0728           |10051          
+1961-02-26T00:00:00.000Z|M              |02/26/1961     |0226           |10052          
+1954-09-13T00:00:00.000Z|F              |09/13/1954     |13             |10053          
+1957-04-04T00:00:00.000Z|M              |04/04/1957     |0404           |10054          
+1956-06-06T00:00:00.000Z|M              |06/06/1956     |0606           |10055          
+1961-09-01T00:00:00.000Z|F              |09/01/1961     |1              |10056          
+1954-05-30T00:00:00.000Z|F              |05/30/1954     |30             |10057          
+;
+
+toCharWhere
+schema::birth_date:ts|df_birth_date:s|emp_no:i
+SELECT birth_date, TO_CHAR(birth_date, 'MM') AS df_birth_date, emp_no FROM test_emp
+WHERE TO_CHAR(birth_date, 'MM')::integer > 10 ORDER BY emp_no LIMIT 10;
+
+       birth_date       | df_birth_date |    emp_no     
+------------------------+---------------+---------------
+1959-12-03T00:00:00.000Z|12             |10003          
+1953-11-07T00:00:00.000Z|11             |10011          
+1952-12-24T00:00:00.000Z|12             |10020          
+1963-11-26T00:00:00.000Z|11             |10028          
+1956-12-13T00:00:00.000Z|12             |10029          
+1956-11-14T00:00:00.000Z|11             |10033          
+1962-12-29T00:00:00.000Z|12             |10034          
+1961-11-02T00:00:00.000Z|11             |10062          
+1952-11-13T00:00:00.000Z|11             |10066          
+1962-11-26T00:00:00.000Z|11             |10068          
+;
+
+toCharOrderBy
+schema::birth_date:ts|df_birth_date:s
+SELECT birth_date, TO_CHAR(birth_date, 'MM/DD/YYYY') AS df_birth_date FROM test_emp ORDER BY 2 DESC NULLS LAST LIMIT 10;
+
+       birth_date        | df_birth_date
+-------------------------+---------------
+1962-12-29 00:00:00.000Z | 12/29/1962
+1959-12-25 00:00:00.000Z | 12/25/1959
+1952-12-24 00:00:00.000Z | 12/24/1952
+1960-12-17 00:00:00.000Z | 12/17/1960
+1956-12-13 00:00:00.000Z | 12/13/1956
+1959-12-03 00:00:00.000Z | 12/03/1959
+1957-12-03 00:00:00.000Z | 12/03/1957
+1963-11-26 00:00:00.000Z | 11/26/1963
+1962-11-26 00:00:00.000Z | 11/26/1962
+1962-11-19 00:00:00.000Z | 11/19/1962
+;
+
+toCharGroupBy
+schema::count:l|df_birth_date:s
+SELECT count(*) AS count, TO_CHAR(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date ORDER BY 1 DESC, 2 DESC;
+
+ count | df_birth_date
+-------+---------------
+10     | 09
+10     | 05
+10     | null
+9      | 10
+9      | 07
+8      | 11
+8      | 04
+8      | 02
+7      | 12
+7      | 06
+6      | 08
+6      | 01
+2      | 03
+;
+
+toCharHaving
+schema::max:ts|df_birth_date:s
+SELECT MAX(birth_date) AS max, TO_CHAR(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date
+HAVING TO_CHAR(MAX(birth_date), 'DD')::integer > 20  ORDER BY 1 DESC;
+
+          max            | df_birth_date
+-------------------------+---------------
+1963-11-26 00:00:00.000Z | 11
+1963-07-22 00:00:00.000Z | 07
+1963-03-21 00:00:00.000Z | 03
+1962-12-29 00:00:00.000Z | 12
+1961-05-30 00:00:00.000Z | 05
+1961-02-26 00:00:00.000Z | 02
+;
+
+selectDateTimeParse
+schema::dp_date1:ts|dp_date2:ts
+SELECT DATETIME_PARSE('07/04/2020___11:22:33 Europe/Berlin', 'dd/MM/uuuu___HH:mm:ss VV') AS dp_date1,
+DATETIME_PARSE('11:22:33 2020__04__07 -05:33', 'HH:mm:ss uuuu__MM__dd zz') AS dp_date2;
+
+       dp_date1             |    dp_date2
+----------------------------+----------------------------
+2020-04-07T09:22:33:00.000Z | 2020-04-07T16:55:33:00.000Z
+;
+
+selectDateTimeParseWithField
+schema::birth_date:ts|dp_birth_date:ts
+SELECT birth_date, DATETIME_PARSE(DATETIME_FORMAT(birth_date, 'MM/dd/ HH uuuu mm SSS ss'), concat(gender, 'M/dd/ HH uuuu mm SSS ss')) AS dp_birth_date
+FROM test_emp WHERE gender = 'M' AND emp_no BETWEEN 10037 AND 10052 ORDER BY emp_no;
+
+       birth_date        | dp_birth_date
+-------------------------+-------------------------
+1963-07-22 00:00:00.000Z | 1963-07-22 00:00:00.000Z
+1960-07-20 00:00:00.000Z | 1960-07-20 00:00:00.000Z
+1959-10-01 00:00:00.000Z | 1959-10-01 00:00:00.000Z
+null                     | null
+null                     | null
+null                     | null
+null                     | null
+null                     | null
+1958-05-21 00:00:00.000Z | 1958-05-21 00:00:00.000Z
+1953-07-28 00:00:00.000Z | 1953-07-28 00:00:00.000Z
+1961-02-26 00:00:00.000Z | 1961-02-26 00:00:00.000Z
+;
+
+dateTimeParseWhere
+schema::birth_date:ts|dp_birth_date:ts
+SELECT birth_date, DATETIME_PARSE(DATETIME_FORMAT(birth_date, 'MM_dd_uuuu HH.mm.ss:SSS'), 'MM_dd_uuuu HH.mm.ss:SSS') AS dp_birth_date
+FROM test_emp WHERE dp_birth_date > '1963-10-20'::date ORDER BY emp_no;
+
+       birth_date        |     dp_birth_date
+-------------------------+------------------------
+1964-06-02 00:00:00.000Z | 1964-06-02 00:00:00.000Z
+1963-11-26 00:00:00.000Z | 1963-11-26 00:00:00.000Z
+1964-04-18 00:00:00.000Z | 1964-04-18 00:00:00.000Z
+1964-10-18 00:00:00.000Z | 1964-10-18 00:00:00.000Z
+1964-06-11 00:00:00.000Z | 1964-06-11 00:00:00.000Z
+1965-01-03 00:00:00.000Z | 1965-01-03 00:00:00.000Z
+;
+
+dateTimeParseOrderBy
+schema::birth_date:ts|dp_birth_date:ts
+SELECT birth_date, DATETIME_PARSE(DATETIME_FORMAT(birth_date, 'HH:mm:ss.SSS MM/dd/uuuu'), 'HH:mm:ss.SSS MM/dd/uuuu') AS dp_birth_date
+FROM test_emp ORDER BY 2 DESC NULLS LAST LIMIT 10;
+
+       birth_date        | dp_birth_date
+-------------------------+-------------------------
+1965-01-03 00:00:00.000Z | 1965-01-03 00:00:00.000Z
+1964-10-18 00:00:00.000Z | 1964-10-18 00:00:00.000Z
+1964-06-11 00:00:00.000Z | 1964-06-11 00:00:00.000Z
+1964-06-02 00:00:00.000Z | 1964-06-02 00:00:00.000Z
+1964-04-18 00:00:00.000Z | 1964-04-18 00:00:00.000Z
+1963-11-26 00:00:00.000Z | 1963-11-26 00:00:00.000Z
+1963-09-09 00:00:00.000Z | 1963-09-09 00:00:00.000Z
+1963-07-22 00:00:00.000Z | 1963-07-22 00:00:00.000Z
+1963-06-07 00:00:00.000Z | 1963-06-07 00:00:00.000Z
+1963-06-01 00:00:00.000Z | 1963-06-01 00:00:00.000Z
+;
+
+dateTimeParseGroupBy
+schema::count:l|df_birth_date:s
+SELECT count(*) AS count, DATETIME_FORMAT(DATETIME_PARSE(DATETIME_FORMAT(birth_date, 'dd/MM/uuuu HH:mm:ss'), 'dd/MM/uuuu HH:mm:ss'), 'MM') AS df_birth_date
+FROM test_emp GROUP BY df_birth_date ORDER BY 1 DESC, 2 DESC NULLS LAST LIMIT 10;
+
+ count | df_birth_date
+-------+---------------
+10     | 09
+10     | 05
+10     | null
+9      | 10
+9      | 07
+8      | 11
+8      | 04
+8      | 02
+7      | 12
+7      | 06
+;
+
+dateTimeParseHaving
+schema::max:ts|df_birth_date:s
+SELECT MAX(birth_date) AS max, DATETIME_FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date
+HAVING DATETIME_PARSE(DATETIME_FORMAT(MAX(birth_date), 'dd/MM/uuuu HH:mm:ss'), 'dd/MM/uuuu HH:mm:ss') > '1961-10-20'::date  ORDER BY 1 DESC NULLS LAST;
+
+          max            | df_birth_date
+-------------------------+---------------
+1965-01-03 00:00:00.000Z | 01
+1964-10-18 00:00:00.000Z | 10
+1964-06-11 00:00:00.000Z | 06
+1964-04-18 00:00:00.000Z | 04
+1963-11-26 00:00:00.000Z | 11
+1963-09-09 00:00:00.000Z | 09
+1963-07-22 00:00:00.000Z | 07
+1963-03-21 00:00:00.000Z | 03
+1962-12-29 00:00:00.000Z | 12
+null                     | null
+;
+
+selectDateTruncWithDateTime
+schema::dt_hour:ts|dt_min:ts|dt_sec:ts|dt_millis:s|dt_micro:s|dt_nano:s
+SELECT DATE_TRUNC('hour', '2019-09-04T11:22:33.123Z'::datetime) as dt_hour, DATE_TRUNC('minute', '2019-09-04T11:22:33.123Z'::datetime) as dt_min,
+DATE_TRUNC('seconds', '2019-09-04T11:22:33.123Z'::datetime) as dt_sec, DATE_TRUNC('ms', '2019-09-04T11:22:33.123Z'::datetime)::string as dt_millis,
+DATE_TRUNC('mcs', '2019-09-04T11:22:33.123Z'::datetime)::string as dt_micro, DATE_TRUNC('nanoseconds', '2019-09-04T11:22:33.123Z'::datetime)::string as dt_nano;
+
+       dt_hour           |       dt_min              |       dt_sec             |       dt_millis          |       dt_micro           |       dt_nano
+-------------------------+---------------------------+--------------------------+--------------------------+--------------------------+-------------------------
+2019-09-04T11:00:00.000Z | 2019-09-04T11:22:00.000Z  | 2019-09-04T11:22:33.000Z | 2019-09-04T11:22:33.123Z | 2019-09-04T11:22:33.123Z | 2019-09-04T11:22:33.123Z
+;
+
+selectDateTruncWithDate
+schema::dt_mil:ts|dt_cent:ts|dt_dec:ts|dt_year:ts|dt_quarter:ts|dt_month:ts|dt_week:ts|dt_day:ts
+SELECT DATE_TRUNC('millennia', '2019-09-04'::date) as dt_mil,  DATE_TRUNC('century', '2019-09-04'::date) as dt_cent,
+DATE_TRUNC('decades', '2019-09-04'::date) as dt_dec,  DATE_TRUNC('year', '2019-09-04'::date) as dt_year,
+DATE_TRUNC('quarter', '2019-09-04'::date) as dt_quarter,  DATE_TRUNC('month', '2019-09-04'::date) as dt_month,
+DATE_TRUNC('week', '2019-09-04'::date) as dt_week,  DATE_TRUNC('day', '2019-09-04'::date) as dt_day;
+
+ dt_mil                  |       dt_cent            |        dt_dec            |        dt_year           |        dt_quarter        |        dt_month          |        dt_week           |        dt_day
+-------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+-------------------------
+2000-01-01T00:00:00.000Z | 2000-01-01T00:00:00.000Z | 2010-01-01T00:00:00.000Z | 2019-01-01T00:00:00.000Z | 2019-07-01T00:00:00.000Z | 2019-09-01T00:00:00.000Z | 2019-09-02T00:00:00.000Z | 2019-09-04T00:00:00.000Z
+;
+
+selectDateTruncWithInterval
+SELECT DATE_TRUNC('hour', INTERVAL '1 12:43:21' DAY TO SECONDS) as dt_hour, DATE_TRUNC('minute', INTERVAL '1 12:43:21' DAY TO SECONDS) as dt_min,
+DATE_TRUNC('seconds', INTERVAL '1 12:43:21' DAY TO SECONDS) as dt_sec, DATE_TRUNC('ms', INTERVAL '1 12:43:21' DAY TO SECONDS)::string as dt_millis,
+DATE_TRUNC('mcs', INTERVAL '1 12:43:21' DAY TO SECONDS)::string as dt_micro, DATE_TRUNC('nanoseconds', INTERVAL '1 12:43:21' DAY TO SECONDS)::string as dt_nano;
+
+    dt_hour    |    dt_min     |    dt_sec     |   dt_millis   |   dt_micro    |    dt_nano
+---------------+---------------+---------------+---------------+---------------+---------------
++1 12:00:00    |+1 12:43:00    |+1 12:43:21    |+1 12:43:21    |+1 12:43:21    |+1 12:43:21
+;
+
+selectDateTruncWithField
+schema::emp_no:i|birth_date:ts|dt_mil:ts|dt_cent:ts|dt_dec:ts|dt_year:ts|dt_quarter:ts|dt_month:ts|dt_week:ts|dt_day:ts
+SELECT emp_no, birth_date, DATE_TRUNC('millennium', birth_date) as dt_mil, DATE_TRUNC('centuries', birth_date) as dt_cent,
+DATE_TRUNC('decades', birth_date) as dt_dec, DATE_TRUNC('year', birth_date) as dt_year, DATE_TRUNC('quarter', birth_date) as dt_quarter,
+DATE_TRUNC('month', birth_date) as dt_month, DATE_TRUNC('week', birth_date) as dt_week, DATE_TRUNC('day', birth_date) as dt_day
+FROM test_emp WHERE emp_no >= 10032 AND emp_no <= 10042 ORDER BY 1;
+
+ emp_no |     birth_date          |       dt_mil             |       dt_cent            |       dt_dec             |       dt_year            |     dt_quarter           |      dt_month            |       dt_week            |       dt_day
+--------+-------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+-------------------------
+10032   |1960-08-09 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1960-01-01 00:00:00.000Z | 1960-01-01 00:00:00.000Z | 1960-07-01 00:00:00.000Z | 1960-08-01 00:00:00.000Z | 1960-08-08 00:00:00.000Z | 1960-08-09 00:00:00.000Z
+10033   |1956-11-14 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1950-01-01 00:00:00.000Z | 1956-01-01 00:00:00.000Z | 1956-10-01 00:00:00.000Z | 1956-11-01 00:00:00.000Z | 1956-11-12 00:00:00.000Z | 1956-11-14 00:00:00.000Z
+10034   |1962-12-29 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1960-01-01 00:00:00.000Z | 1962-01-01 00:00:00.000Z | 1962-10-01 00:00:00.000Z | 1962-12-01 00:00:00.000Z | 1962-12-24 00:00:00.000Z | 1962-12-29 00:00:00.000Z
+10035   |1953-02-08 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1950-01-01 00:00:00.000Z | 1953-01-01 00:00:00.000Z | 1953-01-01 00:00:00.000Z | 1953-02-01 00:00:00.000Z | 1953-02-02 00:00:00.000Z | 1953-02-08 00:00:00.000Z
+10036   |1959-08-10 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1950-01-01 00:00:00.000Z | 1959-01-01 00:00:00.000Z | 1959-07-01 00:00:00.000Z | 1959-08-01 00:00:00.000Z | 1959-08-10 00:00:00.000Z | 1959-08-10 00:00:00.000Z
+10037   |1963-07-22 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1960-01-01 00:00:00.000Z | 1963-01-01 00:00:00.000Z | 1963-07-01 00:00:00.000Z | 1963-07-01 00:00:00.000Z | 1963-07-22 00:00:00.000Z | 1963-07-22 00:00:00.000Z
+10038   |1960-07-20 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1960-01-01 00:00:00.000Z | 1960-01-01 00:00:00.000Z | 1960-07-01 00:00:00.000Z | 1960-07-01 00:00:00.000Z | 1960-07-18 00:00:00.000Z | 1960-07-20 00:00:00.000Z
+10039   |1959-10-01 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1950-01-01 00:00:00.000Z | 1959-01-01 00:00:00.000Z | 1959-10-01 00:00:00.000Z | 1959-10-01 00:00:00.000Z | 1959-09-28 00:00:00.000Z | 1959-10-01 00:00:00.000Z
+10040   | null                    | null                     | null                     | null                     | null                     | null                     | null                     | null                     | null
+10041   | null                    | null                     | null                     | null                     | null                     | null                     | null                     | null                     | null
+10042   | null                    | null                     | null                     | null                     | null                     | null                     | null                     | null                     | null
+;
+
+selectDateTruncWithNullTruncateField
+SELECT DATE_TRUNC(null, birth_date) AS dt FROM test_emp LIMIT 5;
+
+ dt:ts
+------
+null
+null
+null
+null
+null
+;
+
+selectDateTruncWithScalars
+SELECT birth_date, DATE_TRUNC(CAST(CHAR(109) AS VARCHAR), birth_date + INTERVAL 12 YEAR) AS dt FROM test_emp ORDER BY 1 DESC NULLS LAST LIMIT 5;
+
+     birth_date:ts       |         dt:ts
+-------------------------+---------------------
+1965-01-03 00:00:00.000Z | 1977-01-01 00:00:00.000Z
+1964-10-18 00:00:00.000Z | 1976-10-01 00:00:00.000Z
+1964-06-11 00:00:00.000Z | 1976-06-01 00:00:00.000Z
+1964-06-02 00:00:00.000Z | 1976-06-01 00:00:00.000Z
+1964-04-18 00:00:00.000Z | 1976-04-01 00:00:00.000Z
+;
+
+selectDateTruncWithTruncArgFromField
+SELECT DATE_TRUNC(CONCAT(gender, 'illennium'), birth_date) AS dt FROM test_emp WHERE gender='M' ORDER BY 1 DESC LIMIT 2;
+
+     dt:ts
+------------------------
+0999-12-27 00:00:00.000Z
+0999-12-27 00:00:00.000Z
+;
+
+selectDateTruncWithComplexExpressions
+SELECT gender, birth_date, DATE_TRUNC(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN 'decade' ELSE 'quarter' END,
+birth_date + INTERVAL 10 month) AS dt FROM test_emp WHERE dt > '1954-07-01'::date ORDER BY emp_no LIMIT 10;
+
+   gender:s |   birth_date:ts          |   dt:ts
+------------+--------------------------+---------------------
+F           | 1964-06-02 00:00:00.000Z | 1960-01-01 00:00:00.000Z
+M           | 1959-12-03 00:00:00.000Z | 1960-10-01 00:00:00.000Z
+M           | 1954-05-01 00:00:00.000Z | 1955-03-01 00:00:00.000Z
+M           | 1955-01-21 00:00:00.000Z | 1955-11-01 00:00:00.000Z
+M           | 1958-02-19 00:00:00.000Z | 1958-12-01 00:00:00.000Z
+null        | 1963-06-01 00:00:00.000Z | 1964-04-01 00:00:00.000Z
+null        | 1960-10-04 00:00:00.000Z | 1961-07-01 00:00:00.000Z
+null        | 1963-06-07 00:00:00.000Z | 1964-04-01 00:00:00.000Z
+null        | 1956-02-12 00:00:00.000Z | 1956-10-01 00:00:00.000Z
+null        | 1959-08-19 00:00:00.000Z | 1960-04-01 00:00:00.000Z
+;
+
+dateTruncOrderBy
+schema::emp_no:i|hire_date:ts|dt:ts
+SELECT emp_no, hire_date, DATE_TRUNC('quarter', hire_date) as dt FROM test_emp ORDER BY dt NULLS LAST, emp_no LIMIT 5;
+
+ emp_no |      hire_date           |         dt
+--------+--------------------------+-------------------------
+10009   | 1985-02-18 00:00:00.000Z | 1985-01-01 00:00:00.000Z
+10048   | 1985-02-24 00:00:00.000Z | 1985-01-01 00:00:00.000Z
+10098   | 1985-05-13 00:00:00.000Z | 1985-04-01 00:00:00.000Z
+10061   | 1985-09-17 00:00:00.000Z | 1985-07-01 00:00:00.000Z
+10076   | 1985-07-09 00:00:00.000Z | 1985-07-01 00:00:00.000Z
+;
+
+dateTruncOrderByWithInterval
+schema::first_name:s|dt:ts|hire_date:ts|languages:byte
+SELECT first_name, hire_date + DATE_TRUNC('centuries', CASE WHEN languages = 5 THEN INTERVAL '18-3' YEAR TO MONTH
+WHEN languages = 4 THEN INTERVAL '108-4' YEAR TO MONTH WHEN languages = 3 THEN INTERVAL '212-3' YEAR TO MONTH
+ELSE INTERVAL '318-6' YEAR TO MONTH END) as dt, hire_date, languages FROM test_emp WHERE emp_no <= 10006 ORDER BY dt NULLS LAST LIMIT 5;
+
+   first_name |            dt            |        hire_date         | languages
+--------------+--------------------------+--------------------------+-----------
+Bezalel       | 1985-11-21 00:00:00.000Z | 1985-11-21T00:00:00.000Z | 5
+Chirstian     | 1986-12-01 00:00:00.000Z | 1986-12-01T00:00:00.000Z | 5
+Parto         | 2086-08-28 00:00:00.000Z | 1986-08-28T00:00:00.000Z | 4
+Anneke        | 2189-06-02 00:00:00.000Z | 1989-06-02T00:00:00.000Z | 3
+Georgi        | 2286-06-26 00:00:00.000Z | 1986-06-26T00:00:00.000Z | 2
+;
+
+dateTruncFilter
+schema::emp_no:i|hire_date:ts|dt:ts
+SELECT emp_no, hire_date, DATE_TRUNC('quarter', hire_date) as dt FROM test_emp WHERE DATE_TRUNC('quarter', hire_date) > '1994-07-01T00:00:00.000Z'::timestamp ORDER BY emp_no;
+
+ emp_no |      hire_date           |          dt
+--------+--------------------------+-------------------------
+10016   | 1995-01-27 00:00:00.000Z | 1995-01-01 00:00:00.000Z
+10019   | 1999-04-30 00:00:00.000Z | 1999-04-01 00:00:00.000Z
+10022   | 1995-08-22 00:00:00.000Z | 1995-07-01 00:00:00.000Z
+10024   | 1997-05-19 00:00:00.000Z | 1997-04-01 00:00:00.000Z
+10026   | 1995-03-20 00:00:00.000Z | 1995-01-01 00:00:00.000Z
+10054   | 1995-03-13 00:00:00.000Z | 1995-01-01 00:00:00.000Z
+10084   | 1995-12-15 00:00:00.000Z | 1995-10-01 00:00:00.000Z
+10093   | 1996-11-05 00:00:00.000Z | 1996-10-01 00:00:00.000Z
+;
+
+dateTruncFilterWithInterval
+schema::first_name:s|hire_date:ts
+SELECT first_name, hire_date FROM test_emp WHERE hire_date > '2090-03-05T10:11:22.123Z'::datetime - DATE_TRUNC('centuries', INTERVAL 190 YEARS) ORDER BY first_name DESC, hire_date ASC LIMIT 10;
+
+  first_name   |          hire_date
+---------------+-------------------------
+null           | 1990-06-20 00:00:00.000Z
+null           | 1990-12-05 00:00:00.000Z
+null           | 1991-09-01 00:00:00.000Z
+null           | 1992-01-03 00:00:00.000Z
+null           | 1994-02-17 00:00:00.000Z
+Yongqiao       | 1995-03-20 00:00:00.000Z
+Yishay         | 1990-10-20 00:00:00.000Z
+Yinghua        | 1990-12-25 00:00:00.000Z
+Weiyi          | 1993-02-14 00:00:00.000Z
+Tuval          | 1995-12-15 00:00:00.000Z
+;
+
+dateTruncGroupBy
+schema::count:l|dt:ts
+SELECT count(*) as count, DATE_TRUNC('decade', hire_date) dt FROM test_emp GROUP BY dt ORDER BY 2;
+
+ count  |         dt
+--------+-------------------------
+59      | 1980-01-01 00:00:00.000Z
+41      | 1990-01-01 00:00:00.000Z
+;
+
+dateTruncGroupByWithInterval
+schema::count:l|dt:ts
+SELECT count(*) as count, birth_date + DATE_TRUNC('hour', INTERVAL '1 12:43:21' DAY TO SECONDS) dt FROM test_emp GROUP BY dt ORDER BY 2 LIMIT 10;
+
+ count  |          dt
+--------+-------------------------
+10      | null
+1       | 1952-02-28 12:00:00.000Z
+1       | 1952-04-20 12:00:00.000Z
+1       | 1952-05-16 12:00:00.000Z
+1       | 1952-06-14 12:00:00.000Z
+1       | 1952-07-09 12:00:00.000Z
+1       | 1952-08-07 12:00:00.000Z
+1       | 1952-11-14 12:00:00.000Z
+1       | 1952-12-25 12:00:00.000Z
+1       | 1953-01-08 12:00:00.000Z
+;
+
+dateTruncHaving
+schema::gender:s|dt:ts
+SELECT gender, max(hire_date) AS dt FROM test_emp GROUP BY gender HAVING DATE_TRUNC('year', max(hire_date)) >= '1997-01-01T00:00:00.000Z'::timestamp ORDER BY 1;
+
+ gender |         dt
+--------+-------------------------
+null    | 1999-04-30 00:00:00.000Z
+F       | 1997-05-19 00:00:00.000Z
+;
+
+// Awaits fix: https://github.com/elastic/elasticsearch/issues/53565
+dateTruncHavingWithInterval-Ignore
+schema::gender:s|dt:ts
+SELECT gender, max(hire_date) AS dt FROM test_emp GROUP BY gender HAVING max(hire_date) - DATE_TRUNC('hour', INTERVAL 1 YEARS) >= '1997-01-01T00:00:00.000Z'::timestamp ORDER BY 1;
+
+ gender |         dt
+--------+-------------------------
+null    | 1999-04-30 00:00:00.000Z
+;
+
+selectDatePartWithDate
+SELECT DATE_PART('year', '2019-09-04'::date) as dp_years, DATE_PART('quarter', '2019-09-04'::date) as dp_quarter, DATE_PART('month', '2019-09-04'::date) as dp_month,
+DATE_PART('dayofyear', '2019-09-04'::date) as dp_doy, DATE_PART('day', '2019-09-04'::date) as dp_day, DATE_PART('week', '2019-09-04'::date) as dp_week,
+DATE_PART('weekday', '2019-09-04'::date) as dp_weekday, DATE_PART('hour', '2019-09-04'::date) as dp_hour, DATE_PART('minute', '2019-09-04'::date) as dp_minute,
+DATE_PART('second', '2019-09-04'::date) as dp_second, DATE_PART('millisecond', '2019-09-04'::date) as dp_millis, DATE_PART('mcs', '2019-09-04'::date) as dp_micros,
+DATE_PART('ns', '2019-09-04'::date) as dp_nanos, DATE_PART('tz', '2019-09-04'::date) as dp_tzoffset;
+
+dp_years | dp_quarter | dp_month | dp_doy | dp_day | dp_week | dp_weekday | dp_hour | dp_minute | dp_second | dp_millis | dp_micros | dp_nanos  | dp_tzoffset
+---------+------------+----------+--------+--------+---------+------------+---------+-----------+-----------+-----------+-----------+-----------+------------
+2019     | 3          | 9        |247     | 4      | 36      | 4          | 0       | 0         | 0         | 0         | 0         | 0         | 0
+;
+
+selectDatePartWithDateTime
+SELECT DATE_PART('year', '2019-09-04T11:22:33.123Z'::datetime) as dp_years, DATE_PART('quarter', '2019-09-04T11:22:33.123Z'::datetime) as dp_quarter, DATE_PART('month', '2019-09-04T11:22:33.123Z'::datetime) as dp_month,
+DATE_PART('dayofyear', '2019-09-04T11:22:33.123Z'::datetime) as dp_doy, DATE_PART('day', '2019-09-04T11:22:33.123Z'::datetime) as dp_day, DATE_PART('week', '2019-09-04T11:22:33.123Z'::datetime) as dp_week,
+DATE_PART('weekday', '2019-09-04T11:22:33.123Z'::datetime) as dp_weekday, DATE_PART('hour', '2019-09-04T11:22:33.123Z'::datetime) as dp_hour, DATE_PART('minute', '2019-09-04T11:22:33.123Z'::datetime) as dp_minute,
+DATE_PART('second', '2019-09-04T11:22:33.123Z'::datetime) as dp_second, DATE_PART('millisecond', '2019-09-04T11:22:33.123Z'::datetime) as dp_millis, DATE_PART('mcs', '2019-09-04T11:22:33.123Z'::datetime) as dp_micros,
+DATE_PART('ns', '2019-09-04T11:22:33.123Z'::datetime) as dp_nanos, DATE_PART('tz', '2019-09-04T11:22:33.123Z'::datetime) as dp_tzoffset;
+
+dp_years | dp_quarter | dp_month | dp_doy | dp_day | dp_week | dp_weekday | dp_hour | dp_minute | dp_second | dp_millis | dp_micros | dp_nanos  | dp_tzoffset
+---------+------------+----------+--------+--------+---------+------------+---------+-----------+-----------+-----------+-----------+-----------+------------
+2019     | 3          | 9        |247     | 4      | 36      | 4          | 11      | 22        | 33        | 123       | 123000    | 123000000 | 0
+;
+
+selectDatePartWithNullTruncateField
+SELECT DATE_PART(null, birth_date) AS dp FROM test_emp LIMIT 5;
+
+ dp:i
+------
+null
+null
+null
+null
+null
+;
+
+selectDatePartWithComplexExpressions
+SELECT gender, birth_date, DATE_PART(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN 'year' ELSE 'quarter' END,
+birth_date + INTERVAL 10 month) AS dp FROM test_emp WHERE dp > 10 ORDER BY emp_no LIMIT 5;
+
+ gender |       birth_date         |  dp
+--------+--------------------------+------
+F       | 1964-06-02 00:00:00.000Z | 1965
+M       | 1955-01-21 00:00:00.000Z |   11
+F       | 1953-04-20 00:00:00.000Z | 1954
+F       | 1957-05-23 00:00:00.000Z | 1958
+M       | 1958-02-19 00:00:00.000Z |   12
+;
+
+datePartOrderBy
+schema::emp_no:i|hire_date:ts|dp:i
+SELECT emp_no, hire_date, DATE_PART('month', hire_date) as dp FROM test_emp ORDER BY dp DESC NULLS LAST, emp_no LIMIT 5;
+
+ emp_no |       hire_date          | dp
+--------+--------------------------+----
+10004   | 1986-12-01 00:00:00.000Z | 12
+10012   | 1992-12-18 00:00:00.000Z | 12
+10023   | 1989-12-17 00:00:00.000Z | 12
+10037   | 1990-12-05 00:00:00.000Z | 12
+10050   | 1990-12-25 00:00:00.000z | 12
+;
+
+datePartFilter
+schema::emp_no:i|hire_date:ts|dp:i
+SELECT emp_no, hire_date, DATE_PART('day', hire_date) as dp FROM test_emp WHERE DATE_PART('day', hire_date) > 27 order by emp_no;
+
+ emp_no |       hire_date          | dp
+--------+--------------------------+----
+10003   | 1986-08-28 00:00:00.000Z | 28
+10019   | 1999-04-30 00:00:00.000Z | 30
+10047   | 1989-03-31 00:00:00.000Z | 31
+10062   | 1991-08-30 00:00:00.000Z | 30
+10081   | 1986-10-30 00:00:00.000Z | 30
+10083   | 1987-03-31 00:00:00.000Z | 31
+;
+
+datePartGroupBy
+schema::count:l|dp:i
+SELECT count(*) as count, DATE_PART('quarter', hire_date) dp FROM test_emp GROUP BY dp ORDER BY 2;
+
+ count | dp
+-------+----
+30     |  1
+19     |  2
+27     |  3
+24     |  4
+;
+
+datePartHaving
+schema::gender:s|dt:ts
+SELECT gender, max(hire_date) AS dt FROM test_emp GROUP BY gender HAVING DATE_PART('year', max(hire_date)) < 1999 ORDER BY 1;
+
+ gender |           dt
+--------+------------------------
+F       | 1997-05-19 00:00:00.000Z
+M       | 1996-11-05 00:00:00.000Z
+;
+
+selectFormat
+schema::format_date:s|format_datetime:s|format_time:s
+SELECT FORMAT('2020-04-05T11:22:33.123Z'::date, 'dd/MM/YYYY HH:mm:ss.fff') AS format_date,
+FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff') AS format_datetime,
+FORMAT('11:22:33.123456789Z'::time, 'HH:mm:ss.ff') AS format_time;
+
+       format_date      |    format_datetime     |   format_time
+------------------------+------------------------+----------------
+05/04/2020 00:00:00.000 | 05/04/2020 11:22:33.12 | 11:22:33.12
+;
+
+selectFormatWithLength
+schema::format_datetime:s|length:i
+SELECT FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff') AS format_datetime,
+LENGTH(FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff')) AS length;
+
+    format_datetime     | length
+------------------------+----------------
+ 05/04/2020 11:22:33.12 | 22
+;
+
+selectFormatWithField
+schema::birth_date:ts|format_birth_date1:s|format_birth_date2:s|emp_no:i
+SELECT birth_date, FORMAT(birth_date, 'MM/dd/YYYY') AS format_birth_date1, FORMAT(birth_date, concat(gender, 'M/dd')) AS format_birth_date2, emp_no
+FROM test_emp WHERE gender = 'M' AND emp_no BETWEEN 10037 AND 10052 ORDER BY emp_no;
+
+       birth_date        | format_birth_date1 | format_birth_date2 | emp_no
+-------------------------+--------------------+--------------------+----------
+1963-07-22 00:00:00.000Z | 07/22/1963         | 07/22              | 10037
+1960-07-20 00:00:00.000Z | 07/20/1960         | 07/20              | 10038
+1959-10-01 00:00:00.000Z | 10/01/1959         | 10/01              | 10039
+null                     | null               | null               | 10043
+null                     | null               | null               | 10045
+null                     | null               | null               | 10046
+null                     | null               | null               | 10047
+null                     | null               | null               | 10048
+1958-05-21 00:00:00.000Z | 05/21/1958         | 05/21              | 10050
+1953-07-28 00:00:00.000Z | 07/28/1953         | 07/28              | 10051
+1961-02-26 00:00:00.000Z | 02/26/1961         | 02/26              | 10052
+;
+
+formatWhere
+schema::birth_date:ts|format_birth_date:s|emp_no:i
+SELECT birth_date, FORMAT(birth_date, 'MM') AS format_birth_date, emp_no FROM test_emp
+WHERE FORMAT(birth_date, 'MM')::integer > 10 ORDER BY emp_no LIMIT 10;
+
+       birth_date        | format_birth_date | emp_no
+-------------------------+-------------------+----------
+1959-12-03 00:00:00.000Z | 12                | 10003
+1953-11-07 00:00:00.000Z | 11                | 10011
+1952-12-24 00:00:00.000Z | 12                | 10020
+1963-11-26 00:00:00.000Z | 11                | 10028
+1956-12-13 00:00:00.000Z | 12                | 10029
+1956-11-14 00:00:00.000Z | 11                | 10033
+1962-12-29 00:00:00.000Z | 12                | 10034
+1961-11-02 00:00:00.000Z | 11                | 10062
+1952-11-13 00:00:00.000Z | 11                | 10066
+1962-11-26 00:00:00.000Z | 11                | 10068
+;
+
+formatOrderBy
+schema::birth_date:ts|format_birth_date:s
+SELECT birth_date, FORMAT(birth_date, 'MM/dd/YYYY') AS format_birth_date FROM test_emp ORDER BY 2 DESC NULLS LAST LIMIT 10;
+
+       birth_date        | format_birth_date
+-------------------------+---------------
+1962-12-29 00:00:00.000Z | 12/29/1962
+1959-12-25 00:00:00.000Z | 12/25/1959
+1952-12-24 00:00:00.000Z | 12/24/1952
+1960-12-17 00:00:00.000Z | 12/17/1960
+1956-12-13 00:00:00.000Z | 12/13/1956
+1959-12-03 00:00:00.000Z | 12/03/1959
+1957-12-03 00:00:00.000Z | 12/03/1957
+1963-11-26 00:00:00.000Z | 11/26/1963
+1962-11-26 00:00:00.000Z | 11/26/1962
+1962-11-19 00:00:00.000Z | 11/19/1962
+;
+
+formatGroupBy
+schema::count:l|format_birth_date:s
+SELECT count(*) AS count, FORMAT(birth_date, 'MM') AS format_birth_date FROM test_emp GROUP BY format_birth_date ORDER BY 1 DESC, 2 DESC;
+
+ count | format_birth_date
+-------+---------------
+10     | 09
+10     | 05
+10     | null
+9      | 10
+9      | 07
+8      | 11
+8      | 04
+8      | 02
+7      | 12
+7      | 06
+6      | 08
+6      | 01
+2      | 03
+;
+
+formatHaving
+schema::max:ts|format_birth_date:s
+SELECT MAX(birth_date) AS max, FORMAT(birth_date, 'MM') AS format_birth_date FROM test_emp GROUP BY format_birth_date
+HAVING FORMAT(MAX(birth_date), 'dd')::integer > 20  ORDER BY 1 DESC;
+
+          max            | format_birth_date
+-------------------------+---------------
+1963-11-26 00:00:00.000Z | 11
+1963-07-22 00:00:00.000Z | 07
+1963-03-21 00:00:00.000Z | 03
+1962-12-29 00:00:00.000Z | 12
+1961-05-30 00:00:00.000Z | 05
+1961-02-26 00:00:00.000Z | 02
+;
+
+//
+// Aggregate
+//
+
+castedDateTimeWithGroupBy1
+SELECT CONVERT(birth_date, DOUBLE) AS date FROM test_emp GROUP BY date ORDER BY date LIMIT 10;
+
+    date:d      
+---------------
+null           
+-5.631552E11
+-5.586624E11
+-5.56416E11
+-5.539104E11
+-5.517504E11
+-5.492448E11
+-5.406912E11
+-5.371488E11
+-5.359392E11
+;
+
+castedDateTimeWithGroupBy2
+SELECT CAST(hire_date AS LONG) AS date FROM test_emp GROUP BY date ORDER BY date LIMIT 10;
+
+    date:l
+---------------
+477532800000
+478051200000
+484790400000
+489715200000
+495763200000
+498096000000
+498614400000
+501206400000
+501292800000
+501379200000
+;
+
+dateTimeAggByIsoDayOfWeekWithFilter
+SELECT IDOW(birth_date) day, DAY_NAME(birth_date) dayname, COUNT(*) c FROM test_emp WHERE IDOW(birth_date) < 6 GROUP BY day, dayname ORDER BY day desc;
+
+    day:i      |   dayname:s   |     c:l       
+---------------+---------------+---------------
+5              |Friday         |12             
+4              |Thursday       |15             
+3              |Wednesday      |14             
+2              |Tuesday        |18             
+1              |Monday         |8              
+;
+
+dateTimeAggByIsoDayOfWeek
+SELECT IDOW(birth_date) day, DAY_NAME(birth_date) dayname, COUNT(*) c FROM test_emp GROUP BY day, dayname ORDER BY day desc;
+
+    day:i      |   dayname:s   |     c:l       
+---------------+---------------+---------------
+7              |Sunday         |10
+6              |Saturday       |13
+5              |Friday         |12
+4              |Thursday       |15
+3              |Wednesday      |14
+2              |Tuesday        |18
+1              |Monday         |8
+null           |null           |10
+;
+
+dateTimeAggByIsoWeekOfYear
+SELECT IW(birth_date) iso_week, WEEK(birth_date) week FROM test_emp WHERE IW(birth_date) < 20 GROUP BY iso_week, week ORDER BY iso_week;
+
+   iso_week:i  |     week:i    
+---------------+---------------
+2              |2              
+3              |4              
+4              |4              
+5              |5              
+6              |7              
+7              |8              
+8              |8              
+8              |9              
+9              |9              
+10             |11             
+12             |12             
+14             |14             
+15             |15             
+15             |16             
+16             |16             
+17             |17             
+17             |18             
+18             |18             
+;
+
+dateTimeAggByYear
+SELECT YEAR(birth_date) AS d, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY YEAR(birth_date) ORDER BY YEAR(birth_date) LIMIT 13;
+
+d:i                  | s:i
+null                 |100445         
+1952                 |80425          
+1953                 |110398         
+1954                 |80447          
+1955                 |40240          
+1956                 |50230          
+1957                 |40235          
+1958                 |70225          
+1959                 |90436          
+1960                 |80412          
+1961                 |80513          
+1962                 |60361          
+1963                 |70324    
+;                   
+
+dateTimeAggByMonth
+SELECT MONTH(birth_date) AS d, COUNT(*) AS c, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY MONTH(birth_date) ORDER BY MONTH(birth_date) DESC;
+
+d:i                  | c:l                  | s:i
+12                   |7                     |70325
+11                   |8                     |80439          
+10                   |9                     |90517          
+9                    |10                    |100561         
+8                    |6                     |60290          
+7                    |9                     |90392          
+6                    |7                     |70267          
+5                    |10                    |100573         
+4                    |8                     |80401          
+3                    |2                     |20164          
+2                    |8                     |80388          
+1                    |6                     |60288          
+null                 |10                    |100445  
+;
+
+dateTimeAggByDayOfMonth
+SELECT DAY_OF_MONTH(birth_date) AS d, COUNT(*) AS c, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY DAY_OF_MONTH(birth_date) ORDER BY DAY_OF_MONTH(birth_date) DESC;
+
+d:i                  | c:l                  | s:i
+31                   |1                     |10025          
+30                   |2                     |20147          
+29                   |2                     |20057          
+28                   |2                     |20125          
+27                   |2                     |20128          
+26                   |3                     |30148          
+25                   |5                     |50443          
+24                   |1                     |10020          
+23                   |6                     |60367          
+22                   |1                     |10037          
+21                   |5                     |50315          
+20                   |4                     |40135          
+19                   |7                     |70256          
+18                   |2                     |20169          
+17                   |1                     |10081          
+16                   |1                     |10096          
+15                   |2                     |20132          
+14                   |3                     |30128          
+13                   |4                     |40224          
+12                   |1                     |10014          
+11                   |1                     |10093          
+10                   |2                     |20063          
+9                    |3                     |30189          
+8                    |2                     |20057          
+7                    |5                     |50240          
+6                    |4                     |40204          
+5                    |2                     |20103          
+4                    |3                     |30157          
+3                    |4                     |40204          
+2                    |4                     |40081          
+1                    |5                     |50167          
+null                 |10                    |100445 
+;
+
+weekOfYearGroupBy
+SELECT WEEK(birth_date) week, COUNT(*) c FROM test_emp WHERE MOD(WEEK(birth_date), 4) = 0 GROUP BY week ORDER BY WEEK(birth_date);
+
+    week:i     |     c:l       
+---------------+---------------
+4              |3              
+8              |2              
+12             |1              
+16             |3              
+20             |1              
+24             |2              
+28             |3              
+32             |1              
+36             |3              
+40             |4              
+44             |2              
+48             |2              
+52             |3              
+;
+
+currentTimestampKeywordWithDivision
+SELECT YEAR(CURRENT_TIMESTAMP) / 1000 AS result;
+
+    result     
+---------------
+2    
+;
+
+currentTimestampFunctionNoArgsWithDivision
+SELECT YEAR(CURRENT_TIMESTAMP()) / 1000 AS result;
+
+    result     
+---------------
+2    
+;
+
+currentTimestampFunctionPrecisionWithDivision
+SELECT YEAR(CURRENT_TIMESTAMP(2)) / 1000 AS result;
+
+    result     
+---------------
+2    
+;
+
+nowWithDivision
+SELECT YEAR(NOW()) / 1000 AS result;
+
+    result     
+---------------
+2
+;
+
+nowIntervalSubstraction
+SELECT YEAR(NOW() - INTERVAL 2 YEARS) / 1000 AS result;
+
+    result     
+---------------
+2
+;
+
+dateAndIntervalPaginated
+SELECT YEAR(birth_date - INTERVAL 2 YEARS) / 1000 AS result FROM test_emp ORDER BY birth_date LIMIT 10;
+
+    result     
+---------------
+1              
+1              
+1              
+1              
+1              
+1              
+1              
+1              
+1              
+1
+;
+
+currentTimestampFilter
+SELECT first_name FROM test_emp WHERE hire_date > NOW() - INTERVAL 100 YEARS ORDER BY first_name ASC LIMIT 10; 
+
+  first_name   
+---------------
+Alejandro      
+Amabile        
+Anneke         
+Anoosh         
+Arumugam       
+Basil          
+Berhard        
+Berni          
+Bezalel        
+Bojan      
+;
+
+currentTimestampFilterScript
+SELECT first_name FROM test_emp WHERE YEAR(hire_date) - YEAR(NOW()) / 1000 > 10 ORDER BY first_name ASC LIMIT 10;
+
+  first_name   
+---------------
+Alejandro      
+Amabile        
+Anneke         
+Anoosh         
+Arumugam       
+Basil          
+Berhard        
+Berni          
+Bezalel        
+Bojan  
+
+;
+
+// datetime in aggregations
+doubleCastOfDateInAggs
+SELECT CAST (CAST (birth_date AS VARCHAR) AS TIMESTAMP) a FROM test_emp WHERE YEAR(birth_date) = 1965 GROUP BY a;
+    a:ts
+---------------
+1965-01-03T00:00:00Z
+;

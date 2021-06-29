@@ -1,21 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 /**
  * Constructs geometric objects from their WTK representations
@@ -33,10 +36,10 @@ public class StWkttosql extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (field().dataType().isString()) {
+        if (DataTypes.isString(field().dataType())) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        return isString(field(), functionName(), Expressions.ParamOrdinal.DEFAULT);
+        return isString(field(), sourceText(), DEFAULT);
     }
 
     @Override
@@ -46,7 +49,7 @@ public class StWkttosql extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.GEO_SHAPE;
+        return SqlDataTypes.GEO_SHAPE;
     }
 
     @Override

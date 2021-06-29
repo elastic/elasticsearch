@@ -1,0 +1,131 @@
+[role="xpack"]
+[testenv="platinum"]
+[[cat-datafeeds]]
+=== cat {dfeeds} API
+++++
+<titleabbrev>cat {dfeeds}</titleabbrev>
+++++
+
+Returns configuration and usage information about {dfeeds}.
+
+[[cat-datafeeds-request]]
+==== {api-request-title}
+
+`GET /_cat/ml/datafeeds/<feed_id>` +
+
+`GET /_cat/ml/datafeeds`
+
+[[cat-datafeeds-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
+<<security-privileges>> and {ml-docs-setup-privileges}.
+
+
+[[cat-datafeeds-desc]]
+==== {api-description-title}
+
+{dfeeds-cap} retrieve data from {es} for analysis by {anomaly-jobs}. For more 
+information, see {ml-docs}/ml-dfeeds.html[{dfeeds-cap}].
+
+NOTE: This API returns a maximum of 10,000 jobs.
+
+[[cat-datafeeds-path-params]]
+==== {api-path-parms-title}
+
+`<feed_id>`::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+
+[[cat-datafeeds-query-params]]
+==== {api-query-parms-title}
+
+`allow_no_match`::
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
++
+If you do not specify which columns to include, the API returns the default
+columns. If you explicitly specify one or more columns, it returns only the
+specified columns.
++
+Valid columns are:
+
+`assignment_explanation`, `ae`:::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=assignment-explanation-datafeeds]
+
+`buckets.count`, `bc`, `bucketsCount`:::
+(Default)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-count]
+
+`id`:::
+(Default)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+
+`node.address`, `na`, `nodeAddress`:::
+The network address of the node.
++
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-datafeeds]
+  
+`node.ephemeral_id`, `ne`, `nodeEphemeralId`:::
+The ephemeral ID of the node.
++
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-datafeeds]
+  
+`node.id`, `ni`, `nodeId`:::
+The unique identifier of the node.
++
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-datafeeds]
+
+`node.name`, `nn`, `nodeName`:::
+The node name.
++
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-datafeeds]
+
+`search.bucket_avg`, `sba`, `searchBucketAvg`:::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-bucket-avg]
+  
+`search.count`, `sc`, `searchCount`:::
+(Default)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-count]
+
+`search.exp_avg_hour`, `seah`, `searchExpAvgHour`:::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-exp-avg-hour]
+
+`search.time`, `st`, `searchTime`:::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-time]
+
+`state`, `s`:::
+(Default)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=state-datafeed]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+[[cat-datafeeds-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET _cat/ml/datafeeds?v=true
+--------------------------------------------------
+// TEST[skip:kibana sample data]
+
+[source,console-result]
+----
+id                              state buckets.count search.count
+datafeed-high_sum_total_sales stopped 743          7
+datafeed-low_request_rate     stopped 1457         3
+datafeed-response_code_rates  stopped 1460         18
+datafeed-url_scanning         stopped 1460         18
+----
+// TESTRESPONSE[skip:kibana sample data]

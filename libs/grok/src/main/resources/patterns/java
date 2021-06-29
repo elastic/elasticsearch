@@ -1,8 +1,8 @@
 JAVACLASS (?:[a-zA-Z$_][a-zA-Z$_0-9]*\.)*[a-zA-Z$_][a-zA-Z$_0-9]*
 #Space is an allowed character to match special cases like 'Native Method' or 'Unknown Source'
 JAVAFILE (?:[A-Za-z0-9_. -]+)
-#Allow special <init> method
-JAVAMETHOD (?:(<init>)|[a-zA-Z$_][a-zA-Z$_0-9]*)
+#Allow special <init>, <clinit> methods
+JAVAMETHOD (?:(<(?:cl)?init>)|[a-zA-Z$_][a-zA-Z$_0-9]*)
 #Line number is optional in special cases 'Native method' or 'Unknown source'
 JAVASTACKTRACEPART %{SPACE}at %{JAVACLASS:class}\.%{JAVAMETHOD:method}\(%{JAVAFILE:file}(?::%{NUMBER:line})?\)
 # Java Logs

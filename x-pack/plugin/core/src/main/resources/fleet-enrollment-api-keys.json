@@ -1,0 +1,39 @@
+{
+  "settings": {
+    "auto_expand_replicas": "0-1"
+  },
+  "mappings": {
+    "_doc" : {
+      "dynamic": false,
+      "_meta": {
+        "version": "${fleet.version}"
+      },
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "api_key": {
+          "type": "keyword"
+        },
+        "api_key_id": {
+          "type": "keyword"
+        },
+        "created_at": {
+          "type": "date"
+        },
+        "expire_at": {
+          "type": "date"
+        },
+        "name": {
+          "type": "keyword"
+        },
+        "policy_id": {
+          "type": "keyword"
+        },
+        "updated_at": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}

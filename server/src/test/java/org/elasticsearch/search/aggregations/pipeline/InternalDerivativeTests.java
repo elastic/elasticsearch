@@ -1,33 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
-import org.elasticsearch.search.aggregations.pipeline.ParsedDerivative;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,29 +19,22 @@ import java.util.Map;
 public class InternalDerivativeTests extends InternalAggregationTestCase<InternalDerivative> {
 
     @Override
-    protected InternalDerivative createTestInstance(String name,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected InternalDerivative createTestInstance(String name, Map<String, Object> metadata) {
         DocValueFormat formatter = randomNumericDocValueFormat();
         double value = frequently() ? randomDoubleBetween(-100000, 100000, true)
                 : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN });
         double normalizationFactor = frequently() ? randomDoubleBetween(0, 100000, true) : 0;
-        return new InternalDerivative(name, value, normalizationFactor, formatter, pipelineAggregators, metaData);
+        return new InternalDerivative(name, value, normalizationFactor, formatter, metadata);
     }
 
     @Override
     public void testReduceRandom() {
-        expectThrows(UnsupportedOperationException.class,
-                () -> createTestInstance("name", Collections.emptyList(), null).reduce(null, null));
+        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).reduce(null, null));
     }
 
     @Override
     protected void assertReduced(InternalDerivative reduced, List<InternalDerivative> inputs) {
         // no test since reduce operation is unsupported
-    }
-
-    @Override
-    protected Reader<InternalDerivative> instanceReader() {
-        return InternalDerivative::new;
     }
 
     @Override
@@ -79,8 +56,7 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
         double value = instance.getValue();
         double normalizationFactor = instance.getNormalizationFactor();
         DocValueFormat formatter = instance.formatter();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -96,16 +72,16 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
             normalizationFactor += between(1, 100);
             break;
         case 3:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalDerivative(name, value, normalizationFactor, formatter, pipelineAggregators, metaData);
+        return new InternalDerivative(name, value, normalizationFactor, formatter, metadata);
     }
 }

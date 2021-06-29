@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -16,49 +17,58 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.job.JobManager;
 
-import java.io.IOException;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJobsAction.Request, GetJobsAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetJobsAction.class);
 
     private final JobManager jobManager;
+    private final DatafeedManager datafeedManager;
 
     @Inject
     public TransportGetJobsAction(TransportService transportService, ClusterService clusterService,
                                   ThreadPool threadPool, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                  JobManager jobManager) {
+                                  JobManager jobManager, DatafeedManager datafeedManager) {
         super(GetJobsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetJobsAction.Request::new, indexNameExpressionResolver);
+            GetJobsAction.Request::new, indexNameExpressionResolver, GetJobsAction.Response::new, ThreadPool.Names.SAME);
         this.jobManager = jobManager;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetJobsAction.Response read(StreamInput in) throws IOException {
-        return new GetJobsAction.Response(in);
+        this.datafeedManager = datafeedManager;
     }
 
     @Override
     protected void masterOperation(Task task, GetJobsAction.Request request, ClusterState state,
                                    ActionListener<GetJobsAction.Response> listener) {
         logger.debug("Get job '{}'", request.getJobId());
-        jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), ActionListener.wrap(
-                jobs -> {
-                    listener.onResponse(new GetJobsAction.Response(jobs));
-                },
+        jobManager.expandJobBuilders(request.getJobId(), request.allowNoMatch(), ActionListener.wrap(
+                jobs -> datafeedManager.getDatafeedsByJobIds(
+                        jobs.stream().map(Job.Builder::getId).collect(Collectors.toSet()),
+                        state,
+                        ActionListener.wrap(
+                            dfsByJobId ->
+                                listener.onResponse(new GetJobsAction.Response(
+                                    new QueryPage<>(
+                                        jobs.stream().map(jb -> {
+                                            Optional.ofNullable(dfsByJobId.get(jb.getId())).ifPresent(jb::setDatafeed);
+                                            return jb.build();
+                                        }).collect(Collectors.toList()),
+                                        jobs.size(),
+                                        Job.RESULTS_FIELD
+                                    )
+                                )),
+                            listener::onFailure
+                        )),
                 listener::onFailure
         ));
     }

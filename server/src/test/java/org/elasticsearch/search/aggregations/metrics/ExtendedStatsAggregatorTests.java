@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -22,13 +11,10 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -42,10 +28,11 @@ import static java.util.Collections.singleton;
 public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
     private static final double TOLERANCE = 1e-5;
 
+    // TODO: Add script test cases.  Should fail with defaultValuesSourceType() commented out.
+
     public void testEmpty() throws IOException {
         MappedFieldType ft =
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        ft.setName("field");
+            new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
         testCase(ft, iw -> {},
             stats -> {
                 assertEquals(0d, stats.getCount(), 0);
@@ -54,7 +41,11 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(Double.POSITIVE_INFINITY, stats.getMin(), 0);
                 assertEquals(Double.NEGATIVE_INFINITY, stats.getMax(), 0);
                 assertEquals(Double.NaN, stats.getVariance(), 0);
+                assertEquals(Double.NaN, stats.getVariancePopulation(), 0);
+                assertEquals(Double.NaN, stats.getVarianceSampling(), 0);
                 assertEquals(Double.NaN, stats.getStdDeviation(), 0);
+                assertEquals(Double.NaN, stats.getStdDeviationPopulation(), 0);
+                assertEquals(Double.NaN, stats.getStdDeviationSampling(), 0);
                 assertEquals(0d, stats.getSumOfSquares(), 0);
                 assertFalse(AggregationInspectionHelper.hasValue(stats));
             }
@@ -63,8 +54,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
 
     public void testRandomDoubles() throws IOException {
         MappedFieldType ft =
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        ft.setName("field");
+            new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
         final ExtendedSimpleStatsAggregator expected = new ExtendedSimpleStatsAggregator();
         testCase(ft,
             iw -> {
@@ -89,11 +79,23 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
                 assertEquals(expected.sumOfSqrs, stats.getSumOfSquares(), TOLERANCE);
                 assertEquals(expected.stdDev(), stats.getStdDeviation(), TOLERANCE);
+                assertEquals(expected.stdDevPopulation(), stats.getStdDeviationPopulation(), TOLERANCE);
+                assertEquals(expected.stdDevSampling(), stats.getStdDeviationSampling(), TOLERANCE);
                 assertEquals(expected.variance(), stats.getVariance(), TOLERANCE);
+                assertEquals(expected.variancePopulation(), stats.getVariancePopulation(), TOLERANCE);
+                assertEquals(expected.varianceSampling(), stats.getVarianceSampling(), TOLERANCE);
                 assertEquals(expected.stdDevBound(ExtendedStats.Bounds.LOWER, stats.getSigma()),
                     stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER), TOLERANCE);
                 assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER, stats.getSigma()),
                     stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.LOWER_POPULATION, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER_POPULATION), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER_POPULATION, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER_POPULATION), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.LOWER_SAMPLING, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER_SAMPLING), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER_SAMPLING, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER_SAMPLING), TOLERANCE);
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
             }
         );
@@ -104,8 +106,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
      */
     public void testVarianceNonNegative() throws IOException {
         MappedFieldType ft =
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        ft.setName("field");
+            new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
         final ExtendedSimpleStatsAggregator expected = new ExtendedSimpleStatsAggregator();
         testCase(ft,
             iw -> {
@@ -122,15 +123,18 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
             stats -> {
                 //since the value(49.95) is a constant, variance should be 0
                 assertEquals(0.0d, stats.getVariance(), TOLERANCE);
+                assertEquals(0.0d, stats.getVariancePopulation(), TOLERANCE);
+                assertEquals(0.0d, stats.getVarianceSampling(), TOLERANCE);
                 assertEquals(0.0d, stats.getStdDeviation(), TOLERANCE);
+                assertEquals(0.0d, stats.getStdDeviationPopulation(), TOLERANCE);
+                assertEquals(0.0d, stats.getStdDeviationSampling(), TOLERANCE);
             }
         );
     }
 
     public void testRandomLongs() throws IOException {
         MappedFieldType ft =
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        ft.setName("field");
+            new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
         final ExtendedSimpleStatsAggregator expected = new ExtendedSimpleStatsAggregator();
         testCase(ft,
             iw -> {
@@ -154,11 +158,23 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
                 assertEquals(expected.sumOfSqrs, stats.getSumOfSquares(), TOLERANCE);
                 assertEquals(expected.stdDev(), stats.getStdDeviation(), TOLERANCE);
+                assertEquals(expected.stdDevPopulation(), stats.getStdDeviationPopulation(), TOLERANCE);
+                assertEquals(expected.stdDevSampling(), stats.getStdDeviationSampling(), TOLERANCE);
                 assertEquals(expected.variance(), stats.getVariance(), TOLERANCE);
+                assertEquals(expected.variancePopulation(), stats.getVariancePopulation(), TOLERANCE);
+                assertEquals(expected.varianceSampling(), stats.getVarianceSampling(), TOLERANCE);
                 assertEquals(expected.stdDevBound(ExtendedStats.Bounds.LOWER, stats.getSigma()),
                     stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER), TOLERANCE);
                 assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER, stats.getSigma()),
                     stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.LOWER_POPULATION, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER_POPULATION), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER_POPULATION, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER_POPULATION), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.LOWER_SAMPLING, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER_SAMPLING), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER_SAMPLING, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER_SAMPLING), TOLERANCE);
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
             }
         );
@@ -198,9 +214,8 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
 
     private void verifyStatsOfDoubles(double[] values, double expectedSum,
                                       double expectedSumOfSqrs, double delta) throws IOException {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
         final String fieldName = "field";
-        ft.setName(fieldName);
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(fieldName, NumberFieldMapper.NumberType.DOUBLE);
         double max = Double.NEGATIVE_INFINITY;
         double min = Double.POSITIVE_INFINITY;
         for (double value : values) {
@@ -229,18 +244,11 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
     public void testCase(MappedFieldType ft,
                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                          Consumer<InternalExtendedStats> verify) throws IOException {
-        try (Directory directory = newDirectory();
-             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-            buildIndex.accept(indexWriter);
-            try (IndexReader reader = indexWriter.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                ExtendedStatsAggregationBuilder aggBuilder = new ExtendedStatsAggregationBuilder("my_agg")
-                    .field("field")
-                    .sigma(randomDoubleBetween(0, 10, true));
-                InternalExtendedStats stats = search(searcher, new MatchAllDocsQuery(), aggBuilder, ft);
-                verify.accept(stats);
-            }
-        }
+        ExtendedStatsAggregationBuilder aggBuilder = new ExtendedStatsAggregationBuilder("my_agg")
+            .field("field")
+            .sigma(randomDoubleBetween(0, 10, true));
+
+        testCase(aggBuilder, new MatchAllDocsQuery(), buildIndex, verify, ft);
     }
 
     static class ExtendedSimpleStatsAggregator extends StatsAggregatorTests.SimpleStatsAggregator {
@@ -255,16 +263,44 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
             return Math.sqrt(variance());
         }
 
+        double stdDevPopulation() {
+            return Math.sqrt(variancePopulation());
+        }
+
+        double stdDevSampling() {
+            return Math.sqrt(varianceSampling());
+        }
+
         double stdDevBound(ExtendedStats.Bounds bounds, double sigma) {
-            if (bounds == ExtendedStats.Bounds.UPPER) {
-                return (sum / count) + (Math.sqrt(variance()) * sigma);
-            } else {
-                return (sum / count) - (Math.sqrt(variance()) * sigma);
+            switch (bounds) {
+                case UPPER:
+                    return (sum / count) + (Math.sqrt(variance()) * sigma);
+                case UPPER_POPULATION:
+                    return (sum / count) + (Math.sqrt(variancePopulation()) * sigma);
+                case UPPER_SAMPLING:
+                    return (sum / count) + (Math.sqrt(varianceSampling()) * sigma);
+                case LOWER:
+                    return (sum / count) - (Math.sqrt(variance()) * sigma);
+                case LOWER_POPULATION:
+                    return (sum / count) - (Math.sqrt(variancePopulation()) * sigma);
+                case LOWER_SAMPLING:
+                    return (sum / count) - (Math.sqrt(varianceSampling()) * sigma);
+                default:
+                    throw new IllegalArgumentException("Unknown bound " + bounds);
             }
         }
 
         double variance() {
+            return variancePopulation();
+        }
+
+        double variancePopulation() {
             double variance = (sumOfSqrs - ((sum * sum) / count)) / count;
+            return variance < 0  ? 0 : variance;
+        }
+
+        double varianceSampling() {
+            double variance = (sumOfSqrs - ((sum * sum) / count)) / (count - 1);
             return variance < 0  ? 0 : variance;
         }
     }

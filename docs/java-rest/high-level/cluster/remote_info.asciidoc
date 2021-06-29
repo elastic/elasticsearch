@@ -1,0 +1,32 @@
+--
+:api: remote-info
+:request: RemoteInfoRequest
+:response: RemoteInfoResponse
+--
+
+[id="{upid}-{api}"]
+=== Remote Cluster Info API
+
+The Remote cluster info API allows to get all of the configured remote cluster information.
+
+[id="{upid}-{api}-request"]
+==== Remote Cluster Info Request
+
+A +{request}+:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+There are no required parameters.
+
+==== Remote Cluster Info Response
+
+The returned +{response}+ allows to retrieve remote cluster information.
+It returns connection and endpoint information keyed by the configured remote cluster alias.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

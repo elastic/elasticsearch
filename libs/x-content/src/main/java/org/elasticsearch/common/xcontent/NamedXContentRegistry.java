@@ -1,29 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,11 +64,40 @@ public class NamedXContentRegistry {
     }
 
     private final Map<Class<?>, Map<String, Entry>> registry;
+    private final Map<Class<?>, Map<String, Entry>> compatibleRegistry;
 
-    public NamedXContentRegistry(List<Entry> entries) {
+    public NamedXContentRegistry(List<Entry> entries){
+        this(entries, Collections.emptyList());
+    }
+
+    public NamedXContentRegistry(List<Entry> entries, List<Entry> compatibleEntries) {
+        this.registry = unmodifiableMap(getRegistry(entries));
+        this.compatibleRegistry = unmodifiableMap(getCompatibleRegistry(compatibleEntries));
+    }
+
+    private Map<Class<?>, Map<String, Entry>> getCompatibleRegistry(List<Entry> compatibleEntries) {
+        Map<Class<?>, Map<String, Entry>> compatibleRegistry = new HashMap<>(registry);
+        List<Entry> unseenEntries = new ArrayList<>();
+        compatibleEntries.forEach(entry -> {
+                Map<String, Entry> parsers = compatibleRegistry.get(entry.categoryClass);
+                if (parsers == null) {
+                    unseenEntries.add(entry);
+                } else {
+                    Map<String, Entry> parsersCopy = new HashMap<>(parsers);
+                    for (String name : entry.name.getAllNamesIncludedDeprecated()) {
+                        parsersCopy.put(name, entry); //override the parser for the given name
+                    }
+                    compatibleRegistry.put(entry.categoryClass, parsersCopy);
+                }
+            }
+        );
+        compatibleRegistry.putAll(getRegistry(unseenEntries));
+        return compatibleRegistry;
+    }
+
+    private  Map<Class<?>, Map<String, Entry>> getRegistry(List<Entry> entries){
         if (entries.isEmpty()) {
-            registry = emptyMap();
-            return;
+            return emptyMap();
         }
         entries = new ArrayList<>(entries);
         entries.sort((e1, e2) -> e1.categoryClass.getName().compareTo(e2.categoryClass.getName()));
@@ -107,8 +126,7 @@ public class NamedXContentRegistry {
         }
         // handle the last category
         registry.put(currentCategory, unmodifiableMap(parsers));
-
-        this.registry = unmodifiableMap(registry);
+        return registry;
     }
 
     /**
@@ -119,23 +137,24 @@ public class NamedXContentRegistry {
      * @throws NamedObjectNotFoundException if the categoryClass or name is not registered
      */
     public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
-        Map<String, Entry> parsers = registry.get(categoryClass);
+
+        Map<String, Entry> parsers = parser.getRestApiVersion() == RestApiVersion.minimumSupported() ?
+            compatibleRegistry.get(categoryClass) : registry.get(categoryClass);
         if (parsers == null) {
             if (registry.isEmpty()) {
                 // The "empty" registry will never work so we throw a better exception as a hint.
-                throw new NamedObjectNotFoundException("named objects are not supported for this parser");
+                throw new XContentParseException("named objects are not supported for this parser");
             }
-            throw new NamedObjectNotFoundException("unknown named object category [" + categoryClass.getName() + "]");
+            throw new XContentParseException("unknown named object category [" + categoryClass.getName() + "]");
         }
         Entry entry = parsers.get(name);
         if (entry == null) {
-            throw new NamedObjectNotFoundException(parser.getTokenLocation(), "unable to parse " + categoryClass.getSimpleName() +
-                " with name [" + name + "]: parser not found");
+            throw new NamedObjectNotFoundException(parser.getTokenLocation(), "unknown field [" + name + "]", parsers.keySet());
         }
         if (false == entry.name.match(name, parser.getDeprecationHandler())) {
             /* Note that this shouldn't happen because we already looked up the entry using the names but we need to call `match` anyway
              * because it is responsible for logging deprecation warnings. */
-            throw new NamedObjectNotFoundException(parser.getTokenLocation(),
+            throw new XContentParseException(parser.getTokenLocation(),
                     "unable to parse " + categoryClass.getSimpleName() + " with name [" + name + "]: parser didn't match");
         }
         return categoryClass.cast(entry.parser.parse(parser, context));

@@ -1,0 +1,33 @@
+{
+  "ml.delete_calendar_job":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar-job.html",
+      "description":"Deletes anomaly detection jobs from a calendar."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/calendars/{calendar_id}/jobs/{job_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "calendar_id":{
+              "type":"string",
+              "description":"The ID of the calendar to modify"
+            },
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the job to remove from the calendar"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

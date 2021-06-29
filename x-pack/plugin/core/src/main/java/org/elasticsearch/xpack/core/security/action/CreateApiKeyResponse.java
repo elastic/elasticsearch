@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
@@ -31,7 +32,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public final class CreateApiKeyResponse extends ActionResponse implements ToXContentObject {
 
-    static ConstructingObjectParser<CreateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("create_api_key_response",
+    static final ConstructingObjectParser<CreateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("create_api_key_response",
             args -> new CreateApiKeyResponse((String) args[0], (String) args[1], new SecureString((String) args[2]),
                     (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3])));
     static {
@@ -107,14 +108,13 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
             return false;
         }
         final CreateApiKeyResponse other = (CreateApiKeyResponse) obj;
-        if (expiration == null) {
-            if (other.expiration != null)
-                return false;
-        } else if (!Objects.equals(expiration, other.expiration))
+        if (expiration == null && other.expiration != null) {
             return false;
-        return Objects.equals(id, other.id)
-                && Objects.equals(key, other.key)
-                && Objects.equals(name, other.name);
+        }
+        return Objects.equals(expiration, other.expiration)
+            && Objects.equals(id, other.id)
+            && Objects.equals(key, other.key)
+            && Objects.equals(name, other.name);
     }
 
     @Override

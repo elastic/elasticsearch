@@ -66,7 +66,7 @@ public class SourceProvider {
     public StackTraceElement get() {
         for (final StackTraceElement element : new Throwable().getStackTrace()) {
             String className = element.getClassName();
-            if (!classNamesToSkip.contains(className)) {
+            if (classNamesToSkip.contains(className) == false) {
                 return element;
             }
         }

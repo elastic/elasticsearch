@@ -1,9 +1,8 @@
 /*
- *
- *  Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- *  or more contributor license agreements. Licensed under the Elastic License;
- *  you may not use this file except in compliance with the Elastic License.
- *
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
@@ -19,6 +18,7 @@ public class ActionClusterPrivilege implements NamedClusterPrivilege {
     private final String name;
     private final Set<String> allowedActionPatterns;
     private final Set<String> excludedActionPatterns;
+    private final ClusterPermission permission;
 
     /**
      * Constructor for {@link ActionClusterPrivilege} defining what cluster actions are accessible for the user with this privilege.
@@ -43,6 +43,7 @@ public class ActionClusterPrivilege implements NamedClusterPrivilege {
         this.name = name;
         this.allowedActionPatterns = allowedActionPatterns;
         this.excludedActionPatterns = excludedActionPatterns;
+        this.permission = buildPermission(ClusterPermission.builder()).build();
     }
 
     @Override
@@ -61,5 +62,10 @@ public class ActionClusterPrivilege implements NamedClusterPrivilege {
     @Override
     public ClusterPermission.Builder buildPermission(final ClusterPermission.Builder builder) {
         return builder.add(this, allowedActionPatterns, excludedActionPatterns);
+    }
+
+    @Override
+    public ClusterPermission permission() {
+        return permission;
     }
 }

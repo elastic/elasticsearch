@@ -3,7 +3,7 @@
 [[sql-syntax-show-columns]]
 === SHOW COLUMNS
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
 SHOW COLUMNS [ FROM | IN ]?
@@ -17,9 +17,7 @@ SHOW COLUMNS [ FROM | IN ]?
 See <<sql-index-patterns, index patterns>> for more information about
 patterns.
 
-.Description
-
-List the columns in table and their data type (and other attributes).
+*Description*: List the columns in table and their data type (and other attributes).
 
 [source, sql]
 ----

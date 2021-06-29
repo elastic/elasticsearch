@@ -1,0 +1,449 @@
+setup:
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              "properties":
+                "integer_range":
+                   "type" : "integer_range"
+                "long_range":
+                   "type" : "long_range"
+                "float_range":
+                   "type" : "float_range"
+                "double_range":
+                   "type" : "double_range"
+                "date_range":
+                   "type" : "date_range"
+                "ip_range":
+                   "type" : "ip_range"
+
+---
+"Integer range":
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "integer_range" : { "gte": 1, "lte": 5 } }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "integer_range" : { "gte": 1, "lte": 3 } }
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body: { "integer_range" : { "gte": 4, "lte": 5 } }
+
+  - do:
+      index:
+        index: test
+        id: 4
+        body: { "integer_range" : null }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "integer_range" : { "gte": 3, "lte" : 4 } } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "query_string" : { "query" : "integer_range:[3 TO 4]" } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "integer_range" : { "gte": 3, "lte" : 4, "relation": "intersects" } } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "integer_range" : { "gte": 3, "lte" : 4, "relation": "contains" } } } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "integer_range" : { "gte": 3, "lte" : 4, "relation": "within" } } } }
+
+  - match: { hits.total: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "query" : { "match_all": {} } }
+
+  - match: { hits.total: 4 }
+
+---
+"Long range":
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "long_range" : { "gte": 1, "lte": 5 } }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "long_range" : { "gte": 1, "lte": 3 } }
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body: { "long_range" : { "gte": 4, "lte": 5 } }
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "long_range" : { "gte": 3, "lte" : 4 } } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "query_string" : { "query" : "long_range:[3 TO 4]" } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "long_range" : { "gte": 3, "lte" : 4, "relation": "intersects" } } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "long_range" : { "gte": 3, "lte" : 4, "relation": "contains" } } } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "long_range" : { "gte": 3, "lte" : 4, "relation": "within" } } } }
+
+  - match: { hits.total: 0 }
+
+---
+"Float range":
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "float_range" : { "gte": 1, "lte": 5 } }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "float_range" : { "gte": 1, "lte": 3 } }
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body: { "float_range" : { "gte": 4, "lte": 5 } }
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "float_range" : { "gte": 3, "lte" : 4 } } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "query_string" : { "query" : "float_range:[3 TO 4]" } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "float_range" : { "gte": 3, "lte" : 4, "relation": "intersects" } } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "float_range" : { "gte": 3, "lte" : 4, "relation": "contains" } } } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "float_range" : { "gte": 3, "lte" : 4, "relation": "within" } } } }
+
+  - match: { hits.total: 0 }
+
+---
+"Double range":
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "double_range" : { "gte": 1, "lte": 5 } }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "double_range" : { "gte": 1, "lte": 3 } }
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body: { "double_range" : { "gte": 4, "lte": 5 } }
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "double_range" : { "gte": 3, "lte" : 4 } } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "query_string" : { "query" : "double_range:[3 TO 4]" } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "double_range" : { "gte": 3, "lte" : 4, "relation": "intersects" } } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "double_range" : { "gte": 3, "lte" : 4, "relation": "contains" } } } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "double_range" : { "gte": 3, "lte" : 4, "relation": "within" } } } }
+
+  - match: { hits.total: 0 }
+
+---
+"IP range":
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "ip_range" : { "gte": "192.168.0.1", "lte": "192.168.0.5" } }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "ip_range" : { "gte": "192.168.0.1", "lte": "192.168.0.3" } }
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body: { "ip_range" : { "gte": "192.168.0.4", "lte": "192.168.0.5" } }
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "ip_range" : { "gte": "192.168.0.3", "lte" : "192.168.0.4" } } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "query_string" : { "query" : "ip_range:[192.168.0.3 TO 192.168.0.4]" } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "ip_range" : { "gte": "192.168.0.3", "lte" : "192.168.0.4", "relation": "intersects" } } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "ip_range" : { "gte": "192.168.0.3", "lte" : "192.168.0.4", "relation": "contains" } } } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "ip_range" : { "gte": "192.168.0.3", "lte" : "192.168.0.4", "relation": "within" } } } }
+
+  - match: { hits.total: 0 }
+
+---
+"Date range":
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "date_range" : { "gte": "2017-09-01", "lte": "2017-09-05" } }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "date_range" : { "gte": "2017-09-01", "lte": "2017-09-03" } }
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body: { "date_range" : { "gte": "2017-09-04", "lte": "2017-09-05" } }
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "date_range" : { "gte": "2017-09-03", "lte" : "2017-09-04" } } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "query_string" : { "query" : "date_range:[2017-09-03 TO 2017-09-04]" } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "date_range" : { "gte": "2017-09-03", "lte" : "2017-09-04", "relation": "intersects" } } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "date_range" : { "gte": "2017-09-03", "lte" : "2017-09-04", "relation": "contains" } } } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "date_range" : { "gte": "2017-09-03", "lte" : "2017-09-04", "relation": "within" } } } }
+
+  - match: { hits.total: 0 }
+
+---
+"Date range rounding":
+  - skip:
+      version: " - 7.6.99"
+      reason:  "This part tests rounding behaviour changed in 7.7"
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "date_range" : { "gte": "2019-12-14T12:00:00.000Z", "lte": "2019-12-14T13:00:00.000Z" } }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "date_range" : { "gte": "2019-12-15T12:00:00.000Z", "lte": "2019-12-15T13:00:00.000Z" } }
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body: { "date_range" : { "gte": "2019-12-16T12:00:00.000Z", "lte": "2019-12-16T13:00:00.000Z" } }
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "date_range" : { "gt": "2019-12-15||/d", "relation": "within" } } } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "date_range" : { "gte": "2019-12-15||/d", "relation": "within" } } } }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "date_range" : { "lt": "2019-12-15||/d", "relation": "within" } } } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "date_range" : { "lte": "2019-12-15||/d", "relation": "within" } } } }
+
+  - match: { hits.total: 2 }

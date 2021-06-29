@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -23,26 +12,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-
 public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuilder> {
-
-    private static String randomIp(boolean v4) {
-        try {
-            if (v4) {
-                byte[] ipv4 = new byte[4];
-                random().nextBytes(ipv4);
-                return NetworkAddress.format(InetAddress.getByAddress(ipv4));
-            } else {
-                byte[] ipv6 = new byte[16];
-                random().nextBytes(ipv6);
-                return NetworkAddress.format(InetAddress.getByAddress(ipv6));
-            }
-        } catch (UnknownHostException e) {
-            throw new AssertionError();
-        }
-    }
 
     @Override
     protected IpRangeAggregationBuilder createTestAggregatorBuilder() {
@@ -62,16 +32,17 @@ public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuil
                 } else {
                     prefixLength = randomInt(128);
                 }
-                factory.addMaskRange(key, randomIp(v4) + "/" + prefixLength);
+                factory.addMaskRange(key, NetworkAddress.format(randomIp(v4)) + "/" + prefixLength);
                 break;
             case 1:
-                factory.addUnboundedFrom(key, randomIp(randomBoolean()));
+                factory.addUnboundedFrom(key, NetworkAddress.format(randomIp(randomBoolean())));
                 break;
             case 2:
-                factory.addUnboundedTo(key, randomIp(randomBoolean()));
+                factory.addUnboundedTo(key, NetworkAddress.format(randomIp(randomBoolean())));
                 break;
             case 3:
-                factory.addRange(key, randomIp(randomBoolean()), randomIp(randomBoolean()));
+                v4 = randomBoolean();
+                factory.addRange(key, NetworkAddress.format(randomIp(v4)), NetworkAddress.format(randomIp(v4)));
                 break;
             default:
                 fail();
@@ -82,7 +53,7 @@ public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuil
             factory.keyed(randomBoolean());
         }
         if (randomBoolean()) {
-            factory.missing(randomIp(randomBoolean()));
+            factory.missing(NetworkAddress.format(randomIp(randomBoolean())));
         }
         return factory;
     }

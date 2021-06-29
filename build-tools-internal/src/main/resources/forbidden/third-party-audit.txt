@@ -1,0 +1,88 @@
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+
+# Checks that we run against bytecode of third-party dependencies
+#
+# Be judicious about what is denied here: MANY classes will be subject
+# to these rules, so please try to keep the false positive rate low!
+#
+# Each third party .class failing checks will need to be explicitly
+# listed in the module's build.gradle file:
+#
+#   thirdPartyAudit.excludes = [
+#    // uses internal java api: sun.misc.Unsafe
+#    'org.foo.Bar',
+#    // missing class!
+#    'com.missing.dependency.WTF',
+#    // ...
+#   ]
+#
+# Wildcards are not allowed, excludes must be exact. The build also fails with
+# the message "Invalid exclusions, nothing is wrong with these classes" if
+# extraneous classes are in the excludes list, this ensures the list is
+# up-to-date, and that each module accurately documents the evil things
+# that its dependencies do.
+#
+# For more information, look at ThirdPartyAuditTask.groovy in buildSrc/
+
+#
+# Ruleset to fail on java internal apis, using this logic:
+# http://docs.oracle.com/javase/8/docs/api/java/lang/SecurityManager.html#checkPackageAccess-java.lang.String-
+#
+# // The list may change at any time, regenerated with:
+# for (String pkg : new TreeSet<>(Arrays.asList(
+#                       Security.getProperty("package.access").split(",")))) {
+#   System.out.println(pkg + "**");
+# }
+#
+@defaultMessage non-public internal runtime class
+com.oracle.webservices.internal.**
+com.oracle.xmlns.internal.**
+com.sun.activation.registries.**
+com.sun.browser.**
+com.sun.corba.se.**
+com.sun.glass.**
+com.sun.imageio.**
+com.sun.istack.internal.**
+com.sun.javafx.**
+com.sun.jmx.**
+com.sun.media.**
+com.sun.media.sound.**
+com.sun.naming.internal.**
+com.sun.openpisces.**
+com.sun.org.apache.bcel.internal.**
+com.sun.org.apache.regexp.internal.**
+com.sun.org.apache.xalan.internal.extensions.**
+com.sun.org.apache.xalan.internal.lib.**
+com.sun.org.apache.xalan.internal.res.**
+com.sun.org.apache.xalan.internal.templates.**
+com.sun.org.apache.xalan.internal.utils.**
+com.sun.org.apache.xalan.internal.xslt.**
+com.sun.org.apache.xalan.internal.xsltc.cmdline.**
+com.sun.org.apache.xalan.internal.xsltc.compiler.**
+com.sun.org.apache.xalan.internal.xsltc.trax.**
+com.sun.org.apache.xalan.internal.xsltc.util.**
+com.sun.org.apache.xerces.internal.**
+com.sun.org.apache.xml.internal.res.**
+com.sun.org.apache.xml.internal.security.**
+com.sun.org.apache.xml.internal.serializer.utils.**
+com.sun.org.apache.xml.internal.utils.**
+com.sun.org.apache.xpath.internal.**
+com.sun.org.glassfish.**
+com.sun.pisces.**
+com.sun.prism.**
+com.sun.proxy.**
+com.sun.scenario.**
+com.sun.t2k.**
+com.sun.webkit.**
+com.sun.xml.internal.**
+jdk.internal.**
+jdk.management.resource.internal.**
+jdk.nashorn.internal.**
+jdk.nashorn.tools.**
+oracle.jrockit.jfr.**
+org.jcp.xml.dsig.internal.**
+sun.**

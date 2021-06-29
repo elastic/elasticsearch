@@ -1,0 +1,350 @@
+setup:
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index [foo_rollup] matches multiple legacy templates [global, test], composable templates will only match a single template"
+      indices.create:
+        index: foo
+        body:
+          mappings:
+            properties:
+              the_field:
+                type: date
+              value_field:
+                type: integer
+
+---
+"Test basic put_job":
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.put_job:
+        id: foo
+        body:  >
+          {
+            "index_pattern": "foo",
+            "rollup_index": "foo_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "the_field",
+                "calendar_interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "value_field",
+                "metrics": ["min", "max", "sum"]
+              }
+            ]
+          }
+  - is_true: acknowledged
+
+  - do:
+      rollup.get_jobs:
+        id: foo
+
+  - match:
+      jobs:
+        - config:
+            id: "foo"
+            index_pattern: "foo"
+            rollup_index: "foo_rollup"
+            cron: "*/30 * * * * ?"
+            page_size: 10
+            groups :
+              date_histogram:
+                calendar_interval: "1h"
+                field: "the_field"
+                time_zone: "UTC"
+            metrics:
+              - field: "value_field"
+                metrics:
+                 - "min"
+                 - "max"
+                 - "sum"
+            timeout: "20s"
+          stats:
+            pages_processed: 0
+            documents_processed: 0
+            rollups_indexed: 0
+            trigger_count: 0
+            search_failures: 0
+            index_failures: 0
+            index_time_in_ms: 0
+            index_total: 0
+            search_time_in_ms: 0
+            search_total: 0
+            processing_time_in_ms: 0
+            processing_total: 0
+          status:
+            job_state: "stopped"
+
+---
+"Test put_job with existing name":
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.put_job:
+        id: foo
+        body:  >
+          {
+            "index_pattern": "foo",
+            "rollup_index": "foo_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "the_field",
+                "calendar_interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "value_field",
+                "metrics": ["min", "max", "sum"]
+              }
+            ]
+          }
+  - is_true: acknowledged
+
+  - do:
+      catch: /Cannot create rollup job \[foo\] because job was previously created \(existing metadata\)/
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.put_job:
+        id: foo
+        body:  >
+          {
+            "index_pattern": "foo",
+            "rollup_index": "foo_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "the_field",
+                "calendar_interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "value_field",
+                "metrics": ["min", "max", "sum"]
+              }
+            ]
+          }
+
+---
+"Test put_job in non-rollup index":
+  - do:
+      indices.create:
+        index: non-rollup
+  - do:
+      catch: /Rollup data cannot be added to existing indices that contain non-rollup data/
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.put_job:
+        id: foo
+        body:  >
+          {
+            "index_pattern": "foo",
+            "rollup_index": "non-rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "the_field",
+                "calendar_interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "value_field",
+                "metrics": ["min", "max", "sum"]
+              }
+            ]
+          }
+
+
+---
+"Try to include headers":
+
+  - do:
+      catch: /unknown field \[headers\]/
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.put_job:
+        id: foo
+        body:  >
+          {
+            "index_pattern": "foo",
+            "rollup_index": "foo_rollup",
+            "headers": {
+              "foo": "bar"
+            },
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "the_field",
+                "calendar_interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "value_field",
+                "metrics": ["min", "max", "sum"]
+              }
+            ]
+          }
+
+---
+"Validation failures":
+
+  - do:
+      catch: /Could not find a \[numeric\] or \[date,date_nanos\] field with name \[field_doesnt_exist\] in any of the indices matching the index pattern/
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.put_job:
+        id: foo
+        body:  >
+          {
+            "index_pattern": "foo",
+            "rollup_index": "foo_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "the_field",
+                "calendar_interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "field_doesnt_exist",
+                "metrics": ["min", "max", "sum"]
+              }
+            ]
+          }
+
+---
+"Unknown Metric":
+
+  - do:
+      catch: /Unsupported metric \[does_not_exist\]/
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.put_job:
+        id: foo
+        body:  >
+          {
+            "index_pattern": "foo",
+            "rollup_index": "foo_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "the_field",
+                "calendar_interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "value_field",
+                "metrics": ["min", "max", "sum", "does_not_exist"]
+              }
+            ]
+          }
+
+---
+"Test put job with templates":
+
+  - do:
+      indices.put_template:
+        name: test
+        body:
+          index_patterns: foo_*
+          mappings:
+            properties:
+              field:
+                type: keyword
+
+  - do:
+      allowed_warnings:
+        - "index [foo_rollup] matches multiple legacy templates [global, test], composable templates will only match a single template"
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.put_job:
+        id: foo
+        body:  >
+          {
+            "index_pattern": "foo",
+            "rollup_index": "foo_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "the_field",
+                "calendar_interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "value_field",
+                "metrics": ["min", "max", "sum"]
+              }
+            ]
+          }
+  - is_true: acknowledged
+
+  - do:
+      indices.get_mapping:
+        index: foo_rollup
+
+  - set: {foo_rollup.mappings._meta.rollup-version: version}
+
+  - match:
+      foo_rollup:
+        mappings:
+          _meta:
+            _rollup:
+              foo:
+                id: "foo"
+                index_pattern: "foo"
+                rollup_index: "foo_rollup"
+                cron: "*/30 * * * * ?"
+                page_size: 10
+                groups :
+                  date_histogram:
+                    calendar_interval: "1h"
+                    field: "the_field"
+                    time_zone: "UTC"
+                metrics:
+                  - field: "value_field"
+                    metrics:
+                     - "min"
+                     - "max"
+                     - "sum"
+                timeout: "20s"
+            rollup-version: $version
+          dynamic_templates:
+            - strings:
+                match_mapping_type: "string"
+                mapping:
+                  type: "keyword"
+            - date_histograms:
+                path_match: "*.date_histogram.timestamp"
+                mapping:
+                  type: "date"
+          properties:
+            field:
+              type: "keyword"
+
+
+

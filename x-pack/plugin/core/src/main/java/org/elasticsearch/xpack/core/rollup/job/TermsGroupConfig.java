@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,7 +40,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class TermsGroupConfig implements Writeable, ToXContentObject {
 
-    static final String NAME = "terms";
+    public static final String NAME = "terms";
     private static final String FIELDS = "fields";
 
     private static final List<String> FLOAT_TYPES = Arrays.asList("half_float", "float", "double", "scaled_float");
@@ -63,7 +64,7 @@ public class TermsGroupConfig implements Writeable, ToXContentObject {
         this.fields = fields;
     }
 
-    TermsGroupConfig(StreamInput in) throws IOException {
+    public TermsGroupConfig(StreamInput in) throws IOException {
         fields = in.readStringArray();
     }
 

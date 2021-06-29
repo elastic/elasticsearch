@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -20,11 +22,10 @@ import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 class ClientTransformIndexerBuilder {
-    private Client client;
+    private ParentTaskAssigningClient parentTaskClient;
     private TransformConfigManager transformsConfigManager;
     private TransformCheckpointService transformsCheckpointService;
     private TransformAuditor auditor;
@@ -43,17 +44,16 @@ class ClientTransformIndexerBuilder {
         this.initialStats = new TransformIndexerStats();
     }
 
-    ClientTransformIndexer build(Executor executor, TransformContext context) {
-        CheckpointProvider checkpointProvider = transformsCheckpointService.getCheckpointProvider(transformConfig);
+    ClientTransformIndexer build(ThreadPool threadPool, TransformContext context) {
+        CheckpointProvider checkpointProvider = transformsCheckpointService.getCheckpointProvider(parentTaskClient, transformConfig);
 
         return new ClientTransformIndexer(
-            executor,
+            threadPool,
             transformsConfigManager,
             checkpointProvider,
-            new TransformProgressGatherer(client),
             new AtomicReference<>(this.indexerState),
             initialPosition,
-            client,
+            parentTaskClient,
             auditor,
             initialStats,
             transformConfig,
@@ -72,8 +72,8 @@ class ClientTransformIndexerBuilder {
         return this;
     }
 
-    ClientTransformIndexerBuilder setClient(Client client) {
-        this.client = client;
+    ClientTransformIndexerBuilder setClient(ParentTaskAssigningClient parentTaskClient) {
+        this.parentTaskClient = parentTaskClient;
         return this;
     }
 

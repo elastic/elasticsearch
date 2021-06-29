@@ -1,40 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
-import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -48,29 +30,10 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
     protected final GapPolicy gapPolicy;
 
     BucketMetricsPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat format,
-            Map<String, Object> metaData) {
-        super(name, bucketsPaths, metaData);
+            Map<String, Object> metadata) {
+        super(name, bucketsPaths, metadata);
         this.gapPolicy = gapPolicy;
         this.format = format;
-    }
-
-    /**
-     * Read from a stream.
-     */
-    BucketMetricsPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
-        gapPolicy = GapPolicy.readFrom(in);
-    }
-
-    @Override
-    public final void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(format);
-        gapPolicy.writeTo(out);
-        innerWriteTo(out);
-    }
-
-    protected void innerWriteTo(StreamOutput out) throws IOException {
     }
 
     @Override
@@ -84,13 +47,13 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
                 List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = multiBucketsAgg.getBuckets();
                 for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
                     Double bucketValue = BucketHelpers.resolveBucketValue(multiBucketsAgg, bucket, sublistedPath, gapPolicy);
-                    if (bucketValue != null && !Double.isNaN(bucketValue)) {
+                    if (bucketValue != null && Double.isNaN(bucketValue) == false) {
                         collectBucketValue(bucket.getKeyAsString(), bucketValue);
                     }
                 }
             }
         }
-        return buildAggregation(Collections.emptyList(), metaData());
+        return buildAggregation(metadata());
     }
 
     /**
@@ -104,12 +67,10 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
      * Called after a collection run is finished to build the aggregation for
      * the collected state.
      *
-     * @param pipelineAggregators
-     *            the pipeline aggregators to add to the resulting aggregation
      * @param metadata
      *            the metadata to add to the resulting aggregation
      */
-    protected abstract InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata);
+    protected abstract InternalAggregation buildAggregation(Map<String, Object> metadata);
 
     /**
      * Called for each bucket with a value so the state can be modified based on

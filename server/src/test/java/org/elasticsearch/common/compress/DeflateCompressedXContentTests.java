@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.compress;
@@ -22,11 +11,15 @@ package org.elasticsearch.common.compress;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -38,7 +31,7 @@ public class DeflateCompressedXContentTests extends ESTestCase {
 
     private void assertEquals(CompressedXContent s1, CompressedXContent s2) {
         Assert.assertEquals(s1, s2);
-        assertArrayEquals(s1.uncompressed(), s2.uncompressed());
+        assertEquals(s1.uncompressed(), s2.uncompressed());
         assertEquals(s1.hashCode(), s2.hashCode());
     }
 
@@ -69,18 +62,18 @@ public class DeflateCompressedXContentTests extends ESTestCase {
     public void testDifferentCompressedRepresentation() throws Exception {
         byte[] b = "---\nf:abcdefghijabcdefghij".getBytes("UTF-8");
         BytesStreamOutput bout = new BytesStreamOutput();
-        StreamOutput out = compressor.streamOutput(bout);
-        out.writeBytes(b);
-        out.flush();
-        out.writeBytes(b);
-        out.close();
+        try (OutputStream out = compressor.threadLocalOutputStream(bout)) {
+            out.write(b);
+            out.flush();
+            out.write(b);
+        }
         final BytesReference b1 = bout.bytes();
 
         bout = new BytesStreamOutput();
-        out = compressor.streamOutput(bout);
-        out.writeBytes(b);
-        out.writeBytes(b);
-        out.close();
+        try (OutputStream out = compressor.threadLocalOutputStream(bout)) {
+            out.write(b);
+            out.write(b);
+        }
         final BytesReference b2 = bout.bytes();
 
         // because of the intermediate flush, the two compressed representations
@@ -98,4 +91,19 @@ public class DeflateCompressedXContentTests extends ESTestCase {
         assertFalse(new CompressedXContent("{\"a\":\"b\"}").hashCode() == new CompressedXContent("{\"a\":\"c\"}").hashCode());
     }
 
+    public void testToXContentObject() throws IOException {
+        ToXContentObject toXContentObject = (builder, params) -> {
+            builder.startObject();
+            builder.endObject();
+            return builder;
+        };
+        CompressedXContent compressedXContent = new CompressedXContent(toXContentObject, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        assertEquals("{}", compressedXContent.string());
+    }
+
+    public void testToXContentFragment() throws IOException {
+        ToXContentFragment toXContentFragment = (builder, params) -> builder.field("field", "value");
+        CompressedXContent compressedXContent = new CompressedXContent(toXContentFragment, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        assertEquals("{\"field\":\"value\"}", compressedXContent.string());
+    }
 }

@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,9 +20,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.FieldOptions;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.FieldOptions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,6 +49,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     public static final boolean DEFAULT_FORCE_SOURCE = false;
     /** default for whether a field should be highlighted only if a query matches that field */
     public static final boolean DEFAULT_REQUIRE_FIELD_MATCH = true;
+    /** default for whether to stop highlighting at the defined max_analyzed_offset to avoid exceptions for longer texts */
+    public static final Integer DEFAULT_MAX_ANALYZED_OFFSET = null;
     /** default for whether {@code fvh} should provide highlighting on filter clauses */
     public static final boolean DEFAULT_HIGHLIGHT_FILTER = false;
     /** default for highlight fragments being ordered by score */
@@ -92,9 +83,10 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     /**
      * a {@link FieldOptions} with default settings
      */
-    static final FieldOptions defaultOptions = new SearchContextHighlight.FieldOptions.Builder()
+    static final FieldOptions defaultOptions = new SearchHighlightContext.FieldOptions.Builder()
             .preTags(DEFAULT_PRE_TAGS).postTags(DEFAULT_POST_TAGS).scoreOrdered(DEFAULT_SCORE_ORDERED)
             .highlightFilter(DEFAULT_HIGHLIGHT_FILTER).requireFieldMatch(DEFAULT_REQUIRE_FIELD_MATCH)
+            .maxAnalyzedOffset(DEFAULT_MAX_ANALYZED_OFFSET)
             .forceSource(DEFAULT_FORCE_SOURCE).fragmentCharSize(DEFAULT_FRAGMENT_CHAR_SIZE)
             .numberOfFragments(DEFAULT_NUMBER_OF_FRAGMENTS).encoder(DEFAULT_ENCODER)
             .boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN).boundaryChars(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS)
@@ -273,9 +265,9 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         return PARSER.apply(p, new HighlightBuilder());
     }
 
-    public SearchContextHighlight build(QueryShardContext context) throws IOException {
+    public SearchHighlightContext build(SearchExecutionContext context) throws IOException {
         // create template global options that are later merged with any partial field options
-        final SearchContextHighlight.FieldOptions.Builder globalOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder();
+        final SearchHighlightContext.FieldOptions.Builder globalOptionsBuilder = new SearchHighlightContext.FieldOptions.Builder();
         globalOptionsBuilder.encoder(this.encoder);
         transferOptions(this, globalOptionsBuilder, context);
 
@@ -283,9 +275,9 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         globalOptionsBuilder.merge(defaultOptions);
 
         // create field options
-        Collection<org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.Field> fieldOptions = new ArrayList<>();
+        Collection<SearchHighlightContext.Field> fieldOptions = new ArrayList<>();
         for (Field field : this.fields) {
-            final SearchContextHighlight.FieldOptions.Builder fieldOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder();
+            final SearchHighlightContext.FieldOptions.Builder fieldOptionsBuilder = new SearchHighlightContext.FieldOptions.Builder();
             fieldOptionsBuilder.fragmentOffset(field.fragmentOffset);
             if (field.matchedFields != null) {
                 Set<String> matchedFields = new HashSet<>(field.matchedFields.length);
@@ -293,10 +285,10 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                 fieldOptionsBuilder.matchedFields(matchedFields);
             }
             transferOptions(field, fieldOptionsBuilder, context);
-            fieldOptions.add(new SearchContextHighlight.Field(field.name(), fieldOptionsBuilder
+            fieldOptions.add(new SearchHighlightContext.Field(field.name(), fieldOptionsBuilder
                     .merge(globalOptionsBuilder.build()).build()));
         }
-        return new SearchContextHighlight(fieldOptions);
+        return new SearchHighlightContext(fieldOptions);
     }
 
     /**
@@ -309,7 +301,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private static void transferOptions(AbstractHighlighterBuilder highlighterBuilder,
-            SearchContextHighlight.FieldOptions.Builder targetOptionsBuilder, QueryShardContext context) throws IOException {
+                                        SearchHighlightContext.FieldOptions.Builder targetOptionsBuilder,
+                                        SearchExecutionContext context) throws IOException {
         if (highlighterBuilder.preTags != null) {
             targetOptionsBuilder.preTags(highlighterBuilder.preTags);
         }
@@ -330,6 +323,9 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         }
         if (highlighterBuilder.requireFieldMatch != null) {
             targetOptionsBuilder.requireFieldMatch(highlighterBuilder.requireFieldMatch);
+        }
+        if (highlighterBuilder.maxAnalyzedOffset != null) {
+            targetOptionsBuilder.maxAnalyzedOffset(highlighterBuilder.maxAnalyzedOffset);
         }
         if (highlighterBuilder.boundaryScannerType != null) {
             targetOptionsBuilder.boundaryScannerType(highlighterBuilder.boundaryScannerType);

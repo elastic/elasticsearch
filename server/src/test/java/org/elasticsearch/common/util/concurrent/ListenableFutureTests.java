@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util.concurrent;
@@ -50,7 +39,7 @@ public class ListenableFutureTests extends ESTestCase {
         AtomicInteger notifications = new AtomicInteger(0);
         final int numberOfListeners = scaledRandomIntBetween(1, 12);
         for (int i = 0; i < numberOfListeners; i++) {
-            future.addListener(ActionListener.wrap(notifications::incrementAndGet), EsExecutors.newDirectExecutorService(), threadContext);
+            future.addListener(ActionListener.wrap(notifications::incrementAndGet), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
         }
 
         future.onResponse("");
@@ -67,7 +56,7 @@ public class ListenableFutureTests extends ESTestCase {
             future.addListener(ActionListener.wrap(s -> fail("this should never be called"), e -> {
                 assertEquals(exception, e);
                 notifications.incrementAndGet();
-            }), EsExecutors.newDirectExecutorService(), threadContext);
+            }), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
         }
 
         future.onFailure(exception);
@@ -80,7 +69,7 @@ public class ListenableFutureTests extends ESTestCase {
         final int completingThread = randomIntBetween(0, numberOfThreads - 1);
         final ListenableFuture<String> future = new ListenableFuture<>();
         executorService = EsExecutors.newFixed("testConcurrentListenerRegistrationAndCompletion", numberOfThreads, 1000,
-            EsExecutors.daemonThreadFactory("listener"), threadContext);
+            EsExecutors.daemonThreadFactory("listener"), threadContext, false);
         final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         final CountDownLatch listenersLatch = new CountDownLatch(numberOfThreads - 1);
         final AtomicInteger numResponses = new AtomicInteger(0);

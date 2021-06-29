@@ -5,6 +5,10 @@
       "description":"Returns information about whether a document source exists in an index."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -88,8 +92,7 @@
         "options":[
           "internal",
           "external",
-          "external_gte",
-          "force"
+          "external_gte"
         ],
         "description":"Specific version type"
       }

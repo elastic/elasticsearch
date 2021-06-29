@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -33,6 +22,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class SearchShardIteratorTests extends ESTestCase {
 
@@ -63,9 +54,13 @@ public class SearchShardIteratorTests extends ESTestCase {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
         OriginalIndices originalIndices = new OriginalIndices(new String[]{randomAlphaOfLengthBetween(3, 10)},
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
-        SearchShardIterator searchShardIterator = new SearchShardIterator(clusterAlias, shardId, Collections.emptyList(), originalIndices);
+
         String nodeId = randomAlphaOfLengthBetween(3, 10);
-        SearchShardTarget searchShardTarget = searchShardIterator.newSearchShardTarget(nodeId);
+        SearchShardIterator searchShardIterator = new SearchShardIterator(clusterAlias, shardId,
+            List.of(nodeId),originalIndices, null, null);
+        final SearchShardTarget searchShardTarget = searchShardIterator.nextOrNull();
+        assertNotNull(searchShardTarget);
+        assertThat(searchShardTarget.getNodeId(), equalTo(nodeId));
         assertEquals(clusterAlias, searchShardTarget.getClusterAlias());
         assertSame(shardId, searchShardTarget.getShardId());
         assertEquals(nodeId, searchShardTarget.getNodeId());
@@ -74,7 +69,7 @@ public class SearchShardIteratorTests extends ESTestCase {
 
     public void testEqualsAndHashcode() {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(randomSearchShardIterator(), s -> new SearchShardIterator(s.getClusterAlias(),
-            s.shardId(), s.getShardRoutings(), s.getOriginalIndices()), s -> {
+            s.shardId(), s.getTargetNodeIds(), s.getOriginalIndices(), s.getSearchContextId(), s.getSearchContextKeepAlive()), s -> {
             if (randomBoolean()) {
                 String clusterAlias;
                 if (s.getClusterAlias() == null) {
@@ -82,11 +77,13 @@ public class SearchShardIteratorTests extends ESTestCase {
                 } else {
                     clusterAlias = randomBoolean() ? null : s.getClusterAlias() + randomAlphaOfLength(3);
                 }
-                return new SearchShardIterator(clusterAlias, s.shardId(), s.getShardRoutings(), s.getOriginalIndices());
+                return new SearchShardIterator(clusterAlias, s.shardId(), s.getTargetNodeIds(), s.getOriginalIndices(),
+                    s.getSearchContextId(), s.getSearchContextKeepAlive());
             } else {
                 ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10),
                     randomIntBetween(0, Integer.MAX_VALUE));
-                return new SearchShardIterator(s.getClusterAlias(), shardId, s.getShardRoutings(), s.getOriginalIndices());
+                return new SearchShardIterator(s.getClusterAlias(), shardId, s.getTargetNodeIds(), s.getOriginalIndices(),
+                    s.getSearchContextId(), s.getSearchContextKeepAlive());
             }
         });
     }
@@ -134,7 +131,8 @@ public class SearchShardIteratorTests extends ESTestCase {
     public void testCompareToEqualItems() {
         SearchShardIterator shardIterator1 = randomSearchShardIterator();
         SearchShardIterator shardIterator2 = new SearchShardIterator(shardIterator1.getClusterAlias(), shardIterator1.shardId(),
-            shardIterator1.getShardRoutings(), shardIterator1.getOriginalIndices());
+            shardIterator1.getTargetNodeIds(), shardIterator1.getOriginalIndices(), shardIterator1.getSearchContextId(),
+            shardIterator1.getSearchContextKeepAlive());
         assertEquals(shardIterator1, shardIterator2);
         assertEquals(0, shardIterator1.compareTo(shardIterator2));
         assertEquals(0, shardIterator2.compareTo(shardIterator1));

@@ -1,0 +1,24 @@
+{
+  "dangling_indices.list_dangling_indices": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-gateway-dangling-indices.html",
+      "description": "Returns all dangling indices."
+    },
+    "stability": "stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_dangling",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {}
+  }
+}

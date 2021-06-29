@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -10,7 +11,7 @@ import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -90,7 +91,7 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
         builder.put("xpack.security.authc.realms.active_directory.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         globalSettings = builder.build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
-        sslService = new SSLService(globalSettings, environment);
+        sslService = new SSLService(environment);
     }
 
     Settings buildAdSettings(RealmConfig.RealmIdentifier realmId, String ldapUrl, String adDomainName, String userSearchDN,
@@ -98,7 +99,7 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
         final String realmName = realmId.getName();
         Settings.Builder builder = Settings.builder()
             .putList(getFullSettingKey(realmId, SessionFactorySettings.URLS_SETTING), ldapUrl)
-            .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
+            .put(getFullSettingKey(realmId, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
             .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING), userSearchDN)
             .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_SCOPE_SETTING), scope)
             .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)

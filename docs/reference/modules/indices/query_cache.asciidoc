@@ -1,26 +1,39 @@
 [[query-cache]]
-=== Node Query Cache
+=== Node query cache settings
 
-The query cache is responsible for caching the results of queries.
-There is one queries cache per node that is shared by all shards.
-The cache implements an LRU eviction policy: when a cache becomes full, the
-least recently used data is evicted to make way for new data.
-It is not possible to look at the contents being cached.
+The results of queries used in the filter context are cached in the node query 
+cache for fast lookup. There is one queries cache per node that is shared by all 
+shards. The cache uses an LRU eviction policy: when the cache is full, the least 
+recently used query results are evicted to make way for new data. You cannot 
+inspect the contents of the query cache.
 
-The query cache only caches queries which are being used in a filter context.
+Term queries and queries used outside of a filter context are not eligible for 
+caching.
+
+By default, the cache holds a maximum of 10000 queries in up to 10% of the total 
+heap space. To determine if a query is eligible for caching, {es} maintains a 
+query history to track occurrences.
+
+Caching is done on a per segment basis if a segment contains at least 10000 
+documents and the segment has at least 3% of the total documents of a shard. 
+Because caching is per segment, merging segments can invalidate cached queries.
 
 The following setting is _static_ and must be configured on every data node in
 the cluster:
 
 `indices.queries.cache.size`::
+(<<static-cluster-setting,Static>>)
+Controls the memory size for the filter cache. Accepts
+either a percentage value, like `5%`, or an exact value, like `512mb`. Defaults to `10%`.
 
-    Controls the memory size for the filter cache , defaults to `10%`. Accepts
-    either a percentage value, like `5%`, or an exact value, like `512mb`.
+[[query-cache-index-settings]]
+==== Query cache index settings
 
-The following setting is an _index_ setting that can be configured on a
-per-index basis:
+The following setting is an _index_ setting that can be configured on a 
+per-index basis. Can only be set at index creation time or on a
+<<indices-open-close,closed index>>:
 
 `index.queries.cache.enabled`::
-
-    Controls whether to enable query caching. Accepts `true` (default) or
-    `false`.
+(<<index-modules-settings,Static>>)
+Controls whether to enable query caching. Accepts `true` (default) or
+`false`.

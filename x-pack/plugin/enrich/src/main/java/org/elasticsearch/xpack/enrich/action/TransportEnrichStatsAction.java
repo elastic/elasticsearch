@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich.action;
 
@@ -16,7 +17,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.Coo
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.ExecutingPolicy;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
 
-import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -50,19 +49,11 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
             threadPool,
             actionFilters,
             EnrichStatsAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            EnrichStatsAction.Response::new,
+            ThreadPool.Names.SAME
         );
         this.client = client;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected EnrichStatsAction.Response read(StreamInput in) throws IOException {
-        return new EnrichStatsAction.Response(in);
     }
 
     @Override

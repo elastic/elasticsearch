@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
@@ -38,11 +40,13 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
@@ -136,7 +140,7 @@ public class ReservedRealmTests extends ESTestCase {
         when(securityIndex.indexExists()).thenReturn(true);
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
-            callback.onResponse(new ReservedUserInfo(hasher.hash(newPassword), enabled, false));
+            callback.onResponse(new ReservedUserInfo(hasher.hash(newPassword), enabled));
             return null;
         }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
@@ -148,7 +152,7 @@ public class ReservedRealmTests extends ESTestCase {
         // the realm assumes it owns the hashed password so it fills it with 0's
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
-            callback.onResponse(new ReservedUserInfo(hasher.hash(newPassword), true, false));
+            callback.onResponse(new ReservedUserInfo(hasher.hash(newPassword), true));
             return null;
         }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
@@ -162,6 +166,11 @@ public class ReservedRealmTests extends ESTestCase {
         verify(securityIndex, times(2)).indexExists();
         verify(usersStore, times(2)).getReservedUserInfo(eq(principal), any(ActionListener.class));
         verifyNoMoreInteractions(usersStore);
+
+        if (new KibanaUser(enabled).equals(expectedUser)) {
+            assertWarnings("The user [kibana] is deprecated and will be removed in a future version of Elasticsearch. " +
+                            "Please use the [kibana_system] user instead.");
+        }
     }
 
     public void testLookup() throws Exception {
@@ -178,7 +187,7 @@ public class ReservedRealmTests extends ESTestCase {
         verify(securityIndex).indexExists();
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        reservedRealm.doLookupUser("foobar", future);
+        reservedRealm.doLookupUser("foobar", assertListenerIsOnlyCalledOnce(future));
         final User doesntExist = future.actionGet();
         assertThat(doesntExist, nullValue());
         verifyNoMoreInteractions(usersStore);
@@ -193,10 +202,27 @@ public class ReservedRealmTests extends ESTestCase {
         final String principal = expectedUser.principal();
 
         PlainActionFuture<User> listener = new PlainActionFuture<>();
-        reservedRealm.doLookupUser(principal, listener);
+        reservedRealm.doLookupUser(principal, assertListenerIsOnlyCalledOnce(listener));
         final User user = listener.actionGet();
         assertNull(user);
         verifyZeroInteractions(usersStore);
+    }
+
+
+    public void testLookupDisabledAnonymous() throws Exception {
+        Settings settings = Settings.builder()
+            .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
+            .put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous")
+            .build();
+        final ReservedRealm reservedRealm =
+            new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings),
+                securityIndex, threadPool);
+        final User expectedUser = new AnonymousUser(settings);
+        final String principal = expectedUser.principal();
+
+        PlainActionFuture<User> listener = new PlainActionFuture<>();
+        reservedRealm.doLookupUser(principal, assertListenerIsOnlyCalledOnce(listener));
+        assertThat(listener.actionGet(), equalTo(expectedUser));
     }
 
     public void testLookupThrows() throws Exception {
@@ -249,8 +275,8 @@ public class ReservedRealmTests extends ESTestCase {
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
         assertThat(userFuture.actionGet(),
-            containsInAnyOrder(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true),
-                new BeatsSystemUser(true), new APMSystemUser(true), new RemoteMonitoringUser(true)));
+            containsInAnyOrder(new ElasticUser(true), new KibanaUser(true), new KibanaSystemUser(true),
+                new LogstashSystemUser(true), new BeatsSystemUser(true), new APMSystemUser(true), new RemoteMonitoringUser(true)));
     }
 
     public void testGetUsersDisabled() {
@@ -277,7 +303,7 @@ public class ReservedRealmTests extends ESTestCase {
         // Mocked users store is initiated with default hashing algorithm
         final Hasher hasher = Hasher.resolve("bcrypt");
         char[] hash = hasher.hash(password);
-        ReservedUserInfo userInfo = new ReservedUserInfo(hash, true, false);
+        ReservedUserInfo userInfo = new ReservedUserInfo(hash, true);
         mockGetAllReservedUserInfo(usersStore, Collections.singletonMap("elastic", userInfo));
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
@@ -300,6 +326,8 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
         assertThat(result.getMessage(), containsString("failed to authenticate"));
         assertThat(result.getMessage(), containsString(principal));
+        // exception must be null for graceful termination
+        assertThat(result.getException(), is(nullValue()));
     }
 
     @SuppressWarnings("unchecked")
@@ -340,7 +368,7 @@ public class ReservedRealmTests extends ESTestCase {
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
             char[] hash = hasher.hash(password);
-            ReservedUserInfo userInfo = new ReservedUserInfo(hash, true, false);
+            ReservedUserInfo userInfo = new ReservedUserInfo(hash, true);
             callback.onResponse(userInfo);
             return null;
         }).when(usersStore).getReservedUserInfo(eq("elastic"), any(ActionListener.class));
@@ -382,8 +410,8 @@ public class ReservedRealmTests extends ESTestCase {
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
-        final String principal = randomFrom(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME,
-            RemoteMonitoringUser.NAME);
+        final String principal = randomFrom(KibanaUser.NAME, KibanaSystemUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME,
+            APMSystemUser.NAME, RemoteMonitoringUser.NAME);
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
             callback.onResponse(null);
@@ -405,16 +433,16 @@ public class ReservedRealmTests extends ESTestCase {
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
-        final String principal = randomFrom(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME,
-            RemoteMonitoringUser.NAME);
+        final String principal = randomFrom(KibanaUser.NAME, KibanaSystemUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME,
+            APMSystemUser.NAME, RemoteMonitoringUser.NAME);
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, mockSecureSettings.getString("bootstrap.password")), listener);
         final AuthenticationResult result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
     }
 
     private User randomReservedUser(boolean enabled) {
-        return randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new LogstashSystemUser(enabled),
-            new BeatsSystemUser(enabled), new APMSystemUser(enabled), new RemoteMonitoringUser(enabled));
+        return randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new KibanaSystemUser(enabled),
+            new LogstashSystemUser(enabled), new BeatsSystemUser(enabled), new APMSystemUser(enabled), new RemoteMonitoringUser(enabled));
     }
 
     /*
@@ -432,5 +460,14 @@ public class ReservedRealmTests extends ESTestCase {
                 return null;
             }).when(usersStore).getReservedUserInfo(eq(entry.getKey()), any(ActionListener.class));
         }
+    }
+
+    private static <T> ActionListener<T> assertListenerIsOnlyCalledOnce(ActionListener<T> delegate) {
+        final AtomicInteger callCount = new AtomicInteger(0);
+        return ActionListener.runBefore(delegate, () -> {
+            if (callCount.incrementAndGet() != 1) {
+                fail("Listener was called twice");
+            }
+        });
     }
 }

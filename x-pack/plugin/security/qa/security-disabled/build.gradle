@@ -1,0 +1,31 @@
+/*
+ * This QA project tests the security plugin when security is explicitly disabled.
+ * It is intended to cover security functionality which is supposed to
+ * function in a specific way even if security is disabled on the cluster
+ * For example: If a cluster has a pipeline with the set_security_user processor
+ *              defined, it should be not fail
+ */
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.java-rest-test'
+
+dependencies {
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 2
+
+  setting 'xpack.ml.enabled', 'false'
+  // We run with a trial license, but explicitly disable security.
+  // This means the security plugin is loaded and all feature are permitted, but they are not enabled
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'false'
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
+}

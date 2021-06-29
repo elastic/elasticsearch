@@ -1,0 +1,178 @@
+tag::repositories-metering-body[]
+`_nodes`::
+(object)
+Contains statistics about the number of nodes selected by the request.
++
+.Properties of `_nodes`
+[%collapsible%open]
+====
+`total`::
+(integer)
+Total number of nodes selected by the request.
+
+`successful`::
+(integer)
+Number of nodes that responded successfully to the request.
+
+`failed`::
+(integer)
+Number of nodes that rejected the request or failed to respond. If this value
+is not `0`, a reason for the rejection or failure is included in the response.
+====
+
+`cluster_name`::
+(string)
+Name of the cluster. Based on the <<cluster-name>> setting.
+
+`nodes`::
+(object)
+Contains repositories metering information for the nodes selected by the request.
++
+.Properties of `nodes`
+[%collapsible%open]
+====
+`<node_id>`::
+(array)
+An array of repository metering information for the node.
++
+.Properties of objects in `node_id`
+[%collapsible%open]
+=====
+`repository_name`::
+(string)
+Repository name.
+
+`repository_type`::
+(string)
+Repository type.
+
+`repository_location`::
+(object)
+Represents an unique location within the repository.
++
+.Properties of `repository_location` for repository type `Azure`
+[%collapsible%open]
+======
+`base_path`::
+(string)
+The path within the container where the repository stores data.
+
+`container`::
+(string)
+Container name.
+======
++
+.Properties of `repository_location` for repository type `GCP`
+[%collapsible%open]
+======
+`base_path`::
+(string)
+The path within the bucket where the repository stores data.
+
+`bucket`::
+(string)
+Bucket name.
+======
++
+.Properties of `repository_location` for repository type `S3`
+[%collapsible%open]
+======
+`base_path`::
+(string)
+The path within the bucket where the repository stores data.
+
+`bucket`::
+(string)
+Bucket name.
+======
+`repository_ephemeral_id`::
+(string)
+An identifier that changes every time the repository is updated.
+
+`repository_started_at`::
+(long)
+Time the repository was created or updated. Recorded in milliseconds
+since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+
+`repository_stopped_at`::
+(Optional, long)
+Time the repository was deleted or updated. Recorded in milliseconds
+since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+
+`archived`::
+(Boolean)
+A flag that tells whether or not this object has been archived.
+When a repository is closed or updated the repository metering information
+is archived and kept for a certain period of time. This allows retrieving
+the repository metering information of previous repository instantiations.
+
+`cluster_version`::
+(Optional, long)
+The cluster state version when this object was archived, this field
+can be used as a logical timestamp to delete all the archived metrics up
+to an observed version. This field is only present for archived
+repository metering information objects. The main purpose of this
+field is to avoid possible race conditions during repository metering
+information deletions, i.e. deleting archived repositories metering
+information that we haven't observed yet.
+
+`request_counts`::
+(object)
+An object with the number of request performed against the repository
+grouped by request type.
++
+.Properties of `request_counts` for repository type `Azure`
+[%collapsible%open]
+======
+`GetBlobProperties`::
+(long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/get-blob-properties[Get Blob Properties] requests.
+`GetBlob`::
+(long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/get-blob[Get Blob] requests.
+`ListBlobs`::
+(long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs[List Blobs] requests.
+`PutBlob`::
+(long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob[Put Blob] requests.
+`PutBlock`::
+(long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/put-block[Put Block].
+`PutBlockList`::
+(long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list[Put Block List] requests.
+
+Azure storage https://azure.microsoft.com/en-us/pricing/details/storage/blobs/[pricing].
+======
++
+.Properties of `request_counts` for repository type `GCP`
+[%collapsible%open]
+======
+`GetObject`::
+(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/get[get object] requests.
+`ListObjects`::
+(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/list[list objects] requests.
+`InsertObject`::
+(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/insert[insert object] requests,
+including https://cloud.google.com/storage/docs/uploading-objects[simple], https://cloud.google.com/storage/docs/json_api/v1/how-tos/multipart-upload[multipart] and
+https://cloud.google.com/storage/docs/resumable-uploads[resumable] uploads. Resumable uploads can perform multiple http requests to
+insert a single object but they are considered as a single request since they are https://cloud.google.com/storage/docs/resumable-uploads#introduction[billed] as an individual operation.
+
+Google Cloud storage https://cloud.google.com/storage/pricing[pricing].
+======
++
+.Properties of `request_counts` for repository type `S3`
+[%collapsible%open]
+======
+`GetObject`::
+(long) Number of https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html[GetObject] requests.
+`ListObjects`::
+(long) Number of https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjects.html[ListObjects] requests.
+`PutObject`::
+(long) Number of https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html[PutObject] requests.
+`PutMultipartObject`::
+(long) Number of https://docs.aws.amazon.com/AmazonS3/latest/dev/mpuoverview.html[Multipart] requests,
+including https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html[CreateMultipartUpload],
+https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html[UploadPart] and https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html[CompleteMultipartUpload]
+requests.
+
+Amazon Web Services Simple Storage Service https://aws.amazon.com/s3/pricing/[pricing].
+======
+=====
+====
+end::repositories-metering-body[]

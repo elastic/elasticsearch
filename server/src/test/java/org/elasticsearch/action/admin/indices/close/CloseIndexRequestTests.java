@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.close;
@@ -52,40 +41,66 @@ public class CloseIndexRequestTests extends ESTestCase {
         {
             final CloseIndexRequest request = randomRequest();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
-                    VersionUtils.getPreviousVersion(Version.V_7_2_0)));
+                out.setVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
                 request.writeTo(out);
 
                 try (StreamInput in = out.bytes().streamInput()) {
+                    in.setVersion(out.getVersion());
                     assertEquals(request.getParentTask(), TaskId.readFromStream(in));
                     assertEquals(request.masterNodeTimeout(), in.readTimeValue());
                     assertEquals(request.timeout(), in.readTimeValue());
                     assertArrayEquals(request.indices(), in.readStringArray());
-                    assertEquals(request.indicesOptions(), IndicesOptions.readIndicesOptions(in));
+                    final IndicesOptions indicesOptions = IndicesOptions.readIndicesOptions(in);
+                    // indices options are not equivalent when sent to an older version and re-read due
+                    // to the addition of hidden indices as expand to hidden indices is always true when
+                    // read from a prior version
+                    // TODO update version on backport!
+                    if (out.getVersion().onOrAfter(Version.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
+                        assertEquals(request.indicesOptions(), indicesOptions);
+                    }
+                    if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+                        assertEquals(request.waitForActiveShards(), ActiveShardCount.readFrom(in));
+                    } else {
+                        assertEquals(0, in.available());
+                    }
                 }
             }
         }
         {
             final CloseIndexRequest sample = randomRequest();
+            final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
             try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setVersion(version);
                 sample.getParentTask().writeTo(out);
                 out.writeTimeValue(sample.masterNodeTimeout());
                 out.writeTimeValue(sample.timeout());
                 out.writeStringArray(sample.indices());
                 sample.indicesOptions().writeIndicesOptions(out);
+                if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+                    sample.waitForActiveShards().writeTo(out);
+                }
 
                 final CloseIndexRequest deserializedRequest;
                 try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
-                        VersionUtils.getPreviousVersion(Version.V_7_2_0)));
+                    in.setVersion(version);
                     deserializedRequest = new CloseIndexRequest(in);
                 }
                 assertEquals(sample.getParentTask(), deserializedRequest.getParentTask());
                 assertEquals(sample.masterNodeTimeout(), deserializedRequest.masterNodeTimeout());
                 assertEquals(sample.timeout(), deserializedRequest.timeout());
                 assertArrayEquals(sample.indices(), deserializedRequest.indices());
-                assertEquals(sample.indicesOptions(), deserializedRequest.indicesOptions());
-                assertEquals(ActiveShardCount.NONE, deserializedRequest.waitForActiveShards());
+                // indices options are not equivalent when sent to an older version and re-read due
+                // to the addition of hidden indices as expand to hidden indices is always true when
+                // read from a prior version
+                // TODO change version on backport
+                if (out.getVersion().onOrAfter(Version.V_7_7_0) || sample.indicesOptions().expandWildcardsHidden()) {
+                    assertEquals(sample.indicesOptions(), deserializedRequest.indicesOptions());
+                }
+                if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+                    assertEquals(sample.waitForActiveShards(), deserializedRequest.waitForActiveShards());
+                } else {
+                    assertEquals(ActiveShardCount.NONE, deserializedRequest.waitForActiveShards());
+                }
             }
         }
     }
@@ -94,7 +109,8 @@ public class CloseIndexRequestTests extends ESTestCase {
         CloseIndexRequest request = new CloseIndexRequest();
         request.indices(generateRandomStringArray(10, 5, false, false));
         if (randomBoolean()) {
-            request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+            request.indicesOptions(
+                IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }
         if (randomBoolean()) {
             request.timeout(randomPositiveTimeValue());

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.lucene.search;
@@ -35,6 +24,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -57,6 +47,7 @@ public class MoreLikeThisQuery extends Query {
     private Fields[] unlikeFields;
     private String[] moreLikeFields;
     private Analyzer analyzer;
+    private String analyzerName;    // used for equals/hashcode
     private String minimumShouldMatch = DEFAULT_MINIMUM_SHOULD_MATCH;
     private int minTermFrequency = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
     private int maxQueryTerms = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
@@ -73,10 +64,11 @@ public class MoreLikeThisQuery extends Query {
 
     }
 
-    public MoreLikeThisQuery(String likeText, String[] moreLikeFields, Analyzer analyzer) {
+    public MoreLikeThisQuery(String likeText, String[] moreLikeFields, NamedAnalyzer analyzer) {
         this.likeText = new String[]{likeText};
         this.moreLikeFields = moreLikeFields;
         this.analyzer = analyzer;
+        this.analyzerName = analyzer.name();
     }
 
     @Override
@@ -92,13 +84,13 @@ public class MoreLikeThisQuery extends Query {
             return false;
         }
         MoreLikeThisQuery other = (MoreLikeThisQuery) obj;
-        if (!analyzer.equals(other.analyzer))
+        if (Objects.equals(analyzerName, other.analyzerName) == false)
             return false;
         if (boostTerms != other.boostTerms)
             return false;
         if (boostTermsFactor != other.boostTermsFactor)
             return false;
-        if (!(Arrays.equals(likeText, other.likeText)))
+        if ((Arrays.equals(likeText, other.likeText)) == false)
             return false;
         if (maxDocFreq != other.maxDocFreq)
             return false;
@@ -112,19 +104,19 @@ public class MoreLikeThisQuery extends Query {
             return false;
         if (minWordLen != other.minWordLen)
             return false;
-        if (!Arrays.equals(moreLikeFields, other.moreLikeFields))
+        if (Arrays.equals(moreLikeFields, other.moreLikeFields) == false)
             return false;
-        if (!minimumShouldMatch.equals(other.minimumShouldMatch))
+        if (minimumShouldMatch.equals(other.minimumShouldMatch) == false)
             return false;
         if (similarity == null) {
             if (other.similarity != null)
                 return false;
-        } else if (!similarity.equals(other.similarity))
+        } else if (similarity.equals(other.similarity) == false)
             return false;
         if (stopWords == null) {
             if (other.stopWords != null)
                 return false;
-        } else if (!stopWords.equals(other.stopWords))
+        } else if (stopWords.equals(other.stopWords) == false)
             return false;
         return true;
     }
@@ -206,7 +198,7 @@ public class MoreLikeThisQuery extends Query {
                 }
             }
         }
-        if (!skipTerms.isEmpty()) {
+        if (skipTerms.isEmpty() == false) {
             mlt.setSkipTerms(skipTerms);
         }
     }
@@ -271,8 +263,9 @@ public class MoreLikeThisQuery extends Query {
         return analyzer;
     }
 
-    public void setAnalyzer(Analyzer analyzer) {
+    public void setAnalyzer(String analyzerName, Analyzer analyzer) {
         this.analyzer = analyzer;
+        this.analyzerName = analyzerName;
     }
 
     /**
@@ -308,6 +301,9 @@ public class MoreLikeThisQuery extends Query {
     }
 
     public void setMaxQueryTerms(int maxQueryTerms) {
+        if (maxQueryTerms <= 0) {
+            throw new IllegalArgumentException("requires 'maxQueryTerms' to be greater than 0");
+        }
         this.maxQueryTerms = maxQueryTerms;
     }
 

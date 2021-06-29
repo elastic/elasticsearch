@@ -1,0 +1,273 @@
+// To mute tests follow example in file: example.csv-spec
+
+averageWithOneValue
+schema::languages:bt|'F':d
+// tag::averageWithOneValue
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('F'));
+
+   languages   |       'F'        
+---------------+------------------
+null           |62140.666666666664
+1              |47073.25          
+2              |50684.4           
+3              |53660.0           
+4              |49291.5           
+5              |46705.555555555555
+
+// end::averageWithOneValue
+;
+
+averageWithAliasAndOneValue
+schema::languages:bt|'F':d
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) AS "AVG" FOR gender IN ('F'));
+
+   languages   |       'F'        
+---------------+------------------
+null           |62140.666666666664
+1              |47073.25          
+2              |50684.4           
+3              |53660.0           
+4              |49291.5           
+5              |46705.555555555555
+;
+
+averageWithAliasedValue
+schema::languages:bt|XX:d
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('F' AS "XX"));
+
+   languages   |       XX        
+---------------+------------------
+null           |62140.666666666664
+1              |47073.25          
+2              |50684.4           
+3              |53660.0           
+4              |49291.5           
+5              |46705.555555555555
+;
+
+averageWithTwoValues
+schema::languages:bt|'M':d|'F':d
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M', 'F'));
+
+   languages   |       'M'       |       'F'        
+---------------+-----------------+------------------
+null           |48396.28571428572|62140.666666666664
+1              |49767.22222222222|47073.25          
+2              |44103.90909090909|50684.4           
+3              |51741.90909090909|53660.0           
+4              |47058.90909090909|49291.5           
+5              |39052.875        |46705.555555555555
+;
+
+averageWithTwoValuesAndAlias
+schema::languages:bt|XY:d|XX:d
+// tag::averageWithTwoValuesAndAlias
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M' AS "XY", 'F' "XX"));
+
+   languages   |        XY       |        XX        
+---------------+-----------------+------------------
+null           |48396.28571428572|62140.666666666664
+1              |49767.22222222222|47073.25          
+2              |44103.90909090909|50684.4           
+3              |51741.90909090909|53660.0           
+4              |47058.90909090909|49291.5           
+5              |39052.875        |46705.555555555555
+
+// end::averageWithTwoValuesAndAlias
+;
+
+averageWithThreeValuesIncludingNull
+schema::languages:bt|'M':d|'F':d
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M', 'F'));
+
+   languages   |       'M'       |       'F'        
+---------------+-----------------+------------------
+null           |48396.28571428572|62140.666666666664
+1              |49767.22222222222|47073.25          
+2              |44103.90909090909|50684.4           
+3              |51741.90909090909|53660.0           
+4              |47058.90909090909|49291.5           
+5              |39052.875        |46705.555555555555
+;
+
+averageWithOneValueAndLimit
+schema::languages:bt|'F':d
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('F')) LIMIT 3;
+
+   languages   |       'F'        
+---------------+------------------
+null           |62140.666666666664
+1              |47073.25          
+2              |50684.4           
+;
+
+averageWithTwoValuesAndLimit
+schema::languages:bt|'M':d|'F':d
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M', 'F')) LIMIT 3;
+
+   languages   |       'M'       |       'F'        
+---------------+-----------------+------------------
+null           |48396.28571428572|62140.666666666664
+1              |49767.22222222222|47073.25          
+2              |44103.90909090909|50684.4           
+;
+
+
+averageWithTwoValuesAndTinyLimit
+schema::languages:bt|'M':d|'F':d
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M', 'F')) LIMIT 1;
+
+   languages   |       'M'       |       'F'        
+---------------+-----------------+------------------
+null           |48396.28571428572|62140.666666666664
+;
+
+
+averageWithTwoValuesAndSmallLimit
+schema::languages:bt|'M':d|'F':d
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M', 'F')) LIMIT 2;
+
+   languages   |       'M'       |       'F'        
+---------------+-----------------+------------------
+null           |48396.28571428572|62140.666666666664
+1              |49767.22222222222|47073.25  
+;
+
+averageWithOneValueAndOrder
+schema::languages:bt|'F':d
+// tag::averageWithOneValueAndOrder
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('F')) ORDER BY languages DESC LIMIT 4;
+   languages   |       'F'
+---------------+------------------
+5              |46705.555555555555
+4              |49291.5
+3              |53660.0
+2              |50684.4
+
+// end::averageWithOneValueAndOrder
+;
+
+averageWithTwoValuesAndOrderDesc
+schema::languages:bt|'M':d|'F':d
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M', 'F')) ORDER BY languages DESC;
+
+   languages   |       'M'       |       'F'        
+---------------+-----------------+------------------
+5              |39052.875        |46705.555555555555
+4              |47058.90909090909|49291.5           
+3              |51741.90909090909|53660.0           
+2              |44103.90909090909|50684.4           
+1              |49767.22222222222|47073.25          
+null           |48396.28571428572|62140.666666666664
+;
+
+averageWithTwoValuesAndOrderDescAndLimit
+schema::languages:bt|'M':d|'F':d
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M', 'F')) ORDER BY languages DESC LIMIT 2;
+
+   languages   |       'M'       |       'F'        
+---------------+-----------------+------------------
+5              |39052.875        |46705.555555555555
+4              |47058.90909090909|49291.5           
+;
+
+averageWithTwoValuesAndOrderAsc
+schema::languages:bt|'M':d|'F':d
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M', 'F')) ORDER BY languages ASC;
+
+   languages   |       'M'       |       'F'        
+---------------+-----------------+------------------
+null           |48396.28571428572|62140.666666666664
+1              |49767.22222222222|47073.25          
+2              |44103.90909090909|50684.4
+3              |51741.90909090909|53660.0           
+4              |47058.90909090909|49291.5           
+5              |39052.875        |46705.555555555555
+;
+
+sumWithoutSubquery
+schema::birth_date:ts|emp_no:i|first_name:s|gender:s|hire_date:ts|last_name:s|name:s|1:l|2:l
+// tag::sumWithoutSubquery
+SELECT * FROM test_emp PIVOT (SUM(salary) FOR languages IN (1, 2)) LIMIT 5;
+
+       birth_date    |    emp_no     |  first_name   |    gender     |     hire_date       |   last_name   |       name       |       1       |       2       
+---------------------+---------------+---------------+---------------+---------------------+---------------+------------------+---------------+---------------
+null                 |10041          |Uri            |F              |1989-11-12 00:00:00.0|Lenart         |Uri Lenart        |56415          |null           
+null                 |10043          |Yishay         |M              |1990-10-20 00:00:00.0|Tzvieli        |Yishay Tzvieli    |34341          |null           
+null                 |10044          |Mingsen        |F              |1994-05-21 00:00:00.0|Casley         |Mingsen Casley    |39728          |null           
+1952-04-19 00:00:00.0|10009          |Sumant         |F              |1985-02-18 00:00:00.0|Peac           |Sumant Peac       |66174          |null           
+1953-01-07 00:00:00.0|10067          |Claudi         |M              |1987-03-04 00:00:00.0|Stavenow       |Claudi Stavenow   |null           |52044
+// end::sumWithoutSubquery
+;
+
+sumWithZeros
+SELECT *
+FROM (SELECT client_ip, status, bytes_in FROM logs WHERE NVL(bytes_in, 0) = 0)
+PIVOT (SUM(bytes_in) FOR status IN ('OK','Error'));
+
+   client_ip:s |     'OK':l    |    'Error':l
+---------------+---------------+---------------
+10.0.1.199     |0              |null           
+10.0.1.205     |0              |null           
+10.0.2.129     |null           |null           
+;
+
+sumWithInnerAggregateSumOfSquares
+schema::birth_date:ts|emp_no:i|first_name:s|gender:s|hire_date:ts|last_name:s|name:s|1:d|2:d
+SELECT * FROM test_emp PIVOT (SUM_OF_SQUARES(salary) FOR languages IN (1, 2)) LIMIT 5;
+
+       birth_date    |    emp_no     |  first_name   |    gender     |       hire_date     |   last_name   |       name       |       1       |       2       
+---------------------+---------------+---------------+---------------+---------------------+---------------+------------------+---------------+---------------
+null                 |10041          |Uri            |F              |1989-11-12 00:00:00.0|Lenart         |Uri Lenart        |3.182652225E9  |null           
+null                 |10043          |Yishay         |M              |1990-10-20 00:00:00.0|Tzvieli        |Yishay Tzvieli    |1.179304281E9  |null           
+null                 |10044          |Mingsen        |F              |1994-05-21 00:00:00.0|Casley         |Mingsen Casley    |1.578313984E9  |null           
+1952-04-19 00:00:00.0|10009          |Sumant         |F              |1985-02-18 00:00:00.0|Peac           |Sumant Peac       |4.378998276E9  |null           
+1953-01-07 00:00:00.0|10067          |Claudi         |M              |1987-03-04 00:00:00.0|Stavenow       |Claudi Stavenow   |null           |2.708577936E9
+;
+
+sumWithInnerAggregateSumOfSquaresRound
+schema::birth_date:ts|emp_no:i|first_name:s|gender:s|hire_date:ts|last_name:s|name:s|1:d|2:d
+SELECT * FROM test_emp PIVOT (ROUND(SUM_OF_SQUARES(salary)/1E6, 2) FOR languages IN (1, 2)) LIMIT 5;
+
+       birth_date    |    emp_no     |  first_name   |    gender     |       hire_date     |   last_name   |       name       |       1       |       2       
+---------------------+---------------+---------------+---------------+---------------------+---------------+------------------+---------------+---------------
+null                 |10041          |Uri            |F              |1989-11-12 00:00:00.0|Lenart         |Uri Lenart        |3182.65        |null           
+null                 |10043          |Yishay         |M              |1990-10-20 00:00:00.0|Tzvieli        |Yishay Tzvieli    |1179.3         |null           
+null                 |10044          |Mingsen        |F              |1994-05-21 00:00:00.0|Casley         |Mingsen Casley    |1578.31        |null           
+1952-04-19 00:00:00.0|10009          |Sumant         |F              |1985-02-18 00:00:00.0|Peac           |Sumant Peac       |4379.0         |null           
+1953-01-07 00:00:00.0|10067          |Claudi         |M              |1987-03-04 00:00:00.0|Stavenow       |Claudi Stavenow   |null           |2708.58
+;
+
+sumWithInnerAggregateKurtosis
+schema::client_port:i|'OK':d|'Error':d
+SELECT * FROM (SELECT client_port, status, bytes_in FROM logs WHERE client_port IS NULL) PIVOT (KURTOSIS(bytes_in) FOR status IN ('OK', 'Error')) LIMIT 10;
+
+  client_port  |       'OK'       |    'Error'    
+---------------+------------------+---------------
+null           |2.0016153277578916|NaN            
+;
+
+sumWithInnerAggregateKurtosisRound
+schema::client_port:i|'OK':d|'Error':d
+SELECT * FROM (SELECT client_port, status, bytes_in FROM logs WHERE client_port IS NULL) PIVOT (ROUND(KURTOSIS(bytes_in), 3) FOR status IN ('OK', 'Error')) LIMIT 10;
+
+  client_port  |       'OK'       |    'Error'    
+---------------+------------------+---------------
+null           |2.002             |-0.0            
+;
+
+
+averageWithOneValueAndMath
+schema::languages:bt|'F':d
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (ROUND(AVG(salary) / 2) FOR gender IN ('F'));
+
+   languages   |      'F'      
+---------------+---------------
+null           |31070.0        
+1              |23537.0        
+2              |25342.0        
+3              |26830.0        
+4              |24646.0        
+5              |23353.0        
+;
+

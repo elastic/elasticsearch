@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.logging;
 
@@ -35,23 +24,35 @@ import java.util.stream.Stream;
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
  */
 public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
-    private final String messagePattern;
     private final List<Object> arguments = new ArrayList<>();
+    private String messagePattern;
 
-    public ESLogMessage(String messagePattern, Object... arguments) {
+    public ESLogMessage(String messagePattern, Object... args) {
         super(new LinkedHashMap<>());
+        Collections.addAll(this.arguments, args);
         this.messagePattern = messagePattern;
-        Collections.addAll(this.arguments, arguments);
+
+        Object message = new Object() {
+            @Override
+            public String toString() {
+                return ParameterizedMessage.format(messagePattern, arguments.toArray());
+            }
+        };
+        with("message", message);
+    }
+
+    public ESLogMessage() {
+        super(new LinkedHashMap<>());
     }
 
     public ESLogMessage argAndField(String key, Object value) {
         this.arguments.add(value);
-        super.with(key,value);
+        super.with(key, value);
         return this;
     }
 
     public ESLogMessage field(String key, Object value) {
-        super.with(key,value);
+        super.with(key, value);
         return this;
     }
 
@@ -60,15 +61,12 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
         return this;
     }
 
-    @Override
-    protected void appendMap(final StringBuilder sb) {
-        String message = ParameterizedMessage.format(messagePattern, arguments.toArray());
-        sb.append(message);
-    }
-
-    //taken from super.asJson without the wrapping '{' '}'
-    @Override
-    protected void asJson(StringBuilder sb) {
+    /**
+     * This method is used in order to support ESJsonLayout which replaces %CustomMapFields from a pattern with JSON fields
+     * It is a modified version of {@link MapMessage#asJson(StringBuilder)} where the curly brackets are not added
+     * @param sb a string builder where JSON fields will be attached
+     */
+    protected void addJsonNoBrackets(StringBuilder sb) {
         for (int i = 0; i < getIndexedReadOnlyStringMap().size(); i++) {
             if (i > 0) {
                 sb.append(", ");
@@ -79,7 +77,7 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
             StringBuilders.escapeJson(sb, start);
             sb.append(Chars.DQUOTE).append(':').append(Chars.DQUOTE);
             start = sb.length();
-            sb.append(getIndexedReadOnlyStringMap().getValueAt(i).toString());
+            sb.append((Object) getIndexedReadOnlyStringMap().getValueAt(i));
             StringBuilders.escapeJson(sb, start);
             sb.append(Chars.DQUOTE);
         }
@@ -101,5 +99,13 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
         return "[" + stream
             .map(ESLogMessage::inQuotes)
             .collect(Collectors.joining(", ")) + "]";
+    }
+
+    public Object[] getArguments() {
+        return arguments.toArray();
+    }
+
+    public String getMessagePattern() {
+        return messagePattern;
     }
 }

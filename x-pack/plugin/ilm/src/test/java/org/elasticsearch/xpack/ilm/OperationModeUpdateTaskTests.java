@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 
 import java.util.Collections;
 
@@ -61,16 +62,16 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Collections.emptyMap(), currentMode);
         SnapshotLifecycleMetadata snapshotLifecycleMetadata =
             new SnapshotLifecycleMetadata(Collections.emptyMap(), currentMode, new SnapshotLifecycleStats());
-        ImmutableOpenMap.Builder<String, MetaData.Custom> customsMapBuilder = ImmutableOpenMap.builder();
-        MetaData.Builder metaData = MetaData.builder()
+        ImmutableOpenMap.Builder<String, Metadata.Custom> customsMapBuilder = ImmutableOpenMap.builder();
+        Metadata.Builder metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build());
         if (metadataInstalled) {
-            metaData.customs(customsMapBuilder
+            metadata.customs(customsMapBuilder
                 .fPut(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata)
                 .fPut(SnapshotLifecycleMetadata.TYPE, snapshotLifecycleMetadata)
                 .build());
         }
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         OperationModeUpdateTask task = OperationModeUpdateTask.ilmMode(requestMode);
         ClusterState newState = task.execute(state);
         if (assertSameClusterState) {
@@ -78,8 +79,8 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         } else {
             assertThat(state, not(equalTo(newState)));
         }
-        IndexLifecycleMetadata newMetaData = newState.metaData().custom(IndexLifecycleMetadata.TYPE);
-        assertThat(newMetaData.getPolicyMetadatas(), equalTo(indexLifecycleMetadata.getPolicyMetadatas()));
-        return newMetaData.getOperationMode();
+        IndexLifecycleMetadata newMetadata = newState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        assertThat(newMetadata.getPolicyMetadatas(), equalTo(indexLifecycleMetadata.getPolicyMetadatas()));
+        return newMetadata.getOperationMode();
     }
 }

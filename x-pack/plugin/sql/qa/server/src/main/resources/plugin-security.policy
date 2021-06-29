@@ -1,0 +1,4 @@
+grant {
+  // Policy is required for tests to connect to testing Elasticsearch instances.
+  permission java.net.SocketPermission "*", "connect,resolve";
+};

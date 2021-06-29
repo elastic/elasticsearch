@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
@@ -11,6 +12,9 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetTime;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -33,11 +37,7 @@ public class DateTimeTestUtils {
     }
 
     public static ZonedDateTime dateTime(long millisSinceEpoch) {
-        return DateUtils.asDateTime(millisSinceEpoch);
-    }
-
-    public static ZonedDateTime date(long millisSinceEpoch) {
-        return DateUtils.asDateOnly(millisSinceEpoch);
+        return DateUtils.asDateTimeWithMillis(millisSinceEpoch);
     }
 
     public static OffsetTime time(long millisSinceEpoch) {
@@ -46,6 +46,26 @@ public class DateTimeTestUtils {
 
     public static OffsetTime time(int hour, int minute, int second, int nano) {
         return OffsetTime.of(hour, minute, second, nano, ZoneOffset.UTC);
+    }
+
+    public static OffsetTime time(int hour, int minute, int second, int nano, ZoneOffset offset) {
+        return OffsetTime.of(hour, minute, second, nano, offset);
+    }
+
+    public static OffsetTime time(int hour, int minute, int second, int nano, ZoneOffset offset, ZoneId zoneId) {
+        OffsetTime ot = OffsetTime.of(hour, minute, second, nano, offset);
+        LocalDateTime ldt = ot.atDate(LocalDate.EPOCH).toLocalDateTime();
+        return ot.withOffsetSameInstant(zoneId.getRules().getValidOffsets(ldt).get(0));
+    }
+
+    public static OffsetTime time(int hour, int minute, int second, int nano, ZoneId zoneId) {
+        LocalTime lt = LocalTime.of(hour, minute, second, nano);
+        LocalDateTime ldt = lt.atDate(LocalDate.EPOCH);
+        return OffsetTime.of(lt, zoneId.getRules().getValidOffsets(ldt).get(0));
+    }
+
+    public static ZonedDateTime date(int year, int month, int day, ZoneId zoneId) {
+        return LocalDate.of(year, month, day).atStartOfDay(zoneId);
     }
 
     static ZonedDateTime nowWithMillisResolution() {

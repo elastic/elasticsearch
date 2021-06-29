@@ -1,30 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserTests.generateRandomObject;
@@ -73,7 +63,13 @@ public class MapXContentParserTests extends ESTestCase {
     }
 
     public void compareTokens(CheckedConsumer<XContentBuilder, IOException> consumer) throws IOException {
-        final XContentType xContentType = randomFrom(XContentType.values());
+        for (XContentType xContentType : EnumSet.allOf(XContentType.class)) {
+            logger.info("--> testing with xcontent type: {}", xContentType);
+            compareTokens(consumer, xContentType);
+        }
+    }
+
+    public void compareTokens(CheckedConsumer<XContentBuilder, IOException> consumer, XContentType xContentType) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             consumer.accept(builder);
             final Map<String, Object> map;
@@ -84,7 +80,7 @@ public class MapXContentParserTests extends ESTestCase {
             try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
                 try (XContentParser mapParser = new MapXContentParser(
                     xContentRegistry(), LoggingDeprecationHandler.INSTANCE, map, xContentType)) {
-                    assertEquals(parser.contentType(), mapParser.contentType());
+                    assertEquals(parser.contentType(), mapParser.contentType().canonical());
                     XContentParser.Token token;
                     assertEquals(parser.currentToken(), mapParser.currentToken());
                     assertEquals(parser.currentName(), mapParser.currentName());
@@ -94,7 +90,14 @@ public class MapXContentParserTests extends ESTestCase {
                         assertEquals(token, mapToken);
                         assertEquals(parser.currentName(), mapParser.currentName());
                         if (token != null && (token.isValue() || token == XContentParser.Token.VALUE_NULL)) {
-                            assertEquals(parser.textOrNull(), mapParser.textOrNull());
+                            if ((xContentType.canonical() != XContentType.YAML) ||
+                                token != XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                                // YAML struggles with converting byte arrays into text, because it
+                                // does weird base64 decoding to the values. We don't do this
+                                // weirdness in the MapXContentParser, so don't try to stringify it.
+                                // The .binaryValue() comparison below still works correctly though.
+                                assertEquals(parser.textOrNull(), mapParser.textOrNull());
+                            }
                             switch (token) {
                                 case VALUE_STRING:
                                     assertEquals(parser.text(), mapParser.text());

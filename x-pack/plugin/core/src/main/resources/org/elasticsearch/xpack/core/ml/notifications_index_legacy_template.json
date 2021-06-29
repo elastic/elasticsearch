@@ -1,0 +1,17 @@
+{
+  "order" : 0,
+  "version" : ${xpack.ml.version.id},
+  "index_patterns" : [
+    ".ml-notifications-000002"
+  ],
+  "settings" : {
+    "index" : {
+      "number_of_shards" : "1",
+      "auto_expand_replicas" : "0-1",
+      "hidden": true
+    }
+  },
+  "mappings" : {
+    "_doc": ${xpack.ml.notifications.mappings}
+  }
+}

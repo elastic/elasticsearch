@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm.history;
@@ -35,12 +36,21 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_IND
 public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     // history (please add a comment why you increased the version here)
     // version 1: initial
-    public static final String INDEX_TEMPLATE_VERSION = "1";
+    // version 2: converted to hidden index
+    // version 3: templates moved to composable templates
+    // version 4:converted data stream
+    // version 5: add `allow_auto_create` setting
+    public static final int INDEX_TEMPLATE_VERSION = 5;
 
     public static final String SLM_TEMPLATE_VERSION_VARIABLE = "xpack.slm.template.version";
     public static final String SLM_TEMPLATE_NAME = ".slm-history";
 
     public static final String SLM_POLICY_NAME = "slm-history-ilm-policy";
+
+    @Override
+    protected boolean requiresMasterNode() {
+        return true;
+    }
 
     public static final IndexTemplateConfig TEMPLATE_SLM_HISTORY = new IndexTemplateConfig(
         SLM_TEMPLATE_NAME,
@@ -63,7 +73,7 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<IndexTemplateConfig> getTemplateConfigs() {
+    protected List<IndexTemplateConfig> getComposableTemplateConfigs() {
         if (slmHistoryEnabled == false) {
             return Collections.emptyList();
         }
@@ -84,12 +94,12 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     }
 
     public boolean validate(ClusterState state) {
-        boolean allTemplatesPresent = getTemplateConfigs().stream()
+        boolean allTemplatesPresent = getComposableTemplateConfigs().stream()
             .map(IndexTemplateConfig::getTemplateName)
-            .allMatch(name -> state.metaData().getTemplates().containsKey(name));
+            .allMatch(name -> state.metadata().templatesV2().containsKey(name));
 
         Optional<Map<String, LifecyclePolicy>> maybePolicies = Optional
-            .<IndexLifecycleMetadata>ofNullable(state.metaData().custom(IndexLifecycleMetadata.TYPE))
+            .<IndexLifecycleMetadata>ofNullable(state.metadata().custom(IndexLifecycleMetadata.TYPE))
             .map(IndexLifecycleMetadata::getPolicies);
         Set<String> policyNames = getPolicyConfigs().stream()
             .map(LifecyclePolicyConfig::getPolicyName)

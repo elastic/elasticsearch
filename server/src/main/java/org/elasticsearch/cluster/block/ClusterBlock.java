@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.block;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,32 +17,26 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Objects;
 
 public class ClusterBlock implements Writeable, ToXContentFragment {
 
-    private int id;
-    private @Nullable String uuid;
-    private String description;
-    private EnumSet<ClusterBlockLevel> levels;
-    private boolean retryable;
-    private boolean disableStatePersistence = false;
-    private boolean allowReleaseResources;
-    private RestStatus status;
+    private final int id;
+    @Nullable private final String uuid;
+    private final String description;
+    private final EnumSet<ClusterBlockLevel> levels;
+    private final boolean retryable;
+    private final boolean disableStatePersistence;
+    private final boolean allowReleaseResources;
+    private final RestStatus status;
 
     public ClusterBlock(StreamInput in) throws IOException {
         id = in.readVInt();
         uuid = in.readOptionalString();
         description = in.readString();
-        final int len = in.readVInt();
-        ArrayList<ClusterBlockLevel> levels = new ArrayList<>(len);
-        for (int i = 0; i < len; i++) {
-            levels.add(in.readEnum(ClusterBlockLevel.class));
-        }
-        this.levels = EnumSet.copyOf(levels);
+        this.levels = in.readEnumSet(ClusterBlockLevel.class);
         retryable = in.readBoolean();
         disableStatePersistence = in.readBoolean();
         status = RestStatus.readFrom(in);
@@ -81,6 +64,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         return this.id;
     }
 
+    @Nullable
     public String uuid() {
         return uuid;
     }
@@ -146,10 +130,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         out.writeVInt(id);
         out.writeOptionalString(uuid);
         out.writeString(description);
-        out.writeVInt(levels.size());
-        for (ClusterBlockLevel level : levels) {
-            out.writeEnum(level);
-        }
+        out.writeEnumSet(levels);
         out.writeBoolean(retryable);
         out.writeBoolean(disableStatePersistence);
         RestStatus.writeTo(out, status);

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.vectors;
 
@@ -17,9 +18,9 @@ public class VectorsFeatureSetUsageTests extends AbstractWireSerializingTestCase
         boolean available = randomBoolean();
         boolean enabled = randomBoolean();
         if (available && enabled) {
-            return new VectorsFeatureSetUsage(available, enabled, randomIntBetween(0, 100000), randomIntBetween(0, 1024));
+            return new VectorsFeatureSetUsage(available, randomIntBetween(0, 100000), randomIntBetween(0, 1024));
         } else {
-            return new VectorsFeatureSetUsage(available, enabled, 0, 0);
+            return new VectorsFeatureSetUsage(available, 0, 0);
         }
     }
 
@@ -36,7 +37,7 @@ public class VectorsFeatureSetUsageTests extends AbstractWireSerializingTestCase
         }
         numDenseVectorFields = randomValueOtherThan(numDenseVectorFields, () -> randomIntBetween(0, 100000));
         avgDenseVectorDims = randomValueOtherThan(avgDenseVectorDims, () -> randomIntBetween(0, 1024));
-        return new VectorsFeatureSetUsage(available, enabled, numDenseVectorFields, avgDenseVectorDims);
+        return new VectorsFeatureSetUsage(available, numDenseVectorFields, avgDenseVectorDims);
     }
 
     @Override

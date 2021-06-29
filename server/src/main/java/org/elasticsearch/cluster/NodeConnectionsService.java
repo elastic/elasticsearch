@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster;
 
@@ -25,17 +14,17 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -292,7 +281,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     private class ConnectionTarget {
         private final DiscoveryNode discoveryNode;
 
-        private PlainListenableActionFuture<Void> future = PlainListenableActionFuture.newListenableFuture();
+        private ListenableActionFuture<Void> future = new ListenableActionFuture<>();
         private ActivityType activityType = ActivityType.IDLE; // indicates what any listeners are awaiting
 
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
@@ -304,20 +293,32 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             @Override
             protected void doRun() {
                 assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                transportService.connectToNode(discoveryNode, new ActionListener<Void>() {
-                    @Override
-                    public void onResponse(Void aVoid) {
-                        assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                        consecutiveFailureCount.set(0);
-                        logger.debug("connected to {}", discoveryNode);
-                        onCompletion(ActivityType.CONNECTING, null, disconnectActivity);
-                    }
+                if (transportService.nodeConnected(discoveryNode)) {
+                    // transportService.connectToNode is a no-op if already connected, but we don't want any DEBUG logging in this case
+                    // since we run this for every node on every cluster state update.
+                    logger.trace("still connected to {}", discoveryNode);
+                    onConnected();
+                } else {
+                    logger.debug("connecting to {}", discoveryNode);
+                    transportService.connectToNode(discoveryNode, new ActionListener<Void>() {
+                        @Override
+                        public void onResponse(Void aVoid) {
+                            assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
+                            logger.debug("connected to {}", discoveryNode);
+                            onConnected();
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        abstractRunnable.onFailure(e);
-                    }
-                });
+                        @Override
+                        public void onFailure(Exception e) {
+                            abstractRunnable.onFailure(e);
+                        }
+                    });
+                }
+            }
+
+            private void onConnected() {
+                consecutiveFailureCount.set(0);
+                onCompletion(ActivityType.CONNECTING, null, disconnectActivity);
             }
 
             @Override
@@ -411,10 +412,10 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             }
         }
 
-        private PlainListenableActionFuture<Void> getAndClearFuture() {
+        private ListenableActionFuture<Void> getAndClearFuture() {
             assert Thread.holdsLock(mutex) : "mutex not held";
-            final PlainListenableActionFuture<Void> drainedFuture = future;
-            future = PlainListenableActionFuture.newListenableFuture();
+            final ListenableActionFuture<Void> drainedFuture = future;
+            future = new ListenableActionFuture<>();
             return drainedFuture;
         }
 
@@ -436,7 +437,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             }
 
             activityType = newActivityType;
-            final PlainListenableActionFuture<Void> oldFuture = getAndClearFuture();
+            final ListenableActionFuture<Void> oldFuture = getAndClearFuture();
             addListener(listener);
             return () -> oldFuture.onFailure(new ElasticsearchException(cancellationMessage));
         }
@@ -448,7 +449,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             synchronized (mutex) {
                 assert activityType != ActivityType.IDLE;
                 if (activityType == completedActivityType) {
-                    final PlainListenableActionFuture<Void> oldFuture = getAndClearFuture();
+                    final ListenableActionFuture<Void> oldFuture = getAndClearFuture();
                     activityType = ActivityType.IDLE;
 
                     cleanup = e == null ? () -> oldFuture.onResponse(null) : () -> oldFuture.onFailure(e);

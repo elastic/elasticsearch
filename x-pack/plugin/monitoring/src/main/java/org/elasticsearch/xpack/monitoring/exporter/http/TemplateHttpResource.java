@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -12,10 +13,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -93,7 +94,7 @@ public class TemplateHttpResource extends PublishableHttpResource {
      * Publish the missing {@linkplain #templateName template}.
      */
     @Override
-    protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    protected void doPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         putResource(client, listener, logger,
                     "/_template", templateName, Collections.emptyMap(), this::templateToHttpEntity, "monitoring template",
                     resourceOwnerName, "monitoring cluster");
@@ -110,7 +111,7 @@ public class TemplateHttpResource extends PublishableHttpResource {
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template.get())) {
             XContentBuilder builder = JsonXContent.contentBuilder();
-            IndexTemplateMetaData.Builder.removeType(IndexTemplateMetaData.Builder.fromXContent(parser, templateName), builder);
+            IndexTemplateMetadata.Builder.removeType(IndexTemplateMetadata.Builder.fromXContent(parser, templateName), builder);
             return new StringEntity(BytesReference.bytes(builder).utf8ToString(), ContentType.APPLICATION_JSON);
         } catch (IOException ex) {
             throw new IllegalStateException("Cannot serialize template [" + templateName + "] for monitoring export", ex);

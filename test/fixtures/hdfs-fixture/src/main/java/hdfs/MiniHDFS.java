@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package hdfs;
@@ -56,8 +45,9 @@ public class MiniHDFS {
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1 && args.length != 3) {
-            throw new IllegalArgumentException("Expected: MiniHDFS <baseDirectory> [<kerberosPrincipal> <kerberosKeytab>], " +
-                "got: " + Arrays.toString(args));
+            throw new IllegalArgumentException(
+                "Expected: MiniHDFS <baseDirectory> [<kerberosPrincipal> <kerberosKeytab>], got: " + Arrays.toString(args)
+            );
         }
         boolean secure = args.length == 3;
 
@@ -99,10 +89,15 @@ public class MiniHDFS {
         UserGroupInformation.setConfiguration(cfg);
 
         MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(cfg);
-        if (secure) {
-            builder.nameNodePort(9998);
+        String explicitPort = System.getProperty("hdfs.config.port");
+        if (explicitPort != null) {
+            builder.nameNodePort(Integer.parseInt(explicitPort));
         } else {
-            builder.nameNodePort(9999);
+            if (secure) {
+                builder.nameNodePort(9998);
+            } else {
+                builder.nameNodePort(9999);
+            }
         }
 
         // Configure HA mode
@@ -148,7 +143,9 @@ public class MiniHDFS {
                 FileUtils.copyURLToFile(readOnlyRepositoryArchiveURL, readOnlyRepositoryArchive);
                 FileUtil.unTar(readOnlyRepositoryArchive, tempDirectory.toFile());
 
-                fs.copyFromLocalFile(true, true,
+                fs.copyFromLocalFile(
+                    true,
+                    true,
                     new org.apache.hadoop.fs.Path(tempDirectory.resolve(directoryName).toAbsolutePath().toUri()),
                     esUserPath.suffix("/existing/" + directoryName)
                 );

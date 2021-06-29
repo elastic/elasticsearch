@@ -1,0 +1,236 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Tests testing wildcard field type (introduced in ES 7.9?)
+//
+
+// filtering
+
+filterEquals
+SELECT last_name, first_name, wildcard_name FROM test_emp_copy WHERE wildcard_name = 'Saniya Kalloufi';
+
+   last_name:s |  first_name:s |wildcard_name:s 
+---------------+---------------+---------------
+Kalloufi       |Saniya         |Saniya Kalloufi
+;
+
+filterNotEquals
+SELECT COUNT(*) AS c FROM "test_emp_copy" WHERE wildcard_name <> 'Saniya Kalloufi';
+
+    c:l     
+---------------
+99
+;
+
+aggWithNullFilter
+SELECT COUNT(*) count FROM test_emp_copy WHERE wildcard_name IS NOT NULL;
+
+     count:l     
+---------------
+90
+;
+
+aggWithNullFilter
+SELECT COUNT(*) count FROM test_emp_copy WHERE wildcard_name IS NULL;
+
+     count:l     
+---------------
+10
+;
+
+functionOverAlias
+SELECT BIT_LENGTH(wildcard_name) bit, wildcard_name, length(wildcard_name) l FROM test_emp_copy ORDER BY bit DESC LIMIT 10;
+
+      bit      |    wildcard_name     |       l       
+---------------+----------------------+---------------
+176            |Sudharsan Flasterstein|22             
+168            |Arumugam Ossenbruggen |21             
+168            |Sreekrishna Servieres |21             
+160            |Kazuhito Cappelletti  |20             
+160            |Breannda Billingsley  |20             
+152            |Cristinel Bouloucos   |19             
+144            |Duangkaew Piveteau    |18             
+144            |Patricio Bridgland    |18             
+144            |Guoxiang Nooteboom    |18             
+144            |Alejandro McAlpine    |18             
+;
+
+
+groupByWithPercentile
+SELECT wildcard_name AS w, PERCENTILE(emp_no, 97) p1 FROM test_emp_copy GROUP BY wildcard_name LIMIT 10;
+
+          w:s        |      p1:d       
+---------------------+---------------
+null                 |10039.0        
+Alejandro McAlpine   |10059.0        
+Amabile Gomatam      |10091.0        
+Anneke Preusig       |10006.0        
+Anoosh Peyn          |10062.0        
+Arumugam Ossenbruggen|10094.0        
+Basil Tramer         |10049.0        
+Berhard McFarlin     |10058.0        
+Berni Genin          |10014.0        
+Bezalel Simmel       |10002.0        
+;
+
+complexGroupByWithPercentile
+SELECT CONCAT(SUBSTRING(wildcard_name, 0, 1), SUBSTRING(wildcard_name, LOCATE(' ', wildcard_name) + 1, 1)) AS w, PERCENTILE(emp_no, 97) p1, COUNT(*) c FROM test_emp_copy GROUP BY w HAVING c > 1 ORDER BY w DESC;
+
+     w:s       |      p1:d     |       c:l       
+---------------+---------------+---------------
+SP             |10024.0        |2              
+SF             |10089.0        |3              
+PB             |10080.0        |3              
+MS             |10054.0        |4              
+MB             |10074.0        |2              
+KM             |10085.0        |2              
+GD             |10075.0        |2              
+CB             |10068.0        |2              
+BM             |10058.0        |2              
+BB             |10060.0        |2              
+AP             |10062.0        |2              
+               |10039.0        |10             
+;
+
+aggSumWithAliasWithColumnRepeatedWithOrderDesc
+SELECT wildcard_name AS g, wildcard_name, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp_copy GROUP BY wildcard_name LIMIT 10;
+
+          g:s        |   wildcard_name:s   |      s3:l     | SUM(salary):l |      s5:l
+---------------------+---------------------+---------------+---------------+---------------
+null                 |null                 |473020         |473020         |473020         
+Alejandro McAlpine   |Alejandro McAlpine   |44307          |44307          |44307          
+Amabile Gomatam      |Amabile Gomatam      |38645          |38645          |38645          
+Anneke Preusig       |Anneke Preusig       |60335          |60335          |60335          
+Anoosh Peyn          |Anoosh Peyn          |65030          |65030          |65030          
+Arumugam Ossenbruggen|Arumugam Ossenbruggen|66817          |66817          |66817          
+Basil Tramer         |Basil Tramer         |37853          |37853          |37853          
+Berhard McFarlin     |Berhard McFarlin     |38376          |38376          |38376          
+Berni Genin          |Berni Genin          |37137          |37137          |37137          
+Bezalel Simmel       |Bezalel Simmel       |56371          |56371          |56371          
+;
+
+topHitsAsMinAndMaxAndGroupBy
+schema::w:s|min:s|max:s|first:s|last:s
+SELECT SUBSTRING(wildcard_name, 0, 1) w, MIN(first_name) as min, MAX(first_name) as max, FIRST(first_name) as first, LAST(first_name) as last FROM test_emp_copy GROUP BY w ORDER BY w;
+
+      w        |      min      |      max      |     first     |     last      
+---------------+---------------+---------------+---------------+---------------
+null           |null           |null           |null           |null           
+A              |Alejandro      |Arumugam       |Alejandro      |Arumugam       
+B              |Basil          |Brendon        |Basil          |Brendon        
+C              |Charlene       |Cristinel      |Charlene       |Cristinel      
+D              |Danel          |Duangkaew      |Danel          |Duangkaew      
+E              |Ebbe           |Erez           |Ebbe           |Erez           
+F              |Florian        |Florian        |Florian        |Florian        
+G              |Gao            |Guoxiang       |Gao            |Guoxiang       
+H              |Heping         |Hisao          |Heping         |Hisao          
+J              |Jayson         |Jungsoon       |Jayson         |Jungsoon       
+K              |Kazuhide       |Kyoichi        |Kazuhide       |Kyoichi        
+L              |Lillian        |Lucien         |Lillian        |Lucien         
+M              |Magy           |Moss           |Magy           |Moss           
+O              |Otmar          |Otmar          |Otmar          |Otmar          
+P              |Parto          |Premal         |Parto          |Premal         
+R              |Ramzi          |Reuven         |Ramzi          |Reuven         
+S              |Sailaja        |Suzette        |Sailaja        |Suzette        
+T              |Tse            |Tzvetan        |Tse            |Tzvetan        
+U              |Udi            |Uri            |Udi            |Uri            
+V              |Valdiodio      |Vishv          |Valdiodio      |Vishv          
+W              |Weiyi          |Weiyi          |Weiyi          |Weiyi          
+X              |Xinglin        |Xinglin        |Xinglin        |Xinglin        
+Y              |Yinghua        |Yongqiao       |Yinghua        |Yongqiao       
+Z              |Zhongwei       |Zvonko         |Zhongwei       |Zvonko         
+;
+
+medianAbsoluteDeviationOnTwoFields
+schema::wildcard_name:s|avg:l|mad_s:l|mad_l:d
+SELECT wildcard_name, FLOOR(AVG(salary)) AS avg, FLOOR(MAD(salary)) AS mad_s, MAD(languages) AS mad_l FROM test_emp_copy GROUP BY wildcard_name ORDER BY wildcard_name LIMIT 3;
+
+  wildcard_name   |     avg     |    mad_s    |     mad_l     
+------------------+-------------+-------------+---------------
+null              |47302        |8213         |1            
+Alejandro McAlpine|44307        |0            |0            
+Amabile Gomatam   |38645        |0            |0            
+;
+
+caseGroupByAndHaving
+schema::count:l|wildcard_name:s|languages:byte
+SELECT count(*) AS count, wildcard_name, languages FROM test_emp_copy GROUP BY 2, 3 HAVING CASE WHEN count(*) > 1 THEN 'many' ELSE 'a few' END = 'many' ORDER BY 1, 3;
+
+     count     | wildcard_name |   languages   
+---------------+---------------+---------------
+2              |null           |1              
+2              |null           |2              
+2              |null           |3              
+3              |null           |4              
+;
+
+whereFieldWithRLikeAndGroupByOrderBy
+SELECT last_name l, wildcard_name g, COUNT(*) c, MAX(salary) AS sal FROM test_emp_copy WHERE emp_no < 10050 AND (last_name RLIKE 'B.*' OR wildcard_name = 'F') GROUP BY g, l ORDER BY sal;
+
+      l:s      |        g:s        |      c:l      |     sal:i      
+---------------+-------------------+---------------+---------------
+Berztiss       |Yongqiao Berztiss  |1              |28336        
+Brender        |null               |1              |36051        
+Bridgland      |Patricio Bridgland |1              |48942        
+Bouloucos      |Cristinel Bouloucos|1              |58715        
+Bamford        |Parto Bamford      |1              |61805        
+;
+
+multipleGroupingsAndOrderingByGroupsWithFunctions_2
+SELECT first_name f, last_name l, LCASE(wildcard_name) g, CONCAT(UCASE(first_name), LCASE(last_name)) c FROM test_emp_copy GROUP BY f, LCASE(wildcard_name), l, c ORDER BY c ASC, first_name, l ASC, g LIMIT 10;
+
+      f:s      |      l:s      |         g:s         |        c:s       
+---------------+---------------+---------------------+--------------------
+Alejandro      |McAlpine       |alejandro mcalpine   |ALEJANDROmcalpine   
+Amabile        |Gomatam        |amabile gomatam      |AMABILEgomatam      
+Anneke         |Preusig        |anneke preusig       |ANNEKEpreusig       
+Anoosh         |Peyn           |anoosh peyn          |ANOOSHpeyn          
+Arumugam       |Ossenbruggen   |arumugam ossenbruggen|ARUMUGAMossenbruggen
+Basil          |Tramer         |basil tramer         |BASILtramer         
+Berhard        |McFarlin       |berhard mcfarlin     |BERHARDmcfarlin     
+Berni          |Genin          |berni genin          |BERNIgenin          
+Bezalel        |Simmel         |bezalel simmel       |BEZALELsimmel       
+Bojan          |Montemayor     |bojan montemayor     |BOJANmontemayor     
+;
+
+isNotNullWithCount
+SELECT wildcard_name IS NOT NULL AS bool, COUNT(*) FROM test_emp_copy GROUP BY bool;
+
+     bool:b    |   COUNT(*):l    
+---------------+---------------
+false          |10             
+true           |90             
+;
+
+like
+SELECT last_name, first_name, wildcard_name FROM test_emp_copy WHERE wildcard_name LIKE '%Kalloufi';
+
+   last_name:s |  first_name:s |wildcard_name:s 
+---------------+---------------+---------------
+Kalloufi       |Saniya         |Saniya Kalloufi
+Kalloufi       |Tuval          |Tuval Kalloufi 
+;
+
+likeWithCount1
+SELECT COUNT(*) FROM test_emp_copy WHERE wildcard_name LIKE 'A%';
+
+   COUNT(*):l    
+---------------
+5          
+;
+
+likeWithCount2
+SELECT COUNT(*) FROM test_emp_copy WHERE wildcard_name LIKE '%m%';
+
+   COUNT(*):l    
+---------------
+25           
+;
+
+likeWithCount3
+SELECT COUNT(*) FROM test_emp_copy WHERE wildcard_name NOT LIKE '%m%';
+
+   COUNT(*):l    
+---------------
+75        
+;

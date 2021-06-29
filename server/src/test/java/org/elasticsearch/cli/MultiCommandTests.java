@@ -1,29 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cli;
 
+import joptsimple.ArgumentAcceptingOptionSpec;
 import joptsimple.OptionSet;
+import joptsimple.util.KeyValuePair;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class MultiCommandTests extends CommandTestCase {
 
@@ -32,8 +29,7 @@ public class MultiCommandTests extends CommandTestCase {
         final AtomicBoolean closed = new AtomicBoolean();
 
         DummyMultiCommand() {
-            super("A dummy multi command", () -> {
-            });
+            super("A dummy multi command", () -> {});
         }
 
         @Override
@@ -75,7 +71,23 @@ public class MultiCommandTests extends CommandTestCase {
         }
     }
 
-    DummyMultiCommand multiCommand;
+    static class DummySettingsSubCommand extends DummySubCommand {
+        private final ArgumentAcceptingOptionSpec<KeyValuePair> settingOption;
+
+        DummySettingsSubCommand() {
+            super();
+            this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
+        }
+
+        @Override
+        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+            final List<KeyValuePair> values = this.settingOption.values(options);
+            terminal.println("Settings: " + values);
+            super.execute(terminal, options);
+        }
+    }
+
+    private DummyMultiCommand multiCommand;
 
     @Before
     public void setupCommand() {
@@ -87,27 +99,21 @@ public class MultiCommandTests extends CommandTestCase {
         return multiCommand;
     }
 
-    public void testNoCommandsConfigured() throws Exception {
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            execute();
-        });
+    public void testNoCommandsConfigured() {
+        IllegalStateException e = expectThrows(IllegalStateException.class, this::execute);
         assertEquals("No subcommands configured", e.getMessage());
     }
 
-    public void testUnknownCommand() throws Exception {
+    public void testUnknownCommand() {
         multiCommand.subcommands.put("something", new DummySubCommand());
-        UserException e = expectThrows(UserException.class, () -> {
-            execute("somethingelse");
-        });
+        UserException e = expectThrows(UserException.class, () -> execute("somethingelse"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertEquals("Unknown command [somethingelse]", e.getMessage());
     }
 
-    public void testMissingCommand() throws Exception {
+    public void testMissingCommand() {
         multiCommand.subcommands.put("command1", new DummySubCommand());
-        UserException e = expectThrows(UserException.class, () -> {
-            execute();
-        });
+        UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertEquals("Missing command", e.getMessage());
     }
@@ -119,6 +125,19 @@ public class MultiCommandTests extends CommandTestCase {
         String output = terminal.getOutput();
         assertTrue(output, output.contains("command1"));
         assertTrue(output, output.contains("command2"));
+    }
+
+    /**
+     * Check that if -E arguments are passed to the main command, then they are accepted
+     * and passed on to the subcommand.
+     */
+    public void testSettingsOnMainCommand() throws Exception {
+        multiCommand.subcommands.put("command1", new DummySettingsSubCommand());
+        execute("-Esetting1=value1", "-Esetting2=value2", "command1", "otherArg");
+
+        String output = terminal.getOutput();
+        assertThat(output, containsString("Settings: [setting1=value1, setting2=value2]"));
+        assertThat(output, containsString("Arguments: [otherArg]"));
     }
 
     public void testSubcommandHelp() throws Exception {
@@ -171,6 +190,57 @@ public class MultiCommandTests extends CommandTestCase {
         }
         assertTrue("SubCommand1 was not closed when close method is invoked", subCommand1.closeCalled.get());
         assertTrue("SubCommand2 was not closed when close method is invoked", subCommand2.closeCalled.get());
+    }
+
+    // Tests for multicommand error logging
+
+    static class ErrorHandlingMultiCommand extends MultiCommand {
+        ErrorHandlingMultiCommand() {
+            super("error catching", () -> {});
+        }
+
+        @Override
+        protected boolean addShutdownHook() {
+            return false;
+        }
+    }
+
+    static class ErrorThrowingSubCommand extends Command {
+        ErrorThrowingSubCommand() {
+            super("error throwing", () -> {});
+        }
+        @Override
+        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+            throw new UserException(1, "Dummy error");
+        }
+
+        @Override
+        protected boolean addShutdownHook() {
+            return false;
+        }
+    }
+
+    public void testErrorDisplayedWithDefault() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        MultiCommand mc = new ErrorHandlingMultiCommand();
+        mc.subcommands.put("throw", new ErrorThrowingSubCommand());
+        mc.main(new String[]{"throw", "--silent"}, terminal);
+        assertThat(terminal.getOutput(), is(emptyString()));
+        assertThat(terminal.getErrorOutput(), equalTo("ERROR: Dummy error\n"));
+    }
+
+    public void testNullErrorMessageSuppressesErrorOutput() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        MultiCommand mc = new ErrorHandlingMultiCommand();
+        mc.subcommands.put("throw", new ErrorThrowingSubCommand() {
+            @Override
+            protected void execute(Terminal terminal, OptionSet options) throws Exception {
+                throw new UserException(1, null);
+            }
+        });
+        mc.main(new String[]{"throw", "--silent"}, terminal);
+        assertThat(terminal.getOutput(), is(emptyString()));
+        assertThat(terminal.getErrorOutput(), is(emptyString()));
     }
 
 }

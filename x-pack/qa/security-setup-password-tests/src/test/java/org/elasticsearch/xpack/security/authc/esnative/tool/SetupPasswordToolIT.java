@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
@@ -9,9 +10,10 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureString;
@@ -33,8 +35,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 public class SetupPasswordToolIT extends ESRestTestCase {
 
@@ -79,8 +79,10 @@ public class SetupPasswordToolIT extends ESRestTestCase {
         final int status;
         if (randomBoolean()) {
             mockTerminal.addTextInput("y"); // answer yes to continue prompt
+            possiblyDecryptKeystore(mockTerminal);
             status = tool.main(new String[] { "auto" }, mockTerminal);
         } else {
+            possiblyDecryptKeystore(mockTerminal);
             status = tool.main(new String[] { "auto", "--batch" }, mockTerminal);
         }
         assertEquals(0, status);
@@ -98,7 +100,7 @@ public class SetupPasswordToolIT extends ESRestTestCase {
             }
         });
 
-        assertEquals(6, userPasswordMap.size());
+        assertEquals(7, userPasswordMap.size());
         userPasswordMap.entrySet().forEach(entry -> {
             final String basicHeader = "Basic " +
                     Base64.getEncoder().encodeToString((entry.getKey() + ":" + entry.getValue()).getBytes(StandardCharsets.UTF_8));
@@ -106,6 +108,10 @@ public class SetupPasswordToolIT extends ESRestTestCase {
                 Request request = new Request("GET", "/_security/_authenticate");
                 RequestOptions.Builder options = request.getOptions().toBuilder();
                 options.addHeader("Authorization", basicHeader);
+                if ("kibana".equals(entry.getKey())) {
+                    // the kibana user is deprecated so a warning header is expected
+                    options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+                }
                 request.setOptions(options);
                 Map<String, Object> userInfoMap = entityAsMap(client().performRequest(request));
                 assertEquals(entry.getKey(), userInfoMap.get("username"));
@@ -113,6 +119,13 @@ public class SetupPasswordToolIT extends ESRestTestCase {
                 throw new UncheckedIOException(e);
             }
         });
+    }
+
+    private void possiblyDecryptKeystore(MockTerminal mockTerminal) {
+        if (inFipsJvm()) {
+            // In our FIPS 140-2 tests, we set the keystore password to `keystore-password`
+            mockTerminal.addSecretInput("keystore-password");
+        }
     }
 
     @SuppressForbidden(reason = "need to set sys props for CLI tool")

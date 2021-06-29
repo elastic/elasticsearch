@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[stop-dfanalytics]]
-=== Stop {dfanalytics-jobs} API
+= Stop {dfanalytics-jobs} API
 
 [subs="attributes"]
 ++++
@@ -10,10 +10,9 @@
 
 Stops one or more {dfanalytics-jobs}.
 
-experimental[]
 
 [[ml-stop-dfanalytics-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/data_frame/analytics/<data_frame_analytics_id>/_stop` +
 
@@ -22,13 +21,14 @@ experimental[]
 `POST _ml/data_frame/analytics/_all/_stop`
 
 [[ml-stop-dfanalytics-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* You must have `machine_learning_admin` built-in role to use this API. For more 
-information, see <<security-privileges>> and <<built-in-roles>>.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
+
 
 [[ml-stop-dfanalytics-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 A {dfanalytics-job} can be started and stopped multiple times throughout its 
 lifecycle.
@@ -39,31 +39,30 @@ stop all {dfanalytics-job} by using _all or by specifying * as the
 <data_frame_analytics_id>.
 
 [[ml-stop-dfanalytics-path-params]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
-  (Required, string) Identifier for the {dfanalytics-job}. This identifier can
-  contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
-  underscores. It must start and end with alphanumeric characters.
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
   
 [[ml-stop-dfanalytics-query-params]]
-==== {api-query-parms-title}  
+== {api-query-parms-title}  
   
 `allow_no_match`::
-  (Optional, boolean) If `false` and the `data_frame_analytics_id` does not
-  match any {dfanalytics-job} an error will be returned. The default value is
-  `true`.
+(Optional, Boolean) 
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+
 
 `force`::
-  (Optional, boolean) If true, the {dfanalytics-job} is stopped forcefully.
+  (Optional, Boolean) If true, the {dfanalytics-job} is stopped forcefully.
   
 `timeout`::
-  (Optional, time) Controls the amount of time to wait until the
-  {dfanalytics-job} stops. The default value is 20 seconds.
+(Optional, <<time-units,time units>>) 
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=timeout-stop]
 
 
 [[ml-stop-dfanalytics-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 The following example stops the `loganalytics` {dfanalytics-job}:
 

@@ -18,21 +18,21 @@ excluding them from the search results.
 ----
 GET /_search
 {
-    "query": {
-        "boosting" : {
-            "positive" : {
-                "term" : {
-                    "text" : "apple"
-                }
-            },
-            "negative" : {
-                 "term" : {
-                     "text" : "pie tart fruit crumble tree"
-                }
-            },
-            "negative_boost" : 0.5
+  "query": {
+    "boosting": {
+      "positive": {
+        "term": {
+          "text": "apple"
         }
+      },
+      "negative": {
+        "term": {
+          "text": "pie tart fruit crumble tree"
+        }
+      },
+      "negative_boost": 0.5
     }
+  }
 }
 ----
 

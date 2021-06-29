@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap.support;
 
@@ -10,8 +11,8 @@ import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 
 import java.util.Collection;
@@ -28,7 +29,7 @@ public class LdapSession implements Releasable {
     protected final LDAPInterface connection;
     protected final String userDn;
     protected final GroupsResolver groupsResolver;
-    private LdapMetaDataResolver metaDataResolver;
+    private LdapMetadataResolver metadataResolver;
     protected final TimeValue timeout;
     protected final Collection<Attribute> attributes;
 
@@ -41,13 +42,13 @@ public class LdapSession implements Releasable {
      * since we want the logger to be contextual (i.e. aware of the settings and its environment).
      */
     public LdapSession(Logger logger, RealmConfig realm, LDAPInterface connection, String userDn, GroupsResolver groupsResolver,
-                       LdapMetaDataResolver metaDataResolver, TimeValue timeout, Collection<Attribute> attributes) {
+                       LdapMetadataResolver metadataResolver, TimeValue timeout, Collection<Attribute> attributes) {
         this.logger = logger;
         this.realm = realm;
         this.connection = connection;
         this.userDn = userDn;
         this.groupsResolver = groupsResolver;
-        this.metaDataResolver = metaDataResolver;
+        this.metadataResolver = metadataResolver;
         this.timeout = timeout;
         this.attributes = attributes;
     }
@@ -92,8 +93,8 @@ public class LdapSession implements Releasable {
         groupsResolver.resolve(connection, userDn, timeout, logger, attributes, listener);
     }
 
-    public void metaData(ActionListener<Map<String, Object>> listener) {
-        metaDataResolver.resolve(connection, userDn, timeout, logger, attributes, listener);
+    public void metadata(ActionListener<Map<String, Object>> listener) {
+        metadataResolver.resolve(connection, userDn, timeout, logger, attributes, listener);
     }
 
     public void resolve(ActionListener<LdapUserData> listener) {
@@ -101,7 +102,7 @@ public class LdapSession implements Releasable {
         groups(ActionListener.wrap(
                 groups -> {
                     logger.debug("Resolved {} LDAP groups [{}] for user [{}]",  groups.size(), groups, userDn);
-                    metaData(ActionListener.wrap(
+                    metadata(ActionListener.wrap(
                             meta -> {
                                 logger.debug("Resolved {} meta-data fields [{}] for user [{}]",  meta.size(), meta, userDn);
                                 listener.onResponse(new LdapUserData(groups, meta));
@@ -113,11 +114,11 @@ public class LdapSession implements Releasable {
 
     public static class LdapUserData {
         public final List<String> groups;
-        public final Map<String, Object> metaData;
+        public final Map<String, Object> metadata;
 
-        public LdapUserData(List<String> groups, Map<String, Object> metaData) {
+        public LdapUserData(List<String> groups, Map<String, Object> metadata) {
             this.groups = groups;
-            this.metaData = metaData;
+            this.metadata = metadata;
         }
     }
 

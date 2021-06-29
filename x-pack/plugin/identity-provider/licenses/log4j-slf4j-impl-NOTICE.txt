@@ -1,0 +1,8 @@
+
+Apache Log4j SLF4J Binding
+Copyright 1999-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+

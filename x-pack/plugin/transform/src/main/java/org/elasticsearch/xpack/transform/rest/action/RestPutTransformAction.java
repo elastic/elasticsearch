@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.rest.action;
@@ -9,18 +10,21 @@ package org.elasticsearch.xpack.transform.rest.action;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutTransformAction extends BaseRestHandler {
 
-    public RestPutTransformAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.PUT, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID, this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(PUT, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID));
     }
 
     @Override

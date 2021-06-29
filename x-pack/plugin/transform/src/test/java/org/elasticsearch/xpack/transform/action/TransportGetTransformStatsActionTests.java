@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.transform.action;
 
@@ -28,101 +29,162 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
 
     public void testDeriveStatsStopped() {
         String transformId = "transform-with-stats";
-        String reason = "";
+        String reason = null;
         TransformIndexerStats stats = TransformIndexerStatsTests.randomStats();
-        TransformState stoppedState =
-            new TransformState(TransformTaskState.STOPPED, IndexerState.STOPPED, null, 0, reason, null, null, true);
+        TransformState stoppedState = new TransformState(
+            TransformTaskState.STOPPED,
+            IndexerState.STOPPED,
+            null,
+            0,
+            reason,
+            null,
+            null,
+            true
+        );
         withIdStateAndStats(transformId, stoppedState, stats);
         TransformCheckpointingInfo info = new TransformCheckpointingInfo(
             new TransformCheckpointStats(1, null, null, 1, 1),
             new TransformCheckpointStats(2, null, null, 2, 5),
             2,
-            Instant.now());
+            Instant.now(),
+            Instant.now()
+        );
 
-        assertThat(TransportGetTransformStatsAction.deriveStats(task, null),
-            equalTo(new TransformStats(transformId, TransformStats.State.STOPPED, "", null, stats, TransformCheckpointingInfo.EMPTY)));
-        assertThat(TransportGetTransformStatsAction.deriveStats(task, info),
-            equalTo(new TransformStats(transformId, TransformStats.State.STOPPED, "", null, stats, info)));
-
+        assertThat(
+            TransportGetTransformStatsAction.deriveStats(task, null),
+            equalTo(new TransformStats(transformId, TransformStats.State.STOPPED, reason, null, stats, TransformCheckpointingInfo.EMPTY))
+        );
+        assertThat(
+            TransportGetTransformStatsAction.deriveStats(task, info),
+            equalTo(new TransformStats(transformId, TransformStats.State.STOPPED, reason, null, stats, info))
+        );
 
         reason = "foo";
         stoppedState = new TransformState(TransformTaskState.STOPPED, IndexerState.STOPPED, null, 0, reason, null, null, true);
         withIdStateAndStats(transformId, stoppedState, stats);
 
-        assertThat(TransportGetTransformStatsAction.deriveStats(task, null),
-            equalTo(new TransformStats(transformId, TransformStats.State.STOPPED, reason, null, stats, TransformCheckpointingInfo.EMPTY)));
-        assertThat(TransportGetTransformStatsAction.deriveStats(task, info),
-            equalTo(new TransformStats(transformId, TransformStats.State.STOPPED, reason, null, stats, info)));
+        assertThat(
+            TransportGetTransformStatsAction.deriveStats(task, null),
+            equalTo(new TransformStats(transformId, TransformStats.State.STOPPED, reason, null, stats, TransformCheckpointingInfo.EMPTY))
+        );
+        assertThat(
+            TransportGetTransformStatsAction.deriveStats(task, info),
+            equalTo(new TransformStats(transformId, TransformStats.State.STOPPED, reason, null, stats, info))
+        );
     }
 
     public void testDeriveStatsFailed() {
         String transformId = "transform-with-stats";
-        String reason = "";
+        String reason = null;
         TransformIndexerStats stats = TransformIndexerStatsTests.randomStats();
-        TransformState failedState =
-            new TransformState(TransformTaskState.FAILED, IndexerState.STOPPED, null, 0, reason, null, null, true);
+        TransformState failedState = new TransformState(TransformTaskState.FAILED, IndexerState.STOPPED, null, 0, reason, null, null, true);
         withIdStateAndStats(transformId, failedState, stats);
         TransformCheckpointingInfo info = new TransformCheckpointingInfo(
             new TransformCheckpointStats(1, null, null, 1, 1),
             new TransformCheckpointStats(2, null, null, 2, 5),
             2,
-            Instant.now());
+            Instant.now(),
+            Instant.now()
+        );
 
-        assertThat(TransportGetTransformStatsAction.deriveStats(task, null),
-            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, "", null, stats, TransformCheckpointingInfo.EMPTY)));
-        assertThat(TransportGetTransformStatsAction.deriveStats(task, info),
-            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, "", null, stats, info)));
-
+        assertThat(
+            TransportGetTransformStatsAction.deriveStats(task, null),
+            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, TransformCheckpointingInfo.EMPTY))
+        );
+        assertThat(
+            TransportGetTransformStatsAction.deriveStats(task, info),
+            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, info))
+        );
 
         reason = "the task is failed";
         failedState = new TransformState(TransformTaskState.FAILED, IndexerState.STOPPED, null, 0, reason, null, null, true);
         withIdStateAndStats(transformId, failedState, stats);
 
-        assertThat(TransportGetTransformStatsAction.deriveStats(task, null),
-            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, TransformCheckpointingInfo.EMPTY)));
-        assertThat(TransportGetTransformStatsAction.deriveStats(task, info),
-            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, info)));
+        assertThat(
+            TransportGetTransformStatsAction.deriveStats(task, null),
+            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, TransformCheckpointingInfo.EMPTY))
+        );
+        assertThat(
+            TransportGetTransformStatsAction.deriveStats(task, info),
+            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, info))
+        );
     }
-
 
     public void testDeriveStats() {
         String transformId = "transform-with-stats";
-        String reason = "";
+        String reason = null;
         TransformIndexerStats stats = TransformIndexerStatsTests.randomStats();
-        TransformState runningState =
-            new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 0, reason, null, null, true);
+        TransformState runningState = new TransformState(
+            TransformTaskState.STARTED,
+            IndexerState.INDEXING,
+            null,
+            0,
+            reason,
+            null,
+            null,
+            true
+        );
         withIdStateAndStats(transformId, runningState, stats);
         TransformCheckpointingInfo info = new TransformCheckpointingInfo(
             new TransformCheckpointStats(1, null, null, 1, 1),
             new TransformCheckpointStats(2, null, null, 2, 5),
             2,
-            Instant.now());
+            Instant.now(),
+            Instant.now()
+        );
 
-        assertThat(TransportGetTransformStatsAction.deriveStats(task, null),
-            equalTo(new TransformStats(transformId, TransformStats.State.STOPPING,
-                "transform is set to stop at the next checkpoint", null, stats, TransformCheckpointingInfo.EMPTY)));
-        assertThat(TransportGetTransformStatsAction.deriveStats(task, info),
-            equalTo(new TransformStats(transformId, TransformStats.State.STOPPING,
-                "transform is set to stop at the next checkpoint", null, stats, info)));
-
+        assertThat(
+            TransportGetTransformStatsAction.deriveStats(task, null),
+            equalTo(
+                new TransformStats(
+                    transformId,
+                    TransformStats.State.STOPPING,
+                    "transform is set to stop at the next checkpoint",
+                    null,
+                    stats,
+                    TransformCheckpointingInfo.EMPTY
+                )
+            )
+        );
+        assertThat(
+            TransportGetTransformStatsAction.deriveStats(task, info),
+            equalTo(
+                new TransformStats(
+                    transformId,
+                    TransformStats.State.STOPPING,
+                    "transform is set to stop at the next checkpoint",
+                    null,
+                    stats,
+                    info
+                )
+            )
+        );
 
         reason = "foo";
         runningState = new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 0, reason, null, null, true);
         withIdStateAndStats(transformId, runningState, stats);
 
-        assertThat(TransportGetTransformStatsAction.deriveStats(task, null),
-            equalTo(new TransformStats(transformId, TransformStats.State.STOPPING, reason, null, stats, TransformCheckpointingInfo.EMPTY)));
-        assertThat(TransportGetTransformStatsAction.deriveStats(task, info),
-            equalTo(new TransformStats(transformId, TransformStats.State.STOPPING, reason, null, stats, info)));
+        assertThat(
+            TransportGetTransformStatsAction.deriveStats(task, null),
+            equalTo(new TransformStats(transformId, TransformStats.State.STOPPING, reason, null, stats, TransformCheckpointingInfo.EMPTY))
+        );
+        assertThat(
+            TransportGetTransformStatsAction.deriveStats(task, info),
+            equalTo(new TransformStats(transformId, TransformStats.State.STOPPING, reason, null, stats, info))
+        );
 
         // Stop at next checkpoint is false.
         runningState = new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 0, reason, null, null, false);
         withIdStateAndStats(transformId, runningState, stats);
 
-        assertThat(TransportGetTransformStatsAction.deriveStats(task, null),
-            equalTo(new TransformStats(transformId, TransformStats.State.INDEXING, reason, null, stats, TransformCheckpointingInfo.EMPTY)));
-        assertThat(TransportGetTransformStatsAction.deriveStats(task, info),
-            equalTo(new TransformStats(transformId, TransformStats.State.INDEXING, reason, null, stats, info)));
+        assertThat(
+            TransportGetTransformStatsAction.deriveStats(task, null),
+            equalTo(new TransformStats(transformId, TransformStats.State.INDEXING, reason, null, stats, TransformCheckpointingInfo.EMPTY))
+        );
+        assertThat(
+            TransportGetTransformStatsAction.deriveStats(task, info),
+            equalTo(new TransformStats(transformId, TransformStats.State.INDEXING, reason, null, stats, info))
+        );
     }
 
     private void withIdStateAndStats(String transformId, TransformState state, TransformIndexerStats stats) {

@@ -1,48 +1,44 @@
 [role="xpack"]
 [testenv="basic"]
 [[delete-transform]]
-=== Delete {transforms} API
+= Delete {transform} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Delete {transforms}</titleabbrev>
+<titleabbrev>Delete {transform}</titleabbrev>
 ++++
 
 Deletes an existing {transform}.
 
-beta[]
-
 [[delete-transform-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `DELETE _transform/<transform_id>`
 
 [[delete-transform-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
+* Requires the `manage_transform` cluster privilege. This privilege is included 
+in the `transform_admin` built-in role.
 * Before you can delete the {transform}, you must stop it.
-* If the {es} {security-features} are enabled, you must have `manage_transform` 
-cluster privileges to use this API. The built-in `transform_admin` role has 
-these privileges. For more information, see <<security-privileges>> and 
-<<built-in-roles>>.
-
 
 [[delete-transform-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<transform_id>`::
-  (Required, string) Identifier for the {transform}.
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[delete-transform-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `force`::
-(Optional, boolean) When `true`, the {transform} is deleted regardless of its
+(Optional, Boolean) When `true`, the {transform} is deleted regardless of its
 current state. The default value is `false`, meaning that the {transform} must be
 `stopped` before it can be deleted.
 
 [[delete-transform-examples]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

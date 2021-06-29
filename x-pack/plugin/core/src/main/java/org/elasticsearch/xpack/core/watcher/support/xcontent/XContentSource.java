@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
@@ -15,6 +16,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.XContentUtils;
@@ -76,6 +78,7 @@ public class XContentSource implements ToXContent {
     /**
      * @return The source as a map
      */
+    @SuppressWarnings("unchecked")
     public Map<String, Object> getAsMap() {
         return (Map<String, Object>) data();
     }
@@ -90,6 +93,7 @@ public class XContentSource implements ToXContent {
     /**
      * @return The source as a list
      */
+    @SuppressWarnings("unchecked")
     public List<Object> getAsList() {
         return (List<Object>) data();
     }
@@ -100,6 +104,7 @@ public class XContentSource implements ToXContent {
      * @param path a dot notation path to the requested value
      * @return The extracted value or {@code null} if no value is associated with the given path
      */
+    @SuppressWarnings("unchecked")
     public <T> T getValue(String path) {
         return (T) ObjectPath.eval(path, data());
     }
@@ -125,7 +130,7 @@ public class XContentSource implements ToXContent {
 
     public static void writeTo(XContentSource source, StreamOutput out) throws IOException {
         out.writeBytesReference(source.bytes);
-        out.writeEnum(source.contentType);
+        XContentHelper.writeTo(out, source.contentType);
     }
 
     private Object data() {

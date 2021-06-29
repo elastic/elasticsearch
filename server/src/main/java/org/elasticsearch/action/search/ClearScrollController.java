@@ -1,40 +1,37 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollId;
 
-final class ClearScrollController implements Runnable {
+public final class ClearScrollController implements Runnable {
     private final DiscoveryNodes nodes;
     private final SearchTransportService searchTransportService;
     private final CountDown expectedOps;
@@ -56,19 +53,18 @@ final class ClearScrollController implements Runnable {
             expectedOps = nodes.getSize();
             runner = this::cleanAllScrolls;
         } else {
-            List<ScrollIdForNode> parsedScrollIds = new ArrayList<>();
-            for (String parsedScrollId : request.getScrollIds()) {
-                ScrollIdForNode[] context = parseScrollId(parsedScrollId).getContext();
-                for (ScrollIdForNode id : context) {
-                    parsedScrollIds.add(id);
-                }
+            // TODO: replace this with #closeContexts
+            List<SearchContextIdForNode> contexts = new ArrayList<>();
+            for (String scrollId : request.getScrollIds()) {
+                SearchContextIdForNode[] context = parseScrollId(scrollId).getContext();
+                Collections.addAll(contexts, context);
             }
-            if (parsedScrollIds.isEmpty()) {
+            if (contexts.isEmpty()) {
                 expectedOps = 0;
                 runner = () -> listener.onResponse(new ClearScrollResponse(true, 0));
             } else {
-                expectedOps = parsedScrollIds.size();
-                runner = () -> cleanScrollIds(parsedScrollIds);
+                expectedOps = contexts.size();
+                runner = () -> cleanScrollIds(contexts);
             }
         }
         this.expectedOps = new CountDown(expectedOps);
@@ -101,17 +97,17 @@ final class ClearScrollController implements Runnable {
         }
     }
 
-    void cleanScrollIds(List<ScrollIdForNode> parsedScrollIds) {
-        SearchScrollAsyncAction.collectNodesAndRun(parsedScrollIds, nodes, searchTransportService, ActionListener.wrap(
+    void cleanScrollIds(List<SearchContextIdForNode> contextIds) {
+        SearchScrollAsyncAction.collectNodesAndRun(contextIds, nodes, searchTransportService, ActionListener.wrap(
             lookup -> {
-                for (ScrollIdForNode target : parsedScrollIds) {
+                for (SearchContextIdForNode target : contextIds) {
                     final DiscoveryNode node = lookup.apply(target.getClusterAlias(), target.getNode());
                     if (node == null) {
                         onFreedContext(false);
                     } else {
                         try {
                             Transport.Connection connection = searchTransportService.getConnection(target.getClusterAlias(), node);
-                            searchTransportService.sendFreeContext(connection, target.getScrollId(),
+                            searchTransportService.sendFreeContext(connection, target.getSearchContextId(),
                                 ActionListener.wrap(freed -> onFreedContext(freed.isFreed()), e -> onFailedFreedContext(e, node)));
                         } catch (Exception e) {
                             onFailedFreedContext(e, node);
@@ -141,5 +137,46 @@ final class ClearScrollController implements Runnable {
         if (expectedOps.countDown()) {
             listener.onResponse(new ClearScrollResponse(false, freedSearchContexts.get()));
         }
+    }
+
+    /**
+     * Closes the given context id and reports the number of freed contexts via the listener
+     */
+    public static void closeContexts(DiscoveryNodes nodes, SearchTransportService searchTransportService,
+                                     Collection<SearchContextIdForNode> contextIds,
+                                     ActionListener<Integer> listener) {
+        if (contextIds.isEmpty()) {
+            listener.onResponse(0);
+            return;
+        }
+        final Set<String> clusters = contextIds.stream()
+            .filter(ctx -> Strings.isEmpty(ctx.getClusterAlias()) == false)
+            .map(SearchContextIdForNode::getClusterAlias).collect(Collectors.toSet());
+        final StepListener<BiFunction<String, String, DiscoveryNode>> lookupListener = new StepListener<>();
+        if (clusters.isEmpty() == false) {
+            searchTransportService.getRemoteClusterService().collectNodes(clusters, lookupListener);
+        } else {
+            lookupListener.onResponse((cluster, nodeId) -> nodes.get(nodeId));
+        }
+        lookupListener.whenComplete(nodeLookup -> {
+            final GroupedActionListener<Boolean> groupedListener = new GroupedActionListener<>(
+                listener.map(rs -> Math.toIntExact(rs.stream().filter(r -> r).count())),
+                contextIds.size()
+            );
+            for (SearchContextIdForNode contextId : contextIds) {
+                final DiscoveryNode node = nodeLookup.apply(contextId.getClusterAlias(), contextId.getNode());
+                if (node == null) {
+                    groupedListener.onResponse(false);
+                } else {
+                    try {
+                        final Transport.Connection connection = searchTransportService.getConnection(contextId.getClusterAlias(), node);
+                        searchTransportService.sendFreeContext(connection, contextId.getSearchContextId(),
+                            ActionListener.wrap(r -> groupedListener.onResponse(r.isFreed()), e -> groupedListener.onResponse(false)));
+                    } catch (Exception e) {
+                        groupedListener.onResponse(false);
+                    }
+                }
+            }
+        }, listener::onFailure);
     }
 }

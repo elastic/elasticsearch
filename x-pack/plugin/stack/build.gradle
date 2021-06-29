@@ -1,0 +1,17 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+  name 'x-pack-stack'
+  description 'Elasticsearch Expanded Pack Plugin - Stack'
+  classname 'org.elasticsearch.xpack.stack.StackPlugin'
+  extendedPlugins = ['x-pack-core']
+  hasNativeController false
+  requiresKeystore true
+}
+archivesBaseName = 'x-pack-stack'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+testImplementation(testArtifact(project(xpackModule('core'))))}
+
+addQaCheckDependencies()

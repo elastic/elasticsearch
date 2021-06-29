@@ -1,5 +1,5 @@
 [[analyzer-anatomy]]
-== Anatomy of an analyzer
+=== Anatomy of an analyzer
 
 An _analyzer_  -- whether built-in or custom -- is just a package which
 contains three lower-level building blocks: _character filters_,
@@ -10,11 +10,11 @@ blocks into analyzers suitable for different languages and types of text.
 Elasticsearch also exposes the individual building blocks so that they can be
 combined to define new <<analysis-custom-analyzer,`custom`>> analyzers.
 
-[float]
-=== Character filters
+[[analyzer-anatomy-character-filters]]
+==== Character filters
 
 A _character filter_ receives the original text as a stream of characters and
-can transform the stream by adding, removing, or changing characters.  For
+can transform the stream by adding, removing, or changing characters. For
 instance, a character filter could be used to convert Hindu-Arabic numerals
 (٠‎١٢٣٤٥٦٧٨‎٩‎) into their Arabic-Latin equivalents (0123456789), or to strip HTML
 elements like `<b>` from the stream.
@@ -22,13 +22,13 @@ elements like `<b>` from the stream.
 An analyzer may have *zero or more* <<analysis-charfilters,character filters>>,
 which are applied in order.
 
-[float]
-=== Tokenizer
+[[analyzer-anatomy-tokenizer]]
+==== Tokenizer
 
-A _tokenizer_  receives a stream of characters, breaks it up into individual
+A _tokenizer_ receives a stream of characters, breaks it up into individual
 _tokens_ (usually individual words), and outputs a stream of _tokens_. For
 instance, a <<analysis-whitespace-tokenizer,`whitespace`>> tokenizer breaks
-text into tokens whenever it sees any whitespace.  It would convert the text
+text into tokens whenever it sees any whitespace. It would convert the text
 `"Quick brown fox!"` into the terms `[Quick, brown, fox!]`.
 
 The tokenizer is also responsible for recording the order or _position_ of
@@ -37,12 +37,11 @@ the term represents.
 
 An analyzer must have *exactly one* <<analysis-tokenizers,tokenizer>>.
 
-
-[float]
-=== Token filters
+[[analyzer-anatomy-token-filters]]
+==== Token filters
 
 A _token filter_ receives the token stream and may add, remove, or change
-tokens.  For example, a <<analysis-lowercase-tokenfilter,`lowercase`>> token
+tokens. For example, a <<analysis-lowercase-tokenfilter,`lowercase`>> token
 filter converts all tokens to lowercase, a
 <<analysis-stop-tokenfilter,`stop`>> token filter removes common words
 (_stop words_) like `the` from the token stream, and a
@@ -54,7 +53,3 @@ each token.
 
 An analyzer may have *zero or more* <<analysis-tokenfilters,token filters>>,
 which are applied in order.
-
-
-
-

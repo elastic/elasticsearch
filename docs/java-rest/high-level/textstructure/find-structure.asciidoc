@@ -1,0 +1,52 @@
+--
+:api: find-structure
+:request: FindStructureRequest
+:response: FindStructureResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Find structure API
+
+Determines the structure of text and other information that will be
+useful to import its contents to an {es} index. It accepts a +{request}+ object
+and responds with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Find structure request
+
+A sample of the text to analyze must be added to the +{request}+
+object using the `FindStructureRequest#setSample` method.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Create a new `FindStructureRequest` object
+<2> Add the contents of `anInterestingFile` to the request
+
+==== Optional arguments
+
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-options]
+--------------------------------------------------
+<1> Set the maximum number of lines to sample (the entire sample will be
+    used if it contains fewer lines)
+<2> Request that an explanation of the analysis be returned in the response
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Find structure response
+
+A +{response}+ contains information about the text structure,
+as well as mappings and an ingest pipeline that could be used
+to index the contents into {es}.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The `TextStructure` object contains the structure information

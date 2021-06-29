@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.matcher;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.lang.annotation.Annotation;
 import java.lang.annotation.Retention;
@@ -75,7 +75,7 @@ public class Matchers {
 
         @Override
         public boolean matches(T t) {
-            return !delegate.matches(t);
+            return delegate.matches(t) == false;
         }
 
         @Override

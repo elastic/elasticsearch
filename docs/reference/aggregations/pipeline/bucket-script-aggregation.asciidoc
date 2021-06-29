@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-bucket-script-aggregation]]
-=== Bucket Script Aggregation
+=== Bucket script aggregation
+++++
+<titleabbrev>Bucket script</titleabbrev>
+++++
 
 A parent pipeline aggregation which executes a script which can perform per bucket computations on specified metrics
 in the parent multi-bucket aggregation. The specified metric must be numeric and the script must return a numeric value.
@@ -12,13 +15,13 @@ A `bucket_script` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "bucket_script": {
-        "buckets_path": {
-            "my_var1": "the_sum", <1>
-            "my_var2": "the_value_count"
-        },
-        "script": "params.my_var1 / params.my_var2"
-    }
+  "bucket_script": {
+    "buckets_path": {
+      "my_var1": "the_sum",                     <1>
+      "my_var2": "the_value_count"
+    },
+    "script": "params.my_var1 / params.my_var2"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -45,45 +48,45 @@ The following snippet calculates the ratio percentage of t-shirt sales compared 
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            },
-            "aggs": {
-                "total_sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                },
-                "t-shirts": {
-                  "filter": {
-                    "term": {
-                      "type": "t-shirt"
-                    }
-                  },
-                  "aggs": {
-                    "sales": {
-                      "sum": {
-                        "field": "price"
-                      }
-                    }
-                  }
-                },
-                "t-shirt-percentage": {
-                    "bucket_script": {
-                        "buckets_path": {
-                          "tShirtSales": "t-shirts>sales",
-                          "totalSales": "total_sales"
-                        },
-                        "script": "params.tShirtSales / params.totalSales * 100"
-                    }
-                }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "total_sales": {
+          "sum": {
+            "field": "price"
+          }
+        },
+        "t-shirts": {
+          "filter": {
+            "term": {
+              "type": "t-shirt"
             }
+          },
+          "aggs": {
+            "sales": {
+              "sum": {
+                "field": "price"
+              }
+            }
+          }
+        },
+        "t-shirt-percentage": {
+          "bucket_script": {
+            "buckets_path": {
+              "tShirtSales": "t-shirts>sales",
+              "totalSales": "total_sales"
+            },
+            "script": "params.tShirtSales / params.totalSales * 100"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]

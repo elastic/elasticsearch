@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -101,23 +102,22 @@ class StoreTrustConfig extends TrustConfig {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        StoreTrustConfig that = (StoreTrustConfig) o;
-
-        if (trustStorePath != null ? !trustStorePath.equals(that.trustStorePath) : that.trustStorePath != null) return false;
-        if (trustStorePassword != null ? !trustStorePassword.equals(that.trustStorePassword) : that.trustStorePassword != null)
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
             return false;
-        return trustStoreAlgorithm != null ? trustStoreAlgorithm.equals(that.trustStoreAlgorithm) : that.trustStoreAlgorithm == null;
+        }
+        StoreTrustConfig that = (StoreTrustConfig) o;
+        return Objects.equals(trustStorePath, that.trustStorePath)
+            && Objects.equals(trustStoreType, that.trustStoreType)
+            && Objects.equals(trustStorePassword, that.trustStorePassword)
+            && Objects.equals(trustStoreAlgorithm, that.trustStoreAlgorithm);
     }
 
     @Override
     public int hashCode() {
-        int result = trustStorePath != null ? trustStorePath.hashCode() : 0;
-        result = 31 * result + (trustStorePassword != null ? trustStorePassword.hashCode() : 0);
-        result = 31 * result + (trustStoreAlgorithm != null ? trustStoreAlgorithm.hashCode() : 0);
-        return result;
+        return Objects.hash(trustStorePath, trustStoreType, trustStorePassword, trustStoreAlgorithm);
     }
 
     @Override

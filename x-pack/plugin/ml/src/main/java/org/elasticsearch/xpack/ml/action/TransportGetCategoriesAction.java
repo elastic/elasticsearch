@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -37,8 +38,8 @@ public class TransportGetCategoriesAction extends HandledTransportAction<GetCate
                 jobExists -> {
                     Integer from = request.getPageParams() != null ? request.getPageParams().getFrom() : null;
                     Integer size = request.getPageParams() != null ? request.getPageParams().getSize() : null;
-                    jobResultsProvider.categoryDefinitions(request.getJobId(), request.getCategoryId(), true, from, size,
-                            r -> listener.onResponse(new GetCategoriesAction.Response(r)), listener::onFailure, client);
+                    jobResultsProvider.categoryDefinitions(request.getJobId(), request.getCategoryId(), request.getPartitionFieldValue(),
+                        true, from, size, r -> listener.onResponse(new GetCategoriesAction.Response(r)), listener::onFailure, client);
                 },
                 listener::onFailure
         ));

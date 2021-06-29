@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.analysis.common;
@@ -32,11 +21,11 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
-import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.After;
@@ -46,6 +35,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -53,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class DisableGraphQueryTests extends ESSingleNodeTestCase {
     private static IndexService indexService;
-    private static QueryShardContext shardContext;
+    private static SearchExecutionContext searchExecutionContext;
     private static Query expectedQuery;
     private static Query expectedPhraseQuery;
     private static Query expectedQueryWithUnigram;
@@ -84,7 +74,7 @@ public class DisableGraphQueryTests extends ESSingleNodeTestCase {
         indexService = createIndex("test", settings, "t",
             "text_shingle", "type=text,analyzer=text_shingle",
             "text_shingle_unigram", "type=text,analyzer=text_shingle_unigram");
-        shardContext = indexService.newQueryShardContext(0, null, () -> 0L, null);
+        searchExecutionContext = indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap());
 
         // parsed queries for "text_shingle_unigram:(foo bar baz)" with query parsers
         // that ignores position length attribute
@@ -157,7 +147,7 @@ public class DisableGraphQueryTests extends ESSingleNodeTestCase {
     @After
     public void cleanup() {
         indexService = null;
-        shardContext = null;
+        searchExecutionContext = null;
         expectedQuery = null;
         expectedPhraseQuery = null;
     }
@@ -165,42 +155,42 @@ public class DisableGraphQueryTests extends ESSingleNodeTestCase {
     public void testMatchPhraseQuery() throws IOException {
         MatchPhraseQueryBuilder builder =
             new MatchPhraseQueryBuilder("text_shingle_unigram", "foo bar baz");
-        Query query = builder.toQuery(shardContext);
+        Query query = builder.toQuery(searchExecutionContext);
         assertThat(expectedPhraseQueryWithUnigram, equalTo(query));
 
         builder =
             new MatchPhraseQueryBuilder("text_shingle", "foo bar baz biz");
-        query = builder.toQuery(shardContext);
+        query = builder.toQuery(searchExecutionContext);
         assertThat(expectedPhraseQuery, equalTo(query));
     }
 
     public void testMatchQuery() throws IOException {
         MatchQueryBuilder builder =
             new MatchQueryBuilder("text_shingle_unigram", "foo bar baz");
-        Query query = builder.toQuery(shardContext);
+        Query query = builder.toQuery(searchExecutionContext);
         assertThat(expectedQueryWithUnigram, equalTo(query));
 
         builder = new MatchQueryBuilder("text_shingle", "foo bar baz biz");
-        query = builder.toQuery(shardContext);
+        query = builder.toQuery(searchExecutionContext);
         assertThat(expectedQuery, equalTo(query));
     }
 
     public void testMultiMatchQuery() throws IOException {
         MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("foo bar baz",
             "text_shingle_unigram");
-        Query query = builder.toQuery(shardContext);
+        Query query = builder.toQuery(searchExecutionContext);
         assertThat(expectedQueryWithUnigram, equalTo(query));
 
-        builder.type(MatchQuery.Type.PHRASE);
-        query = builder.toQuery(shardContext);
+        builder.type(MatchQueryParser.Type.PHRASE);
+        query = builder.toQuery(searchExecutionContext);
         assertThat(expectedPhraseQueryWithUnigram, equalTo(query));
 
         builder = new MultiMatchQueryBuilder("foo bar baz biz", "text_shingle");
-        query = builder.toQuery(shardContext);
+        query = builder.toQuery(searchExecutionContext);
         assertThat(expectedQuery, equalTo(query));
 
-        builder.type(MatchQuery.Type.PHRASE);
-        query = builder.toQuery(shardContext);
+        builder.type(MatchQueryParser.Type.PHRASE);
+        query = builder.toQuery(searchExecutionContext);
         assertThat(expectedPhraseQuery, equalTo(query));
     }
 
@@ -208,47 +198,47 @@ public class DisableGraphQueryTests extends ESSingleNodeTestCase {
         SimpleQueryStringBuilder builder = new SimpleQueryStringBuilder("foo bar baz");
         builder.field("text_shingle_unigram");
         builder.flags(SimpleQueryStringFlag.NONE);
-        Query query = builder.toQuery(shardContext);
+        Query query = builder.toQuery(searchExecutionContext);
         assertThat(expectedQueryWithUnigram, equalTo(query));
 
         builder = new SimpleQueryStringBuilder("\"foo bar baz\"");
         builder.field("text_shingle_unigram");
         builder.flags(SimpleQueryStringFlag.PHRASE);
-        query = builder.toQuery(shardContext);
+        query = builder.toQuery(searchExecutionContext);
         assertThat(expectedPhraseQueryWithUnigram, equalTo(query));
 
         builder = new SimpleQueryStringBuilder("foo bar baz biz");
         builder.field("text_shingle");
         builder.flags(SimpleQueryStringFlag.NONE);
-        query = builder.toQuery(shardContext);
+        query = builder.toQuery(searchExecutionContext);
         assertThat(expectedQuery, equalTo(query));
 
         builder = new SimpleQueryStringBuilder("\"foo bar baz biz\"");
         builder.field("text_shingle");
         builder.flags(SimpleQueryStringFlag.PHRASE);
-        query = builder.toQuery(shardContext);
+        query = builder.toQuery(searchExecutionContext);
         assertThat(expectedPhraseQuery, equalTo(query));
     }
 
     public void testQueryString() throws IOException {
         QueryStringQueryBuilder builder = new QueryStringQueryBuilder("foo bar baz");
         builder.field("text_shingle_unigram");
-        Query query = builder.toQuery(shardContext);
+        Query query = builder.toQuery(searchExecutionContext);
         assertThat(expectedQueryWithUnigram, equalTo(query));
 
         builder = new QueryStringQueryBuilder("\"foo bar baz\"");
         builder.field("text_shingle_unigram");
-        query = builder.toQuery(shardContext);
+        query = builder.toQuery(searchExecutionContext);
         assertThat(expectedPhraseQueryWithUnigram, equalTo(query));
 
         builder = new QueryStringQueryBuilder("foo bar baz biz");
         builder.field("text_shingle");
-        query = builder.toQuery(shardContext);
+        query = builder.toQuery(searchExecutionContext);
         assertThat(expectedQuery, equalTo(query));
 
         builder = new QueryStringQueryBuilder("\"foo bar baz biz\"");
         builder.field("text_shingle");
-        query = builder.toQuery(shardContext);
+        query = builder.toQuery(searchExecutionContext);
         assertThat(expectedPhraseQuery, equalTo(query));
     }
 }

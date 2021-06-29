@@ -1,0 +1,108 @@
+[[token-graphs]]
+=== Token graphs
+
+When a <<analyzer-anatomy-tokenizer,tokenizer>> converts a text into a stream of
+tokens, it also records the following:
+
+* The `position` of each token in the stream
+* The `positionLength`, the number of positions that a token spans
+
+Using these, you can create a
+{wikipedia}/Directed_acyclic_graph[directed acyclic graph],
+called a _token graph_, for a stream. In a token graph, each position represents
+a node. Each token represents an edge or arc, pointing to the next position.
+
+image::images/analysis/token-graph-qbf-ex.svg[align="center"]
+
+[[token-graphs-synonyms]]
+==== Synonyms
+
+Some <<analyzer-anatomy-token-filters,token filters>> can add new tokens, like
+synonyms, to an existing token stream. These synonyms often span the same
+positions as existing tokens.
+
+In the following graph, `quick` and its synonym `fast` both have a position of
+`0`. They span the same positions.
+
+image::images/analysis/token-graph-qbf-synonym-ex.svg[align="center"]
+
+[[token-graphs-multi-position-tokens]]
+==== Multi-position tokens
+
+Some token filters can add tokens that span multiple positions. These can
+include tokens for multi-word synonyms, such as using "atm" as a synonym for
+"automatic teller machine."
+
+However, only some token filters, known as _graph token filters_, accurately
+record the `positionLength` for multi-position tokens. This filters include:
+
+* <<analysis-synonym-graph-tokenfilter,`synonym_graph`>>
+* <<analysis-word-delimiter-graph-tokenfilter,`word_delimiter_graph`>>
+
+Some tokenizers, such as the
+{plugins}/analysis-nori-tokenizer.html[`nori_tokenizer`], also accurately
+decompose compound tokens into multi-position tokens.
+
+In the following graph, `domain name system` and its synonym, `dns`, both have a
+position of `0`. However, `dns` has a `positionLength` of `3`. Other tokens in
+the graph have a default `positionLength` of `1`.
+
+image::images/analysis/token-graph-dns-synonym-ex.svg[align="center"]
+
+[[token-graphs-token-graphs-search]]
+===== Using token graphs for search 
+
+<<analysis-index-search-time,Indexing>> ignores the `positionLength` attribute
+and does not support token graphs containing multi-position tokens.
+
+However, queries, such as the <<query-dsl-match-query,`match`>> or
+<<query-dsl-match-query-phrase,`match_phrase`>> query, can use these graphs to
+generate multiple sub-queries from a single query string.
+
+.*Example*
+[%collapsible]
+====
+
+A user runs a search for the following phrase using the `match_phrase` query:
+
+`domain name system is fragile`
+
+During <<analysis-index-search-time,search analysis>>, `dns`, a synonym for
+`domain name system`, is added to the query string's token stream. The `dns`
+token has a `positionLength` of `3`.
+
+image::images/analysis/token-graph-dns-synonym-ex.svg[align="center"]
+
+The `match_phrase` query uses this graph to generate sub-queries for the
+following phrases:
+
+[source,text]
+------
+dns is fragile
+domain name system is fragile
+------
+
+This means the query matches documents containing either `dns is fragile` _or_
+`domain name system is fragile`.
+====
+
+[[token-graphs-invalid-token-graphs]]
+===== Invalid token graphs
+
+The following token filters can add tokens that span multiple positions but
+only record a default `positionLength` of `1`:
+
+* <<analysis-synonym-tokenfilter,`synonym`>>
+* <<analysis-word-delimiter-tokenfilter,`word_delimiter`>>
+
+This means these filters will produce invalid token graphs for streams
+containing such tokens.
+
+In the following graph, `dns` is a multi-position synonym for `domain name
+system`. However, `dns` has the default `positionLength` value of `1`, resulting
+in an invalid graph.
+
+image::images/analysis/token-graph-dns-invalid-ex.svg[align="center"]
+
+Avoid using invalid token graphs for search. Invalid graphs can cause unexpected
+search results.

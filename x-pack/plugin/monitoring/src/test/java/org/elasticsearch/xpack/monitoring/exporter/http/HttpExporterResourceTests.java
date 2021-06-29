@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -16,7 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +26,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpResource.ResourcePublishResult;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
@@ -40,6 +42,7 @@ import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplat
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_IDS;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.whenPerformRequestAsyncWith;
+import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.wrapMockListener;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -82,7 +85,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
     private final MultiHttpResource resources =
             HttpExporter.createResources(
-                    new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState));
+                    new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState)).allResources;
 
     @Before
     public void setupResources() {
@@ -102,9 +105,16 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void awaitCheckAndPublish(final Boolean expected) {
-        resources.checkAndPublish(client, listener);
+        awaitCheckAndPublish(resources, expected);
+    }
 
-        verifyListener(expected);
+    public void awaitCheckAndPublish(HttpResource resource, final Boolean expected) {
+        awaitCheckAndPublish(resource, expected != null ? new ResourcePublishResult(expected) : null);
+    }
+
+    public void awaitCheckAndPublish(HttpResource resource, final ResourcePublishResult expected) {
+        resource.checkAndPublish(client, wrapMockListener(publishListener));
+        verifyPublishListener(expected);
     }
 
     public void testInvalidVersionBlocks() {
@@ -114,7 +124,8 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), is("/")), versionResponse);
 
         assertTrue(resources.isDirty());
-        awaitCheckAndPublish(false);
+        awaitCheckAndPublish(resources, new ResourcePublishResult(false,
+            "version [3.0.0] < [7.0.0] and NOT supported for [xpack.monitoring.exporters._http]", HttpResource.State.DIRTY));
         // ensure it didn't magically become clean
         assertTrue(resources.isDirty());
 
@@ -383,8 +394,8 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
                 // +1 for the "first"
                 expectedGets += 1 + successful + unsuccessful;
                 expectedPuts = (successfulFirst ? 0 : 1) + unsuccessful;
-            // deleting watches
             } else {
+                // deleting watches
                 // - 1 from necessary failure after it!
                 final int successful = randomIntBetween(1, EXPECTED_WATCHES - 1);
 
@@ -484,6 +495,56 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyNoMoreInteractions(client);
     }
 
+    public void testDeployClusterAlerts() {
+        final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
+        final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
+        final int successfulGetPipelines = randomIntBetween(0, EXPECTED_PIPELINES);
+        final int unsuccessfulGetPipelines = EXPECTED_PIPELINES - successfulGetPipelines;
+        final Exception exception = failurePutException();
+
+        whenValidVersionResponse();
+        whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
+        whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
+        whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
+        whenSuccessfulPutPipelines(unsuccessfulGetPipelines);
+        // license needs to be valid, otherwise we'll do DELETEs, which are tested earlier
+        whenWatcherCanBeUsed(true);
+
+        // a number of watches are mocked as present
+        final int existingWatches = randomIntBetween(0, EXPECTED_WATCHES);
+
+        // For completeness's sake. GET/PUT watches wont be called by the resources.
+        // Instead it tries to DELETE the watches ignoring them not existing.
+        whenGetWatches(existingWatches, EXPECTED_WATCHES - existingWatches);
+        whenPerformRequestAsyncWith(client, new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/")), exception);
+        whenPerformRequestAsyncWith(client, new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/")),
+            successfulDeleteResponses(EXPECTED_WATCHES));
+
+        // Create resources that are configured to remove all watches
+        Settings removalExporterSettings = Settings.builder()
+            .put(exporterSettings)
+            .put("xpack.monitoring.migration.decommission_alerts", true)
+            .build();
+        MultiHttpResource overrideResource = HttpExporter.createResources(
+            new Exporter.Config("_http", "http", removalExporterSettings, clusterService, licenseState)).allResources;
+
+        assertTrue(overrideResource.isDirty());
+        awaitCheckAndPublish(overrideResource, true);
+        // Should proceed
+        assertFalse(overrideResource.isDirty());
+
+        verifyVersionCheck();
+        verifyGetTemplates(EXPECTED_TEMPLATES);
+        verifyPutTemplates(unsuccessfulGetTemplates);
+        verifyGetPipelines(EXPECTED_PIPELINES);
+        verifyPutPipelines(unsuccessfulGetPipelines);
+        verifyWatcherCheck();
+        verifyGetWatches(0);
+        verifyPutWatches(0);
+        verifyDeleteWatches(EXPECTED_WATCHES);
+        verifyNoMoreInteractions(client);
+    }
+
     public void testSuccessfulChecksOnElectedMasterNode() {
         final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
         final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
@@ -541,7 +602,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         final MultiHttpResource resources =
                 HttpExporter.createResources(
-                        new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState));
+                        new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState)).allResources;
 
         final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
         final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
@@ -557,9 +618,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         assertTrue(resources.isDirty());
 
         // it should be able to proceed! (note: we are not using the instance "resources" here)
-        resources.checkAndPublish(client, listener);
+        resources.checkAndPublish(client, wrapMockListener(publishListener));
 
-        verifyListener(true);
+        verifyPublishListener(ResourcePublishResult.ready());
         assertFalse(resources.isDirty());
 
         verifyVersionCheck();
@@ -730,12 +791,12 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     private void whenWatcherCanBeUsed(final boolean validLicense) {
-        final MetaData metaData = mock(MetaData.class);
+        final Metadata metadata = mock(Metadata.class);
 
-        when(state.metaData()).thenReturn(metaData);
-        when(metaData.clusterUUID()).thenReturn("the_clusters_uuid");
+        when(state.metadata()).thenReturn(metadata);
+        when(metadata.clusterUUID()).thenReturn("the_clusters_uuid");
 
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(validLicense);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(validLicense);
 
         final HttpEntity entity =
                 new StringEntity("{\"features\":{\"watcher\":{\"enabled\":true,\"available\":true}}}", ContentType.APPLICATION_JSON);

@@ -1,0 +1,115 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+esplugin {
+  name 'x-pack-eql'
+  description 'The Elasticsearch plugin that powers EQL for Elasticsearch'
+  classname 'org.elasticsearch.xpack.eql.plugin.EqlPlugin'
+  extendedPlugins = ['x-pack-ql', 'lang-painless']
+}
+
+ext {
+  // EQL dependency versions
+  antlrVersion = "4.5.3"
+}
+
+archivesBaseName = 'x-pack-eql'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  compileOnly(project(':modules:lang-painless')) {
+    exclude group: "org.ow2.asm"
+  }
+  api "org.antlr:antlr4-runtime:${antlrVersion}"
+  compileOnly project(xpackModule('ql'))
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation(testArtifact(project(xpackModule('ql'))))
+  testImplementation project(path: ':modules:reindex')
+  testImplementation project(path: ':modules:parent-join')
+  testImplementation project(path: ':modules:analysis-common')
+  testImplementation project(path: ':modules:transport-netty4') // for http in RestEqlCancellationIT
+  testImplementation project(path: ':plugins:transport-nio') // for http in RestEqlCancellationIT
+
+  testImplementation 'io.ous:jtoml:2.0.0'
+}
+
+
+/****************************************************************
+ *  Enable QA/rest integration tests for snapshot builds only   *
+ *  TODO: Enable for all builds upon this feature release       *
+ ****************************************************************/
+if (BuildParams.isSnapshotBuild()) {
+  addQaCheckDependencies()
+}
+
+/**********************************************
+ *          EQL Parser regeneration           *
+ **********************************************/
+
+configurations {
+  regenerate
+}
+
+dependencies {
+  regenerate "org.antlr:antlr4:${antlrVersion}"
+}
+
+String grammarPath = 'src/main/antlr'
+String outputPath = 'src/main/java/org/elasticsearch/xpack/eql/parser'
+
+tasks.register("cleanGenerated", Delete) {
+  delete fileTree(grammarPath) {
+    include '*.tokens'
+  }
+  delete fileTree(outputPath) {
+    include 'EqlBase*.java'
+  }
+}
+
+tasks.register("regenParser", JavaExec) {
+  dependsOn "cleanGenerated"
+  mainClass = 'org.antlr.v4.Tool'
+  classpath = configurations.regenerate
+  systemProperty 'file.encoding', 'UTF-8'
+  systemProperty 'user.language', 'en'
+  systemProperty 'user.country', 'US'
+  systemProperty 'user.variant', ''
+  args '-Werror',
+    '-package', 'org.elasticsearch.xpack.eql.parser',
+    '-listener',
+    '-visitor',
+    '-o', outputPath,
+    "${file(grammarPath)}/EqlBase.g4"
+}
+
+tasks.register("regen") {
+  dependsOn "regenParser"
+  doLast {
+    // moves token files to grammar directory for use with IDE's
+    ant.move(file: "${outputPath}/EqlBase.tokens", toDir: grammarPath)
+    ant.move(file: "${outputPath}/EqlBaseLexer.tokens", toDir: grammarPath)
+    // make the generated classes package private
+    ant.replaceregexp(match: 'public ((interface|class) \\QEqlBase\\E\\w+)',
+      replace: '\\1',
+      encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'EqlBase*.java')
+    }
+    // nuke timestamps/filenames in generated files
+    ant.replaceregexp(match: '\\Q// Generated from \\E.*',
+      replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
+      encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'EqlBase*.java')
+    }
+    // remove tabs in antlr generated files
+    ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'EqlBase*.java')
+    }
+    // fix line endings
+    ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
+      patternset(includes: 'EqlBase*.java')
+    }
+  }
+}

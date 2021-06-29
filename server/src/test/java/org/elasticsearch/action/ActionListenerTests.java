@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -233,5 +222,81 @@ public class ActionListenerTests extends ESTestCase {
         ActionListener.completeWith(onFailureListener, () -> { throw new IOException("not found"); });
         assertThat(onFailureListener.isDone(), equalTo(true));
         assertThat(expectThrows(ExecutionException.class, onFailureListener::get).getCause(), instanceOf(IOException.class));
+
+        AtomicReference<Exception> exReference = new AtomicReference<>();
+        ActionListener<String> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(String s) {
+                if (s == null) {
+                    throw new IllegalArgumentException("simulate onResponse exception");
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exReference.set(e);
+                if (e instanceof IllegalArgumentException) {
+                    throw (IllegalArgumentException) e;
+                }
+            }
+        };
+
+        AssertionError assertionError = expectThrows(AssertionError.class, () -> ActionListener.completeWith(listener, () -> null));
+        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
+        assertNull(exReference.get());
+
+        assertionError = expectThrows(AssertionError.class, () -> ActionListener.completeWith(listener,
+            () -> { throw new IllegalArgumentException(); }));
+        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
+    }
+
+    /**
+     * Test that map passes the output of the function to its delegate listener and that exceptions in the function are propagated to the
+     * onFailure handler. Also verify that exceptions from ActionListener.onResponse does not invoke onFailure, since it is the
+     * responsibility of the ActionListener implementation (the client of the API) to handle exceptions in onResponse and onFailure.
+     */
+    public void testMap() {
+        AtomicReference<Exception> exReference = new AtomicReference<>();
+
+        ActionListener<String> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(String s) {
+                if (s == null) {
+                    throw new IllegalArgumentException("simulate onResponse exception");
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exReference.set(e);
+                if (e instanceof IllegalArgumentException) {
+                    throw (IllegalArgumentException) e;
+                }
+            }
+        };
+        ActionListener<Boolean> mapped = listener.map(b -> {
+            if (b == null) {
+                return null;
+            } else if (b) {
+                throw new IllegalStateException("simulate map function exception");
+            } else {
+                return b.toString();
+            }
+        });
+
+        AssertionError assertionError = expectThrows(AssertionError.class, () -> mapped.onResponse(null));
+        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertNull(exReference.get());
+        mapped.onResponse(false);
+        assertNull(exReference.get());
+        mapped.onResponse(true);
+        assertThat(exReference.get(), instanceOf(IllegalStateException.class));
+
+        assertionError = expectThrows(AssertionError.class, () -> mapped.onFailure(new IllegalArgumentException()));
+        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
+        mapped.onFailure(new IllegalStateException());
+        assertThat(exReference.get(), instanceOf(IllegalStateException.class));
     }
 }

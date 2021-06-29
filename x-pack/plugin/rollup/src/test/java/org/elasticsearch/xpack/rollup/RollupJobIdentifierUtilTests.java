@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup;
 
@@ -308,7 +309,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
                 .calendarInterval(new DateHistogramInterval("1h"))
-                .subAggregation(new TermsAggregationBuilder("histo", ValueType.STRING).field("bar"));
+                .subAggregation(new TermsAggregationBuilder("histo").userValueTypeHint(ValueType.STRING).field("bar"));
 
         Set<RollupJobCaps> caps = new HashSet<>(2);
         caps.add(cap);

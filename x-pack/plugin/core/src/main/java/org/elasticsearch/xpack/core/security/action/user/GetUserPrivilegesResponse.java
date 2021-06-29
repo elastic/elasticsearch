@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -208,7 +210,9 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
             builder.field(RoleDescriptor.Fields.PRIVILEGES.getPreferredName(), privileges);
             if (fieldSecurity.stream().anyMatch(g -> nonEmpty(g.getGrantedFields()) || nonEmpty(g.getExcludedFields()))) {
                 builder.startArray(RoleDescriptor.Fields.FIELD_PERMISSIONS.getPreferredName());
-                for (FieldPermissionsDefinition.FieldGrantExcludeGroup group : this.fieldSecurity) {
+                final List<FieldPermissionsDefinition.FieldGrantExcludeGroup> sortedFieldSecurity =
+                    this.fieldSecurity.stream().sorted().collect(Collectors.toUnmodifiableList());
+                for (FieldPermissionsDefinition.FieldGrantExcludeGroup group : sortedFieldSecurity) {
                     builder.startObject();
                     if (nonEmpty(group.getGrantedFields())) {
                         builder.array(RoleDescriptor.Fields.GRANT_FIELDS.getPreferredName(), group.getGrantedFields());

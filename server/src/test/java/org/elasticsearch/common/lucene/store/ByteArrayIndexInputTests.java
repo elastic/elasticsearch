@@ -1,33 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.lucene.store;
-
-import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ByteArrayIndexInputTests extends ESTestCase {
+public class ByteArrayIndexInputTests extends ESIndexInputTestCase {
     public void testRandomReads() throws IOException {
         for (int i = 0; i < 100; i++) {
             byte[] input = randomUnicodeOfLength(randomIntBetween(1, 1000)).getBytes(StandardCharsets.UTF_8);
@@ -87,47 +73,5 @@ public class ByteArrayIndexInputTests extends ESTestCase {
         }
     }
 
-    private byte[] randomReadAndSlice(IndexInput indexInput, int length) throws IOException {
-        int readPos = (int) indexInput.getFilePointer();
-        byte[] output = new byte[length];
-        while (readPos < length) {
-            switch (randomIntBetween(0, 3)) {
-                case 0:
-                    // Read by one byte at a time
-                    output[readPos++] = indexInput.readByte();
-                    break;
-                case 1:
-                    // Read several bytes into target
-                    int len = randomIntBetween(1, length - readPos);
-                    indexInput.readBytes(output, readPos, len);
-                    readPos += len;
-                    break;
-                case 2:
-                    // Read several bytes into 0-offset target
-                    len = randomIntBetween(1, length - readPos);
-                    byte[] temp = new byte[len];
-                    indexInput.readBytes(temp, 0, len);
-                    System.arraycopy(temp, 0, output, readPos, len);
-                    readPos += len;
-                    break;
-                case 3:
-                    // Read using slice
-                    len = randomIntBetween(1, length - readPos);
-                    IndexInput slice = indexInput.slice("slice (" + readPos + ", " + len + ") of " + indexInput.toString(), readPos, len);
-                    temp = randomReadAndSlice(slice, len);
-                    // assert that position in the original input didn't change
-                    assertEquals(readPos, indexInput.getFilePointer());
-                    System.arraycopy(temp, 0, output, readPos, len);
-                    readPos += len;
-                    indexInput.seek(readPos);
-                    assertEquals(readPos, indexInput.getFilePointer());
-                    break;
-                default:
-                    fail();
-            }
-            assertEquals(readPos, indexInput.getFilePointer());
-        }
-        return output;
-    }
 }
 

@@ -1,10 +1,13 @@
 [[analysis-whitespace-tokenizer]]
-=== Whitespace Tokenizer
+=== Whitespace tokenizer
+++++
+<titleabbrev>Whitespace</titleabbrev>
+++++
 
 The `whitespace` tokenizer breaks text into terms whenever it encounters a
 whitespace character.
 
-[float]
+[discrete]
 === Example output
 
 [source,console]
@@ -106,7 +109,7 @@ The above sentence would produce the following terms:
 [ The, 2, QUICK, Brown-Foxes, jumped, over, the, lazy, dog's, bone. ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `whitespace` tokenizer accepts the following parameters:

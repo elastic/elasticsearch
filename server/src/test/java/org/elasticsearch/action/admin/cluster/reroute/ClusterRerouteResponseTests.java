@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.reroute;
@@ -22,8 +11,8 @@ package org.elasticsearch.action.admin.cluster.reroute;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
@@ -49,16 +38,16 @@ public class ClusterRerouteResponseTests extends ESTestCase {
     public void testToXContent() throws IOException {
         DiscoveryNode node0 = new DiscoveryNode("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000), Version.CURRENT);
         DiscoveryNodes nodes = new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build();
-        IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(Settings.builder()
+        IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(Settings.builder()
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), true)
                 .put(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.getKey(), 10)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build()).build();
-        ImmutableOpenMap.Builder<String, IndexMetaData> openMapBuilder = ImmutableOpenMap.builder();
-        openMapBuilder.put("index", indexMetaData);
-        MetaData metaData = MetaData.builder().indices(openMapBuilder.build()).build();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(nodes).metaData(metaData).build();
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()).build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> openMapBuilder = ImmutableOpenMap.builder();
+        openMapBuilder.put("index", indexMetadata);
+        Metadata metadata = Metadata.builder().indices(openMapBuilder.build()).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(nodes).metadata(metadata).build();
 
         RoutingExplanations routingExplanations = new RoutingExplanations();
         routingExplanations.add(new RerouteExplanation(new AllocateReplicaAllocationCommand("index", 0, "node0"), Decision.YES));
@@ -79,11 +68,26 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "        \"name\" : \"\",\n" +
                     "        \"ephemeral_id\" : \"" + node0.getEphemeralId() + "\",\n" +
                     "        \"transport_address\" : \"0.0.0.0:9000\",\n" +
-                    "        \"attributes\" : { }\n" +
+                    "        \"attributes\" : { },\n" +
+                    "        \"roles\" : [\n" +
+                    "          \"data\",\n" +
+                    "          \"data_cold\",\n" +
+                    "          \"data_content\",\n" +
+                    "          \"data_frozen\",\n" +
+                    "          \"data_hot\",\n" +
+                    "          \"data_warm\",\n" +
+                    "          \"ingest\",\n" +
+                    "          \"master\",\n" +
+                    "          \"ml\",\n" +
+                    "          \"remote_cluster_client\",\n" +
+                    "          \"transform\",\n" +
+                    "          \"voting_only\"\n" +
+                    "        ]\n" +
                     "      }\n" +
                     "    },\n" +
                     "    \"metadata\" : {\n" +
                     "      \"cluster_uuid\" : \"_na_\",\n" +
+                    "      \"cluster_uuid_committed\" : false,\n" +
                     "      \"cluster_coordination\" : {\n" +
                     "        \"term\" : 0,\n" +
                     "        \"last_committed_config\" : [ ],\n" +
@@ -93,6 +97,11 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "      \"templates\" : { },\n" +
                     "      \"indices\" : {\n" +
                     "        \"index\" : {\n" +
+                    "          \"version\" : 1,\n" +
+                    "          \"mapping_version\" : 1,\n" +
+                    "          \"settings_version\" : 1,\n" +
+                    "          \"aliases_version\" : 1,\n" +
+                    "          \"routing_num_shards\" : 1,\n" +
                     "          \"state\" : \"open\",\n" +
                     "          \"settings\" : {\n" +
                     "            \"index\" : {\n" +
@@ -114,6 +123,11 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "          },\n" +
                     "          \"in_sync_allocations\" : {\n" +
                     "            \"0\" : [ ]\n" +
+                    "          },\n" +
+                    "          \"rollover_info\" : { },\n" +
+                    "          \"system\" : false,\n" +
+                    "          \"timestamp_range\" : {\n" +
+                    "            \"shards\" : [ ]\n" +
                     "          }\n" +
                     "        }\n" +
                     "      },\n" +
@@ -179,6 +193,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "    \"cluster_uuid\" : \"_na_\",\n" +
                     "    \"metadata\" : {\n" +
                     "      \"cluster_uuid\" : \"_na_\",\n" +
+                    "      \"cluster_uuid_committed\" : false,\n" +
                     "      \"cluster_coordination\" : {\n" +
                     "        \"term\" : 0,\n" +
                     "        \"last_committed_config\" : [ ],\n" +
@@ -188,6 +203,11 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "      \"templates\" : { },\n" +
                     "      \"indices\" : {\n" +
                     "        \"index\" : {\n" +
+                    "          \"version\" : 1,\n" +
+                    "          \"mapping_version\" : 1,\n" +
+                    "          \"settings_version\" : 1,\n" +
+                    "          \"aliases_version\" : 1,\n" +
+                    "          \"routing_num_shards\" : 1,\n" +
                     "          \"state\" : \"open\",\n" +
                     "          \"settings\" : {\n" +
                     "            \"index\" : {\n" +
@@ -204,6 +224,11 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "          },\n" +
                     "          \"in_sync_allocations\" : {\n" +
                     "            \"0\" : [ ]\n" +
+                    "          },\n" +
+                    "          \"rollover_info\" : { },\n" +
+                    "          \"system\" : false,\n" +
+                    "          \"timestamp_range\" : {\n" +
+                    "            \"shards\" : [ ]\n" +
                     "          }\n" +
                     "        }\n" +
                     "      },\n" +

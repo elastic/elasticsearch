@@ -1,29 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo.builders;
 
 import org.locationtech.jts.geom.Coordinate;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 
@@ -159,6 +149,18 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
         PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder()
             .coordinate(0.0, 0.0).coordinate(1.0, 1.0).coordinate(-1.0, -1.0).close());
         InvalidShapeException e = expectThrows(InvalidShapeException.class, pb::buildS4J);
-        assertEquals("Cannot determine orientation: edges adjacent to (-1.0,-1.0) coincide", e.getMessage());
+        assertEquals("Cannot determine orientation: signed area equal to 0", e.getMessage());
+    }
+
+    public void testCrossingDateline() {
+        PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(170, -10).coordinate(-170, -10).coordinate(-170, 10).coordinate(170, 10).coordinate(170, -10));
+        JtsGeometry geometry = pb.buildS4J();
+
+        assertTrue(geometry.getGeom() instanceof org.locationtech.jts.geom.MultiPolygon);
+        pb = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(180, -10).coordinate(-170, -5).coordinate(-170, 15).coordinate(170, -15).coordinate(180, -10));
+        geometry = pb.buildS4J();
+        assertTrue(geometry.getGeom() instanceof org.locationtech.jts.geom.MultiPolygon);
     }
 }

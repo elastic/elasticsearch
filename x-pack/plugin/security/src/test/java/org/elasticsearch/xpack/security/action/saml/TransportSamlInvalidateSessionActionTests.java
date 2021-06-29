@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.saml;
 
@@ -34,8 +35,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -48,6 +48,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.Task;
@@ -57,12 +58,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -121,6 +124,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
     @Before
     public void setup() throws Exception {
+        final RealmIdentifier realmId = new RealmIdentifier("saml", REALM_NAME);
         final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());
         final Settings settings = Settings.builder()
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
@@ -131,6 +135,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ACS), SamlRealmTestHelper.SP_ACS_URL)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_LOGOUT), SamlRealmTestHelper.SP_LOGOUT_URL)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
+            .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
             .build();
 
         final ThreadContext threadContext = new ThreadContext(settings);
@@ -203,10 +208,13 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         when(securityIndex.freeze()).thenReturn(securityIndex);
 
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityIndex, securityIndex, clusterService);
+        final SecurityContext securityContext = new SecurityContext(settings, threadContext);
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
+            clusterService);
 
         final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
@@ -215,7 +223,6 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final RealmIdentifier realmId = new RealmIdentifier("saml", REALM_NAME);
         final RealmConfig realmConfig = new RealmConfig(
                 realmId,
             settings,
@@ -258,7 +265,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         final String userTokenId2 = UUIDs.randomBase64UUID();
         final String refreshToken2 = UUIDs.randomBase64UUID();
         storeToken(logoutRequest.getNameId(), randomAlphaOfLength(10));
-        final Tuple<String, String> tokenToInvalidate1 = storeToken(userTokenId1, refreshToken1, logoutRequest.getNameId(),
+        final TokenService.CreateTokenResult tokenToInvalidate1 = storeToken(userTokenId1, refreshToken1, logoutRequest.getNameId(),
             logoutRequest.getSession());
         storeToken(userTokenId2, refreshToken2, logoutRequest.getNameId(), logoutRequest.getSession());
         storeToken(new SamlNameId(NameID.PERSISTENT, randomAlphaOfLength(16), null, null, null), logoutRequest.getSession());
@@ -322,7 +329,10 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(filter1.get(1), instanceOf(TermQueryBuilder.class));
         assertThat(((TermQueryBuilder) filter1.get(1)).fieldName(), equalTo("refresh_token.token"));
         assertThat(((TermQueryBuilder) filter1.get(1)).value(),
-            equalTo(TokenService.hashTokenString(TokenService.unpackVersionAndPayload(tokenToInvalidate1.v2()).v2())));
+            equalTo(TokenService.hashTokenString(TokenService.unpackVersionAndPayload(tokenToInvalidate1.getRefreshToken()).v2())));
+
+        assertThat(tokenToInvalidate1.getAuthentication(), equalTo(new Authentication(new User("bob"),
+            new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null)));
 
         assertThat(bulkRequests.size(), equalTo(4)); // 4 updates (refresh-token + access-token)
         // Invalidate refresh token 1
@@ -365,16 +375,16 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         };
     }
 
-    private Tuple<String, String> storeToken(String userTokenId, String refreshToken, SamlNameId nameId, String session) {
+    private TokenService.CreateTokenResult storeToken(String userTokenId, String refreshToken, SamlNameId nameId, String session) {
         Authentication authentication = new Authentication(new User("bob"),
                 new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null);
         final Map<String, Object> metadata = samlRealm.createTokenMetadata(nameId, session);
-        final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
+        final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
         tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, metadata, future);
         return future.actionGet();
     }
 
-    private Tuple<String, String> storeToken(SamlNameId nameId, String session) {
+    private TokenService.CreateTokenResult storeToken(SamlNameId nameId, String session) {
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
         return storeToken(userTokenId, refreshToken, nameId, session);

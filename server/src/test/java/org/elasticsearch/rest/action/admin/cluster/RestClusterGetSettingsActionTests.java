@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -39,19 +28,19 @@ import java.util.stream.Stream;
 public class RestClusterGetSettingsActionTests extends ESTestCase {
 
     public void testFilterPersistentSettings() {
-        runTestFilterSettingsTest(MetaData.Builder::persistentSettings, ClusterGetSettingsResponse::getPersistentSettings);
+        runTestFilterSettingsTest(Metadata.Builder::persistentSettings, ClusterGetSettingsResponse::getPersistentSettings);
     }
 
     public void testFilterTransientSettings() {
-        runTestFilterSettingsTest(MetaData.Builder::transientSettings, ClusterGetSettingsResponse::getTransientSettings);
+        runTestFilterSettingsTest(Metadata.Builder::transientSettings, ClusterGetSettingsResponse::getTransientSettings);
     }
 
     private void runTestFilterSettingsTest(
-            final BiConsumer<MetaData.Builder, Settings> md, final Function<ClusterGetSettingsResponse, Settings> s) {
-        final MetaData.Builder mdBuilder = new MetaData.Builder();
+            final BiConsumer<Metadata.Builder, Settings> md, final Function<ClusterGetSettingsResponse, Settings> s) {
+        final Metadata.Builder mdBuilder = new Metadata.Builder();
         final Settings settings = Settings.builder().put("foo.filtered", "bar").put("foo.non_filtered", "baz").build();
         md.accept(mdBuilder, settings);
-        final ClusterState.Builder builder = new ClusterState.Builder(ClusterState.EMPTY_STATE).metaData(mdBuilder);
+        final ClusterState.Builder builder = new ClusterState.Builder(ClusterState.EMPTY_STATE).metadata(mdBuilder);
         final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
         final Setting.Property[] properties = {Setting.Property.Dynamic, Setting.Property.Filtered, Setting.Property.NodeScope};
         final Set<Setting<?>> settingsSet = Stream.concat(

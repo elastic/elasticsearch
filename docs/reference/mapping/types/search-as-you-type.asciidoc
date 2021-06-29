@@ -1,5 +1,5 @@
 [[search-as-you-type]]
-=== Search-as-you-type datatype
+=== Search-as-you-type field type
 ++++
 <titleabbrev>Search-as-you-type</titleabbrev>
 ++++
@@ -16,7 +16,7 @@ When adding a field of this type to a mapping
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -69,7 +69,7 @@ root field `my_field`.
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "my_field": "quick brown fox jump lazy dog"
 }
@@ -85,7 +85,7 @@ in order in a shingle subfield.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "multi_match": {
@@ -121,7 +121,7 @@ GET my_index/_search
     "max_score" : 0.8630463,
     "hits" : [
       {
-        "_index" : "my_index",
+        "_index" : "my-index-000001",
         "_id" : "1",
         "_score" : 0.8630463,
         "_source" : {
@@ -145,7 +145,7 @@ queries may be less efficient than using the `match_bool_prefix` query.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match_phrase_prefix": {
@@ -162,29 +162,32 @@ GET my_index/_search
 The following parameters are accepted in a mapping for the `search_as_you_type`
 field and are specific to this field type
 
-[horizontal]
-
 `max_shingle_size`::
++
+--
+(Optional, integer)
+Largest shingle size to create. Valid values are `2` (inclusive) to `4`
+(inclusive). Defaults to `3`.
 
-    The largest shingle size to index the input with and create subfields for,
-    creating one subfield for each shingle size between 2 and
-    `max_shingle_size`. Accepts integer values between 2 and 4 inclusive. This
-    option defaults to 3.
+A subfield is created for each integer between `2` and this value. For example,
+a value of `3` creates two subfields: `my_field._2gram` and `my_field._3gram`
 
+More subfields enables more specific queries but increases index size.
+--
 
 [[general-params]]
 ==== Parameters of the field type as a text field
 
 The following parameters are accepted in a mapping for the `search_as_you_type`
 field due to its nature as a text-like field, and behave similarly to their
-behavior when configuring a field of the <<text,`text`>> datatype. Unless
+behavior when configuring a field of the <<text,`text`>> data type. Unless
 otherwise noted, these options configure the root fields subfields in
 the same way.
 
 <<analyzer,`analyzer`>>::
 
     The <<analysis,analyzer>> which should be used for
-    <<mapping-index,`analyzed`>> string fields, both at index-time and at
+    `text` fields, both at index-time and at
     search-time (unless overridden by the
     <<search-analyzer,`search_analyzer`>>). Defaults to the default index
     analyzer, or the <<analysis-standard-analyzer,`standard` analyzer>>.
@@ -203,7 +206,7 @@ the same way.
     Whether field-length should be taken into account when scoring queries.
     Accepts `true` or `false`. This option configures the root field
     and shingle subfields, where its default is `true`. It does not configure
-    the prefix subfield, where it it `false`.
+    the prefix subfield, where it is `false`.
 
 <<mapping-store,`store`>>::
 
@@ -215,7 +218,7 @@ the same way.
 <<search-analyzer,`search_analyzer`>>::
 
     The <<analyzer,`analyzer`>> that should be used at search time on
-    <<mapping-index,`analyzed`>> fields. Defaults to the `analyzer` setting.
+    <<text,`text`>> fields. Defaults to the `analyzer` setting.
 
 <<search-quote-analyzer,`search_quote_analyzer`>>::
 
@@ -229,8 +232,7 @@ the same way.
 
 <<term-vector,`term_vector`>>::
 
-    Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
-    field. Defaults to `no`. This option configures the root field and shingle
+    Whether term vectors should be stored for the field. Defaults to `no`. This option configures the root field and shingle
     subfields, but not the prefix subfield.
 
 

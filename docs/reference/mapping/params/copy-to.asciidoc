@@ -3,12 +3,17 @@
 
 The `copy_to` parameter allows you to copy the values of multiple
 fields into a group field, which can then be queried as a single
-field. For instance, the `first_name` and `last_name` fields can be copied to
+field.
+
+TIP: If you often search multiple fields, you can improve search speeds by using
+`copy_to` to search fewer fields. See <<search-as-few-fields-as-possible>>.
+
+For example, the `first_name` and `last_name` fields can be copied to
 the `full_name` field as follows:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -27,13 +32,13 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "first_name": "John",
   "last_name": "Smith"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
@@ -63,3 +68,5 @@ Some important points:
 `field_1` to `field_2` and `copy_to` on `field_2` to `field_3` expecting 
 indexing into `field_1` will eventuate in `field_3`, instead use copy_to 
 directly to multiple fields from the originating field. 
+
+NOTE: `copy-to` is _not_ supported for field types where values take the form of objects, e.g. `date_range`

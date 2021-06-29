@@ -1,70 +1,71 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, StringStatsAggregationBuilder> {
+public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilder<StringStatsAggregationBuilder> {
 
     public static final String NAME = "string_stats";
-    private boolean showDistribution = false;
+    public static final ValuesSourceRegistry.RegistryKey<StringStatsAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, StringStatsAggregatorSupplier.class);
 
-    private static final ObjectParser<StringStatsAggregationBuilder, Void> PARSER;
     private static final ParseField SHOW_DISTRIBUTION_FIELD = new ParseField("show_distribution");
-
+    public static final ObjectParser<StringStatsAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, StringStatsAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(StringStatsAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareBytesFields(PARSER, true, true);
-
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareBoolean(StringStatsAggregationBuilder::showDistribution, StringStatsAggregationBuilder.SHOW_DISTRIBUTION_FIELD);
     }
 
-    public static StringStatsAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new StringStatsAggregationBuilder(aggregationName), null);
-    }
+    private boolean showDistribution = false;
 
     public StringStatsAggregationBuilder(String name) {
-        super(name, ValuesSourceType.BYTES, ValueType.STRING);
+        super(name);
     }
 
     public StringStatsAggregationBuilder(StringStatsAggregationBuilder clone,
                                          AggregatorFactories.Builder factoriesBuilder,
-                                         Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                         Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.showDistribution = clone.showDistribution();
     }
 
     /** Read from a stream. */
     public StringStatsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.BYTES, ValueType.STRING);
+        super(in);
         this.showDistribution = in.readBoolean();
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new StringStatsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.KEYWORD;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new StringStatsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override
@@ -73,11 +74,20 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected StringStatsAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                      ValuesSourceConfig<ValuesSource.Bytes> config,
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
+    protected StringStatsAggregatorFactory innerBuild(AggregationContext context,
+                                                      ValuesSourceConfig config,
                                                       AggregatorFactory parent,
                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new StringStatsAggregatorFactory(name, config, showDistribution, queryShardContext, parent, subFactoriesBuilder, metaData);
+        StringStatsAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new StringStatsAggregatorFactory(name, config, showDistribution, context,
+                                                parent, subFactoriesBuilder, metadata,
+                                                aggregatorSupplier);
     }
 
     @Override
@@ -90,6 +100,11 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 
     /**
@@ -108,6 +123,10 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     public StringStatsAggregationBuilder showDistribution(boolean showDistribution) {
         this.showDistribution = showDistribution;
         return this;
+    }
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        StringStatsAggregatorFactory.registerAggregators(builder);
     }
 
     @Override

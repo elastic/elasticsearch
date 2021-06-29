@@ -1,0 +1,43 @@
+{
+  "security.has_privileges":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-has-privileges.html",
+      "description":"Determines whether the specified user has a specified list of privileges."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/user/_has_privileges",
+          "methods":[
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path":"/_security/user/{user}/_has_privileges",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "user":{
+              "type":"string",
+              "description":"Username"
+            }
+          }
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The privileges to test",
+      "required":true
+    }
+  }
+}

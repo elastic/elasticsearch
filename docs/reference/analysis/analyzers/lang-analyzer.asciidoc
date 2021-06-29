@@ -1,5 +1,8 @@
 [[analysis-lang-analyzer]]
-=== Language Analyzers
+=== Language analyzers
+++++
+<titleabbrev>Language</titleabbrev>
+++++
 
 A set of analyzers aimed at analyzing specific language text. The
 following types are supported:
@@ -15,6 +18,7 @@ following types are supported:
 <<danish-analyzer,`danish`>>,
 <<dutch-analyzer,`dutch`>>,
 <<english-analyzer,`english`>>,
+<<estonian-analyzer,`estonian`>>,
 <<finnish-analyzer,`finnish`>>,
 <<french-analyzer,`french`>>,
 <<galician-analyzer,`galician`>>,
@@ -47,10 +51,11 @@ the config, or by using an external stopwords file by setting
 `stopwords_path`. Check <<analysis-stop-analyzer,Stop Analyzer>> for
 more details.
 
+[[_excluding_words_from_stemming]]
 ===== Excluding words from stemming
 
 The `stem_exclusion` parameter allows you to specify an array
-of lowercase words that should not be stemmed.  Internally, this
+of lowercase words that should not be stemmed. Internally, this
 functionality is implemented by adding the
 <<analysis-keyword-marker-tokenfilter,`keyword_marker` token filter>>
 with the `keywords` set to the value of the `stem_exclusion` parameter.
@@ -387,7 +392,7 @@ PUT /catalan_example
         },
         "catalan_keywords": {
           "type":       "keyword_marker",
-          "keywords":   ["exemple"] <2>
+          "keywords":   ["example"] <2>
         },
         "catalan_stemmer": {
           "type":       "stemmer",
@@ -422,7 +427,7 @@ PUT /catalan_example
 ===== `cjk` analyzer
 
 NOTE: You may find that `icu_analyzer` in the ICU analysis plugin works better
-for CJK text than the `cjk` analyzer.  Experiment with your text and queries.
+for CJK text than the `cjk` analyzer. Experiment with your text and queries.
 
 The `cjk` analyzer could be reimplemented as a `custom` analyzer as follows:
 
@@ -674,6 +679,54 @@ PUT /english_example
 <2> This filter should be removed unless there are words which should
     be excluded from stemming.
 
+[[estonian-analyzer]]
+===== `estonian` analyzer
+
+The `estonian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,console]
+----------------------------------------------------
+PUT /estonian_example
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "estonian_stop": {
+          "type":       "stop",
+          "stopwords":  "_estonian_" <1>
+        },
+        "estonian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   ["näide"] <2>
+        },
+        "estonian_stemmer": {
+          "type":       "stemmer",
+          "language":   "estonian"
+        }
+      },
+      "analyzer": {
+        "rebuilt_estonian": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "estonian_stop",
+            "estonian_keywords",
+            "estonian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+// TEST[s/"estonian_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: estonian_example, first: estonian, second: rebuilt_estonian}\nendyaml\n/]
+
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> This filter should be removed unless there are words which should
+    be excluded from stemming.
+
 [[finnish-analyzer]]
 ===== `finnish` analyzer
 
@@ -749,7 +802,7 @@ PUT /french_example
         },
         "french_keywords": {
           "type":       "keyword_marker",
-          "keywords":   ["Exemple"] <2>
+          "keywords":   ["Example"] <2>
         },
         "french_stemmer": {
           "type":       "stemmer",

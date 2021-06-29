@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
@@ -22,15 +23,17 @@ import static org.elasticsearch.xpack.core.transform.transforms.NodeAttributeTes
 
 public class TransformStateTests extends AbstractSerializingTestCase<TransformState> {
 
-    public static TransformState randomDataFrameTransformState() {
-        return new TransformState(randomFrom(TransformTaskState.values()),
+    public static TransformState randomTransformState() {
+        return new TransformState(
+            randomFrom(TransformTaskState.values()),
             randomFrom(IndexerState.values()),
             TransformIndexerPositionTests.randomTransformIndexerPosition(),
-            randomLongBetween(0,10),
+            randomLongBetween(0, 10),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomTransformProgress(),
             randomBoolean() ? null : randomNodeAttributes(),
-            randomBoolean());
+            randomBoolean()
+        );
     }
 
     @Override
@@ -40,7 +43,7 @@ public class TransformStateTests extends AbstractSerializingTestCase<TransformSt
 
     @Override
     protected TransformState createTestInstance() {
-        return randomDataFrameTransformState();
+        return randomTransformState();
     }
 
     @Override
@@ -55,18 +58,20 @@ public class TransformStateTests extends AbstractSerializingTestCase<TransformSt
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     public void testBackwardsSerialization() throws IOException {
-        TransformState state = new TransformState(randomFrom(TransformTaskState.values()),
+        TransformState state = new TransformState(
+            randomFrom(TransformTaskState.values()),
             randomFrom(IndexerState.values()),
             TransformIndexerPositionTests.randomTransformIndexerPosition(),
-            randomLongBetween(0,10),
+            randomLongBetween(0, 10),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomTransformProgress(),
             randomBoolean() ? null : randomNodeAttributes(),
-            false); // Will be false after BWC deserialization
+            false
+        ); // Will be false after BWC deserialization
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(Version.V_7_5_0);
             state.writeTo(output);

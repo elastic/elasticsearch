@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.MAX_ZOOM;
@@ -28,8 +18,10 @@ import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.keyToGeoPoint;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.stringEncode;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class GeoTileUtilsTests extends ESTestCase {
 
@@ -219,8 +211,8 @@ public class GeoTileUtilsTests extends ESTestCase {
      * so ensure they are clipped correctly.
      */
     public void testSingularityAtPoles() {
-        double minLat = -85.05112878;
-        double maxLat = 85.05112878;
+        double minLat = -GeoTileUtils.LATITUDE_MASK;
+        double maxLat = GeoTileUtils.LATITUDE_MASK;
         double lon = randomIntBetween(-180, 180);
         double lat = randomBoolean()
             ? randomDoubleBetween(-90, minLat, true)
@@ -230,5 +222,24 @@ public class GeoTileUtilsTests extends ESTestCase {
         String tileIndex = stringEncode(longEncode(lon, lat, zoom));
         String clippedTileIndex = stringEncode(longEncode(lon, clippedLat, zoom));
         assertEquals(tileIndex, clippedTileIndex);
+    }
+
+    public void testPointToTile() {
+        int zoom = randomIntBetween(0, MAX_ZOOM);
+        int tiles = 1 << zoom;
+        int xTile = randomIntBetween(0, zoom);
+        int yTile = randomIntBetween(0, zoom);
+        Rectangle rectangle = GeoTileUtils.toBoundingBox(xTile, yTile, zoom);
+        // check corners
+        assertThat(GeoTileUtils.getXTile(rectangle.getMinX(), tiles), equalTo(xTile));
+        assertThat(GeoTileUtils.getXTile(rectangle.getMaxX(), tiles), equalTo(Math.min(tiles - 1, xTile + 1)));
+        assertThat(GeoTileUtils.getYTile(rectangle.getMaxY(), tiles), anyOf(equalTo(yTile - 1), equalTo(yTile)));
+        assertThat(GeoTileUtils.getYTile(rectangle.getMinY(), tiles), anyOf(equalTo(yTile + 1), equalTo(yTile)));
+        // check point inside
+        double x = randomDoubleBetween(rectangle.getMinX(), rectangle.getMaxX(), false);
+        double y = randomDoubleBetween(rectangle.getMinY(), rectangle.getMaxY(), false);
+        assertThat(GeoTileUtils.getXTile(x, tiles), equalTo(xTile));
+        assertThat(GeoTileUtils.getYTile(y, tiles), equalTo(yTile));
+
     }
 }

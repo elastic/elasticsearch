@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.compress;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedOutputStream;
@@ -45,19 +35,9 @@ import java.util.zip.CheckedOutputStream;
 public final class CompressedXContent {
 
     private static int crc32(BytesReference data) {
-        OutputStream dummy = new OutputStream() {
-            @Override
-            public void write(int b) throws IOException {
-                // no-op
-            }
-            @Override
-            public void write(byte[] b, int off, int len) throws IOException {
-                // no-op
-            }
-        };
         CRC32 crc32 = new CRC32();
         try {
-            data.writeTo(new CheckedOutputStream(dummy, crc32));
+            data.writeTo(new CheckedOutputStream(Streams.NULL_OUTPUT_STREAM, crc32));
         } catch (IOException bogus) {
             // cannot happen
             throw new Error(bogus);
@@ -80,13 +60,17 @@ public final class CompressedXContent {
      */
     public CompressedXContent(ToXContent xcontent, XContentType type, ToXContent.Params params) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
-        OutputStream compressedStream = CompressorFactory.COMPRESSOR.streamOutput(bStream);
+        OutputStream compressedStream = CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream);
         CRC32 crc32 = new CRC32();
         OutputStream checkedStream = new CheckedOutputStream(compressedStream, crc32);
         try (XContentBuilder builder = XContentFactory.contentBuilder(type, checkedStream)) {
-            builder.startObject();
+            if (xcontent.isFragment()) {
+                builder.startObject();
+            }
             xcontent.toXContent(builder, params);
-            builder.endObject();
+            if (xcontent.isFragment()) {
+                builder.endObject();
+            }
         }
         this.bytes = BytesReference.toBytes(bStream.bytes());
         this.crc32 = (int) crc32.getValue();
@@ -102,13 +86,9 @@ public final class CompressedXContent {
         if (compressor != null) {
             // already compressed...
             this.bytes = BytesReference.toBytes(data);
-            this.crc32 = crc32(new BytesArray(uncompressed()));
+            this.crc32 = crc32(uncompressed());
         } else {
-            BytesStreamOutput out = new BytesStreamOutput();
-            try (OutputStream compressedOutput = CompressorFactory.COMPRESSOR.streamOutput(out)) {
-                data.writeTo(compressedOutput);
-            }
-            this.bytes = BytesReference.toBytes(out.bytes());
+            this.bytes = BytesReference.toBytes(CompressorFactory.COMPRESSOR.compress(data));
             this.crc32 = crc32(data);
         }
         assertConsistent();
@@ -116,7 +96,7 @@ public final class CompressedXContent {
 
     private void assertConsistent() {
         assert CompressorFactory.compressor(new BytesArray(bytes)) != null;
-        assert this.crc32 == crc32(new BytesArray(uncompressed()));
+        assert this.crc32 == crc32(uncompressed());
     }
 
     public CompressedXContent(byte[] data) throws IOException {
@@ -124,7 +104,7 @@ public final class CompressedXContent {
     }
 
     public CompressedXContent(String str) throws IOException {
-        this(new BytesArray(new BytesRef(str)));
+        this(new BytesArray(str.getBytes(StandardCharsets.UTF_8)));
     }
 
     /** Return the compressed bytes. */
@@ -138,29 +118,26 @@ public final class CompressedXContent {
     }
 
     /** Return the uncompressed bytes. */
-    public byte[] uncompressed() {
+    public BytesReference uncompressed() {
         try {
-            return BytesReference.toBytes(CompressorFactory.uncompress(new BytesArray(bytes)));
+            return CompressorFactory.uncompress(new BytesArray(bytes));
         } catch (IOException e) {
             throw new IllegalStateException("Cannot decompress compressed string", e);
         }
     }
 
     public String string() {
-        return new BytesRef(uncompressed()).utf8ToString();
+        return uncompressed().utf8ToString();
     }
 
     public static CompressedXContent readCompressedString(StreamInput in) throws IOException {
         int crc32 = in.readInt();
-        byte[] compressed = new byte[in.readVInt()];
-        in.readBytes(compressed, 0, compressed.length);
-        return new CompressedXContent(compressed, crc32);
+        return new CompressedXContent(in.readByteArray(), crc32);
     }
 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(crc32);
-        out.writeVInt(bytes.length);
-        out.writeBytes(bytes);
+        out.writeByteArray(bytes);
     }
 
     @Override
@@ -178,7 +155,7 @@ public final class CompressedXContent {
             return false;
         }
 
-        return Arrays.equals(uncompressed(), that.uncompressed());
+        return uncompressed().equals(that.uncompressed());
     }
 
     @Override

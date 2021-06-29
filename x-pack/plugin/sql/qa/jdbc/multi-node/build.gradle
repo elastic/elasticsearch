@@ -1,0 +1,7 @@
+description = 'Run SQL JDBC tests against multiple nodes'
+
+testClusters.all {
+  numberOfNodes = 2
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+}

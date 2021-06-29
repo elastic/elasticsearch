@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
@@ -27,6 +16,7 @@ import org.elasticsearch.env.Environment;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 
 public class RemoveSettingKeyStoreCommandTests extends KeyStoreCommandTestCase {
@@ -41,39 +31,78 @@ public class RemoveSettingKeyStoreCommandTests extends KeyStoreCommandTestCase {
         };
     }
 
-    public void testMissing() throws Exception {
+    public void testMissing() {
+        String password = "keystorepassword";
+        terminal.addSecretInput(password);
         UserException e = expectThrows(UserException.class, () -> execute("foo"));
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertThat(e.getMessage(), containsString("keystore not found"));
     }
 
     public void testNoSettings() throws Exception {
-        createKeystore("");
+        String password = "keystorepassword";
+        createKeystore(password);
+        terminal.addSecretInput(password);
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertThat(e.getMessage(), containsString("Must supply at least one setting"));
     }
 
     public void testNonExistentSetting() throws Exception {
-        createKeystore("");
+        String password = "keystorepassword";
+        createKeystore(password);
+        terminal.addSecretInput(password);
         UserException e = expectThrows(UserException.class, () -> execute("foo"));
         assertEquals(ExitCodes.CONFIG, e.exitCode);
         assertThat(e.getMessage(), containsString("[foo] does not exist"));
     }
 
     public void testOne() throws Exception {
-        createKeystore("", "foo", "bar");
+        String password = "keystorepassword";
+        createKeystore(password, "foo", "bar");
+        terminal.addSecretInput(password);
         execute("foo");
-        assertFalse(loadKeystore("").getSettingNames().contains("foo"));
+        assertFalse(loadKeystore(password).getSettingNames().contains("foo"));
     }
 
     public void testMany() throws Exception {
-        createKeystore("", "foo", "1", "bar", "2", "baz", "3");
+        String password = "keystorepassword";
+        createKeystore(password, "foo", "1", "bar", "2", "baz", "3");
+        terminal.addSecretInput(password);
         execute("foo", "baz");
-        Set<String> settings = loadKeystore("").getSettingNames();
+        Set<String> settings = loadKeystore(password).getSettingNames();
         assertFalse(settings.contains("foo"));
         assertFalse(settings.contains("baz"));
         assertTrue(settings.contains("bar"));
         assertEquals(2, settings.size()); // account for keystore.seed too
+    }
+
+    public void testRemoveWithIncorrectPassword() throws Exception {
+        String password = "keystorepassword";
+        createKeystore(password, "foo", "bar");
+        terminal.addSecretInput("thewrongpassword");
+        UserException e = expectThrows(UserException.class, () -> execute("foo"));
+        assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
+        if (inFipsJvm()) {
+            assertThat(
+                e.getMessage(),
+                anyOf(
+                    containsString("Provided keystore password was incorrect"),
+                    containsString("Keystore has been corrupted or tampered with")
+                )
+            );
+        } else {
+            assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
+        }
+
+    }
+
+    public void testRemoveFromUnprotectedKeystore() throws Exception {
+        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
+        String password = "";
+        createKeystore(password, "foo", "bar");
+        // will not be prompted for a password
+        execute("foo");
+        assertFalse(loadKeystore(password).getSettingNames().contains("foo"));
     }
 }

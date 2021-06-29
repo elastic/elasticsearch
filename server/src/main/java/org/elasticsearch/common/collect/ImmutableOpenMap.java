@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.collect;
@@ -153,13 +142,17 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
      * Returns a direct iterator over the keys.
      */
     public Iterator<VType> valuesIt() {
-        final Iterator<ObjectCursor<VType>> iterator = map.values().iterator();
-        return new Iterator<VType>() {
+        return iterator(map.values());
+    }
+
+    static <T> Iterator<T> iterator(ObjectCollection<T> collection) {
+        final Iterator<ObjectCursor<T>> iterator = collection.iterator();
+        return new Iterator<>() {
             @Override
             public boolean hasNext() { return iterator.hasNext(); }
 
             @Override
-            public VType next() {
+            public T next() {
                 return iterator.next().value;
             }
 
@@ -176,13 +169,14 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     }
 
     @Override
+    @SuppressWarnings("rawtypes")
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
         ImmutableOpenMap that = (ImmutableOpenMap) o;
 
-        if (!map.equals(that.map)) return false;
+        if (map.equals(that.map) == false) return false;
 
         return true;
     }
@@ -192,7 +186,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         return map.hashCode();
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private static final ImmutableOpenMap EMPTY = new ImmutableOpenMap(new ObjectObjectHashMap());
 
     @SuppressWarnings("unchecked")
@@ -224,8 +218,8 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     public static class Builder<KType, VType> implements ObjectObjectMap<KType, VType> {
         private ObjectObjectHashMap<KType, VType> map;
 
+        @SuppressWarnings("unchecked")
         public Builder() {
-            //noinspection unchecked
             this(EMPTY);
         }
 
@@ -243,10 +237,8 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         public ImmutableOpenMap<KType, VType> build() {
             ObjectObjectHashMap<KType, VType> map = this.map;
             this.map = null; // nullify the map, so any operation post build will fail! (hackish, but safest)
-            return new ImmutableOpenMap<>(map);
+            return map.isEmpty() ? of() : new ImmutableOpenMap<>(map);
         }
-
-
 
         /**
          * Puts all the entries in the map to the builder.

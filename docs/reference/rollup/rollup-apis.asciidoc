@@ -1,0 +1,35 @@
+[role="xpack"]
+[testenv="basic"]
+[[rollup-apis]]
+== Rollup APIs
+
+[discrete]
+[[rollup-jobs-endpoint]]
+=== Jobs
+
+* <<rollup-put-job,Create>> or <<rollup-delete-job,delete {rollup-jobs}>>
+* <<rollup-start-job,Start>> or <<rollup-stop-job,stop {rollup-jobs}>>
+* <<rollup-get-job,Get {rollup-jobs}>>
+
+[discrete]
+[[rollup-data-endpoint]]
+=== Data
+
+* <<rollup-get-rollup-caps,Get rollup capabilities>>
+* <<rollup-get-rollup-index-caps,Get rollup index capabilities>>
+
+[discrete]
+[[rollup-search-endpoint]]
+=== Search
+
+* <<rollup-search,Rollup search>>
+
+
+include::apis/put-job.asciidoc[]
+include::apis/delete-job.asciidoc[]
+include::apis/get-job.asciidoc[]
+include::apis/rollup-caps.asciidoc[]
+include::apis/rollup-index-caps.asciidoc[]
+include::apis/rollup-search.asciidoc[]
+include::apis/start-job.asciidoc[]
+include::apis/stop-job.asciidoc[]

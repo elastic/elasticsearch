@@ -37,7 +37,8 @@ import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
  */
 public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTaskParams> implements ClusterStateListener {
 
-    static final boolean ENABLED_DEFAULT = "true".equals(System.getProperty("ingest.geoip.downloader.enabled.default", "true"));
+    private static final boolean ENABLED_DEFAULT =
+        "false".equals(System.getProperty("ingest.geoip.downloader.enabled.default", "true")) == false;
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("ingest.geoip.downloader.enabled", ENABLED_DEFAULT,
         Setting.Property.Dynamic, Setting.Property.NodeScope);
 

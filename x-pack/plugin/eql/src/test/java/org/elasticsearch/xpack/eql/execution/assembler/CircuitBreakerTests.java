@@ -15,8 +15,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -25,9 +27,12 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.execution.assembler.SequenceSpecTests.TimestampExtractor;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
+import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.extractor.ImplicitTiebreakerHitExtractor;
+import org.elasticsearch.xpack.eql.execution.sequence.KeyAndOrdinal;
+import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceMatcher;
 import org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
@@ -76,7 +81,7 @@ public class CircuitBreakerTests extends ESTestCase {
         }
     }
 
-    public void testCircuitBreaker() {
+    public void testCircuitBreakerTumblingWindow() {
         QueryClient client = new TestQueryClient();
         List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(stages);
 
@@ -111,5 +116,55 @@ public class CircuitBreakerTests extends ESTestCase {
         window.execute(wrap(p -> {}, ex -> {
             throw ExceptionsHelper.convertToRuntime(ex);
         }));
+    }
+
+    public void testCircuitBreakerSequnceMatcher() {
+        List<Tuple<KeyAndOrdinal, HitReference>> hits = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            hits.add(new Tuple<>(new KeyAndOrdinal(new SequenceKey(i), new Ordinal(i, o -> 1, 0)), new HitReference("index", i + "")));
+        }
+
+        // Break on first iteration
+        SequenceMatcher matcher1 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, new EqlTestCircuitBreaker(10000));
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> matcher1.match(0, hits));
+        assertEquals("sequence_inflight", e.getMessage());
+
+        // Break on second iteration
+        SequenceMatcher matcher2 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, new EqlTestCircuitBreaker(15000));
+        matcher2.match(0, hits);
+        e = expectThrows(CircuitBreakingException.class, () -> matcher2.match(0, hits));
+        assertEquals("sequence_inflight", e.getMessage());
+
+        // Break on 3rd iteration with clear() called in between
+        SequenceMatcher matcher3 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, new EqlTestCircuitBreaker(15000));
+        matcher3.match(0, hits);
+        matcher3.clear();
+        matcher3.match(0, hits);
+        e = expectThrows(CircuitBreakingException.class, () -> matcher3.match(0, hits));
+        assertEquals("sequence_inflight", e.getMessage());
+    }
+
+    private static class EqlTestCircuitBreaker extends NoopCircuitBreaker {
+
+        private final long limitInBytes;
+        private long ramBytesUsed = 0;
+
+        private EqlTestCircuitBreaker(long limitInBytes) {
+            super("eql_test");
+            this.limitInBytes = limitInBytes;
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            ramBytesUsed += bytes;
+            if (ramBytesUsed > limitInBytes) {
+                throw new CircuitBreakingException(label, getDurability());
+            }
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            ramBytesUsed += bytes;
+        }
     }
 }

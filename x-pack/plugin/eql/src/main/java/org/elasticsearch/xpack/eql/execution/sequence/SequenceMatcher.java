@@ -110,7 +110,7 @@ public class SequenceMatcher {
      * Match hits for the given stage.
      * Returns false if the process needs to be stopped.
      */
-    boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
+    public boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
         long ramBytesUsedInFlight = ramBytesUsedInFlight();
         long ramBytesUsedCompleted = ramBytesUsedCompleted();
 

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -347,10 +348,15 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
                 return;
             }
+            final BytesReference source = getResponse.getSourceInternal();
             long reservedBytes = 0;
             // Parse the source manually so we can access the encoded buffer directly without making it a string
             try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, getResponse.getSourceInternal(), XContentType.JSON)) {
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source, XContentType.JSON)) {
+                // JsonParser might allocate a separate buffer to hold parsed values
+                circuitBreaker.addEstimateBytesAndMaybeBreak(source.length(), "parse xContent of async response");
+                reservedBytes += source.length();
+
                 ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser);
                 R resp = null;
                 Long expirationTime = null;
@@ -361,7 +367,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                     switch (fieldName) {
                         case RESULT_FIELD:
                             ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
-                            final CharBuffer encodedBuffer = parser.charBuffer();
+                            CharBuffer encodedBuffer = parser.charBuffer();
                             // We can record the ram usage of a response in the index and use it here; however, we don't do it because
                             // RamUsageEstimator overestimates the ram usage of a search response by twice as a search response mostly
                             // consists of string fields. Here we use the length of a decoded string (i.e., 0.75% of Base64 encoded string)

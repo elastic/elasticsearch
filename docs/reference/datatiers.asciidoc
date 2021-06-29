@@ -44,8 +44,8 @@ While they are also responsible for indexing, content data is generally not inge
 as time series data such as logs and metrics. From a resiliency perspective the indices in this
 tier should be configured to use one or more replicas.
 
-The content tier is required. New indices are automatically allocated to the
-<<content-tier>> unless they are part of a data stream.
+The content tier is required. System indices and other that aren't part of a
+data stream are automatically allocated to the content tier.
 
 [discrete]
 [[hot-tier]]

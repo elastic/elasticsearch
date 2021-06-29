@@ -21,7 +21,7 @@ indexing and faster searches on your most recent data. Use slower, less
 expensive nodes in the cold and frozen tiers to reduce costs.
 
 The content tier is not typically used for time series data. However, it's
-required to create indices that aren't part of a data stream.
+required to create system indices and other that aren't part of a data stream.
 
 The steps for setting up data tiers vary based on your deployment type:
 

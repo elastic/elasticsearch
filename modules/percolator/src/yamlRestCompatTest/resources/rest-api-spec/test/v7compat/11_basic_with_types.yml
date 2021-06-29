@@ -1,0 +1,150 @@
+---
+setup:
+  - skip:
+      version: "9.0.0 - "
+      reason: "compatible from 8.x to 7.x"
+      features:
+        - "headers"
+        - "warnings"
+        - "allowed_warnings_regex"
+---
+"Test percolator basics via rest":
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+      indices.create:
+        include_type_name: true
+        index: queries_index
+        body:
+          mappings:
+            queries_type:
+              properties:
+                query:
+                  type: percolator
+                foo:
+                  type: keyword
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+      indices.create:
+        include_type_name: true
+        index: documents_index
+        body:
+          mappings:
+            documents_type:
+              properties:
+                foo:
+                  type: keyword
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+      index:
+        index: queries_index
+        type: queries_type
+        id:   test_percolator
+        body:
+          query:
+            match_all: {}
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+      index:
+        index: documents_index
+        type: documents_type
+        id: some_id
+        body:
+          foo: bar
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+      indices.refresh: {}
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          - query:
+              percolate:
+                field: query
+                document:
+                  document_type: queries_type
+                  foo: bar
+  - match:  { hits.total:     1  }
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+      msearch:
+        rest_total_hits_as_int: true
+        body:
+          - index: queries_index
+          - query:
+              percolate:
+                field: query
+                document_type: queries_type
+                document:
+                  foo: bar
+  - match:  { responses.0.hits.total:     1  }
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          - query:
+              percolate:
+                field: query
+                index: documents_index
+                type: documents_type
+                id: some_id
+  - match:  { hits.total:     1  }
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+      msearch:
+        rest_total_hits_as_int: true
+        body:
+          - index: queries_index
+          - query:
+              percolate:
+                field: query
+                index: documents_index
+                type: documents_type
+                id: some_id
+  - match:  { responses.0.hits.total:     1  }

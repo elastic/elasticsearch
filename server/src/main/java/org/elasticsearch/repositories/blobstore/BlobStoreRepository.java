@@ -237,7 +237,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public static final Setting<Integer> MAX_SNAPSHOTS_SETTING = Setting.intSetting(
         "max_number_of_snapshots",
-        500,
+        Integer.MAX_VALUE,
         1,
         Setting.Property.NodeScope
     );

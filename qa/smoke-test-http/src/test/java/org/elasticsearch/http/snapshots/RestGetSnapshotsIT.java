@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -64,8 +65,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
     }
 
     private void doTestSortOrder(String repoName, Collection<String> allSnapshotNames, SortOrder order) throws IOException {
-        final List<SnapshotInfo> defaultSorting =
-            clusterAdmin().prepareGetSnapshots(repoName).setOrder(order).get().getSnapshots();
+        final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(repoName).setOrder(order).get().getSnapshots();
         assertSnapshotListSorted(defaultSorting, null, order);
         assertSnapshotListSorted(
                 allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.NAME, order),
@@ -106,24 +106,31 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
                                   GetSnapshotsRequest.SortBy sort,
                                   SortOrder order) throws IOException {
         final List<SnapshotInfo> allSnapshotsSorted = allSnapshotsSorted(names, repoName, sort, order);
-        final List<SnapshotInfo> batch1 = sortedWithLimit(repoName, sort, 2, order);
-        assertEquals(batch1, allSnapshotsSorted.subList(0, 2));
-        final List<SnapshotInfo> batch2 = sortedWithLimit(repoName, sort, batch1.get(1), 2, order);
-        assertEquals(batch2, allSnapshotsSorted.subList(2, 4));
-        final int lastBatch = names.size() - batch1.size() - batch2.size();
-        final List<SnapshotInfo> batch3 = sortedWithLimit(repoName, sort, batch2.get(1), lastBatch, order);
-        assertEquals(batch3, allSnapshotsSorted.subList(batch1.size() + batch2.size(), names.size()));
-        final List<SnapshotInfo> batch3NoLimit =
-            sortedWithLimit(repoName, sort, batch2.get(1), GetSnapshotsRequest.NO_LIMIT, order);
-        assertEquals(batch3, batch3NoLimit);
-        final List<SnapshotInfo> batch3LargeLimit = sortedWithLimit(
+        final Tuple<String, List<SnapshotInfo>> batch1 = sortedWithLimit(repoName, sort, null, 2, order);
+        assertEquals(allSnapshotsSorted.subList(0, 2), batch1.v2());
+        final Tuple<String, List<SnapshotInfo>> batch2 = sortedWithLimit(repoName, sort, batch1.v1(), 2, order);
+        assertEquals(allSnapshotsSorted.subList(2, 4), batch2.v2());
+        final int lastBatch = names.size() - batch1.v2().size() - batch2.v2().size();
+        final Tuple<String, List<SnapshotInfo>> batch3 = sortedWithLimit(repoName, sort, batch2.v1(), lastBatch, order);
+        assertEquals(batch3.v2(), allSnapshotsSorted.subList(batch1.v2().size() + batch2.v2().size(), names.size()));
+        final Tuple<String, List<SnapshotInfo>> batch3NoLimit = sortedWithLimit(
                 repoName,
                 sort,
-                batch2.get(1),
+                batch2.v1(),
+                GetSnapshotsRequest.NO_LIMIT,
+                order
+        );
+        assertNull(batch3NoLimit.v1());
+        assertEquals(batch3.v2(), batch3NoLimit.v2());
+        final Tuple<String, List<SnapshotInfo>> batch3LargeLimit = sortedWithLimit(
+                repoName,
+                sort,
+                batch2.v1(),
                 lastBatch + randomIntBetween(1, 100),
                 order
         );
-        assertEquals(batch3, batch3LargeLimit);
+        assertEquals(batch3.v2(), batch3LargeLimit.v2());
+        assertNull(batch3LargeLimit.v1());
     }
 
     public void testSortAndPaginateWithInProgress() throws Exception {
@@ -173,14 +180,15 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         final List<SnapshotInfo> allSorted = allSnapshotsSorted(allSnapshotNames, repoName, sort, order);
 
         for (int i = 1; i <= allSnapshotNames.size(); i++) {
-            final List<SnapshotInfo> subsetSorted = sortedWithLimit(repoName, sort, i, order);
+            final List<SnapshotInfo> subsetSorted = sortedWithLimit(repoName, sort, null, i, order).v2();
             assertEquals(subsetSorted, allSorted.subList(0, i));
         }
 
         for (int j = 0; j < allSnapshotNames.size(); j++) {
             final SnapshotInfo after = allSorted.get(j);
             for (int i = 1; i < allSnapshotNames.size() - j; i++) {
-                final List<SnapshotInfo> subsetSorted = sortedWithLimit(repoName, sort, after, i, order);
+                final List<SnapshotInfo> subsetSorted = sortedWithLimit(
+                        repoName, sort, GetSnapshotsRequest.After.from(after, sort).asQueryParam(), i, order).v2();
                 assertEquals(subsetSorted, allSorted.subList(j + 1, j + i + 1));
             }
         }
@@ -196,7 +204,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             request.addParameter("order", order.toString());
         }
         final Response response = getRestClient().performRequest(request);
-        final List<SnapshotInfo> snapshotInfos = readSnapshotInfos(response);
+        final List<SnapshotInfo> snapshotInfos = readSnapshotInfos(response).v2();
         assertEquals(snapshotInfos.size(), allSnapshotNames.size());
         for (SnapshotInfo snapshotInfo : snapshotInfos) {
             assertThat(snapshotInfo.snapshotId().getName(), is(in(allSnapshotNames)));
@@ -208,42 +216,27 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         return new Request(HttpGet.METHOD_NAME, "/_snapshot/" + repoName + "/*");
     }
 
-    private static List<SnapshotInfo> sortedWithLimit(String repoName,
-                                                      GetSnapshotsRequest.SortBy sortBy,
-                                                      int size,
-                                                      SortOrder order) throws IOException {
-        final Request request = baseGetSnapshotsRequest(repoName);
-        request.addParameter("sort", sortBy.toString());
-        if (order == SortOrder.DESC || randomBoolean()) {
-            request.addParameter("order", order.toString());
-        }
-        request.addParameter("size", String.valueOf(size));
-        final Response response = getRestClient().performRequest(request);
-        return readSnapshotInfos(response);
-    }
-
-    private static List<SnapshotInfo> readSnapshotInfos(Response response) throws IOException {
-        final List<SnapshotInfo> snapshotInfos;
+    private static Tuple<String, List<SnapshotInfo>> readSnapshotInfos(Response response) throws IOException {
         try (InputStream input = response.getEntity().getContent();
              XContentParser parser = JsonXContent.jsonXContent.createParser(
                      NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input)) {
-            snapshotInfos = GetSnapshotsResponse.fromXContent(parser).getSnapshots();
+            final GetSnapshotsResponse getSnapshotsResponse = GetSnapshotsResponse.fromXContent(parser);
+            return Tuple.tuple(getSnapshotsResponse.next(), getSnapshotsResponse.getSnapshots());
         }
-        return snapshotInfos;
     }
 
-    private static List<SnapshotInfo> sortedWithLimit(String repoName,
-                                                      GetSnapshotsRequest.SortBy sortBy,
-                                                      SnapshotInfo after,
-                                                      int size,
-                                                      SortOrder order) throws IOException {
+    private static Tuple<String, List<SnapshotInfo>> sortedWithLimit(String repoName,
+                                                                     GetSnapshotsRequest.SortBy sortBy,
+                                                                     String after,
+                                                                     int size,
+                                                                     SortOrder order) throws IOException {
         final Request request = baseGetSnapshotsRequest(repoName);
         request.addParameter("sort", sortBy.toString());
         if (size != GetSnapshotsRequest.NO_LIMIT || randomBoolean()) {
             request.addParameter("size", String.valueOf(size));
         }
         if (after != null) {
-            request.addParameter("after", GetSnapshotsRequest.After.from(after, sortBy).value() + "," + after.snapshotId().getName());
+            request.addParameter("after", after);
         }
         if (order == SortOrder.DESC || randomBoolean()) {
             request.addParameter("order", order.toString());

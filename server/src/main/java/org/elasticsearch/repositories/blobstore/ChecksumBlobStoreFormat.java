@@ -276,7 +276,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     public void serialize(final T obj, final String blobName, final boolean compress, OutputStream outputStream) throws IOException {
         try (
             OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
-                "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")",
+                "ChecksumBlobStoreFormat.serialize(blob=\"" + blobName + "\")",
                 blobName,
                 org.elasticsearch.common.io.Streams.noCloseStream(outputStream),
                 BUFFER_SIZE

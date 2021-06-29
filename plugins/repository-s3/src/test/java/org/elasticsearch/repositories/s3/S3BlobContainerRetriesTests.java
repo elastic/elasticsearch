@@ -314,7 +314,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final AtomicLong bytesReceived = new AtomicLong(0L);
         final CountDown countDownComplete = new CountDown(nbErrors);
 
-        httpServer.createContext("/bucket/write_large_blob", exchange -> {
+        httpServer.createContext("/bucket/write_large_blob_streaming", exchange -> {
             final long contentLength = Long.parseLong(exchange.getRequestHeaders().getFirst("Content-Length"));
 
             if ("POST".equals(exchange.getRequestMethod())

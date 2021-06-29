@@ -172,10 +172,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         comparableToNull = cmp.right();
                     }
                     if (comparableToNull != null) {
-                        if (cmp instanceof Equals) {
-                            result = new IsNull(cmp.source(), comparableToNull);
-                        } else {
-                            result = new Not(cmp.source(), new IsNull(cmp.source(), comparableToNull));
+                        result = new IsNull(cmp.source(), comparableToNull);
+                        if (cmp instanceof Equals == false) {
+                            result = new Not(cmp.source(), result);
                         }
                     }
                 }

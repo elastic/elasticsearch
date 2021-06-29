@@ -11,9 +11,9 @@ import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-class NoNullSafetyScriptQuery extends ScriptQuery {
+class MultiValueAwareScriptQuery extends ScriptQuery {
 
-    NoNullSafetyScriptQuery(Source source, ScriptTemplate script) {
+    MultiValueAwareScriptQuery(Source source, ScriptTemplate script) {
         super(source, script);
     }
 

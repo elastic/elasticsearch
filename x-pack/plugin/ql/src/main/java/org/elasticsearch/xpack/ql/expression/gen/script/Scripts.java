@@ -115,7 +115,7 @@ public final class Scripts {
     }
 
     /**
-     * This method replaces any .docValue(doc,params.%s) call with a variable.
+     * This method replaces any .docValue(doc,params.%s) call with a "Xn" variable.
      * Each variable is then used in a {@code java.util.function.Predicate} to iterate over the doc_values in a Painless script.
      * Multiple .docValue(doc,params.%s) calls for the same field will use multiple .docValue calls, meaning
      * a different value of the field will be used for each usage in the script.
@@ -215,7 +215,7 @@ public final class Scripts {
 
         // if no match was found, return this
         if (index == 0) {
-            return new String[] {input.toString()};
+            return new String[] {input};
         }
 
         // add remaining segment and avoid an empty element in matches list

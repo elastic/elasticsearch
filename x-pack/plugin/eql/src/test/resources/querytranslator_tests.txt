@@ -103,6 +103,20 @@ process where not (exit_code > -1)
 {"bool":{"must_not":[{"range":{"exit_code":{"from":-1,"to":null,"include_lower":false,"include_upper":false
 ;
 
+notFieldsConjunction
+process where not (exit_code > 1 and user_name == "root")
+;
+{"bool":{"must_not":[{"bool":{"must":[{"range":{"exit_code":{"from":1,"to":null,"include_lower":false,"include_upper":false
+{"term":{"user_name":{"value":"root"
+;
+
+notOneFieldConjunctionNotSecondField
+process where not (exit_code > 1) and not (user_name == "root")
+;
+{"bool":{"must":[{"bool":{"must_not":[{"range":{"exit_code":{"from":1,"to":null,"include_lower":false,"include_upper":false
+{"bool":{"must_not":[{"term":{"user_name":{"value":"root"
+;
+
 inFilter
 process where process_name in ("python.exe", "SMSS.exe", "explorer.exe")
 ;
@@ -900,6 +914,12 @@ process where null == (exit_code > -1)
 ;
 {"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNull(InternalQlScriptUtils.gt(X0,params.v1))))"
 "params":{"v0":"exit_code","v1":-1}}
+;
+
+isNull
+process where pid != null
+;
+{"bool":{"must_not":[{"bool":{"must_not":[{"exists":{"field":"pid"
 ;
 
 disjunctionOfFunctionAndNegatedFunction

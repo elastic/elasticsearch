@@ -79,14 +79,11 @@ final class QueryTranslator {
                 // check the operators and the expressions involved in these operations so that all can be used
                 // in a doc-values multi-valued context
                 boolean multiValuedIncompatible = e.anyMatch(exp -> {
-                    if (exp instanceof Literal || exp instanceof FieldAttribute || exp instanceof Function) {
-                        return false;
-                    } else {
-                        return true;
-                    }});
+                    return false == (exp instanceof Literal || exp instanceof FieldAttribute || exp instanceof Function);
+                });
                 if (multiValuedIncompatible == false) {
                     ScriptQuery query = (ScriptQuery) translation;
-                    return new NoNullSafetyScriptQuery(query.source(), Scripts.multiValueDocValuesRewrite(query.script()));
+                    return new MultiValueAwareScriptQuery(query.source(), Scripts.multiValueDocValuesRewrite(query.script()));
                 }
             }
             return translation;

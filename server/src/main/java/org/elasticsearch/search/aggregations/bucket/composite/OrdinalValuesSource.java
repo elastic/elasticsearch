@@ -31,36 +31,39 @@ import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
 /**
  * A {@link SingleDimensionValuesSource} for ordinals.
+ *
+ * As it only needs to keep track of the top N composite buckets, and N is typically small, we can just use the segment ordinal for
+ * comparison when collecting inside a segment and remap ordinals when we go to the next segment instead of using global ordinals.
+ *
+ * Ordinals are remapped when visiting a new segment (see {@link #remapOrdinals(SortedSetDocValues, SortedSetDocValues)}).
+ * As it's possible that a previously mapped term has no corresponding ordinal on the new LeafReader, we also cache the currently unmapped
+ * terms so that future remapping steps can be accurately done.
+ *
+ * The ordinal Long.MIN_VALUE is used to represent the missing bucket.
+ *
+ * Other negative values for the ordinal mean that the term is not known to the current lookup
+ * (see {@link SortedSetDocValues#lookupTerm(BytesRef)}}) and correspond to -insertionPoint-1.
+ *
+ * See {@link #invariant()} for more details.
  */
 class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
-    private final LongConsumer breakerConsumer;
+    private final LongConsumer breakerConsumer; // track how much bytes are stored in the values array
     private final CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc;
 
-    // ordinals, which are remapped whenever we visit a new segment.
-    // Entries might be Long.MIN_VALUE to represent the missing bucket,
-    // or negative when the corresponding term is not known to the current lookup
-    private LongArray valuesOrd;
-    // when term is not known to current lookup, then the term from a previous lookup is stored here, else null
-    private ObjectArray<BytesRef> values;
-    // number of slots in the above arrays that contain any actual values
-    private int numSlots = 0;
+    private SortedSetDocValues lookup; // current ordinals lookup
 
+    private LongArray valuesOrd; // ordinals, which are remapped whenever we visit a new segment
+    private ObjectArray<BytesRef> valuesUnmapped;
+    private int numSlots = 0; // number of slots in the above arrays that contain any relevant values
 
-    // is Long.MIN_VALUE when the value represents the missing bucket, or negative if the term is not known to current lookup
     private Long currentValueOrd;
-    // when term is not known to current lookup, then the term from a previous lookup is stored here, else null
-    private BytesRef currentValue;
+    private BytesRef currentValueUnmapped;
 
-    // is Long.MIN_VALUE when the value represents the missing bucket, or negative if the term is not known to current lookup
-    // when term is not known to current lookup, then the term from a previous lookup is stored in afterValue, else afterValue is null
-    private Long afterValueOrd;
+    private Long afterValueOrd; // null if no afterValue is set
 
     // small cache to avoid repeated lookups in toComparable
-    private Long lastLookupOrd;
+    private Long lastLookupOrd; // null if nothing cached
     private BytesRef lastLookupValue;
-
-    // current lookup
-    private SortedSetDocValues lookup;
 
     OrdinalValuesSource(BigArrays bigArrays, LongConsumer breakerConsumer, MappedFieldType type,
                         CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
@@ -69,43 +72,84 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
         this.valuesOrd = bigArrays.newLongArray(Math.min(size, 100), false);
-        this.values = bigArrays.newObjectArray(Math.min(size, 100));
+        this.valuesUnmapped = bigArrays.newObjectArray(Math.min(size, 100));
+    }
+
+    /**
+     * Class invariant that should hold before and after every invocation of public methods on this class.
+     */
+    private boolean invariant() {
+        assert numSlots <= valuesOrd.size() && valuesOrd.size() == valuesOrd.size();
+        for (int i = 0; i < numSlots; i++) {
+            assert ordAndValueConsistency(valuesOrd.get(i), valuesUnmapped.get(i));
+        }
+        if (currentValueOrd != null) {
+            assert ordAndValueConsistency(currentValueOrd, currentValueUnmapped);
+        }
+        if (lastLookupOrd != null) {
+            assert lastLookupOrd >= 0 && lastLookupValue != null;
+        }
+        return true;
+    }
+
+    private boolean ordAndValueConsistency(long ordinal, BytesRef value) {
+        // The ordinal Long.MIN_VALUE is used to represent the missing bucket.
+        assert ordinal != Long.MIN_VALUE || missingBucket;
+        // value is cached iff ordinal is unmapped and not missing bucket
+        assert (ordinal == Long.MIN_VALUE || ordinal >= 0) == (value == null);
+
+        // ordinals and values are consistent with current lookup
+        try {
+            if (ordinal >= 0) {
+                assert lookup.lookupOrd(ordinal) != null;
+            }
+            if (value != null) {
+                assert lookup.lookupTerm(value) == ordinal;
+            }
+        } catch (IOException e) {
+            assert false : e;
+        }
+        return true;
     }
 
     @Override
     void copyCurrent(int slot) {
+        assert invariant();
         numSlots = Math.max(numSlots, slot + 1);
         valuesOrd = bigArrays.grow(valuesOrd, numSlots);
-        values = bigArrays.grow(values, numSlots);
+        valuesUnmapped = bigArrays.grow(valuesUnmapped, numSlots);
 
-        assert currentValueOrd != null && (currentValueOrd == Long.MIN_VALUE || currentValueOrd >= 0);
+        assert currentValueUnmapped == null;
         valuesOrd.set(slot, currentValueOrd);
-        assert currentValue == null;
-        BytesRef previousValue = values.get(slot);
-        values.set(slot, null);
-        if (previousValue != null) {
-            // some bytes possibly freed
-            breakerConsumer.accept(- previousValue.bytes.length);
-        }
+        setValueWithBreaking(slot, currentValueUnmapped);
+        assert invariant();
+    }
+
+    private void setValueWithBreaking(long index, BytesRef newValue) {
+        BytesRef previousValue = valuesUnmapped.get(index);
+        long previousSize = previousValue == null ? 0 : previousValue.length;
+        long newSize = newValue == null ? 0 : newValue.length;
+        breakerConsumer.accept(newSize - previousSize);
+        valuesUnmapped.set(index, newValue);
     }
 
     @Override
     int compare(int from, int to) {
         assert from < numSlots && to < numSlots;
-        return compareInternal(valuesOrd.get(from), valuesOrd.get(to), values.get(from), values.get(to)) * reverseMul;
+        return compareInternal(valuesOrd.get(from), valuesOrd.get(to), valuesUnmapped.get(from), valuesUnmapped.get(to)) * reverseMul;
     }
 
     @Override
     int compareCurrent(int slot) {
         assert currentValueOrd != null;
         assert slot < numSlots;
-        return compareInternal(currentValueOrd, valuesOrd.get(slot), currentValue, values.get(slot)) * reverseMul;
+        return compareInternal(currentValueOrd, valuesOrd.get(slot), currentValueUnmapped, valuesUnmapped.get(slot)) * reverseMul;
     }
 
     @Override
     int compareCurrentWithAfter() {
         assert currentValueOrd != null && afterValueOrd != null;
-        return compareInternal(currentValueOrd, afterValueOrd, currentValue, afterValue) * reverseMul;
+        return compareInternal(currentValueOrd, afterValueOrd, currentValueUnmapped, afterValue) * reverseMul;
     }
 
     @Override
@@ -153,6 +197,7 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     void setAfter(Comparable value) {
+        assert invariant();
         if (missingBucket && value == null) {
             afterValue = null;
             afterValueOrd = Long.MIN_VALUE;
@@ -164,6 +209,7 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         } else {
             throw new IllegalArgumentException("invalid value, expected string, got " + value.getClass().getSimpleName());
         }
+        assert invariant();
     }
 
     @Override
@@ -174,7 +220,7 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
             assert missingBucket;
             return null;
         } else if (ord < 0) {
-            return values.get(slot);
+            return valuesUnmapped.get(slot);
         } else if (lastLookupOrd != null && ord == lastLookupOrd) {
             assert ord >= 0;
             return lastLookupValue;
@@ -187,22 +233,27 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
+        assert invariant();
         final SortedSetDocValues dvs = docValuesFunc.apply(context);
-        remapOrdinals(dvs);
+        remapOrdinals(lookup, dvs);
+        lookup = dvs;
+        assert invariant();
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
+                // caller of getLeafCollector ensures that collection happens before requesting a new leaf collector
+                // this is important as ordinals only make sense in the context of the current lookup
                 assert dvs == lookup;
                 if (dvs.advanceExact(doc)) {
                     long ord;
                     while ((ord = dvs.nextOrd()) != NO_MORE_ORDS) {
                         currentValueOrd = ord;
-                        currentValue = null;
+                        currentValueUnmapped = null;
                         next.collect(doc, bucket);
                     }
                 } else if (missingBucket) {
                     currentValueOrd = Long.MIN_VALUE;
-                    currentValue = null;
+                    currentValueUnmapped = null;
                     next.collect(doc, bucket);
                 }
             }
@@ -211,17 +262,22 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) throws IOException {
+        assert invariant();
         if (value.getClass() != BytesRef.class) {
             throw new IllegalArgumentException("Expected BytesRef, got " + value.getClass());
         }
         BytesRef term = (BytesRef) value;
         final SortedSetDocValues dvs = docValuesFunc.apply(context);
-        remapOrdinals(dvs);
+        remapOrdinals(lookup, dvs);
+        lookup = dvs;
+        assert invariant();
         return new LeafBucketCollector() {
             boolean currentValueIsSet = false;
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
+                // caller of getLeafCollector ensures that collection happens before requesting a new leaf collector
+                // this is important as ordinals only make sense in the context of the current lookup
                 assert dvs == lookup;
                 if (currentValueIsSet == false) {
                     if (dvs.advanceExact(doc)) {
@@ -230,7 +286,7 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                             if (term.equals(dvs.lookupOrd(ord))) {
                                 currentValueIsSet = true;
                                 currentValueOrd = ord;
-                                currentValue = null;
+                                currentValueUnmapped = null;
                                 break;
                             }
                         }
@@ -246,29 +302,21 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
      * Remaps ordinals when switching LeafReaders. It's possible that a term is not mapped for the new LeafReader,
      * in that case remember the term so that future remapping steps can accurately be done.
      */
-    private void remapOrdinals(SortedSetDocValues newMapping) throws IOException {
+    private void remapOrdinals(SortedSetDocValues oldMapping, SortedSetDocValues newMapping) throws IOException {
         for (int i = 0; i < numSlots; i++) {
-            final long ord = valuesOrd.get(i);
-            if (ord == Long.MIN_VALUE) {
-                assert values.get(i) == null;
-            } else {
+            final long oldOrd = valuesOrd.get(i);
+            if (oldOrd != Long.MIN_VALUE) {
                 final long newOrd;
-                if (ord >= 0) {
-                    assert values.get(i) == null;
-                    final BytesRef newVal = lookup.lookupOrd(ord);
+                if (oldOrd >= 0) {
+                    final BytesRef newVal = oldMapping.lookupOrd(oldOrd);
                     newOrd = newMapping.lookupTerm(newVal);
                     if (newOrd < 0) {
-                        final BytesRef copiedNewVal = BytesRef.deepCopyOf(newVal);
-                        breakerConsumer.accept(copiedNewVal.bytes.length);
-                        values.set(i, copiedNewVal);
+                        setValueWithBreaking(i, BytesRef.deepCopyOf(newVal));
                     }
                 } else {
-                    final BytesRef previousVal = values.get(i);
-                    assert previousVal != null;
-                    newOrd = newMapping.lookupTerm(previousVal);
+                    newOrd = newMapping.lookupTerm(valuesUnmapped.get(i));
                     if (newOrd >= 0) {
-                        values.set(i, null);
-                        breakerConsumer.accept(- previousVal.bytes.length);
+                        setValueWithBreaking(i, null);
                     }
                 }
                 valuesOrd.set(i, newOrd);
@@ -276,22 +324,18 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         }
 
         if (currentValueOrd != null) {
-            if (currentValueOrd == Long.MIN_VALUE) {
-                assert currentValue == null;
-            } else {
+            if (currentValueOrd != Long.MIN_VALUE) {
                 final long newOrd;
                 if (currentValueOrd >= 0) {
-                    assert currentValue == null;
-                    final BytesRef newVal = lookup.lookupOrd(currentValueOrd);
+                    final BytesRef newVal = oldMapping.lookupOrd(currentValueOrd);
                     newOrd = newMapping.lookupTerm(newVal);
                     if (newOrd < 0) {
-                        currentValue = BytesRef.deepCopyOf(newVal);
+                        currentValueUnmapped = BytesRef.deepCopyOf(newVal);
                     }
                 } else {
-                    assert currentValue != null;
-                    newOrd = newMapping.lookupTerm(currentValue);
+                    newOrd = newMapping.lookupTerm(currentValueUnmapped);
                     if (newOrd >= 0) {
-                        currentValue = null;
+                        currentValueUnmapped = null;
                     }
                 }
                 currentValueOrd = newOrd;
@@ -304,7 +348,6 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
         lastLookupOrd = null;
         lastLookupValue = null;
-        lookup = newMapping;
     }
 
     @Override
@@ -324,6 +367,6 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     public void close() {
-        Releasables.close(valuesOrd, values);
+        Releasables.close(valuesOrd, valuesUnmapped);
     }
 }

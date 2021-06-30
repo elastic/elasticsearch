@@ -14,12 +14,15 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+
 public class TestTransportChannels {
 
     public static TcpTransportChannel newFakeTcpTransportChannel(String nodeName, TcpChannel channel, ThreadPool threadPool,
                                                                  String action, long requestId, Version version) {
         return new TcpTransportChannel(
-            new OutboundHandler(nodeName, version, new String[0], new StatsTracker(), threadPool, BigArrays.NON_RECYCLING_INSTANCE),
+            new OutboundHandler(nodeName, version, new String[0], new StatsTracker(), threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+                randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4)),
             channel, action, requestId, version, Collections.emptySet(), false, false, () -> {});
     }
 }

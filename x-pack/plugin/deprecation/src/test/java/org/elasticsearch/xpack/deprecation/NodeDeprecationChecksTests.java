@@ -11,19 +11,24 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.bootstrap.BootstrapSettings;
-import org.elasticsearch.core.Set;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,13 +46,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
-
-
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
 public class NodeDeprecationChecksTests extends ESTestCase {
 
@@ -660,7 +659,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings,
-            null, null));
+            null, ClusterState.EMPTY_STATE));
 
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
@@ -755,5 +754,35 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         // test for absence of deprecated exporter passwords
         issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null);
         assertThat(issue, nullValue());
+    }
+
+    public void testClusterRoutingAllocationIncludeRelocationsSetting() {
+        boolean settingValue = randomBoolean();
+        String settingKey = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey();
+        final Settings nodeSettings = Settings.builder().put(settingKey, settingValue).build();
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                settingKey),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%b], remove this setting",
+                settingKey,
+                settingValue),
+            null
+        );
+
+        assertThat(
+            NodeDeprecationChecks.checkClusterRoutingAllocationIncludeRelocationsSetting(nodeSettings, null, clusterState),
+            equalTo(expectedIssue)
+        );
+
+        final String expectedWarning = String.format(Locale.ROOT,
+            "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.",
+            settingKey);
+
+        assertWarnings(expectedWarning);
     }
 }

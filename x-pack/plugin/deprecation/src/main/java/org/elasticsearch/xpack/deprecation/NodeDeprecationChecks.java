@@ -8,20 +8,20 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.elasticsearch.jdk.JavaVersion;
+import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.script.ScriptService;
@@ -43,6 +43,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED_REALM_NAME_PREFIX;
 
 class NodeDeprecationChecks {
@@ -414,6 +415,13 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkRemovedSetting(final Settings settings, final Setting<?> removedSetting, final String url) {
+        return checkRemovedSetting(settings, removedSetting, url, DeprecationIssue.Level.CRITICAL);
+    }
+
+    static DeprecationIssue checkRemovedSetting(final Settings settings,
+                                                final Setting<?> removedSetting,
+                                                final String url,
+                                                DeprecationIssue.Level deprecationLevel) {
         if (removedSetting.exists(settings) == false) {
             return null;
         }
@@ -423,7 +431,7 @@ class NodeDeprecationChecks {
             String.format(Locale.ROOT, "setting [%s] is deprecated and will be removed in the next major version", removedSettingKey);
         final String details =
             String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
-        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
+        return new DeprecationIssue(deprecationLevel, message, url, details, null);
     }
 
     static DeprecationIssue javaVersionCheck(Settings nodeSettings, PluginsAndModules plugins, final ClusterState clusterState) {
@@ -541,5 +549,15 @@ class NodeDeprecationChecks {
         );
         final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/monitoring-settings.html#http-exporter-settings";
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
+    }
+
+    static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final Settings settings,
+                                                                                   final PluginsAndModules pluginsAndModules,
+                                                                                   final ClusterState clusterState) {
+        return checkRemovedSetting(settings,
+            CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            DeprecationIssue.Level.CRITICAL
+        );
     }
 }

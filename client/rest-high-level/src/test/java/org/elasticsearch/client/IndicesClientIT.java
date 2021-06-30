@@ -153,6 +153,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         .setWarningsHandler(warnings ->
             org.elasticsearch.core.List.of(RestPutIndexTemplateAction.DEPRECATION_WARNING).equals(warnings) == false).build();
 
+    public static final String FROZEN_INDICES_DEPRECATION_WARNING = "Frozen indices are deprecated because they provide no benefit given " +
+        "improvements in heap memory utilization. They will be removed in a future release.";
+
     public void testIndicesExists() throws IOException {
         // Index present
         {
@@ -2002,13 +2005,18 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         createIndex("test", Settings.EMPTY);
         RestHighLevelClient client = highLevelClient();
 
+        final RequestOptions freezeIndexOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(
+                warnings -> org.elasticsearch.core.List.of(FROZEN_INDICES_DEPRECATION_WARNING).equals(warnings) == false
+            ).build();
+
         ShardsAcknowledgedResponse freeze = execute(new FreezeIndexRequest("test"), client.indices()::freeze,
-            client.indices()::freezeAsync);
+            client.indices()::freezeAsync, freezeIndexOptions);
         assertTrue(freeze.isShardsAcknowledged());
         assertTrue(freeze.isAcknowledged());
 
         ShardsAcknowledgedResponse unfreeze = execute(new UnfreezeIndexRequest("test"), client.indices()::unfreeze,
-            client.indices()::unfreezeAsync);
+            client.indices()::unfreezeAsync, freezeIndexOptions);
         assertTrue(unfreeze.isShardsAcknowledged());
         assertTrue(unfreeze.isAcknowledged());
     }

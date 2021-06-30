@@ -173,6 +173,7 @@ response.
     "hits": [
       {
         "_index": "my-index",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.5753642,
         "_source": {

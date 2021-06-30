@@ -212,7 +212,6 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             );
             assertThat(allowedBytesForMlNode, greaterThanOrEqualTo(ByteSizeValue.ofGb(2).getBytes() + OVERHEAD));
             assertThat(allowedBytesForMlTier, greaterThanOrEqualTo(ByteSizeValue.ofGb(2).getBytes() + OVERHEAD));
->>>>>>> f9991e61496... [ML] prevent accidentally asking for more resources when scaling down and improve scaling size estimations (#74691)
         }
     }
 

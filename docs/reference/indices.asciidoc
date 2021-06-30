@@ -31,6 +31,7 @@ index settings, aliases, mappings, and index templates.
 * <<indices-get-mapping>>
 * <<indices-get-field-mapping>>
 * <<indices-types-exists>>
+* <<indices-disk-usage>>
 
 [discrete]
 [[alias-management]]
@@ -53,9 +54,9 @@ index settings, aliases, mappings, and index templates.
 === Index templates:
 
 Index templates automatically apply settings, mappings, and aliases to new indices.
-They are most often used to configure rolling indices for time series data to 
-ensure that each new index has the same configuration as the previous one. 
-The index template associated with a data stream configures its backing indices. 
+They are most often used to configure rolling indices for time series data to
+ensure that each new index has the same configuration as the previous one.
+The index template associated with a data stream configures its backing indices.
 For more information, see <<index-templates, Index Templates>>.
 
 * <<indices-put-template>>
@@ -94,6 +95,7 @@ For more information, see <<index-templates, Index Templates>>.
 include::indices/alias-exists.asciidoc[]
 include::indices/aliases.asciidoc[]
 include::indices/analyze.asciidoc[]
+include::indices/diskusage.asciidoc[]
 include::indices/clearcache.asciidoc[]
 include::indices/clone-index.asciidoc[]
 include::indices/close.asciidoc[]

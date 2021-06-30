@@ -87,7 +87,7 @@ public class IndexNameExpressionResolver {
      */
     public String[] concreteIndexNamesWithSystemIndexAccess(ClusterState state, IndicesRequest request) {
         Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(),
-            SystemIndexAccessLevel.NON_NET_NEW_ONLY, name -> true, name -> false);
+            SystemIndexAccessLevel.NON_NET_NEW_ONLY, name -> true, this.getNetNewSystemIndexPredicate());
         return concreteIndexNames(context, request.indices());
     }
 
@@ -364,6 +364,11 @@ public class IndexNameExpressionResolver {
     }
 
     private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, IndexMetadata index) {
+        if (context.systemIndexAccessLevel == SystemIndexAccessLevel.NON_NET_NEW_ONLY
+            && context.netNewSystemIndexPredicate.test(index.getIndex().getName())) {
+            // Exclude this one as it's a net-new system index, and we explicitly don't want those.
+            return false;
+        }
         if (index.getState() == IndexMetadata.State.CLOSE) {
             if (options.forbidClosedIndices() && options.ignoreUnavailable() == false) {
                 throw new IndexClosedException(index.getIndex());

@@ -478,6 +478,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     }
 
     @Override
+    public boolean allowsRemoteIndices() {
+        return true;
+    }
+
+    @Override
     public boolean includeDataStreams() {
         return true;
     }

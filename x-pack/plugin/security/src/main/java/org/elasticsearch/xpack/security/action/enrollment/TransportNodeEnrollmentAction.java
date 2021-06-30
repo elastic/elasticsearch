@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.transport.TransportInfo;
@@ -42,16 +41,14 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEnrollmentRequest, NodeEnrollmentResponse> {
     private final Environment environment;
-    private final ClusterService clusterService;
     private final SSLService sslService;
     private final Client client;
 
     @Inject
-    public TransportNodeEnrollmentAction(TransportService transportService, ClusterService clusterService, SSLService sslService,
-                                         Client client, ActionFilters actionFilters, Environment environment) {
+    public TransportNodeEnrollmentAction(TransportService transportService, SSLService sslService, Client client,
+                                         ActionFilters actionFilters, Environment environment) {
         super(NodeEnrollmentAction.NAME, transportService, actionFilters, NodeEnrollmentRequest::new);
         this.environment = environment;
-        this.clusterService = clusterService;
         this.sslService = sslService;
         this.client = client;
     }
@@ -115,7 +112,6 @@ public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEn
                 httpCaCert,
                 transportKey,
                 transportCert,
-                clusterService.getClusterName().value(),
                 nodeList));
         } catch (CertificateEncodingException e) {
             listener.onFailure(new ElasticsearchException("Unable to enroll node", e));

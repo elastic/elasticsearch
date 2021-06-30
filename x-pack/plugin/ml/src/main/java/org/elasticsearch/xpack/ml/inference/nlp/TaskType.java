@@ -9,33 +9,37 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
-import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 
 public enum TaskType {
 
-    TOKEN_CLASSIFICATION { // TODO rename to NER. This is specifically a NER task
-        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
-            return new NerProcessor(tokenizer);
+    NER {
+        @Override
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer, List<String> classificationLabels) {
+            return new NerProcessor(tokenizer, classificationLabels);
         }
     },
     SENTIMENT_ANALYSIS {
-        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
-            return new SentimentAnalysisProcessor(tokenizer);
+        @Override
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer, List<String> classificationLabels) {
+            return new SentimentAnalysisProcessor(tokenizer, classificationLabels);
         }
     },
     FILL_MASK {
-        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
+        @Override
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer, List<String> classificationLabels) {
             return new FillMaskProcessor(tokenizer);
         }
     },
     BERT_PASS_THROUGH {
-        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
+        @Override
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer, List<String> classificationLabels) {
             return new PassThroughProcessor(tokenizer);
         }
     };
 
-    public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
+    public NlpTask.Processor createProcessor(BertTokenizer tokenizer, List<String> classificationLabels) {
         throw new UnsupportedOperationException("json request must be specialised for task type [" + this.name() + "]");
     }
 

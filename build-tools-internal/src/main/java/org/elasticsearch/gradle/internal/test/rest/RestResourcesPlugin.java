@@ -83,7 +83,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
         RestResourcesExtension extension = project.getExtensions().create(EXTENSION_NAME, RestResourcesExtension.class);
 
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        SourceSet defaultSourceSet = sourceSets.getByName(TEST_SOURCE_SET_NAME);
+        SourceSet defaultSourceSet = sourceSets.maybeCreate(TEST_SOURCE_SET_NAME);
 
         // tests
         Configuration testConfig = project.getConfigurations().create("restTestConfig");

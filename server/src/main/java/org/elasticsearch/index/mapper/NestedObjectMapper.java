@@ -58,7 +58,11 @@ public class NestedObjectMapper extends ObjectMapper {
 
     public static class TypeParser extends ObjectMapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder parse(
+            String name,
+            Map<String, Object> node,
+            MappingParserContext parserContext
+        ) throws MapperParsingException {
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(name, parserContext.indexVersionCreated());
             parseNested(name, node, builder);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {

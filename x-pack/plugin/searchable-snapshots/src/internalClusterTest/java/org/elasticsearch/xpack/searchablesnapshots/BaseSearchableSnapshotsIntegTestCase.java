@@ -126,7 +126,9 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         if (randomBoolean()) {
             builder.put(
                 FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
-                new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
+                rarely()
+                    ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                    : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
             );
         }
         return builder.build();

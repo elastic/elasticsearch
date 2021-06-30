@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -225,7 +226,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         GetAliasesRequest aliasesRequest = new GetAliasesRequest();
         // `.b` will be the "net new" system index this test case
         ClusterState clusterState = systemIndexTestClusterState();
-        String[] concreteIndices = new String[] { ".b" };
+        String[] concreteIndices;
 
         SystemIndexDescriptor netNewDescriptor = SystemIndexDescriptor.builder()
             .setIndexPattern(".b")
@@ -243,14 +244,18 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             new SystemIndices.Feature(this.getTestName(), "test feature",
                 Collections.singletonList(netNewDescriptor))));
 
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+        concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(clusterState, aliasesRequest);
+
         ImmutableOpenMap<String, List<AliasMetadata>> initialAliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder().build();
         ImmutableOpenMap<String, List<AliasMetadata>> finalResponse = TransportGetAliasesAction.postProcess(
             aliasesRequest,
             concreteIndices,
             initialAliases,
             clusterState,
-            SystemIndexAccessLevel.RESTRICTED,
-            new ThreadContext(Settings.EMPTY),
+            SystemIndexAccessLevel.NONE,
+            threadContext,
             systemIndices
         );
 

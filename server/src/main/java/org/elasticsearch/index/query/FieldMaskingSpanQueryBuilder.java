@@ -107,12 +107,13 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
                 if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
-                        throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query must be of type span query");
+                        throw new ParsingException(parser.getTokenLocation(), "[" + NAME.getPreferredName() + "] query must " +
+                            "be of type span query");
                     }
                     inner = (SpanQueryBuilder) query;
                     checkNoBoost(NAME.getPreferredName(), currentFieldName, parser, inner);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query does not support ["
+                    throw new ParsingException(parser.getTokenLocation(), "[" + NAME.getPreferredName() + "] query does not support ["
                             + currentFieldName + "]");
                 }
             } else {
@@ -124,15 +125,15 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
-                            "[field_masking_span] query does not support [" + currentFieldName + "]");
+                        "[" + NAME.getPreferredName() + "] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (inner == null) {
-            throw new ParsingException(parser.getTokenLocation(), "field_masking_span must have [query] span query clause");
+            throw new ParsingException(parser.getTokenLocation(), NAME.getPreferredName() + " must have [query] span query clause");
         }
         if (field == null) {
-            throw new ParsingException(parser.getTokenLocation(), "field_masking_span must have [field] set for it");
+            throw new ParsingException(parser.getTokenLocation(), NAME.getPreferredName() + " must have [field] set for it");
         }
         FieldMaskingSpanQueryBuilder queryBuilder = new FieldMaskingSpanQueryBuilder(inner, field);
         queryBuilder.boost(boost);

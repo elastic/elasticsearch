@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_JVM_SIZE_NODE_ATTR;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator.MINIMUM_AUTOMATIC_NODE_SIZE;
+import static org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromNodeSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -75,7 +76,8 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
                 trueNodeSize
             );
             for (long nodeSize : nodeSizes) {
-                Long jvmSize = randomBoolean() ? null : trueJvmSize;
+                // Simulate having a true size that already exists from the node vs. us dynamically calculating it
+                long jvmSize = randomBoolean() ? dynamicallyCalculateJvmSizeFromNodeSize(nodeSize) : trueJvmSize;
                 DiscoveryNode node = newNode(jvmSize, nodeSize);
                 Settings settings = newSettings(30, true);
                 ClusterSettings clusterSettings = newClusterSettings(30, true);

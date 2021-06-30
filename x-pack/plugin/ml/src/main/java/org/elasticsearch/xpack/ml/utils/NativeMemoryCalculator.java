@@ -115,10 +115,8 @@ public final class NativeMemoryCalculator {
         return maxMemoryPercent;
     }
 
-    private static long allowedBytesForMl(long machineMemory, Long jvmSize, int maxMemoryPercent, boolean useAuto) {
-        if (useAuto) {
-            jvmSize = jvmSize == null ? dynamicallyCalculateJvmSizeFromNodeSize(machineMemory) : jvmSize;
-
+    static long allowedBytesForMl(long machineMemory, Long jvmSize, int maxMemoryPercent, boolean useAuto) {
+        if (useAuto && jvmSize != null) {
             // It is conceivable that there is a machine smaller than 200MB.
             // If the administrator wants to use the auto configuration, the node should be larger.
             if (machineMemory - jvmSize <= OS_OVERHEAD || machineMemory == 0) {

@@ -268,7 +268,7 @@ public class GrokTests extends ESTestCase {
             bank.put("ANOTHER", "%{INT}");
             bank.put("INT", "%{INT}");
             String pattern = "does_not_matter";
-            new Grok(bank, pattern, false, logger::warn);
+            new Grok(bank, pattern, false);
         });
         assertEquals("circular reference in pattern [INT][%{INT}]", e.getMessage());
     }

@@ -35,8 +35,10 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -71,6 +73,7 @@ class ClientTransformIndexer extends TransformIndexer {
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex;
     private PointInTimeBuilder pit;
     private long pitCheckpoint;
+    private boolean disablePit = false;
 
     ClientTransformIndexer(
         ThreadPool threadPool,
@@ -464,24 +467,25 @@ class ClientTransformIndexer extends TransformIndexer {
                 client,
                 ClosePointInTimeAction.INSTANCE,
                 closePitRequest,
-                ActionListener.wrap(response -> {
-                    logger.trace("closed pit");
-                }, e -> {
-                    // todo: what if the pit already timed out
-                    logger.warn("failed to close point in time handle");
+                ActionListener.wrap(response -> { logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit); }, e -> {
+                    // note: closing the pit should never throw, even if the pit is invalid
+                    logger.error(new ParameterizedMessage("[{}] Failed to close point in time reader", getJobId()), e);
                 })
             );
         }
     }
 
     private void injectPointInTimeIfNeeded(SearchRequest searchRequest, ActionListener<SearchRequest> listener) {
+        if (disablePit == true) {
+            listener.onResponse(searchRequest);
+            return;
+        }
+
         if (pit != null) {
             searchRequest.source().pointInTimeBuilder(pit);
             listener.onResponse(searchRequest);
             return;
         }
-
-        // todo: check pit is supported on all nodes
 
         // no pit, create a new one
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(transformConfig.getSource().getIndex()).keepAlive(PIT_KEEP_ALIVE);
@@ -496,25 +500,38 @@ class ClientTransformIndexer extends TransformIndexer {
                 pit = new PointInTimeBuilder(response.getPointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE);
                 searchRequest.source().pointInTimeBuilder(pit);
                 pitCheckpoint = getNextCheckpoint().getCheckpoint();
-                logger.info("using pit searcher");
-
+                logger.trace("[{}] using pit search context [{}]", getJobId(), pit);
                 listener.onResponse(searchRequest);
-            },
-                e -> {
-                    // todo: failed to open pit, warn and continue with ordinary search
-                    logger.error(
-                        new ParameterizedMessage("[{}] Failed to create a point in time reader, falling back to normal search.", getJobId()),
+            }, e -> {
+                Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
+                // if point in time is not supported, disable it but do not remember forever (stopping and starting will give it another
+                // try)
+                if (unwrappedException instanceof ActionNotFoundTransportException) {
+                    logger.warn(
+                        "[{}] source does not support point in time reader, falling back to normal search (more resource intensive)",
+                        getJobId()
+                    );
+                    auditor.warning(
+                        getJobId(),
+                        "Source does not support point in time reader, falling back to normal search (more resource intensive)"
+                    );
+                    disablePit = true;
+                } else {
+                    logger.warn(
+                        new ParameterizedMessage(
+                            "[{}] Failed to create a point in time reader, falling back to normal search.",
+                            getJobId()
+                        ),
                         e
                     );
-                    listener.onResponse(searchRequest);
                 }
-            )
+                listener.onResponse(searchRequest);
+            })
         );
     }
 
     private void doSearch(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         logger.trace("searchRequest: {}", searchRequest);
-
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
@@ -526,13 +543,28 @@ class ClientTransformIndexer extends TransformIndexer {
                 // did the pit change?
                 if (response.pointInTimeId() != null && (pit == null || response.pointInTimeId() != pit.getEncodedId())) {
                     pit = new PointInTimeBuilder(response.pointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE);
-
-                    logger.trace("updated point in time");
+                    logger.trace("point in time handle has changed");
                 }
 
                 listener.onResponse(response);
             }, e -> {
-                // todo: handle search phase execution exception due to pit timeout, retry once
+                // check if the error has been caused by a missing search context, which could be a timed out pit
+                // re-try this search without pit, if it fails again the normal failure handler is called, if it
+                // succeeds a new pit gets created at the next run
+                Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
+                if (unwrappedException instanceof SearchContextMissingException) {
+                    logger.warn(new ParameterizedMessage("[{}] Search context missing, falling back to normal search.", getJobId()), e);
+                    pit = null;
+                    searchRequest.source().pointInTimeBuilder(null);
+                    ClientHelper.executeWithHeadersAsync(
+                        transformConfig.getHeaders(),
+                        ClientHelper.TRANSFORM_ORIGIN,
+                        client,
+                        SearchAction.INSTANCE,
+                        searchRequest,
+                        listener
+                    );
+                }
                 listener.onFailure(e);
             })
         );

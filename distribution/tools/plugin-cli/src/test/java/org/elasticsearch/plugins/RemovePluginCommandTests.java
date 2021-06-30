@@ -106,7 +106,9 @@ public class RemovePluginCommandTests extends ESTestCase {
     static MockTerminal removePlugin(List<String> pluginIds, Path home, boolean purge) throws Exception {
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
-        final List<PluginDescriptor> plugins = pluginIds.stream().map(PluginDescriptor::new).collect(Collectors.toList());
+        final List<PluginDescriptor> plugins = pluginIds == null
+            ? null
+            : pluginIds.stream().map(PluginDescriptor::new).collect(Collectors.toList());
         new MockRemovePluginCommand(env).execute(terminal, env, plugins, purge);
         return terminal;
     }

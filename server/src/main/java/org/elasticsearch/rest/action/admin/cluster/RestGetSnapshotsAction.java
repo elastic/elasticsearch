@@ -18,12 +18,12 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.client.Requests.getSnapshotsRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.snapshots.SnapshotInfo.INCLUDE_REPOSITORY_XCONTENT_PARAM;
 import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_DETAILS_XCONTENT_PARAM;
 
 /**
@@ -43,7 +43,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Collections.singleton(INDEX_DETAILS_XCONTENT_PARAM);
+        return Set.of(INDEX_DETAILS_XCONTENT_PARAM, INCLUDE_REPOSITORY_XCONTENT_PARAM);
     }
 
     @Override
@@ -58,17 +58,10 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.sort(sort);
         final int size = request.paramAsInt("size", getSnapshotsRequest.size());
         getSnapshotsRequest.size(size);
-        final String[] afterString = request.paramAsStringArray("after", Strings.EMPTY_ARRAY);
-        final GetSnapshotsRequest.After after;
-        if (afterString.length == 0) {
-            after = null;
-        } else if (afterString.length == 2) {
-            after = new GetSnapshotsRequest.After(afterString[0], afterString[1]);
-        } else {
-            throw new IllegalArgumentException("illegal ?after value [" + Strings.arrayToCommaDelimitedString(afterString) +
-                    "] must be of the form '${sort_value},${snapshot_name}'");
+        final String afterString = request.param("after");
+        if (afterString != null) {
+            getSnapshotsRequest.after(GetSnapshotsRequest.After.fromQueryParam(afterString));
         }
-        getSnapshotsRequest.after(after);
         final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
         getSnapshotsRequest.order(order);
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));

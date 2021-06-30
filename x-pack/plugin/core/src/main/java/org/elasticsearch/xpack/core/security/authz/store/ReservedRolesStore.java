@@ -148,9 +148,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                         .indices(".management-beats").privileges("create_index", "read", "write").build(),
                                 // To facilitate ML UI functionality being controlled using Kibana security privileges
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".ml-anomalies*", ".ml-notifications*", ".ml-stats-*")
+                                        .indices(".ml-anomalies*", ".ml-stats-*")
                                         .privileges("read").build(),
-                                RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*")
+                                RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*", ".ml-notifications*")
                                         .privileges("read", "write").build(),
                                 // APM agent configuration
                                 RoleDescriptor.IndicesPrivileges.builder()
@@ -188,6 +188,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 // Endpoint / Fleet policy responses. Kibana requires read access to send telemetry
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("metrics-endpoint.policy-*")
+                                    .privileges("read").build(),
+                                // Endpoint metrics. Kibana requires read access to send telemetry
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices("metrics-endpoint.metrics-*")
                                     .privileges("read").build()
                         },
                         null,

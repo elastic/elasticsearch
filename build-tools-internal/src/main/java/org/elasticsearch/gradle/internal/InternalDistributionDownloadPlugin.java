@@ -39,8 +39,6 @@ import static org.elasticsearch.gradle.util.GradleUtils.projectDependency;
  */
 public class InternalDistributionDownloadPlugin implements InternalPlugin {
 
-    private BwcVersions bwcVersions = null;
-
     @Override
     public void apply(Project project) {
         // this is needed for isInternal
@@ -54,7 +52,6 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
         distributionDownloadPlugin.setDockerAvailability(
             dockerSupport.map(dockerSupportService -> dockerSupportService.getDockerAvailability().isAvailable)
         );
-        this.bwcVersions = BuildParams.getBwcVersions();
         registerInternalDistributionResolutions(DistributionDownloadPlugin.getRegistrationsContainer(project));
     }
 
@@ -78,7 +75,7 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
         }));
 
         resolutions.register("bwc", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
-            BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(distribution.getVersion()));
+            BwcVersions.UnreleasedVersionInfo unreleasedInfo = BuildParams.getBwcVersions().unreleasedInfo(Version.fromString(distribution.getVersion()));
             if (unreleasedInfo != null) {
                 if (distribution.getBundledJdk() == false) {
                     throw new GradleException(
@@ -109,7 +106,6 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
         } else {
             return distributionProjectName;
         }
-
     }
 
     private static String distributionProjectPath(ElasticsearchDistribution distribution) {

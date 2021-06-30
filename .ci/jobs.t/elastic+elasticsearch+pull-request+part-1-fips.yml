@@ -21,10 +21,11 @@
           white-list-target-branches:
             - %BRANCH%
             - ^feat(ure)?/.*
+            - eql_multi_value_fields
           excluded-regions:
             - ^docs/.*
           white-list-labels:
-            - ':Security/FIPS'
+            - 'Team:Security'
           black-list-labels:
             - '>test-mute'
     builders:

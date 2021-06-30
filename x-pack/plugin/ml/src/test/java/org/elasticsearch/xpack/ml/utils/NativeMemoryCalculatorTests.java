@@ -75,7 +75,8 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
                 trueNodeSize
             );
             for (long nodeSize : nodeSizes) {
-                DiscoveryNode node = newNode(trueJvmSize, nodeSize);
+                Long jvmSize = randomBoolean() ? null : trueJvmSize;
+                DiscoveryNode node = newNode(jvmSize, nodeSize);
                 Settings settings = newSettings(30, true);
                 ClusterSettings clusterSettings = newClusterSettings(30, true);
 
@@ -86,13 +87,16 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
                 NativeMemoryCapacity nativeMemoryCapacity = new NativeMemoryCapacity(
                     bytesForML,
                     bytesForML,
-                    trueJvmSize
+                    jvmSize
                 );
 
                 AutoscalingCapacity capacity = nativeMemoryCapacity.autoscalingCapacity(30, true);
                 // We don't allow node sizes below 1GB, so we will always be at least that large
-                assertThat(capacity.node().memory().getBytes(), equalTo(Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes())));
-                assertThat(capacity.total().memory().getBytes(), equalTo(Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes())));
+                // Also, allow 1 byte off for weird rounding issues
+                assertThat(capacity.node().memory().getBytes(), greaterThanOrEqualTo(
+                    Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes()) - 1L));
+                assertThat(capacity.total().memory().getBytes(), greaterThanOrEqualTo(
+                    Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes()) - 1L));
             }
         }
     }
@@ -115,20 +119,6 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
             assertThat(NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings).getAsLong(), equalTo(expected));
             assertThat(NativeMemoryCalculator.allowedBytesForMl(node, percent, true).getAsLong(), equalTo(expected));
         }
-    }
-
-    public void testAllowedBytesForMlWhenAutoIsTrueButJVMSizeIsUnknown() {
-        long nodeSize = randomLongBetween(ByteSizeValue.ofMb(500).getBytes(), ByteSizeValue.ofGb(64).getBytes());
-        int percent = randomIntBetween(5, 200);
-        DiscoveryNode node = newNode(null, nodeSize);
-        Settings settings = newSettings(percent, true);
-        ClusterSettings clusterSettings = newClusterSettings(percent, true);
-
-        long expected = (long)(nodeSize * (percent / 100.0));
-
-        assertThat(NativeMemoryCalculator.allowedBytesForMl(node, settings).getAsLong(), equalTo(expected));
-        assertThat(NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings).getAsLong(), equalTo(expected));
-        assertThat(NativeMemoryCalculator.allowedBytesForMl(node, percent, false).getAsLong(), equalTo(expected));
     }
 
     public void testAllowedBytesForMlWhenBothJVMAndNodeSizeAreUnknown() {

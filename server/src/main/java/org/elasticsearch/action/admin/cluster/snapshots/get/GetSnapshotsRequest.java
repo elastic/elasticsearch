@@ -24,6 +24,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -37,9 +39,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     public static final String CURRENT_SNAPSHOT = "_current";
     public static final boolean DEFAULT_VERBOSE_MODE = true;
 
-    public static final Version MULTIPLE_REPOSITORIES_SUPPORT_ADDED = Version.V_8_0_0;
+    public static final Version MULTIPLE_REPOSITORIES_SUPPORT_ADDED = Version.V_7_14_0;
 
-    public static final Version PAGINATED_GET_SNAPSHOTS_VERSION = Version.V_8_0_0;
+    public static final Version PAGINATED_GET_SNAPSHOTS_VERSION = Version.V_7_14_0;
 
     public static final int NO_LIMIT = -1;
 
@@ -319,10 +321,20 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
         private final String value;
 
+        private final String repoName;
+
         private final String snapshotName;
 
         After(StreamInput in) throws IOException {
-            this(in.readString(), in.readString());
+            this(in.readString(), in.readString(), in.readString());
+        }
+
+        public static After fromQueryParam(String param) {
+            final String[] parts = new String(Base64.getUrlDecoder().decode(param), StandardCharsets.UTF_8).split(",");
+            if (parts.length != 3) {
+                throw new IllegalArgumentException("invalid ?after parameter [" + param + "]");
+            }
+            return new After(parts[0], parts[1], parts[2]);
         }
 
         @Nullable
@@ -347,11 +359,12 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
                 default:
                     throw new AssertionError("unknown sort column [" + sortBy + "]");
             }
-            return new After(afterValue, snapshotInfo.snapshotId().getName());
+            return new After(afterValue, snapshotInfo.repository(), snapshotInfo.snapshotId().getName());
         }
 
-        public After(String value, String snapshotName) {
+        public After(String value, String repoName, String snapshotName) {
             this.value = value;
+            this.repoName = repoName;
             this.snapshotName = snapshotName;
         }
 
@@ -363,9 +376,18 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             return snapshotName;
         }
 
+        public String repoName() {
+            return repoName;
+        }
+
+        public String asQueryParam() {
+            return Base64.getUrlEncoder().encodeToString((value + "," + repoName + "," + snapshotName).getBytes(StandardCharsets.UTF_8));
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(value);
+            out.writeString(repoName);
             out.writeString(snapshotName);
         }
     }

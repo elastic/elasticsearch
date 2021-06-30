@@ -491,7 +491,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         "test",
                         matchesMap().entry("segments_counted", greaterThanOrEqualTo(1))
                             .entry("segments_collected", 0)
-                            .entry("segments_with_doc_count_field", 1)
+                            .entry("segments_with_doc_count_field", greaterThanOrEqualTo(1))
                             .entry("segments_with_deleted_docs", 0)
                             .entry(
                                 "filters",

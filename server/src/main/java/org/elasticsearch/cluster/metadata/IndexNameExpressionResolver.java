@@ -132,11 +132,6 @@ public class IndexNameExpressionResolver {
         return concreteIndexNames(context, request.indices());
     }
 
-    public String[] concreteIndexNamesWithSystemIndexAccess(ClusterState state, IndicesOptions options, String... indexExpressions) {
-        Context context = new Context(state, options, SystemIndexAccessLevel.ALL, name -> true, name -> false);
-        return concreteIndexNames(context, indexExpressions);
-    }
-
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
         Context context = new Context(state, options, false, false, true, true, getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(), getNetNewSystemIndexPredicate());

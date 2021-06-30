@@ -34,10 +34,10 @@ public abstract class InternalMappedSignificantTerms<
     protected final List<B> buckets;
     protected Map<String, B> bucketMap;
 
-    protected InternalMappedSignificantTerms(String name, int requiredSize, long minDocCount,
+    protected InternalMappedSignificantTerms(String name, int requiredSize, long minDocCount, long maxDocCount,
             Map<String, Object> metadata, DocValueFormat format, long subsetSize, long supersetSize,
             SignificanceHeuristic significanceHeuristic, List<B> buckets) {
-        super(name, requiredSize, minDocCount, metadata);
+        super(name, requiredSize, minDocCount, maxDocCount, metadata);
         this.format = format;
         this.buckets = buckets;
         this.subsetSize = subsetSize;
@@ -125,6 +125,9 @@ public abstract class InternalMappedSignificantTerms<
             //There is a condition (presumably when only one shard has a bucket?) where reduce is not called
             // and I end up with buckets that contravene the user's min_doc_count criteria in my reducer
             if (bucket.subsetDf >= minDocCount) {
+                bucket.toXContent(builder, params);
+            }
+            if (bucket.subsetDf <= maxDocCount) {
                 bucket.toXContent(builder, params);
             }
         }

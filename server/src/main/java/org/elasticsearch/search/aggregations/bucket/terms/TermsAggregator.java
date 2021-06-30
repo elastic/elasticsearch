@@ -38,12 +38,16 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
     public static class BucketCountThresholds implements Writeable, ToXContentFragment {
         private long minDocCount;
         private long shardMinDocCount;
+        private long maxDocCount;
+        private long shardMaxDocCount;
         private int requiredSize;
         private int shardSize;
 
-        public BucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {
+        public BucketCountThresholds(long minDocCount,long maxDocCount,long shardMinDocCount, long shardMaxDocCount,int requiredSize, int shardSize) {
             this.minDocCount = minDocCount;
+            this.maxDocCount = maxDocCount;
             this.shardMinDocCount = shardMinDocCount;
+            this.shardMaxDocCount = shardMaxDocCount;
             this.requiredSize = requiredSize;
             this.shardSize = shardSize;
         }
@@ -55,7 +59,9 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
             requiredSize = in.readInt();
             shardSize = in.readInt();
             minDocCount = in.readLong();
+            maxDocCount = in.readLong();
             shardMinDocCount = in.readLong();
+            shardMaxDocCount = in.readLong();
         }
 
         @Override
@@ -63,11 +69,13 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
             out.writeInt(requiredSize);
             out.writeInt(shardSize);
             out.writeLong(minDocCount);
+            out.writeLong(maxDocCount);
             out.writeLong(shardMinDocCount);
+            out.writeLong(shardMaxDocCount);
         }
 
         public BucketCountThresholds(BucketCountThresholds bucketCountThresholds) {
-            this(bucketCountThresholds.minDocCount, bucketCountThresholds.shardMinDocCount, bucketCountThresholds.requiredSize,
+            this(bucketCountThresholds.minDocCount, bucketCountThresholds.maxDocCount, bucketCountThresholds.shardMinDocCount, bucketCountThresholds.shardMaxDocCount, bucketCountThresholds.requiredSize,
                     bucketCountThresholds.shardSize);
         }
 
@@ -85,12 +93,21 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
                 setShardMinDocCount(minDocCount);
             }
 
+            // shard_max_doc_count should not be larger than max_doc_count because this can cause buckets to be removed that would match
+            // the max_doc_count criteria
+            if (shardMaxDocCount < maxDocCount) {
+                setShardMaxDocCount(maxDocCount);
+            }
+
             if (requiredSize <= 0 || shardSize <= 0) {
                 throw new ElasticsearchException("parameters [required_size] and [shard_size] must be >0 in terms aggregation.");
             }
 
             if (minDocCount < 0 || shardMinDocCount < 0) {
                 throw new ElasticsearchException("parameter [min_doc_count] and [shardMinDocCount] must be >=0 in terms aggregation.");
+            }
+            if (maxDocCount < 0 || shardMaxDocCount < 0) {
+                throw new ElasticsearchException("parameter [max_doc_count] and [shardMaxDocCount] must be >=0 in terms aggregation.");
             }
         }
 
@@ -110,6 +127,21 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         }
 
         /**
+         * The maximum number of documents a bucket must have in order to
+         * be returned from a shard.
+         * <p>
+         * Important: The default for this is 0, but we should only return
+         * 0 document buckets if {@link #getMaxDocCount()} is *also* 0.
+         */
+        public long getShardMaxDocCount() {
+            return shardMaxDocCount;
+        }
+
+        public void setShardMaxDocCount(long shardMaxDocCount) {
+            this.shardMaxDocCount = shardMaxDocCount;
+        }
+
+        /**
          * The minimum numbers of documents a bucket must have in order to
          * survive the final reduction.
          */
@@ -117,8 +149,20 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
             return minDocCount;
         }
 
+        /**
+         * The maximum numbers of documents a bucket must have in order to
+         * survive the final reduction.
+         */
+        public long getMaxDocCount() {
+            return maxDocCount;
+        }
+
         public void setMinDocCount(long minDocCount) {
             this.minDocCount = minDocCount;
+        }
+
+        public void setMaxDocCount(long maxDocCount) {
+            this.maxDocCount = maxDocCount;
         }
 
         public int getRequiredSize() {
@@ -144,13 +188,15 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
                 builder.field(TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME.getPreferredName(), shardSize);
             }
             builder.field(TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), minDocCount);
+            builder.field(TermsAggregationBuilder.MAX_DOC_COUNT_FIELD_NAME.getPreferredName(), maxDocCount);
             builder.field(TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), shardMinDocCount);
+            builder.field(TermsAggregationBuilder.SHARD_MAX_DOC_COUNT_FIELD_NAME.getPreferredName(), shardMaxDocCount);
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(requiredSize, shardSize, minDocCount, shardMinDocCount);
+            return Objects.hash(requiredSize, shardSize, minDocCount, shardMinDocCount, shardMaxDocCount);
         }
 
         @Override
@@ -165,7 +211,9 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
             return Objects.equals(requiredSize, other.requiredSize)
                     && Objects.equals(shardSize, other.shardSize)
                     && Objects.equals(minDocCount, other.minDocCount)
-                    && Objects.equals(shardMinDocCount, other.shardMinDocCount);
+                    && Objects.equals(maxDocCount, other.maxDocCount)
+                    && Objects.equals(shardMinDocCount, other.shardMinDocCount)
+                    && Objects.equals(shardMaxDocCount, other.shardMaxDocCount);
         }
     }
 

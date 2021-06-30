@@ -34,10 +34,10 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
 
     protected long docCountError;
 
-    protected InternalMappedTerms(String name, BucketOrder reduceOrder, BucketOrder order, int requiredSize, long minDocCount,
+    protected InternalMappedTerms(String name, BucketOrder reduceOrder, BucketOrder order, int requiredSize, long minDocCount,long maxDocCount,
             Map<String, Object> metadata, DocValueFormat format, int shardSize,
             boolean showTermDocCountError, long otherDocCount, List<B> buckets, long docCountError) {
-        super(name, reduceOrder, order, requiredSize, minDocCount, metadata);
+        super(name, reduceOrder, order, requiredSize, minDocCount, maxDocCount, metadata);
         this.format = format;
         this.shardSize = shardSize;
         this.showTermDocCountError = showTermDocCountError;

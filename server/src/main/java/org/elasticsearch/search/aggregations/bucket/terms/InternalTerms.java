@@ -156,6 +156,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     protected final BucketOrder order;
     protected final int requiredSize;
     protected final long minDocCount;
+    protected final long maxDocCount;
 
     /**
      * Creates a new {@link InternalTerms}
@@ -164,6 +165,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
      * @param order The {@link BucketOrder} that should be used to sort the final reduce.
      * @param requiredSize The number of top buckets.
      * @param minDocCount The minimum number of documents allowed per bucket.
+     * @param maxDocCount The maximum number of documents allowed per bucket.
      * @param metadata The metadata associated with the aggregation.
      */
     protected InternalTerms(String name,
@@ -171,12 +173,14 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                             BucketOrder order,
                             int requiredSize,
                             long minDocCount,
+                            long maxDocCount,
                             Map<String, Object> metadata) {
         super(name, metadata);
         this.reduceOrder = reduceOrder;
         this.order = order;
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
+        this.maxDocCount = maxDocCount;
     }
 
     /**
@@ -192,6 +196,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
        }
        requiredSize = readSize(in);
        minDocCount = in.readVLong();
+       maxDocCount = in.readVLong();
     }
 
     @Override
@@ -202,6 +207,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         order.writeTo(out);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
+        out.writeVLong(maxDocCount);
         writeTermTypeInfoTo(out);
     }
 
@@ -229,6 +235,11 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     }
 
     @Override
+    protected long getMaxDocCount() {
+        return maxDocCount;
+    }
+
+    @Override
     protected int getRequiredSize() {
         return requiredSize;
     }
@@ -247,6 +258,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
         InternalTerms<?,?> that = (InternalTerms<?,?>) obj;
         return Objects.equals(minDocCount, that.minDocCount)
+                && Objects.equals(maxDocCount, that.maxDocCount)
                 && Objects.equals(reduceOrder, that.reduceOrder)
                 && Objects.equals(order, that.order)
                 && Objects.equals(requiredSize, that.requiredSize);
@@ -254,6 +266,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), minDocCount, reduceOrder, order, requiredSize);
+        return Objects.hash(super.hashCode(), minDocCount, maxDocCount, reduceOrder, order, requiredSize);
     }
 }

@@ -156,8 +156,12 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
          * buckets with actual docs in them.
          */
         long minDocCount = bucketCountThresholds.getShardMinDocCount();
+        long maxDocCount = bucketCountThresholds.getShardMaxDocCount();
         if (minDocCount == 0 && bucketCountThresholds.getMinDocCount() > 0) {
             minDocCount = 1;
+        }
+        if (maxDocCount == 0 && bucketCountThresholds.getMaxDocCount() > 0) {
+            maxDocCount = Long.MAX_VALUE;
         }
         if (filters.getBuckets().size() > bucketCountThresholds.getShardSize()) {
             PriorityQueue<OrdBucket> queue = new PriorityQueue<OrdBucket>(bucketCountThresholds.getShardSize()) {
@@ -171,6 +175,9 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
             OrdBucket spare = null;
             for (InternalFilters.InternalBucket b : filters.getBuckets()) {
                 if (b.getDocCount() < minDocCount) {
+                    continue;
+                }
+                if (b.getDocCount() > maxDocCount) {
                     continue;
                 }
                 if (spare == null) {
@@ -211,6 +218,9 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
                 if (b.getDocCount() < minDocCount) {
                     continue;
                 }
+                if (b.getDocCount() > maxDocCount) {
+                    continue;
+                }
                 buckets.add(buildBucket(b));
             }
             Collections.sort(buckets, reduceOrder.comparator());
@@ -221,6 +231,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
             order,
             bucketCountThresholds.getRequiredSize(),
             bucketCountThresholds.getMinDocCount(),
+            bucketCountThresholds.getMaxDocCount(),
             filters.getMetadata(),
             format,
             bucketCountThresholds.getShardSize(),

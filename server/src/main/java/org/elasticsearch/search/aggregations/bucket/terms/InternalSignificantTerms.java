@@ -153,11 +153,13 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
 
     protected final int requiredSize;
     protected final long minDocCount;
+    protected final long maxDocCount;
 
-    protected InternalSignificantTerms(String name, int requiredSize, long minDocCount, Map<String, Object> metadata) {
+    protected InternalSignificantTerms(String name, int requiredSize, long minDocCount, long maxDocCount, Map<String, Object> metadata) {
         super(name, metadata);
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
+        this.maxDocCount = maxDocCount;
     }
 
     /**
@@ -167,11 +169,13 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         super(in);
         requiredSize = readSize(in);
         minDocCount = in.readVLong();
+        maxDocCount = in.readVLong();
     }
 
     protected final void doWriteTo(StreamOutput out) throws IOException {
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
+        out.writeVLong(maxDocCount);
         writeTermTypeInfoTo(out);
     }
 
@@ -215,7 +219,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             List<B> sameTermBuckets = entry.getValue();
             final B b = reduceBucket(sameTermBuckets, reduceContext);
             b.updateScore(heuristic);
-            if (((b.score > 0) && (b.subsetDf >= minDocCount)) || reduceContext.isFinalReduce() == false) {
+            if (((b.score > 0) && (b.subsetDf >= minDocCount) && (b.subsetDf <= maxDocCount)) || reduceContext.isFinalReduce() == false) {
                 B removed = ordered.insertWithOverflow(b);
                 if (removed == null) {
                     reduceContext.consumeBucketsAndMaybeBreak(1);
@@ -266,7 +270,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), minDocCount, requiredSize);
+        return Objects.hash(super.hashCode(), minDocCount, maxDocCount, requiredSize);
     }
 
     @Override
@@ -277,6 +281,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
 
         InternalSignificantTerms<?, ?> that = (InternalSignificantTerms<?, ?>) obj;
         return Objects.equals(minDocCount, that.minDocCount)
+                && Objects.equals(maxDocCount, that.maxDocCount)
                 && Objects.equals(requiredSize, that.requiredSize);
     }
 }

@@ -94,10 +94,10 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
         }
     }
 
-    public SignificantStringTerms(String name, int requiredSize, long minDocCount,
+    public SignificantStringTerms(String name, int requiredSize, long minDocCount, long maxDocCount,
             Map<String, Object> metadata, DocValueFormat format, long subsetSize, long supersetSize,
             SignificanceHeuristic significanceHeuristic, List<Bucket> buckets) {
-        super(name, requiredSize, minDocCount, metadata, format, subsetSize, supersetSize, significanceHeuristic, buckets);
+        super(name, requiredSize, minDocCount, maxDocCount, metadata, format, subsetSize, supersetSize, significanceHeuristic, buckets);
     }
 
     /**
@@ -114,7 +114,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
 
     @Override
     public SignificantStringTerms create(List<SignificantStringTerms.Bucket> buckets) {
-        return new SignificantStringTerms(name, requiredSize, minDocCount, metadata, format, subsetSize,
+        return new SignificantStringTerms(name, requiredSize, minDocCount, maxDocCount, metadata, format, subsetSize,
                 supersetSize, significanceHeuristic, buckets);
     }
 
@@ -126,7 +126,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
 
     @Override
     protected SignificantStringTerms create(long subsetSize, long supersetSize, List<Bucket> buckets) {
-        return new SignificantStringTerms(getName(), requiredSize, minDocCount, getMetadata(), format, subsetSize,
+        return new SignificantStringTerms(getName(), requiredSize, minDocCount, maxDocCount, getMetadata(), format, subsetSize,
                 supersetSize, significanceHeuristic, buckets);
     }
 

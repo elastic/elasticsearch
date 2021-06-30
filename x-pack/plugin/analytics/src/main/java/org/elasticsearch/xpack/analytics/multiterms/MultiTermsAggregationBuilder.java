@@ -48,7 +48,9 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
 
     static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
         1,
+        Long.MAX_VALUE,
         0,
+        Long.MAX_VALUE,
         10,
         -1
     );

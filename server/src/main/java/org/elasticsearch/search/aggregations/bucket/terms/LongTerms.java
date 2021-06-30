@@ -101,10 +101,10 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         }
     }
 
-    public LongTerms(String name, BucketOrder reduceOrder, BucketOrder order, int requiredSize, long minDocCount,
+    public LongTerms(String name, BucketOrder reduceOrder, BucketOrder order, int requiredSize, long minDocCount, long maxDocCount,
             Map<String, Object> metadata, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
             List<Bucket> buckets, long docCountError) {
-        super(name, reduceOrder, order, requiredSize, minDocCount, metadata, format, shardSize, showTermDocCountError,
+        super(name, reduceOrder, order, requiredSize, minDocCount, maxDocCount, metadata, format, shardSize, showTermDocCountError,
                 otherDocCount, buckets, docCountError);
     }
 
@@ -122,7 +122,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
     @Override
     public LongTerms create(List<Bucket> buckets) {
-        return new LongTerms(name, reduceOrder, order, requiredSize, minDocCount, metadata, format, shardSize,
+        return new LongTerms(name, reduceOrder, order, requiredSize, minDocCount, maxDocCount, metadata, format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
@@ -134,7 +134,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
     @Override
     protected LongTerms create(String name, List<Bucket> buckets, BucketOrder reduceOrder, long docCountError, long otherDocCount) {
-        return new LongTerms(name, reduceOrder, order, requiredSize, minDocCount, getMetadata(), format, shardSize,
+        return new LongTerms(name, reduceOrder, order, requiredSize, minDocCount, maxDocCount, getMetadata(), format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
@@ -187,6 +187,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         }
         return new DoubleTerms(longTerms.getName(), longTerms.reduceOrder, longTerms.order, longTerms.requiredSize,
             longTerms.minDocCount,
+            longTerms.maxDocCount,
             longTerms.metadata, longTerms.format, longTerms.shardSize,
             longTerms.showTermDocCountError, longTerms.otherDocCount,
             newBuckets, longTerms.docCountError);

@@ -44,7 +44,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
 
     static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
-            3, 0, 10, -1);
+            3, Long.MAX_VALUE, 0, Long.MAX_VALUE, 10, -1);
     static final SignificanceHeuristic DEFAULT_SIGNIFICANCE_HEURISTIC = new JLHScore();
 
     private static final ObjectParser<SignificantTermsAggregationBuilder, Void> PARSER = new ObjectParser<>(
@@ -59,6 +59,9 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
 
         PARSER.declareLong(SignificantTermsAggregationBuilder::shardMinDocCount,
                 TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME);
+        
+        PARSER.declareLong(SignificantTermsAggregationBuilder::shardMaxDocCount,
+                TermsAggregationBuilder.SHARD_MAX_DOC_COUNT_FIELD_NAME);
 
         PARSER.declareInt(SignificantTermsAggregationBuilder::size, TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME);
 
@@ -208,6 +211,19 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     /**
+     * Set the minimum document count terms should have in order to appear in
+     * the response.
+     */
+    public SignificantTermsAggregationBuilder maxDocCount(long maxDocCount) {
+        if (maxDocCount < 0) {
+            throw new IllegalArgumentException(
+                    "[maxDocCount] must be greater than or equal to 0. Found [" + maxDocCount + "] in [" + name + "]");
+        }
+        bucketCountThresholds.setMaxDocCount(maxDocCount);
+        return this;
+    }
+    
+    /**
      * Set the minimum document count terms should have on the shard in order to
      * appear in the response.
      */
@@ -217,6 +233,19 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
                     "[shardMinDocCount] must be greater than or equal to 0. Found [" + shardMinDocCount + "] in [" + name + "]");
         }
         bucketCountThresholds.setShardMinDocCount(shardMinDocCount);
+        return this;
+    }
+
+    /**
+     * Set the maximum document count terms should have on the shard in order to
+     * appear in the response.
+     */
+    public SignificantTermsAggregationBuilder shardMaxDocCount(long shardMaxDocCount) {
+        if (shardMaxDocCount < 0) {
+            throw new IllegalArgumentException(
+                    "[shardMaxDocCount] must be greater than or equal to 0. Found [" + shardMaxDocCount + "] in [" + name + "]");
+        }
+        bucketCountThresholds.setShardMaxDocCount(shardMaxDocCount);
         return this;
     }
 

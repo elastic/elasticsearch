@@ -45,10 +45,12 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     public static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");
     public static final ParseField SHARD_SIZE_FIELD_NAME = new ParseField("shard_size");
     public static final ParseField MIN_DOC_COUNT_FIELD_NAME = new ParseField("min_doc_count");
+    public static final ParseField MAX_DOC_COUNT_FIELD_NAME = new ParseField("max_doc_count");
     public static final ParseField SHARD_MIN_DOC_COUNT_FIELD_NAME = new ParseField("shard_min_doc_count");
+    public static final ParseField SHARD_MAX_DOC_COUNT_FIELD_NAME = new ParseField("shard_max_doc_count");
     public static final ParseField REQUIRED_SIZE_FIELD_NAME = new ParseField("size");
 
-    static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(1, 0, 10,
+    static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(1, Long.MAX_VALUE, 0, Long.MAX_VALUE, 10,
             -1);
     public static final ParseField SHOW_TERM_DOC_COUNT_ERROR = new ParseField("show_term_doc_count_error");
     public static final ParseField ORDER_FIELD = new ParseField("order");
@@ -64,8 +66,10 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         PARSER.declareInt(TermsAggregationBuilder::shardSize, SHARD_SIZE_FIELD_NAME);
 
         PARSER.declareLong(TermsAggregationBuilder::minDocCount, MIN_DOC_COUNT_FIELD_NAME);
+        PARSER.declareLong(TermsAggregationBuilder::maxDocCount, MAX_DOC_COUNT_FIELD_NAME);
 
         PARSER.declareLong(TermsAggregationBuilder::shardMinDocCount, SHARD_MIN_DOC_COUNT_FIELD_NAME);
+        PARSER.declareLong(TermsAggregationBuilder::shardMaxDocCount, SHARD_MAX_DOC_COUNT_FIELD_NAME);
 
         PARSER.declareInt(TermsAggregationBuilder::size, REQUIRED_SIZE_FIELD_NAME);
 
@@ -213,6 +217,26 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     }
 
     /**
+     * Set the maximum document count terms should have in order to appear in
+     * the response.
+     */
+    public TermsAggregationBuilder maxDocCount(long maxDocCount) {
+        if (maxDocCount < 0) {
+            throw new IllegalArgumentException(
+                    "[maxDocCount] must be greater than or equal to 0. Found [" + maxDocCount + "] in [" + name + "]");
+        }
+        bucketCountThresholds.setMaxDocCount(maxDocCount);
+        return this;
+    }
+
+    /**
+     * Returns the maximum document count required per term
+     */
+    public long maxDocCount() {
+        return bucketCountThresholds.getMaxDocCount();
+    }
+
+    /**
      * Set the minimum document count terms should have on the shard in order to
      * appear in the response.
      */
@@ -230,6 +254,26 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
      */
     public long shardMinDocCount() {
         return bucketCountThresholds.getShardMinDocCount();
+    }
+
+    /**
+     * Set the maximum document count terms should have on the shard in order to
+     * appear in the response.
+     */
+    public TermsAggregationBuilder shardMaxDocCount(long shardMaxDocCount) {
+        if (shardMaxDocCount < 0) {
+            throw new IllegalArgumentException(
+                    "[shardMaxDocCount] must be greater than or equal to 0. Found [" + shardMaxDocCount + "] in [" + name + "]");
+        }
+        bucketCountThresholds.setShardMaxDocCount(shardMaxDocCount);
+        return this;
+    }
+
+    /**
+     * Returns the maximum document count required per term, per shard
+     */
+    public long shardMaxDocCount() {
+        return bucketCountThresholds.getShardMaxDocCount();
     }
 
     /** Set a new order on this builder and return the builder so that calls

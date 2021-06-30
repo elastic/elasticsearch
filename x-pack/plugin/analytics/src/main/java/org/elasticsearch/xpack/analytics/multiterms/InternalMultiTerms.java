@@ -260,6 +260,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     protected final BucketOrder order;
     protected final int requiredSize;
     protected final long minDocCount;
+    protected final long maxDocCount;
     protected final List<DocValueFormat> formats;
     protected final List<KeyConverter> keyConverters;
     protected final int shardSize;
@@ -274,6 +275,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         BucketOrder order,
         int requiredSize,
         long minDocCount,
+        long maxDocCount,
         int shardSize,
         boolean showTermDocCountError,
         long otherDocCount,
@@ -288,6 +290,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         this.order = order;
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
+        this.maxDocCount = maxDocCount;
         this.shardSize = shardSize;
         this.showTermDocCountError = showTermDocCountError;
         this.otherDocCount = otherDocCount;
@@ -303,6 +306,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         order = InternalOrder.Streams.readOrder(in);
         requiredSize = readSize(in);
         minDocCount = in.readVLong();
+        maxDocCount = in.readVLong();
         docCountError = in.readZLong();
         shardSize = readSize(in);
         showTermDocCountError = in.readBoolean();
@@ -318,6 +322,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         order.writeTo(out);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
+        out.writeVLong(maxDocCount);
         out.writeZLong(docCountError);
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);
@@ -341,6 +346,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             order,
             requiredSize,
             minDocCount,
+            maxDocCount,
             shardSize,
             showTermDocCountError,
             otherDocCount,
@@ -386,6 +392,11 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     protected long getMinDocCount() {
         return minDocCount;
     }
+    
+    @Override
+    protected long getMaxDocCount() {
+        return maxDocCount;
+    }
 
     @Override
     protected int getRequiredSize() {
@@ -405,6 +416,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             order,
             requiredSize,
             minDocCount,
+            maxDocCount,
             shardSize,
             showTermDocCountError,
             otherDocCount,
@@ -520,6 +532,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             multiTerms.order,
             multiTerms.requiredSize,
             multiTerms.minDocCount,
+            multiTerms.maxDocCount,
             multiTerms.shardSize,
             multiTerms.showTermDocCountError,
             multiTerms.otherDocCount,
@@ -580,6 +593,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         InternalMultiTerms that = (InternalMultiTerms) o;
         return requiredSize == that.requiredSize
             && minDocCount == that.minDocCount
+            && maxDocCount == that.maxDocCount
             && shardSize == that.shardSize
             && showTermDocCountError == that.showTermDocCountError
             && otherDocCount == that.otherDocCount
@@ -599,6 +613,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             order,
             requiredSize,
             minDocCount,
+            maxDocCount,
             formats,
             keyConverters,
             shardSize,

@@ -81,6 +81,7 @@ public abstract class AbstractInternalTerms<
     protected abstract void setDocCountError(long docCountError);
 
     protected abstract long getMinDocCount();
+    protected abstract long getMaxDocCount();
 
     protected abstract int getRequiredSize();
 
@@ -303,7 +304,7 @@ public abstract class AbstractInternalTerms<
                 otherDocCount[0] += removed.getDocCount();
             });
             thisReduceOrder = reduceBuckets(aggregations, reduceContext, bucket -> {
-                if (bucket.getDocCount() >= getMinDocCount()) {
+                if (bucket.getDocCount() >= getMinDocCount() && bucket.getDocCount() <= getMaxDocCount()) {
                     top.add(bucket);
                 }
                 return true;

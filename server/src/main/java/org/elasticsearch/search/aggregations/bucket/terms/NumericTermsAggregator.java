@@ -158,6 +158,9 @@ public class NumericTermsAggregator extends TermsAggregator {
                     if (docCount < bucketCountThresholds.getShardMinDocCount()) {
                         continue;
                     }
+                    if (docCount > bucketCountThresholds.getShardMaxDocCount()) {
+                        continue;
+                    }
                     if (spare == null) {
                         spare = emptyBucketBuilder.get();
                     }
@@ -366,6 +369,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 order,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
+                bucketCountThresholds.getMaxDocCount(),
                 metadata(),
                 format,
                 bucketCountThresholds.getShardSize(),
@@ -384,6 +388,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 order,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
+                bucketCountThresholds.getMaxDocCount(),
                 metadata(),
                 format,
                 bucketCountThresholds.getShardSize(),
@@ -448,6 +453,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 order,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
+                bucketCountThresholds.getMaxDocCount(),
                 metadata(),
                 format,
                 bucketCountThresholds.getShardSize(),
@@ -466,6 +472,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 order,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
+                bucketCountThresholds.getMaxDocCount(),
                 metadata(),
                 format,
                 bucketCountThresholds.getShardSize(),
@@ -562,6 +569,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 name,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
+                bucketCountThresholds.getMaxDocCount(),
                 metadata(),
                 format,
                 subsetSizes.get(owningBucketOrd),
@@ -579,6 +587,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 name,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
+                bucketCountThresholds.getMaxDocCount(),
                 metadata(),
                 format,
                 0,

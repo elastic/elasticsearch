@@ -238,6 +238,9 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
                 if (docCount < bucketCountThresholds.getShardMinDocCount()) {
                     continue;
                 }
+                if (docCount > bucketCountThresholds.getShardMaxDocCount()) {
+                    continue;
+                }
                 if (spare == null) {
                     spare = new InternalMultiTerms.Bucket(null, 0, null, showTermDocCountError, 0, formats, keyConverters);
                     spareKey = new BytesRef();
@@ -281,6 +284,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             order,
             bucketCountThresholds.getRequiredSize(),
             bucketCountThresholds.getMinDocCount(),
+            bucketCountThresholds.getMaxDocCount(),
             bucketCountThresholds.getShardSize(),
             showTermDocCountError,
             otherDocCount,
@@ -300,6 +304,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             order,
             bucketCountThresholds.getRequiredSize(),
             bucketCountThresholds.getMinDocCount(),
+            bucketCountThresholds.getMaxDocCount(),
             bucketCountThresholds.getShardSize(),
             showTermDocCountError,
             0,

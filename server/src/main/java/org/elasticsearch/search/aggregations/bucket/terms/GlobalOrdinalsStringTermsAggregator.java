@@ -764,7 +764,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 reduceOrder = order;
             }
             return new StringTerms(name, reduceOrder, order, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
+                bucketCountThresholds.getMinDocCount(), bucketCountThresholds.getMaxDocCount(), metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
                 otherDocCount, Arrays.asList(topBuckets), 0);
         }
 
@@ -883,6 +883,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 name,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
+                bucketCountThresholds.getMaxDocCount(),
                 metadata(),
                 format,
                 subsetSize(owningBucketOrd),

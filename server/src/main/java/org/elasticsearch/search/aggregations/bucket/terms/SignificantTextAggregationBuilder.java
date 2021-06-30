@@ -64,6 +64,9 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
 
         PARSER.declareLong(SignificantTextAggregationBuilder::shardMinDocCount,
                 TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME);
+        
+        PARSER.declareLong(SignificantTextAggregationBuilder::shardMaxDocCount,
+                TermsAggregationBuilder.SHARD_MAX_DOC_COUNT_FIELD_NAME);
 
         PARSER.declareInt(SignificantTextAggregationBuilder::size,
                 TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME);
@@ -214,6 +217,20 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     /**
+     * Set the maximum document count terms should have in order to appear in
+     * the response.
+     */
+    public SignificantTextAggregationBuilder maxDocCount(long maxDocCount) {
+        if (maxDocCount < 0) {
+            throw new IllegalArgumentException(
+                    "[maxDocCount] must be greater than or equal to 0. Found [" + maxDocCount
+                            + "] in [" + name + "]");
+        }
+        bucketCountThresholds.setMaxDocCount(maxDocCount);
+        return this;
+    }
+
+    /**
      * Set the minimum document count terms should have on the shard in order to
      * appear in the response.
      */
@@ -224,6 +241,20 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
                             + shardMinDocCount + "] in [" + name + "]");
         }
         bucketCountThresholds.setShardMinDocCount(shardMinDocCount);
+        return this;
+    }
+
+    /**
+     * Set the maxium document count terms should have on the shard in order to
+     * appear in the response.
+     */
+    public SignificantTextAggregationBuilder shardMaxDocCount(long shardMaxDocCount) {
+        if (shardMaxDocCount < 0) {
+            throw new IllegalArgumentException(
+                    "[shardMaxDocCount] must be greater than or equal to 0. Found ["
+                            + shardMaxDocCount + "] in [" + name + "]");
+        }
+        bucketCountThresholds.setShardMaxDocCount(shardMaxDocCount);
         return this;
     }
 

@@ -254,6 +254,9 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                     if (docCount < bucketCountThresholds.getShardMinDocCount()) {
                         continue;
                     }
+                    if (docCount > bucketCountThresholds.getShardMaxDocCount()) {
+                        continue;
+                    }
                     if (spare == null) {
                         spare = emptyBucketBuilder.get();
                     }
@@ -445,7 +448,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                 reduceOrder = order;
             }
             return new StringTerms(name, reduceOrder, order, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
+                bucketCountThresholds.getMinDocCount(), bucketCountThresholds.getMaxDocCount(), metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
                 otherDocCount, Arrays.asList(topBuckets), 0);
         }
 
@@ -557,6 +560,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                 name,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
+                bucketCountThresholds.getMaxDocCount(),
                 metadata(),
                 format,
                 subsetSizes.get(owningBucketOrd),

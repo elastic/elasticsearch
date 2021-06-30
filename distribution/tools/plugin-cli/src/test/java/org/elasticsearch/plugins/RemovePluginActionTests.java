@@ -37,13 +37,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
 @LuceneTestCase.SuppressFileSystems("*")
-public class RemovePluginCommandTests extends ESTestCase {
+public class RemovePluginActionTests extends ESTestCase {
 
     private Path home;
     private Environment env;
 
     static class MockRemovePluginCommand extends RemovePluginCommand {
-
         final Environment env;
 
         private MockRemovePluginCommand(final Environment env) {
@@ -54,7 +53,6 @@ public class RemovePluginCommandTests extends ESTestCase {
         protected Environment createEnv(Map<String, String> settings) throws UserException {
             return env;
         }
-
     }
 
     @Override
@@ -70,15 +68,11 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     void createPlugin(String name) throws IOException {
-        createPlugin(env.pluginsFile(), name);
+        createPlugin(env.pluginsFile(), name, Version.CURRENT);
     }
 
     void createPlugin(String name, Version version) throws IOException {
         createPlugin(env.pluginsFile(), name, version);
-    }
-
-    void createPlugin(Path path, String name) throws IOException {
-        createPlugin(path, name, Version.CURRENT);
     }
 
     void createPlugin(Path path, String name, Version version) throws IOException {
@@ -109,7 +103,7 @@ public class RemovePluginCommandTests extends ESTestCase {
         final List<PluginDescriptor> plugins = pluginIds == null
             ? null
             : pluginIds.stream().map(PluginDescriptor::new).collect(Collectors.toList());
-        new MockRemovePluginCommand(env).execute(terminal, env, plugins, purge);
+        new RemovePluginAction(terminal, env, purge).execute(plugins);
         return terminal;
     }
 

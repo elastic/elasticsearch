@@ -174,7 +174,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
 
         if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > MultiBucketConsumerService.DEFAULT_MAX_BUCKETS)) {
             validationException = addValidationError(
-                "settings.max_page_search_size ["
+                "pivot.max_page_search_size ["
                     + maxPageSearchSize
                     + "] is out of range. The minimum value is 10 and the maximum is "
                     + MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,

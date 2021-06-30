@@ -277,7 +277,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         for (int retry = 0; retry < 3; ++retry) {
             try {
                 final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> client().writer(blobInfo, writeOptions));
-                try (OutputStream out = new FilterOutputStream(Channels.newOutputStream(new WritableBlobChannel(writeChannel))) {
+                writer.accept(new FilterOutputStream(Channels.newOutputStream(new WritableBlobChannel(writeChannel))) {
                     @Override
                     public void write(byte[] b, int off, int len) throws IOException {
                         int written = 0;
@@ -289,10 +289,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                             written += toWrite;
                         }
                     }
-                }) {
-                    writer.accept(out);
-                    SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
-                }
+                });
+                SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
                 stats.trackPutOperation();
                 return;
             } catch (final StorageException se) {

@@ -256,6 +256,14 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
                 indexService.getResponse(executionId, randomBoolean(), getFuture);
                 assertThat(getFuture.actionGet(), equalTo(initialResponse));
+                assertBusy(() -> assertThat(circuitBreaker.getUsed(), equalTo(0L)));
+            }
+            if (randomBoolean()) {
+                circuitBreaker.adjustLimit(between(1, 16));
+                PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
+                indexService.getResponse(executionId, randomBoolean(), getFuture);
+                expectThrows(CircuitBreakingException.class, getFuture::actionGet);
+                assertBusy(() -> assertThat(circuitBreaker.getUsed(), equalTo(0L)));
             }
         }
 
@@ -279,10 +287,19 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 assertThat(circuitBreaker.getUsed(), equalTo(0L));
             }
             if (randomBoolean()) {
+                circuitBreaker.adjustLimit(randomIntBetween(16 * 1024, 1024 * 1024)); // small limit
                 PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
                 indexService.getResponse(executionId, randomBoolean(), getFuture);
                 assertThat(getFuture.actionGet().test, equalTo(testMessage));
                 assertThat(getFuture.actionGet().expirationTimeMillis, equalTo(expirationTime));
+                assertBusy(() -> assertThat(circuitBreaker.getUsed(), equalTo(0L)));
+            }
+            if (randomBoolean()) {
+                circuitBreaker.adjustLimit(randomIntBetween(1, 16)); // small limit
+                PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
+                indexService.getResponse(executionId, randomBoolean(), getFuture);
+                expectThrows(CircuitBreakingException.class, getFuture::actionGet);
+                assertBusy(() -> assertThat(circuitBreaker.getUsed(), equalTo(0L)));
             }
         }
     }

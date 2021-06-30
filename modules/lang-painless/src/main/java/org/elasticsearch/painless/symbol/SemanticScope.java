@@ -354,6 +354,7 @@ public abstract class SemanticScope {
     public abstract boolean isVariableDefined(String name);
     public abstract Variable getVariable(Location location, String name);
 
+    // We only want to track instance method use inside of lambdas for "this" injection.  It's a noop for other scopes.
     public void setUsesInstanceMethod() {}
 
     public boolean usesInstanceMethod() {

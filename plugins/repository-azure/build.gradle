@@ -210,15 +210,6 @@ tasks.named("thirdPartyAudit").configure {
     // from io.netty.handler.codec.compression.LzmaFrameEncoder (netty-codec)
     'lzma.sdk.lzma.Encoder',
 
-    // from io.netty.handler.codec.compression.Lz4FrameDecoder (netty-codec)
-    'net.jpountz.lz4.LZ4Compressor',
-    'net.jpountz.lz4.LZ4Factory',
-    'net.jpountz.lz4.LZ4FastDecompressor',
-
-    // from io.netty.handler.codec.compression.Lz4XXHash32 (netty-codec)
-    'net.jpountz.xxhash.XXHash32',
-    'net.jpountz.xxhash.XXHashFactory',
-
     // from io.netty.handler.ssl.JettyAlpnSslEngin (netty-handler optional dependency)
     'org.eclipse.jetty.alpn.ALPN$ClientProvider',
     'org.eclipse.jetty.alpn.ALPN$ServerProvider',

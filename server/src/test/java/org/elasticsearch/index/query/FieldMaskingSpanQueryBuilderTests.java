@@ -101,4 +101,24 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
             q
         );
     }
+
+    public void testJsonWithDeprecatedName() throws IOException {
+        String json =
+            "{\n" +
+                "  \"field_masking_span\" : {\n" +
+                "    \"query\" : {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"value\" : {\n" +
+                "          \"value\" : \"foo\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"field\" : \"mapped_geo_shape\",\n" +
+                "    \"boost\" : 42.0,\n" +
+                "    \"_name\" : \"KPI\"\n" +
+                "  }\n" +
+                "}";
+        Query q = parseQuery(json).toQuery(createSearchExecutionContext());
+        assertWarnings("Deprecated field [field_masking_span] used, expected [" + NAME.getPreferredName() + "] instead");
+    }
 }

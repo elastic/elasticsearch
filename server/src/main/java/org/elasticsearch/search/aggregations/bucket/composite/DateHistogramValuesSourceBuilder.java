@@ -151,20 +151,6 @@ public class DateHistogramValuesSourceBuilder
     }
 
     /**
-     * Sets the interval on this source.
-     * If both {@link #interval()} and {@link #dateHistogramInterval()} are set,
-     * then the {@link #dateHistogramInterval()} wins.
-     *
-     * @deprecated Use {@link #calendarInterval(DateHistogramInterval)} or {@link #fixedInterval(DateHistogramInterval)} instead
-     * @since 7.2.0
-     **/
-    @Deprecated
-    public DateHistogramValuesSourceBuilder interval(long interval) {
-        dateHistogramInterval.interval(interval);
-        return this;
-    }
-
-    /**
      * Returns the date interval that is set on this source
      **/
     @Deprecated

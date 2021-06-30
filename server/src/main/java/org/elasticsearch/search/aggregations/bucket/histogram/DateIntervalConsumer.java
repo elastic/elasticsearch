@@ -16,8 +16,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
  */
 public interface DateIntervalConsumer<T> {
     @Deprecated
-    T interval(long interval);
-    @Deprecated
     T dateHistogramInterval(DateHistogramInterval dateHistogramInterval);
     T calendarInterval(DateHistogramInterval interval);
     T fixedInterval(DateHistogramInterval interval);

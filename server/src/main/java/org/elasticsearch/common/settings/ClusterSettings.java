@@ -287,6 +287,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             ClusterService.USER_DEFINED_METADATA,
             MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+            MasterService.MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING,
             SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
             SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,

@@ -362,7 +362,7 @@ public class SystemIndices {
                         return dataStreamDescriptor;
                     }
                 } else {
-                    assert accessLevel == SystemIndexAccessLevel.ALL;
+                    assert accessLevel == SystemIndexAccessLevel.ALL || accessLevel == SystemIndexAccessLevel.NON_NET_NEW_ONLY;
                     return dataStreamDescriptor;
                 }
             } else {
@@ -427,7 +427,8 @@ public class SystemIndices {
     public enum SystemIndexAccessLevel {
         ALL,
         NONE,
-        RESTRICTED
+        RESTRICTED,
+        NON_NET_NEW_ONLY
     }
 
     /**

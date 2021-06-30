@@ -87,7 +87,7 @@ public class IndexNameExpressionResolver {
      */
     public String[] concreteIndexNamesWithSystemIndexAccess(ClusterState state, IndicesRequest request) {
         Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(),
-            SystemIndexAccessLevel.ALL, name -> true, name -> false);
+            SystemIndexAccessLevel.NON_NET_NEW_ONLY, name -> true, name -> false);
         return concreteIndexNames(context, request.indices());
     }
 
@@ -751,6 +751,8 @@ public class IndexNameExpressionResolver {
         final Predicate<String> systemIndexAccessLevelPredicate;
         if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
             systemIndexAccessLevelPredicate = s -> false;
+        } else if (systemIndexAccessLevel == SystemIndexAccessLevel.NON_NET_NEW_ONLY) {
+            systemIndexAccessLevelPredicate = getNetNewSystemIndexPredicate();
         } else if (systemIndexAccessLevel == SystemIndexAccessLevel.ALL) {
             systemIndexAccessLevelPredicate = s -> true;
         } else {
@@ -1152,7 +1154,11 @@ public class IndexNameExpressionResolver {
                             assert abstraction != null : "null abstraction for " + name + " but was in array of all indices";
                             if (abstraction.isSystem()) {
                                 if (context.netNewSystemIndexPredicate.test(name)) {
-                                    return context.systemIndexAccessPredicate.test(name);
+                                    if (SystemIndexAccessLevel.NON_NET_NEW_ONLY.equals(context.systemIndexAccessLevel)) {
+                                        return false;
+                                    } else {
+                                        return context.systemIndexAccessPredicate.test(name);
+                                    }
                                 } else if (abstraction.getType() == Type.DATA_STREAM || abstraction.getParentDataStream() != null) {
                                     return context.systemIndexAccessPredicate.test(name);
                                 }

@@ -299,14 +299,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final String pluginId = plugin.getId();
 
         if (OFFICIAL_PLUGINS.contains(pluginId)) {
-            final String url = getElasticUrl(
-                terminal,
-                getStagingHash(),
-                Version.CURRENT,
-                isSnapshot(),
-                pluginId,
-                Platforms.PLATFORM_NAME
-            );
+            final String url = getElasticUrl(terminal, getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from elastic");
             return downloadAndValidate(terminal, url, tmpDir, true, isBatch);
         }

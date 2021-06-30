@@ -28,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -105,7 +106,8 @@ public class RemovePluginCommandTests extends ESTestCase {
     static MockTerminal removePlugin(List<String> pluginIds, Path home, boolean purge) throws Exception {
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
-        new MockRemovePluginCommand(env).execute(terminal, env, pluginIds, purge);
+        final List<PluginDescriptor> plugins = pluginIds.stream().map(PluginDescriptor::new).collect(Collectors.toList());
+        new MockRemovePluginCommand(env).execute(terminal, env, plugins, purge);
         return terminal;
     }
 

@@ -55,7 +55,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
-        final List<String> pluginIds = arguments.values(options);
+        final List<PluginDescriptor> pluginIds = arguments.values(options).stream().map(PluginDescriptor::new).collect(Collectors.toList());
         final boolean purge = options.has(purgeOption);
         execute(terminal, env, pluginIds, purge);
     }
@@ -65,36 +65,37 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
      *
      * @param terminal   the terminal to use for input/output
      * @param env        the environment for the local node
-     * @param pluginIds  the IDs of the plugins to remove
+     * @param plugins  the IDs of the plugins to remove
      * @param purge      if true, plugin configuration files will be removed but otherwise preserved
      * @throws IOException   if any I/O exception occurs while performing a file operation
-     * @throws UserException if pluginIds is null or empty
+     * @throws UserException if plugins is null or empty
      * @throws UserException if plugin directory does not exist
      * @throws UserException if the plugin bin directory is not a directory
      */
-    void execute(Terminal terminal, Environment env, List<String> pluginIds, boolean purge) throws IOException, UserException {
-        if (pluginIds == null || pluginIds.isEmpty()) {
+    void execute(Terminal terminal, Environment env, List<PluginDescriptor> plugins, boolean purge) throws IOException, UserException {
+        if (plugins == null || plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "At least one plugin ID is required");
         }
 
-        ensurePluginsNotUsedByOtherPlugins(env, pluginIds);
+        ensurePluginsNotUsedByOtherPlugins(env, plugins);
 
-        for (String pluginId : pluginIds) {
-            checkCanRemove(env, pluginId, purge);
+        for (PluginDescriptor plugin : plugins) {
+            checkCanRemove(env, plugin, purge);
         }
 
-        for (String pluginId : pluginIds) {
-            removePlugin(env, terminal, pluginId, purge);
+        for (PluginDescriptor plugin : plugins) {
+            removePlugin(env, terminal, plugin, purge);
         }
     }
 
-    private void ensurePluginsNotUsedByOtherPlugins(Environment env, List<String> pluginIds) throws IOException, UserException {
+    private void ensurePluginsNotUsedByOtherPlugins(Environment env, List<PluginDescriptor> plugins) throws IOException, UserException {
         // First make sure nothing extends this plugin
         final Map<String, List<String>> usedBy = new HashMap<>();
         Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(env.pluginsFile());
         for (PluginsService.Bundle bundle : bundles) {
             for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
-                for (String pluginId : pluginIds) {
+                for (PluginDescriptor plugin : plugins) {
+                    String pluginId = plugin.getId();
                     if (extendedPlugin.equals(pluginId)) {
                         usedBy.computeIfAbsent(bundle.plugin.getName(), (_key -> new ArrayList<>())).add(pluginId);
                     }
@@ -115,7 +116,8 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         throw new UserException(PLUGIN_STILL_USED, message.toString());
     }
 
-    private void checkCanRemove(Environment env, String pluginId, boolean purge) throws UserException {
+    private void checkCanRemove(Environment env, PluginDescriptor plugin, boolean purge) throws UserException {
+        String pluginId = plugin.getId();
         final Path pluginDir = env.pluginsFile().resolve(pluginId);
         final Path pluginConfigDir = env.configFile().resolve(pluginId);
         final Path removing = env.pluginsFile().resolve(".removing-" + pluginId);
@@ -143,7 +145,8 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private void removePlugin(Environment env, Terminal terminal, String pluginId, boolean purge) throws IOException {
+    private void removePlugin(Environment env, Terminal terminal, PluginDescriptor plugin, boolean purge) throws IOException {
+        final String pluginId = plugin.getId();
         final Path pluginDir = env.pluginsFile().resolve(pluginId);
         final Path pluginConfigDir = env.configFile().resolve(pluginId);
         final Path removing = env.pluginsFile().resolve(".removing-" + pluginId);

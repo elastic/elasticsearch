@@ -14,38 +14,31 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.CircleBuilder;
-import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
-import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
-import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
-import org.elasticsearch.common.geo.builders.LineStringBuilder;
-import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
-import org.elasticsearch.common.geo.builders.MultiPointBuilder;
-import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
-import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
-import org.locationtech.jts.geom.Coordinate;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -96,9 +89,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
               .field(defaultGeoFieldName, "POINT(-45 -50)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
-        GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(shape);
-        Geometry geometry = builder.buildGeometry().get(0);
+        Geometry geometry = new Rectangle(-45, 45, 45, -45);
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
             .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
                 .relation(ShapeRelation.INTERSECTS))
@@ -137,9 +128,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             .field(defaultGeoFieldName, "POINT(-45 -50)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        CircleBuilder shape = new CircleBuilder().center(new Coordinate(-30, -30)).radius("100m");
-        GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(shape);
-        Geometry geometry = builder.buildGeometry().get(0);
+        Geometry geometry = new Circle(-30, -30, 100);
 
         try {
             client().prepareSearch(defaultIndexName)
@@ -150,7 +139,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             Exception e) {
             assertThat(e.getCause().getMessage(),
                 containsString("failed to create query: "
-                    + GeoShapeType.CIRCLE + " geometry is not supported"));
+                    + ShapeType.CIRCLE + " geometry is not supported"));
         }
     }
 
@@ -169,17 +158,15 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             .field(defaultGeoFieldName, "POINT(-45 -50)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        CoordinatesBuilder cb = new CoordinatesBuilder();
-        cb.coordinate(new Coordinate(-35, -35))
-            .coordinate(new Coordinate(-35, -25))
-            .coordinate(new Coordinate(-25, -25))
-            .coordinate(new Coordinate(-25, -35))
-            .coordinate(new Coordinate(-35, -35));
-        PolygonBuilder shape = new PolygonBuilder(cb);
-        GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(shape);
-        Geometry geometry = builder.buildGeometry();
+        Polygon polygon = new Polygon(
+            new LinearRing(
+                new double[] {-35, -35, -25, -25, -35},
+                new double[] {-35, -25, -25, -35, -35}
+            )
+        );
+
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
+            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, polygon)
                 .relation(ShapeRelation.INTERSECTS))
             .get();
 
@@ -212,30 +199,24 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             .field(defaultGeoFieldName, "POINT(-50 -50)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        CoordinatesBuilder encloseDocument1Cb = new CoordinatesBuilder();
-        encloseDocument1Cb.coordinate(new Coordinate(-35, -35))
-            .coordinate(new Coordinate(-35, -25))
-            .coordinate(new Coordinate(-25, -25))
-            .coordinate(new Coordinate(-25, -35))
-            .coordinate(new Coordinate(-35, -35));
-        PolygonBuilder encloseDocument1Shape = new PolygonBuilder(encloseDocument1Cb);
+        Polygon encloseDocument1Cb = new Polygon(
+            new LinearRing(
+                new double[] {-35, -35, -25, -25, -35},
+                new double[] {-35, -25, -25, -35, -35}
+            )
+        );
 
-        CoordinatesBuilder encloseDocument2Cb = new CoordinatesBuilder();
-        encloseDocument2Cb.coordinate(new Coordinate(-55, -55))
-            .coordinate(new Coordinate(-55, -45))
-            .coordinate(new Coordinate(-45, -45))
-            .coordinate(new Coordinate(-45, -55))
-            .coordinate(new Coordinate(-55, -55));
-        PolygonBuilder encloseDocument2Shape = new PolygonBuilder(encloseDocument2Cb);
+        Polygon encloseDocument2Cb = new Polygon(
+            new LinearRing(
+                new double[] {-55, -55, -45, -45, -55},
+                new double[] {-55, -45, -45, -55, -55}
+            )
+        );
 
-        MultiPolygonBuilder mp = new MultiPolygonBuilder();
-        mp.polygon(encloseDocument1Shape).polygon(encloseDocument2Shape);
-
-        GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(mp);
-        Geometry geometry = builder.buildGeometry();
+        MultiPolygon multiPolygon = new MultiPolygon(List.of(encloseDocument1Cb, encloseDocument2Cb));
         {
             SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPolygon)
                     .relation(ShapeRelation.INTERSECTS))
                 .get();
 
@@ -247,7 +228,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         }
         {
             SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPolygon)
                     .relation(ShapeRelation.WITHIN))
                 .get();
 
@@ -259,7 +240,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         }
         {
             SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPolygon)
                     .relation(ShapeRelation.DISJOINT))
                 .get();
 
@@ -270,7 +251,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         }
         {
             SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPolygon)
                     .relation(ShapeRelation.CONTAINS))
                 .get();
 
@@ -388,8 +369,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             .field(defaultGeoFieldName, "POINT(171 0)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        Rectangle rectangle = new Rectangle(
-            169, -178, 1, -1);
+        Rectangle rectangle = new Rectangle(169, -178, 1, -1);
 
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", rectangle);
         SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
@@ -424,14 +404,14 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             .field(defaultGeoFieldName, "POINT(171 7)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        PolygonBuilder polygon = new PolygonBuilder(new CoordinatesBuilder()
-                    .coordinate(-177, 10)
-                    .coordinate(177, 10)
-                    .coordinate(177, 5)
-                    .coordinate(-177, 5)
-                    .coordinate(-177, 10));
+        Polygon polygon = new Polygon(
+            new LinearRing(
+                new double[] {-177, 177, 177, -177, -177},
+                new double[] {10, 10, 5, 5, 10}
+            )
+        );
 
-        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", polygon.buildGeometry());
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", polygon);
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
         SearchHits searchHits = response.getHits();
@@ -462,23 +442,24 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             .field(defaultGeoFieldName, "POINT(171 7)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        MultiPolygonBuilder multiPolygon = new MultiPolygonBuilder()
-            .polygon(new PolygonBuilder(new CoordinatesBuilder()
-                .coordinate(-167, 10)
-                .coordinate(-171, 10)
-                .coordinate(171, 5)
-                .coordinate(-167, 5)
-                .coordinate(-167, 10)))
-            .polygon(new PolygonBuilder(new CoordinatesBuilder()
-                .coordinate(-177, 10)
-                .coordinate(177, 10)
-                .coordinate(177, 5)
-                .coordinate(-177, 5)
-                .coordinate(-177, 10)));
 
-        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery(
-            "geo",
-            multiPolygon.buildGeometry());
+        Polygon polygon1 = new Polygon(
+            new LinearRing(
+                new double[] {-167, -171, 171, -167, -167},
+                new double[] {10, 10, 5, 5, 10}
+            )
+        );
+
+        Polygon polygon2 = new Polygon(
+            new LinearRing(
+                new double[] {-177, 177, 177, -177, -177},
+                new double[] {10, 10, 5, 5, 10}
+            )
+        );
+
+        MultiPolygon multiPolygon = new MultiPolygon(List.of(polygon1, polygon2));
+
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", multiPolygon);
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
         SearchHits searchHits = response.getHits();
@@ -509,16 +490,10 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
-        CoordinatesBuilder coords1 = new CoordinatesBuilder()
-            .coordinate(-35,-35)
-            .coordinate(-25,-25);
-        CoordinatesBuilder coords2 = new CoordinatesBuilder()
-            .coordinate(-15,-15)
-            .coordinate(-5,-5);
-        LineStringBuilder lsb1 = new LineStringBuilder(coords1);
-        LineStringBuilder lsb2 = new LineStringBuilder(coords2);
-        MultiLineStringBuilder mlb = new MultiLineStringBuilder().linestring(lsb1).linestring(lsb2);
-        MultiLine multiline = (MultiLine) mlb.buildGeometry();
+        Line lsb1 = new Line(new double[]{-35, -25}, new double[] {-35, -25});
+        Line lsb2 = new Line(new double[]{-15, -5}, new double[] {-15, -5});
+
+        MultiLine multiline = new MultiLine(List.of(lsb1, lsb2));
 
         GeoShapeQueryBuilder builder = QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiline).relation(ShapeRelation.WITHIN);
         SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setQuery(builder);
@@ -554,8 +529,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             .field(defaultGeoFieldName, "POINT(-35 -25)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        PointBuilder pb = new PointBuilder().coordinate(-35, -25);
-        Point point = pb.buildGeometry();
+        Point point = new Point(-35, -25);
         {
             SearchResponse response = client().prepareSearch("test")
                 .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point)).get();
@@ -592,8 +566,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             .field(defaultGeoFieldName, "POINT(-35 -25)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        MultiPointBuilder mpb = new MultiPointBuilder().coordinate(-35,-25).coordinate(-15,-5);
-        MultiPoint multiPoint = mpb.buildGeometry();
+        MultiPoint multiPoint = new MultiPoint(List.of(new Point(-35,-25), new Point(-15,-5)));
 
         {
             SearchResponse response = client().prepareSearch("test")

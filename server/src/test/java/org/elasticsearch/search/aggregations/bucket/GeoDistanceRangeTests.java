@@ -14,10 +14,11 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder.Range;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
 
 import java.io.IOException;
 
@@ -29,8 +30,9 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
     @Override
     protected GeoDistanceAggregationBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
-        GeoPoint origin = RandomShapeGenerator.randomPoint(random());
-        GeoDistanceAggregationBuilder factory = new GeoDistanceAggregationBuilder(randomAlphaOfLengthBetween(3, 10), origin);
+        Point origin = GeometryTestUtils.randomPoint();
+        GeoDistanceAggregationBuilder factory =
+            new GeoDistanceAggregationBuilder(randomAlphaOfLengthBetween(3, 10), new GeoPoint(origin.getLat(), origin.getLon()));
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {

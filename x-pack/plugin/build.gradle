@@ -123,6 +123,7 @@ tasks.named("yamlRestCompatTest").configure {
 
   //TODO: blacklist specific to REST API compatibility
   restTestBlacklist.addAll([
+    'analytics/histogram/Ranges over histogram',
     'indices.freeze/10_basic/Basic',
     'indices.freeze/10_basic/Test index options',
     'indices.freeze/20_stats/Translog stats on frozen indices',

@@ -87,14 +87,14 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
  * A command for the plugin cli to install a plugin into elasticsearch.
- *
+ * <p>
  * The install command takes a plugin id, which may be any of the following:
  * <ul>
  * <li>An official elasticsearch plugin name</li>
  * <li>Maven coordinates to a plugin zip</li>
  * <li>A URL to a plugin zip</li>
  * </ul>
- *
+ * <p>
  * Plugins are packaged as zip files. Each packaged plugin must contain a plugin properties file.
  * See {@link PluginInfo}.
  * <p>
@@ -120,13 +120,20 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     private static final String PROPERTY_STAGING_ID = "es.plugins.staging";
 
     // exit codes for install
-    /** A plugin with the same name is already installed. */
+    /**
+     * A plugin with the same name is already installed.
+     */
     static final int PLUGIN_EXISTS = 1;
-    /** The plugin zip is not properly structured. */
+    /**
+     * The plugin zip is not properly structured.
+     */
     static final int PLUGIN_MALFORMED = 2;
 
-    /** The builtin modules, which are plugins, but cannot be installed or removed. */
+    /**
+     * The builtin modules, which are plugins, but cannot be installed or removed.
+     */
     private static final Set<String> MODULES;
+
     static {
         try (var stream = InstallPluginCommand.class.getResourceAsStream("/modules.txt")) {
             MODULES = Streams.readAllLines(stream).stream().map(String::trim).collect(Collectors.toUnmodifiableSet());
@@ -195,26 +202,35 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        List<String> pluginId = arguments.values(options);
+        List<PluginDescriptor> plugins = arguments.values(options)
+            .stream()
+            .map(id -> new PluginDescriptor(id, id))
+            .collect(Collectors.toList());
         final boolean isBatch = options.has(batchOption);
-        execute(terminal, pluginId, isBatch, env);
+        execute(terminal, plugins, isBatch, env);
     }
 
     // pkg private for testing
-    void execute(Terminal terminal, List<String> pluginIds, boolean isBatch, Environment env) throws Exception {
-        if (pluginIds.isEmpty()) {
+    void execute(Terminal terminal, String pluginId, boolean isBatch, Environment env) throws Exception {
+        execute(terminal, List.of(new PluginDescriptor(pluginId, pluginId)), isBatch, env);
+    }
+
+    // pkg private for testing
+    void execute(Terminal terminal, List<PluginDescriptor> plugins, boolean isBatch, Environment env) throws Exception {
+        if (plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "at least one plugin id is required");
         }
 
         final Set<String> uniquePluginIds = new HashSet<>();
-        for (final String pluginId : pluginIds) {
-            if (uniquePluginIds.add(pluginId) == false) {
-                throw new UserException(ExitCodes.USAGE, "duplicate plugin id [" + pluginId + "]");
+        for (final PluginDescriptor plugin : plugins) {
+            if (uniquePluginIds.add(plugin.getId()) == false) {
+                throw new UserException(ExitCodes.USAGE, "duplicate plugin id [" + plugin.getId() + "]");
             }
         }
 
         final Map<String, List<Path>> deleteOnFailures = new LinkedHashMap<>();
-        for (final String pluginId : pluginIds) {
+        for (final PluginDescriptor plugin : plugins) {
+            final String pluginId = plugin.getId();
             terminal.println("-> Installing " + pluginId);
             try {
                 if ("x-pack".equals(pluginId)) {
@@ -224,7 +240,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 final List<Path> deleteOnFailure = new ArrayList<>();
                 deleteOnFailures.put(pluginId, deleteOnFailure);
 
-                final Path pluginZip = download(terminal, pluginId, env.tmpFile(), isBatch);
+                final Path pluginZip = download(terminal, plugin, env.tmpFile(), isBatch);
                 final Path extractedZip = unzip(pluginZip, env.pluginsFile());
                 deleteOnFailure.add(extractedZip);
                 final PluginInfo pluginInfo = installPlugin(terminal, isBatch, extractedZip, env, deleteOnFailure);
@@ -276,34 +292,47 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
     }
 
-    /** Downloads the plugin and returns the file it was downloaded to. */
-    private Path download(Terminal terminal, String pluginId, Path tmpDir, boolean isBatch) throws Exception {
+    /**
+     * Downloads the plugin and returns the file it was downloaded to.
+     */
+    private Path download(Terminal terminal, PluginDescriptor plugin, Path tmpDir, boolean isBatch) throws Exception {
+        final String pluginId = plugin.getId();
+
         if (OFFICIAL_PLUGINS.contains(pluginId)) {
-            final String url = getElasticUrl(terminal, getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
+            final String url = getElasticUrl(
+                terminal,
+                getStagingHash(),
+                Version.CURRENT,
+                isSnapshot(),
+                pluginId,
+                Platforms.PLATFORM_NAME
+            );
             terminal.println("-> Downloading " + pluginId + " from elastic");
             return downloadAndValidate(terminal, url, tmpDir, true, isBatch);
         }
 
+        final String pluginUrl = plugin.getUrl();
+
         // now try as maven coordinates, a valid URL would only have a colon and slash
-        String[] coordinates = pluginId.split(":");
-        if (coordinates.length == 3 && pluginId.contains("/") == false && pluginId.startsWith("file:") == false) {
+        String[] coordinates = pluginUrl.split(":");
+        if (coordinates.length == 3 && pluginUrl.contains("/") == false && pluginUrl.startsWith("file:") == false) {
             String mavenUrl = getMavenUrl(terminal, coordinates, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from maven central");
             return downloadAndValidate(terminal, mavenUrl, tmpDir, false, isBatch);
         }
 
         // fall back to plain old URL
-        if (pluginId.contains(":") == false) {
+        if (pluginUrl.contains(":") == false) {
             // definitely not a valid url, so assume it is a plugin name
-            List<String> plugins = checkMisspelledPlugin(pluginId);
+            List<String> pluginSuggestions = checkMisspelledPlugin(pluginId);
             String msg = "Unknown plugin " + pluginId;
-            if (plugins.isEmpty() == false) {
-                msg += ", did you mean " + (plugins.size() == 1 ? "[" + plugins.get(0) + "]" : "any of " + plugins.toString()) + "?";
+            if (pluginSuggestions.isEmpty() == false) {
+                msg += ", did you mean " + (pluginSuggestions.size() > 1 ? "any of " : "") + pluginSuggestions + "?";
             }
             throw new UserException(ExitCodes.USAGE, msg);
         }
-        terminal.println("-> Downloading " + URLDecoder.decode(pluginId, "UTF-8"));
-        return downloadZip(terminal, pluginId, tmpDir, isBatch);
+        terminal.println("-> Downloading " + URLDecoder.decode(pluginUrl, StandardCharsets.UTF_8));
+        return downloadZip(terminal, pluginUrl, tmpDir, isBatch);
     }
 
     // pkg private so tests can override
@@ -315,7 +344,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         return Build.CURRENT.isSnapshot();
     }
 
-    /** Returns the url for an official elasticsearch plugin. */
+    /**
+     * Returns the url for an official elasticsearch plugin.
+     */
     private String getElasticUrl(
         final Terminal terminal,
         final String stagingHash,
@@ -365,7 +396,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         );
     }
 
-    /** Returns the url for an elasticsearch plugin in maven. */
+    /**
+     * Returns the url for an elasticsearch plugin in maven.
+     */
     private String getMavenUrl(Terminal terminal, String[] coordinates, String platform) throws IOException {
         final String groupId = coordinates[0].replace(".", "/");
         final String artifactId = coordinates[1];
@@ -380,7 +413,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /**
      * Returns {@code true} if the given url exists, and {@code false} otherwise.
-     *
+     * <p>
      * The given url must be {@code https} and existing means a {@code HEAD} request returns 200.
      */
     // pkg private for tests to manipulate
@@ -396,7 +429,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         return urlConnection.getResponseCode() == 200;
     }
 
-    /** Returns all the official plugin names that look similar to pluginId. **/
+    /**
+     * Returns all the official plugin names that look similar to pluginId.
+     **/
     private List<String> checkMisspelledPlugin(String pluginId) {
         LevenshteinDistance ld = new LevenshteinDistance();
         List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
@@ -667,7 +702,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /**
      * Creates a URL and opens a connection.
-     *
+     * <p>
      * If the URL returns a 404, {@code null} is returned, otherwise the open URL opject is returned.
      */
     // pkg private for tests
@@ -766,7 +801,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
     }
 
-    /** Load information about the plugin, and verify it can be installed with no errors. */
+    /**
+     * Load information about the plugin, and verify it can be installed with no errors.
+     */
     private PluginInfo loadPluginInfo(Terminal terminal, Path pluginRoot, Environment env) throws Exception {
         final PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
         if (info.hasNativeController()) {
@@ -793,7 +830,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR = String.format(Locale.ROOT, ".+%1$slib%1$stools%1$splugin-cli%1$s[^%1$s]+\\.jar", "(/|\\\\)");
     }
 
-    /** check a candidate plugin for jar hell before installing it */
+    /**
+     * check a candidate plugin for jar hell before installing it
+     */
     void jarHellCheck(PluginInfo candidateInfo, Path candidateDir, Path pluginsDir, Path modulesDir) throws Exception {
         // create list of current jars in classpath
         final Set<URL> classpath = JarHell.parseClassPath().stream().filter(url -> {
@@ -849,7 +888,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         return info;
     }
 
-    /** Moves bin and config directories from the plugin if they exist */
+    /**
+     * Moves bin and config directories from the plugin if they exist
+     */
     private void installPluginSupportFiles(PluginInfo info, Path tmpRoot, Path destBinDir, Path destConfigDir, List<Path> deleteOnFailure)
         throws Exception {
         Path tmpBinDir = tmpRoot.resolve("bin");
@@ -866,7 +907,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
     }
 
-    /** Moves the plugin directory into its final destination. **/
+    /**
+     * Moves the plugin directory into its final destination.
+     **/
     private void movePlugin(Path tmpRoot, Path destination) throws IOException {
         Files.move(tmpRoot, destination, StandardCopyOption.ATOMIC_MOVE);
         Files.walkFileTree(destination, new SimpleFileVisitor<Path>() {
@@ -891,7 +934,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         });
     }
 
-    /** Copies the files from {@code tmpBinDir} into {@code destBinDir}, along with permissions from dest dirs parent. */
+    /**
+     * Copies the files from {@code tmpBinDir} into {@code destBinDir}, along with permissions from dest dirs parent.
+     */
     private void installBin(PluginInfo info, Path tmpBinDir, Path destBinDir) throws Exception {
         if (Files.isDirectory(tmpBinDir) == false) {
             throw new UserException(PLUGIN_MALFORMED, "bin in plugin " + info.getName() + " is not a directory");

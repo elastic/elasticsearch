@@ -320,8 +320,7 @@ public class GrokTests extends ESTestCase {
             String pattern = "%{NAME1}";
             new Grok(bank, pattern, false, logger::warn);
         });
-        assertEquals("circular reference in pattern [NAME3][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME2]",
-            e.getMessage());
+        assertEquals("circular reference in pattern [NAME3][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME2]", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> {
             Map<String, String> bank = new TreeMap<>();
@@ -331,10 +330,23 @@ public class GrokTests extends ESTestCase {
             bank.put("NAME4", "!!!%{NAME5}!!!");
             bank.put("NAME5", "!!!%{NAME1}!!!");
             String pattern = "%{NAME1}";
-            new Grok(bank, pattern, false, logger::warn );
+            new Grok(bank, pattern, false, logger::warn);
         });
-        assertEquals("circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] " +
-            "via patterns [NAME2=>NAME3=>NAME4]", e.getMessage());
+        assertEquals(
+            "circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME2=>NAME3=>NAME4]",
+            e.getMessage()
+        );
+    }
+
+    public void testCircularSelfReference() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new HashMap<>();
+            bank.put("ANOTHER", "%{INT}");
+            bank.put("INT", "%{INT}");
+            String pattern = "does_not_matter";
+            new Grok(bank, pattern, false, logger::warn);
+        });
+        assertEquals("circular reference in pattern [INT][%{INT}]", e.getMessage());
     }
 
     public void testBooleanCaptures() {

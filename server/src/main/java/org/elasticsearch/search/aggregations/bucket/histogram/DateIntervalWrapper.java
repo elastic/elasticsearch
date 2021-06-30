@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Rounding.DateTimeUnit;
 import org.elasticsearch.common.Strings;
@@ -18,11 +17,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -75,21 +74,6 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     private IntervalTypeEnum intervalType = IntervalTypeEnum.NONE;
 
     public static <T extends DateIntervalConsumer> void declareIntervalFields(ObjectParser<T, String> parser) {
-
-        // NOTE: this field is deprecated and will be removed
-        parser.declareField((wrapper, interval) -> {
-            if (interval instanceof Long) {
-                wrapper.interval((long) interval);
-            } else {
-                wrapper.dateHistogramInterval((DateHistogramInterval) interval);
-            }
-        }, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                return p.longValue();
-            } else {
-                return new DateHistogramInterval(p.text());
-            }
-        }, Histogram.INTERVAL_FIELD, ObjectParser.ValueType.LONG);
 
         parser.declareField(DateIntervalConsumer::calendarInterval,
             p -> new DateHistogramInterval(p.text()), CALENDAR_INTERVAL_FIELD, ObjectParser.ValueType.STRING);

@@ -1772,7 +1772,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     null,
                     emptyMap(),
                     List.of(),
-                    emptyMap()
+                    emptyMap(),
+                    null
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(

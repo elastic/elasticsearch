@@ -40,7 +40,7 @@ public final class RestNodeEnrollmentAction extends SecurityBaseRestHandler {
 
     @Override public List<Route> routes() {
         return List.of(
-            new Route(RestRequest.Method.GET, "_security/enroll_node")
+            new Route(RestRequest.Method.GET, "_security/enroll/node")
         );
     }
 

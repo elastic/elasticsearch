@@ -343,8 +343,12 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final TimeValue readTimeout = allowReadTimeout.get() ? TimeValue.timeValueSeconds(3) : null;
 
         final BlobContainer blobContainer = createBlobContainer(nbErrors + 1, readTimeout, null, null);
-        try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
-            blobContainer.writeBlob("write_large_blob", stream, data.length, false);
+        if (randomBoolean()) {
+            try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
+                blobContainer.writeBlob("write_large_blob", stream, data.length, false);
+            }
+        } else {
+            blobContainer.writeBlob("write_large_blob", false, randomBoolean(), out -> out.write(data));
         }
 
         assertThat(countInits.get(), equalTo(0));

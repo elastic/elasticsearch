@@ -305,8 +305,7 @@ public class RBACEngine implements AuthorizationEngine {
                 listener.onFailure(new IllegalStateException("only scroll and async-search related requests are known indices " +
                     "api that don't support retrieving the indices they relate to"));
             }
-        } else if (request instanceof IndicesRequest &&
-            IndicesAndAliasesResolver.allowsRemoteIndices((IndicesRequest) request)) {
+        } else if (request instanceof IndicesRequest && ((IndicesRequest) request).allowsRemoteIndices()) {
             // remote indices are allowed
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 assert resolvedIndices.isEmpty() == false
@@ -483,8 +482,15 @@ public class RBACEngine implements AuthorizationEngine {
         final Set<GetUserPrivilegesResponse.Indices> indices = new LinkedHashSet<>();
         for (IndicesPermission.Group group : userRole.indices().groups()) {
             final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
-            final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity = group.getFieldPermissions().hasFieldLevelSecurity()
-                ? group.getFieldPermissions().getFieldPermissionsDefinition().getFieldGrantExcludeGroups() : Collections.emptySet();
+            final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
+            if (group.getFieldPermissions().hasFieldLevelSecurity()) {
+                final FieldPermissionsDefinition definition = group.getFieldPermissions().getFieldPermissionsDefinition();
+                assert group.getFieldPermissions().getLimitedByFieldPermissionsDefinition() == null
+                    : "limited-by field must not exist since we do not support reporting user privileges for limited roles";
+                fieldSecurity = definition.getFieldGrantExcludeGroups();
+            } else {
+                fieldSecurity = Collections.emptySet();
+            }
             indices.add(new GetUserPrivilegesResponse.Indices(
                 Arrays.asList(group.indices()),
                 group.privilege().name(),

@@ -4,8 +4,6 @@ dependencies {
   javaRestTestImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation project(':client:rest-high-level')
   javaRestTestImplementation project(':x-pack:plugin:security')
-  // let the javaRestTest see the classpath of main
-  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 }
 
 testClusters.javaRestTest {

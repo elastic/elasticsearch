@@ -44,6 +44,7 @@ following aggregations and queries:
 * <<search-aggregations-metrics-percentile-rank-aggregation,percentile ranks>> aggregation
 * <<search-aggregations-metrics-boxplot-aggregation,boxplot>> aggregation
 * <<search-aggregations-bucket-histogram-aggregation-histogram-fields,histogram>> aggregation
+* <<search-aggregations-bucket-range-aggregation-histogram-fields,range>> aggregation
 * <<query-dsl-exists-query,exists>> query
 
 [[mapping-types-histogram-building-histogram]]

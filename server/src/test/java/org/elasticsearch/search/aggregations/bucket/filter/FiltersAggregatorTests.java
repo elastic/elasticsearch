@@ -89,6 +89,7 @@ import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
 import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -411,7 +412,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     matchesMap().entry("segments_with_doc_count_field", 0)
                         .entry("segments_with_deleted_docs", 0)
                         .entry("segments_collected", 0)
-                        .entry("segments_counted", 1)
+                        .entry("segments_counted", greaterThanOrEqualTo(1))
                         .entry("filters", matchesList().item(matchesMap().entry("query", "test:[1577836800000 TO 1583020799999]")))
                 )
             );
@@ -471,7 +472,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     debug,
                     matchesMap().entry(
                         "test",
-                        matchesMap().entry("segments_counted", 1)
+                        matchesMap().entry("segments_counted", greaterThanOrEqualTo(1))
                             .entry("segments_collected", 0)
                             .entry("segments_with_doc_count_field", 0)
                             .entry("segments_with_deleted_docs", 0)
@@ -513,9 +514,9 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     debug,
                     matchesMap().entry(
                         "test",
-                        matchesMap().entry("segments_counted", 1)
+                        matchesMap().entry("segments_counted", greaterThanOrEqualTo(1))
                             .entry("segments_collected", 0)
-                            .entry("segments_with_doc_count_field", 1)
+                            .entry("segments_with_doc_count_field", greaterThanOrEqualTo(1))
                             .entry("segments_with_deleted_docs", 0)
                             .entry(
                                 "filters",
@@ -583,7 +584,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 aggregator.collectDebugInfo(debug::put);
                 assertMap(
                     debug,
-                    matchesMap().entry("segments_counted", 1)
+                    matchesMap().entry("segments_counted", greaterThanOrEqualTo(1))
                         .entry("segments_collected", 0)
                         .entry("segments_with_doc_count_field", 0)
                         .entry("segments_with_deleted_docs", 0)
@@ -670,7 +671,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         matchesMap().entry("segments_with_doc_count_field", 0)
                             .entry("segments_with_deleted_docs", 0)
                             .entry("segments_collected", 0)
-                            .entry("segments_counted", 1)
+                            .entry("segments_counted", greaterThanOrEqualTo(1))
                             .entry(
                                 "filters",
                                 matchesList().item(
@@ -707,7 +708,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         matchesMap().entry("segments_with_doc_count_field", 0)
                             .entry("segments_with_deleted_docs", 0)
                             .entry("segments_collected", 0)
-                            .entry("segments_counted", 1)
+                            .entry("segments_counted", greaterThanOrEqualTo(1))
                             .entry(
                                 "filters",
                                 matchesList().item(
@@ -746,7 +747,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         matchesMap().entry("segments_with_doc_count_field", 0)
                             .entry("segments_with_deleted_docs", 0)
                             .entry("segments_collected", 0)
-                            .entry("segments_counted", 1)
+                            .entry("segments_counted", greaterThanOrEqualTo(1))
                             .entry(
                                 "filters",
                                 matchesList().item(
@@ -787,7 +788,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         matchesMap().entry("segments_with_doc_count_field", 0)
                             .entry("segments_with_deleted_docs", 0)
                             .entry("segments_collected", 0)
-                            .entry("segments_counted", 1)
+                            .entry("segments_counted", greaterThanOrEqualTo(1))
                             .entry(
                                 "filters",
                                 matchesList().item(
@@ -874,7 +875,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         "test",
                         matchesMap().entry("segments_with_doc_count_field", 0)
                             .entry("segments_with_deleted_docs", 0)
-                            .entry("segments_collected", 1)
+                            .entry("segments_collected", greaterThanOrEqualTo(1))
                             .entry("segments_counted", 0)
                             .entry(
                                 "filters",
@@ -952,7 +953,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         "test",
                         matchesMap().entry("segments_with_doc_count_field", 0)
                             .entry("segments_with_deleted_docs", 0)
-                            .entry("segments_collected", 1)
+                            .entry("segments_collected", greaterThanOrEqualTo(1))
                             .entry("segments_counted", 0)
                             .entry("filters", hasSize(2))
                     ).entry("test.s", matchesMap()).entry("test.m", matchesMap())
@@ -1033,7 +1034,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         "test",
                         matchesMap().entry("segments_with_doc_count_field", 0)
                             .entry("segments_with_deleted_docs", 0)
-                            .entry("segments_collected", 1)
+                            .entry("segments_collected", greaterThanOrEqualTo(1))
                             .entry("segments_counted", 0)
                             .entry("filters", hasSize(buckets.size()))
                     ).entry("test.s", matchesMap()).entry("test.m", matchesMap())

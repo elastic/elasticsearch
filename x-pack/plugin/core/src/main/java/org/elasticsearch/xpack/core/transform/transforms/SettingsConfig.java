@@ -100,7 +100,6 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > MultiBucketConsumerService.DEFAULT_MAX_BUCKETS)) {
             validationException = addValidationError(
-                            validationException = addValidationError(
                 "settings.max_page_search_size ["
                     + maxPageSearchSize
                     + "] is out of range. The minimum value is 10 and the maximum is "

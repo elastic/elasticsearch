@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -52,7 +52,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -65,7 +64,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -940,7 +938,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
-                        .subAggregation(dateHistogram("date_histo").field("value").interval(1)))
+                        .subAggregation(dateHistogram("date_histo").field("value").fixedInterval(DateHistogramInterval.HOUR)))
                 .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
@@ -1338,18 +1336,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         internalCluster().wipeIndices("test8209");
     }
 
-    /**
-     * see issue #9634, negative dateHistogramInterval in date_histogram should raise exception
-     */
-    public void testExceptionOnNegativeInterval() {
-        try {
-            client().prepareSearch("idx")
-                    .addAggregation(dateHistogram("histo").field("date").interval(-TimeUnit.DAYS.toMillis(1)).minDocCount(0)).get();
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.toString(), containsString("[interval] must be 1 or greater for aggregation [date_histogram]"));
-        }
-    }
+    // TODO: add some tests for negative fixed and calendar intervals
 
     /**
      * https://github.com/elastic/elasticsearch/issues/31760 shows an edge case where an unmapped "date" field in two indices
@@ -1365,7 +1352,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch(indexDateUnmapped)
                 .addAggregation(
-                        dateHistogram("histo").field("dateField").dateHistogramInterval(DateHistogramInterval.MONTH).format("yyyy-MM")
+                        dateHistogram("histo").field("dateField").calendarInterval(DateHistogramInterval.MONTH).format("yyyy-MM")
                                 .minDocCount(0).extendedBounds(new LongBounds("2018-01", "2018-01")))
                 .get();
         assertSearchResponse(response);
@@ -1591,7 +1578,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         //Search interval 24 hours
         SearchResponse r = client().prepareSearch("nanos")
             .addAggregation(dateHistogram("histo").field("date").
-                interval(1000 * 60 * 60 * 24).timeZone(ZoneId.of("Europe/Berlin")))
+                fixedInterval(DateHistogramInterval.seconds(60 * 60 * 24)).timeZone(ZoneId.of("Europe/Berlin")))
             .addDocValueField("date")
             .get();
         assertSearchResponse(r);
@@ -1606,7 +1593,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
         r = client().prepareSearch("nanos")
             .addAggregation(dateHistogram("histo").field("date")
-                .interval(1000 * 60 * 60 * 24).timeZone(ZoneId.of("UTC")))
+                .fixedInterval(DateHistogramInterval.seconds(60 * 60 * 24)).timeZone(ZoneId.of("UTC")))
             .addDocValueField("date")
             .get();
         assertSearchResponse(r);

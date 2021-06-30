@@ -65,7 +65,8 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named('splitPackagesAudit').configure {
     // o.e.plugins is owned by server, these shouldb be renamed to plugincli
-  ignoreClasses 'org.elasticsearch.plugins.InstallPluginCommand',
+  ignoreClasses 'org.elasticsearch.plugins.InstallPluginAction',
+    'org.elasticsearch.plugins.InstallPluginCommand',
     'org.elasticsearch.plugins.ListPluginsCommand',
     'org.elasticsearch.plugins.PluginCli',
     'org.elasticsearch.plugins.ProgressInputStream',

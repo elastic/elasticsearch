@@ -28,18 +28,18 @@ public class InstallLicensedPluginTests extends ESTestCase {
     public void testUnlicensedPlugin() throws Exception {
         MockTerminal terminal = new MockTerminal();
         PluginInfo pluginInfo = buildInfo(false);
-        InstallPluginCommand.checkCanInstallationProceed(terminal, Build.Flavor.OSS, pluginInfo);
+        InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.OSS, pluginInfo);
     }
 
     /**
      * Check that a licensed plugin cannot be installed on OSS.
      */
-    public void testInstallPluginCommandOnOss() throws Exception {
+    public void testInstallPluginActionOnOss() throws Exception {
         MockTerminal terminal = new MockTerminal();
         PluginInfo pluginInfo = buildInfo(true);
         final UserException userException = expectThrows(
             UserException.class,
-            () -> InstallPluginCommand.checkCanInstallationProceed(terminal, Build.Flavor.OSS, pluginInfo)
+            () -> InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.OSS, pluginInfo)
         );
 
         assertThat(userException.exitCode, equalTo(ExitCodes.NOPERM));
@@ -49,12 +49,12 @@ public class InstallLicensedPluginTests extends ESTestCase {
     /**
      * Check that a licensed plugin cannot be installed when the distribution type is unknown.
      */
-    public void testInstallPluginCommandOnUnknownDistribution() throws Exception {
+    public void testInstallPluginActionOnUnknownDistribution() throws Exception {
         MockTerminal terminal = new MockTerminal();
         PluginInfo pluginInfo = buildInfo(true);
         expectThrows(
             UserException.class,
-            () -> InstallPluginCommand.checkCanInstallationProceed(terminal, Build.Flavor.UNKNOWN, pluginInfo)
+            () -> InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.UNKNOWN, pluginInfo)
         );
         assertThat(terminal.getErrorOutput(), containsString("ERROR: This is a licensed plugin"));
     }
@@ -62,10 +62,10 @@ public class InstallLicensedPluginTests extends ESTestCase {
     /**
      * Check that a licensed plugin can be installed when the distribution type is default.
      */
-    public void testInstallPluginCommandOnDefault() throws Exception {
+    public void testInstallPluginActionOnDefault() throws Exception {
         MockTerminal terminal = new MockTerminal();
         PluginInfo pluginInfo = buildInfo(true);
-        InstallPluginCommand.checkCanInstallationProceed(terminal, Build.Flavor.DEFAULT, pluginInfo);
+        InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.DEFAULT, pluginInfo);
     }
 
     private PluginInfo buildInfo(boolean isLicensed) {

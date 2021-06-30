@@ -56,4 +56,3 @@ tasks.register("followClusterRestartTest", StandaloneRestIntegTestTask) {
 }
 
 tasks.named("check").configure { dependsOn "followClusterRestartTest" }
-//tasks.named("test").configure { enabled = false }

@@ -1052,13 +1052,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
-        Map<String, Object> responseMap = entityAsMap(client().performRequest(listSnapshotRequest));
-        Map<String, Object> snapResponse;
-        if (responseMap.get("responses") != null) {
-            snapResponse = (Map<String, Object>) ((List<Object>) responseMap.get("responses")).get(0);
-        } else {
-            snapResponse = responseMap;
-        }
+        Map<String, Object> snapResponse = entityAsMap(client().performRequest(listSnapshotRequest));
 
         assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", snapResponse));
         assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", snapResponse));

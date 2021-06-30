@@ -45,7 +45,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
 
         final String index = "test-index";
         client().admin().indices().prepareCreate(index)
-            .setMapping(mapping)
+            .addMapping("_doc", mapping)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
         ensureGreen(index);
@@ -58,7 +58,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .field("english_text", English.intToEnglish(value))
                 .field("value", value)
                 .endObject();
-            client().prepareIndex(index)
+            client().prepareIndex(index, "_doc")
                 .setId("id-" + i)
                 .setSource(doc)
                 .get();

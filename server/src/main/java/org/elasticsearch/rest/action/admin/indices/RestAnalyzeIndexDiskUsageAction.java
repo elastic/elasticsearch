@@ -40,6 +40,7 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -48,7 +49,7 @@ public class RestAnalyzeIndexDiskUsageAction extends BaseRestHandler {
 
     @Override
     public List<RestHandler.Route> routes() {
-        return List.of(new RestHandler.Route(POST, "/{index}/_disk_usage"));
+        return Collections.singletonList(new RestHandler.Route(POST, "/{index}/_disk_usage"));
     }
 
     @Override

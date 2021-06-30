@@ -209,7 +209,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=request_cache]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+`refresh`::
+(Optional, Boolean) If `true`, the request refreshes all shards involved in the
+query. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 

@@ -98,6 +98,7 @@ import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
+import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -301,7 +302,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
                 return Stream.concat(
-                        Stream.of(LocalStateCcr.class, CommonAnalysisPlugin.class),
+                        Stream.of(LocalStateCcr.class, CommonAnalysisPlugin.class, DataStreamsPlugin.class),
                         CcrIntegTestCase.this.nodePlugins().stream())
                         .collect(Collectors.toList());
             }

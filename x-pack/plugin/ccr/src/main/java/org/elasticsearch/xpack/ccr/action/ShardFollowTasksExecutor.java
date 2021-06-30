@@ -85,6 +85,7 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
 import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.extractLeaderShardHistoryUUIDs;
@@ -392,6 +393,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     } else {
                         final var request = new IndicesAliasesRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
                         request.origin("ccr");
+                        logger.info("adding [{}][{}] aliases to follower", aliasActions.stream()
+                            .flatMap(aliasActions1 -> Arrays.stream(aliasActions1.aliases())).collect(Collectors.toList()),
+                            aliasActions.stream()
+                                .flatMap(aliasActions1 -> Arrays.stream(aliasActions1.indices())).collect(Collectors.toList()));
                         aliasActions.forEach(request::addAliasAction);
                         followerClient.admin().indices().aliases(
                                 request,

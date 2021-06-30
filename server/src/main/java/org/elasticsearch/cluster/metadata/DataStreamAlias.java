@@ -235,4 +235,13 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
     public int hashCode() {
         return Objects.hash(name, dataStreams, writeDataStream);
     }
+
+    @Override
+    public String toString() {
+        return "DataStreamAlias{" +
+            "name='" + name + '\'' +
+            ", dataStreams=" + dataStreams +
+            ", writeDataStream='" + writeDataStream + '\'' +
+            '}';
+    }
 }

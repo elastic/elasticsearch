@@ -217,16 +217,14 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             merge(mapperService, mapping);
             DoubleScriptFieldType field = (DoubleScriptFieldType)mapperService.fieldType("field");
             assertEquals(NumberFieldMapper.NumberType.DOUBLE.typeName(), field.typeName());
-            LongScriptFieldType field2Updated = (LongScriptFieldType)mapperService.fieldType("field2");
-            assertSame(field2, field2Updated);
+            assertThat(mapperService.fieldType("field2"), instanceOf(LongScriptFieldType.class));
         }
         {
             String mapping = Strings.toString(mapping(builder -> builder.startObject("concrete").field("type", "keyword").endObject()));
             merge(mapperService, mapping);
             DoubleScriptFieldType field = (DoubleScriptFieldType)mapperService.fieldType("field");
             assertEquals(NumberFieldMapper.NumberType.DOUBLE.typeName(), field.typeName());
-            LongScriptFieldType field2Updated = (LongScriptFieldType)mapperService.fieldType("field2");
-            assertSame(field2, field2Updated);
+            assertThat(mapperService.fieldType("field2"), instanceOf(LongScriptFieldType.class));
             MappedFieldType concrete = mapperService.fieldType("concrete");
             assertThat(concrete, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         }

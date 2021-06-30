@@ -506,6 +506,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
             // This is safe as we know that ALL jobs are assigned at the current capacity
             .map(result -> {
                 AutoscalingCapacity capacity = ensureScaleDown(result.requiredCapacity(), context.currentCapacity());
+                if (capacity == null) {
+                    return null;
+                }
                 return new AutoscalingDeciderResult(capacity, result.reason());
             });
 

@@ -128,7 +128,8 @@ if (System.getProperty('idea.active') == 'true') {
               '--add-opens=java.base/java.net=ALL-UNNAMED',
               '--add-opens=java.base/javax.net.ssl=ALL-UNNAMED',
               '--add-opens=java.base/java.nio.file=ALL-UNNAMED',
-              '--add-opens=java.base/java.time=ALL-UNNAMED'
+              '--add-opens=java.base/java.time=ALL-UNNAMED',
+              '--add-opens=java.base/java.lang=ALL-UNNAMED'
             ].join(' ')
           }
         }

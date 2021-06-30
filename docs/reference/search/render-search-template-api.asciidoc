@@ -66,7 +66,7 @@ POST _render/template
 ==== {api-path-parms-title}
 
 `<template-id>`::
-(Optional, string) ID of the search template to render. If no `source` is
+(Required*, string) ID of the search template to render. If no `source` is
 specified, this or the `id` request body parameter is required.
 
 [[render-search-template-api-request-body]]

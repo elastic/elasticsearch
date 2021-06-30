@@ -218,7 +218,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
         @Override
         public CacheHelper getReaderCacheHelper() {
-            return null;
+            return getDelegate().getReaderCacheHelper();
         }
 
         @Override

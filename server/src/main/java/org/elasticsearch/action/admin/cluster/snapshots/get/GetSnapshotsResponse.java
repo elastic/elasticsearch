@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
@@ -37,7 +38,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     private static final ConstructingObjectParser<GetSnapshotsResponse, Void> GET_SNAPSHOT_PARSER = new ConstructingObjectParser<>(
         GetSnapshotsResponse.class.getName(),
         true,
-        (args) -> new GetSnapshotsResponse((List<SnapshotInfo>) args[0], (Map<String, ElasticsearchException>) args[1])
+        (args) -> new GetSnapshotsResponse((List<SnapshotInfo>) args[0], (Map<String, ElasticsearchException>) args[1], (String) args[2])
     );
 
     static {
@@ -51,15 +52,20 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             (p, c) -> p.map(HashMap::new, ElasticsearchException::fromXContent),
             new ParseField("failures")
         );
+        GET_SNAPSHOT_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("next"));
     }
 
     private final List<SnapshotInfo> snapshots;
 
     private final Map<String, ElasticsearchException> failures;
 
-    public GetSnapshotsResponse(List<SnapshotInfo> snapshots, Map<String, ElasticsearchException> failures) {
+    @Nullable
+    private final String next;
+
+    public GetSnapshotsResponse(List<SnapshotInfo> snapshots, Map<String, ElasticsearchException> failures, @Nullable String next) {
         this.snapshots = List.copyOf(snapshots);
         this.failures = failures == null ? Map.of() : Map.copyOf(failures);
+        this.next = next;
     }
 
     public GetSnapshotsResponse(StreamInput in) throws IOException {
@@ -67,8 +73,10 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         if (in.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             final Map<String, ElasticsearchException> failedResponses = in.readMap(StreamInput::readString, StreamInput::readException);
             this.failures = Collections.unmodifiableMap(failedResponses);
+            this.next = in.readOptionalString();
         } else {
             this.failures = Collections.emptyMap();
+            this.next = null;
         }
     }
 
@@ -88,6 +96,11 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         return failures;
     }
 
+    @Nullable
+    public String next() {
+        return next;
+    }
+
     /**
      * Returns true if there is a least one failed response.
      */
@@ -100,6 +113,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         out.writeList(snapshots);
         if (out.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             out.writeMap(failures, StreamOutput::writeString, StreamOutput::writeException);
+            out.writeOptionalString(next);
         } else {
             if (failures.isEmpty() == false) {
                 assert false : "transport action should have thrown directly for old version but saw " + failures;
@@ -128,6 +142,9 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             }
             builder.endObject();
         }
+        if (next != null) {
+            builder.field("next", next);
+        }
         builder.endObject();
         return builder;
     }
@@ -141,12 +158,12 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetSnapshotsResponse that = (GetSnapshotsResponse) o;
-        return Objects.equals(snapshots, that.snapshots) && Objects.equals(failures, that.failures);
+        return Objects.equals(snapshots, that.snapshots) && Objects.equals(failures, that.failures) && Objects.equals(next, that.next);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshots, failures);
+        return Objects.hash(snapshots, failures, next);
     }
 
     @Override

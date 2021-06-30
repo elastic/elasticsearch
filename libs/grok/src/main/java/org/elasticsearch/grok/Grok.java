@@ -105,7 +105,21 @@ public final class Grok {
      * check for a circular reference.
      */
     private void forbidCircularReferences(String patternName, List<String> path, String pattern) {
-        if (pattern.contains("%{" + patternName + "}") || pattern.contains("%{" + patternName + ":")) {
+        // first ensure that the pattern bank contains no simple circular references (i.e., any pattern
+        // containing an immediate reference to itself) as those can cause the remainder of this algorithm
+        // to recurse infinitely
+        for (Map.Entry<String, String> entry : patternBank.entrySet()) {
+            if (patternReferencesItself(entry.getValue(), entry.getKey())) {
+                throw new IllegalArgumentException("circular reference in pattern [" + entry.getKey() + "][" + entry.getValue() + "]");
+            }
+        }
+
+        // next recursively check any other pattern names referenced in the pattern
+        innerForbidCircularReferences(patternName, path, pattern);
+    }
+
+    private void innerForbidCircularReferences(String patternName, List<String> path, String pattern) {
+        if (patternReferencesItself(pattern, patternName)) {
             String message;
             if (path.isEmpty()) {
                 message = "circular reference in pattern [" + patternName + "][" + pattern + "]";
@@ -120,17 +134,18 @@ public final class Grok {
             throw new IllegalArgumentException(message);
         }
 
+        // next check any other pattern names found in the pattern
         for (int i = pattern.indexOf("%{"); i != -1; i = pattern.indexOf("%{", i + 1)) {
             int begin = i + 2;
-            int brackedIndex = pattern.indexOf('}', begin);
+            int bracketIndex = pattern.indexOf('}', begin);
             int columnIndex = pattern.indexOf(':', begin);
             int end;
-            if (brackedIndex != -1 && columnIndex == -1) {
-                end = brackedIndex;
-            } else if (columnIndex != -1 && brackedIndex == -1) {
+            if (bracketIndex != -1 && columnIndex == -1) {
+                end = bracketIndex;
+            } else if (columnIndex != -1 && bracketIndex == -1) {
                 end = columnIndex;
-            } else if (brackedIndex != -1 && columnIndex != -1) {
-                end = Math.min(brackedIndex, columnIndex);
+            } else if (bracketIndex != -1 && columnIndex != -1) {
+                end = Math.min(bracketIndex, columnIndex);
             } else {
                 throw new IllegalArgumentException("pattern [" + pattern + "] has circular references to other pattern definitions");
             }
@@ -138,6 +153,10 @@ public final class Grok {
             path.add(otherPatternName);
             forbidCircularReferences(patternName, path, patternBank.get(otherPatternName));
         }
+    }
+
+    private static boolean patternReferencesItself(String pattern, String patternName) {
+        return pattern.contains("%{" + patternName + "}") || pattern.contains("%{" + patternName + ":");
     }
 
     private String groupMatch(String name, Region region, String pattern) {

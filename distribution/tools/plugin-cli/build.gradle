@@ -17,7 +17,6 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  api "org.yaml:snakeyaml:${versions.snakeyaml}"
   api "org.bouncycastle:bcpg-fips:1.0.4"
   api "org.bouncycastle:bc-fips:1.0.2"
   testImplementation project(":test:framework")

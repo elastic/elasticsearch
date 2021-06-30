@@ -839,6 +839,7 @@ public class InstallPluginActionTests extends ESTestCase {
         skipJarHellAction.execute(List.of(pluginZip));
     }
 
+    @SuppressForbidden(reason = "Path.of() is OK in this context")
     void assertInstallPluginFromUrl(
         final String pluginId,
         final String name,

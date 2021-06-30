@@ -207,7 +207,7 @@ allprojects {
       }
     }
   }
-  
+
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
     configs = project.configurations
     if (project.path.contains("fixture")) {

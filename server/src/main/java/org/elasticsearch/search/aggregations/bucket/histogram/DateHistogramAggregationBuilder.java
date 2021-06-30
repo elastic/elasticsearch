@@ -161,25 +161,12 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         }
     }
 
-    /** Get the current interval in milliseconds that is set on this builder. */
-    @Deprecated
-    public long interval() {
-        return dateHistogramInterval.interval();
-    }
-
     /** Get the current date interval that is set on this builder. */
     @Deprecated
     public DateHistogramInterval dateHistogramInterval() {
        return dateHistogramInterval.dateHistogramInterval();
     }
 
-    /** Set the interval on this builder, and return the builder so that calls can be chained.
-     *  If both {@link #interval()} and {@link #dateHistogramInterval()} are set, then the
-     *  {@link #dateHistogramInterval()} wins.
-     *
-     *  @deprecated use {@link #fixedInterval(DateHistogramInterval)} or {@link #calendarInterval(DateHistogramInterval)} instead
-     *  @since 7.2.0
-     */
     @Deprecated
     public DateHistogramAggregationBuilder dateHistogramInterval(DateHistogramInterval interval) {
         dateHistogramInterval.dateHistogramInterval(interval);

@@ -143,14 +143,6 @@ public class DateHistogramValuesSourceBuilder
     }
 
     /**
-     * Returns the interval in milliseconds that is set on this source
-     **/
-    @Deprecated
-    public long interval() {
-        return dateHistogramInterval.interval();
-    }
-
-    /**
      * Returns the date interval that is set on this source
      **/
     @Deprecated

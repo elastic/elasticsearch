@@ -21,7 +21,5 @@ public interface DateIntervalConsumer<T> {
     T fixedInterval(DateHistogramInterval interval);
 
     @Deprecated
-    long interval();
-    @Deprecated
     DateHistogramInterval dateHistogramInterval();
 }

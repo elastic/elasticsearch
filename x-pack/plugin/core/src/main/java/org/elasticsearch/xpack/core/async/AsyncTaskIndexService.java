@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.async;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -46,6 +47,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -69,6 +72,7 @@ import java.util.function.Function;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.search.SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
 /**
@@ -130,6 +134,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final Writeable.Reader<R> reader;
     private final BigArrays bigArrays;
     private final CircuitBreaker circuitBreaker;
+    private volatile long maxResponseSize;
 
     public AsyncTaskIndexService(String index,
                                  ClusterService clusterService,
@@ -148,6 +153,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         this.reader = reader;
         this.bigArrays = bigArrays;
         this.circuitBreaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        this.maxResponseSize = MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(
+            MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING, (v) -> maxResponseSize = v.getBytes());
     }
 
     /**
@@ -202,8 +210,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     /**
      * Stores the initial response with the original headers of the authenticated user
      * and the expected expiration time.
+     * Currently for EQL we don't set limit for a stored async response
+     * TODO: add limit for stored async response in EQL, and instead of this method use createResponse
      */
-    public void createResponse(String docId,
+    public void createResponseForEQL(String docId,
                                Map<String, String> headers,
                                R response,
                                ActionListener<IndexResponse> outerListener) throws IOException {
@@ -211,7 +221,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             try {
                 final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
                 final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
-                listener = ActionListener.runBefore(listener, source::close);
+                listener = ActionListener.runBefore(listener, buffer::close);
                 source
                     .startObject()
                     .field(HEADERS_FIELD, headers)
@@ -233,17 +243,62 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     /**
+     * Stores the initial response with the original headers of the authenticated user
+     * and the expected expiration time.
+     */
+    public void createResponse(String docId,
+                               Map<String, String> headers,
+                               R response,
+                               ActionListener<IndexResponse> outerListener) throws IOException {
+        createIndexIfNecessary(outerListener.delegateFailure((listener, ignored) -> {
+            try {
+                final ReleasableBytesStreamOutput buffer = maxResponseSize > -1 ?
+                    new ReleasableBytesStreamOutputWithLimit(0, bigArrays.withCircuitBreaking(), maxResponseSize) :
+                    new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+                final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
+                listener = ActionListener.runBefore(listener, buffer::close);
+                source
+                    .startObject()
+                    .field(HEADERS_FIELD, headers)
+                    .field(EXPIRATION_TIME_FIELD, response.getExpirationTime())
+                    .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
+                    .endObject();
+                // do not close the buffer or the XContentBuilder until the IndexRequest is completed (i.e., listener is notified);
+                // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
+                source.flush();
+                final IndexRequest indexRequest = new IndexRequest(index)
+                    .create(true)
+                    .id(docId)
+                    .source(buffer.bytes(), source.contentType());
+                clientWithOrigin.index(indexRequest, listener);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        }));
+    }
+
+    public void updateResponse(String docId,
+                               Map<String, List<String>> responseHeaders,
+                               R response,
+                               ActionListener<UpdateResponse> listener) {
+        updateResponse(docId, responseHeaders, response, listener, false);
+    }
+
+    /**
      * Stores the final response if the place-holder document is still present (update).
      */
     public void updateResponse(String docId,
-                            Map<String, List<String>> responseHeaders,
-                            R response,
-                            ActionListener<UpdateResponse> outerListener) {
+                Map<String, List<String>> responseHeaders,
+                R response,
+                ActionListener<UpdateResponse> outerListener,
+                boolean isFailure) {
         createIndexIfNecessary(outerListener.delegateFailure((listener, ignored) -> {
             try {
-                final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+                final ReleasableBytesStreamOutput buffer = (isFailure == false) && (maxResponseSize > -1) ?
+                    new ReleasableBytesStreamOutputWithLimit(0, bigArrays.withCircuitBreaking(), maxResponseSize) :
+                    new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
                 final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
-                listener = ActionListener.runBefore(listener, source::close);
+                listener = ActionListener.runBefore(listener, buffer::close);
                 source
                     .startObject()
                     .field(RESPONSE_HEADERS_FIELD, responseHeaders)
@@ -259,9 +314,41 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                     .retryOnConflict(5);
                 clientWithOrigin.update(request, listener);
             } catch (Exception e) {
-                listener.onFailure(e);
+                // even if we expect updating with a failure always succeed
+                // this is just an extra precaution not to create infinite loops
+                if (isFailure) {
+                    listener.onFailure(e);
+                } else {
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof DocumentMissingException == false && cause instanceof VersionConflictEngineException == false) {
+                        logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", docId), e);
+                        ActionListener<UpdateResponse> newListener = listener;
+                        updateStoredResponseWithFailure(
+                            docId,
+                            responseHeaders,
+                            response,
+                            e,
+                            // at end, we should report a failure to the listener
+                            ActionListener.wrap(() -> newListener.onFailure(e))
+                        );
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
             }
         }));
+    }
+
+    /**
+     * Update the initial stored response with a failure
+     */
+    private void updateStoredResponseWithFailure(String docId,
+                                                 Map<String, List<String>> responseHeaders,
+                                                 R response,
+                                                 Exception updateException,
+                                                 ActionListener<UpdateResponse> listener) {
+        R failureResponse = response.convertToFailure(updateException);
+        updateResponse(docId, responseHeaders, failureResponse, listener, true);
     }
 
     /**
@@ -544,6 +631,24 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             for (String value : entry.getValue()) {
                 threadContext.addResponseHeader(entry.getKey(), value);
             }
+        }
+    }
+
+    private static class ReleasableBytesStreamOutputWithLimit extends ReleasableBytesStreamOutput {
+        private final long limit;
+
+        ReleasableBytesStreamOutputWithLimit(int expectedSize, BigArrays bigArrays, long limit) {
+            super(expectedSize, bigArrays);
+            this.limit = limit;
+        }
+
+        @Override
+        protected void ensureCapacity(long offset) {
+            if (offset > limit) {
+                throw new IllegalArgumentException("Can't store an async search response larger than [" + limit + "] bytes. " +
+                    "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting.");
+            }
+            super.ensureCapacity(offset);
         }
     }
 }

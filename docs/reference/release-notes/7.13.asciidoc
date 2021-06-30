@@ -89,10 +89,10 @@ problem, prevent concurrent snapshot operations by setting
 This issue is fixed in {es} versions 7.13.1 and later. For more details, see
 {es-issue}73456[#73456].
 
-* When using the Field Capabilities API with CCS in 7.13 and local and remote 
-clusters are on an different patch release, response serialization will fail for 
-requests that hit the remote cluster. Since Kibana uses this API internally, 
-this will break requests to CCS index patterns.
+* If local and remote clusters are on different patch releases, response
+serialization fails for requests to a remote cluster that use the
+<<search-field-caps,field capabilities API>> with CCS. Because {kib} uses this
+API internally, requests to CCS index patterns will also fail.
 +
 This issue is fixed in {es} version 7.13.3 and later. For more details, see
 {es-issue}74504[#74504].
@@ -388,4 +388,3 @@ Search::
 Transforms::
 * Fix bug where group_by ordering could break when serializing between nodes {es-pull}72016[#72016]
 * Avoid transform failure during rolling upgrade {es-pull}72533[#72533]
-

@@ -160,6 +160,11 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     }
 
     @Override
+    public boolean allowsRemoteIndices() {
+        return true;
+    }
+
+    @Override
     public boolean includeDataStreams() {
         return true;
     }

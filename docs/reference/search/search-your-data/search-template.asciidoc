@@ -25,6 +25,9 @@ replaces these variables with values from `params`.
 
 Search templates must use a `lang` of `mustache`.
 
+The following request creates a search template with an `id` of
+`my-search-template`.
+
 [source,console]
 ----
 PUT _scripts/my-search-template

@@ -1094,8 +1094,9 @@ public class OptimizerTests extends ESTestCase {
         Sum sum = new Sum(EMPTY, fa);
 
         Alias sumAlias = new Alias(EMPTY, "sum", sum);
+        EsRelation from = new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false);
 
-        Aggregate aggregate = new Aggregate(EMPTY, FROM(), emptyList(), asList(sumAlias));
+        Aggregate aggregate = new Aggregate(EMPTY, from, emptyList(), asList(sumAlias));
         LogicalPlan optimizedPlan = new Optimizer().optimize(aggregate);
         assertTrue(optimizedPlan instanceof Aggregate);
         Aggregate p = (Aggregate) optimizedPlan;
@@ -1138,10 +1139,6 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(sumAlias, p.aggregates().get(0));
     }
 
-    //
-    // SkipQueryIfFoldingProjection
-    //
-
     public void testPushProjectionsIntoLocalRelations() {
         // SELECT TRUE as a
         Project plan = new Project(EMPTY,
@@ -1183,5 +1180,6 @@ public class OptimizerTests extends ESTestCase {
             assertEquals(EsRelation.class, l.getClass());
         });
     }
+
 
 }

@@ -41,9 +41,9 @@ gradlePlugin {
             id = 'elasticsearch.licensing'
             implementationClass = 'org.elasticsearch.gradle.internal.conventions.LicensingPlugin'
         }
-        basics {
-            id = 'elasticsearch.basic-build-tool-conventions'
-            implementationClass = 'org.elasticsearch.gradle.internal.conventions.BasicBuildToolConventionsPlugin'
+        buildTools {
+            id = 'elasticsearch.build-tools'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.BuildToolsConventionsPlugin'
         }
     }
 }

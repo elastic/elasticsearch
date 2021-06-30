@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -130,7 +131,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceReferenceAttributeWithSource()
                 );
 
-        Batch pdFilters = new Batch("Push down filters",
+        Batch pushDownFilters = new Batch("Push down filters",
                 // must happen in a batch before ReplaceAggregationsOnLocalRelations
                 new PushDownAndCombineFilters());
 
@@ -155,7 +156,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new CombineDisjunctionsToIn(),
                 new SimplifyComparisonsArithmetics(SqlDataTypes::areCompatible),
                 // prune/elimination
-                new PruneLiteralsInGroupBy(),
                 new PruneDuplicatesInGroupBy(),
                 new PruneFilters(),
                 new PruneOrderByForImplicitGrouping(),
@@ -179,15 +179,18 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         Batch local = new Batch("Skip Elasticsearch",
                 new SkipQueryOnLimitZero(),
+                new SkipQueryForOnlyConstantAggregations(),
                 new PushProjectionsIntoLocalRelation(),
-                new SkipQueryForOnlyConstantAggregations()
+                // must run after `PushProjectionsIntoLocalRelation` because it removes the the distinction between implicit
+                // and explicit groupings
+                new PruneLiteralsInGroupBy()
                 );
 
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
                 CleanAliases.INSTANCE,
                 new SetAsOptimized());
 
-        return Arrays.asList(substitutions, refs, pdFilters, operators, aggregate, local, label);
+        return Arrays.asList(substitutions, refs, pushDownFilters, operators, aggregate, local, label);
     }
 
     static class RewritePivot extends OptimizerRule<Pivot> {
@@ -272,7 +275,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
             }
 
-            // everything was eliminated, the grouping
             if (prunedGroupings.size() > 0) {
                 List<Expression> newGroupings = new ArrayList<>(groupings);
                 newGroupings.removeAll(prunedGroupings);
@@ -846,6 +848,49 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+    static class ReplaceAggregationsInLocalRelations extends OptimizerRule<UnaryPlan> {
+
+        @Override
+        protected LogicalPlan rule(UnaryPlan plan) {
+            if (plan instanceof Aggregate || plan instanceof Filter) {
+                // This optimization is only correct if `plan` has a LocalRelation descendant that is not filtered.
+                // Because PushDownAndCombineFilters might push down filters to become descendants of `plan`, this optimization
+                // must never run before PushDownAndCombineFilters.
+                LocalRelation relation = unfilteredLocalRelation(plan.child());
+                if (relation != null) {
+                    long count = (relation.executable() instanceof EmptyExecutable ? 0L : 1L);
+
+                    return plan.transformExpressionsDown(AggregateFunction.class, aggregateFunction -> {
+                        if (aggregateFunction instanceof Count) {
+                            return new Literal(Source.EMPTY, count, DataTypes.LONG);
+                        } else if (count == 0) {
+                            return new Literal(Source.EMPTY, null, aggregateFunction.dataType());
+                        } else {
+                            // note, most aggregation functions have already been substituted by something like
+                            // IIF(COUNT(1) == 0, literal, literal) in ReplaceAggregatesWithLiterals
+                            return aggregateFunction;
+                        }
+                    });
+                }
+            }
+
+            return plan;
+        }
+
+        private LocalRelation unfilteredLocalRelation(LogicalPlan plan) {
+            List<LogicalPlan> filterOrRelations = plan.collectFirstChildren(p -> p instanceof Filter || p instanceof LocalRelation);
+
+            if (filterOrRelations.size() == 1) {
+                LogicalPlan filterOrRelation = filterOrRelations.get(0);
+                if (filterOrRelation instanceof LocalRelation) {
+                    return (LocalRelation) filterOrRelation;
+                }
+            }
+            return null;
+        }
+
+    }
+
     static class ReplaceAggsWithMatrixStats extends OptimizerBasicRule {
 
         @Override
@@ -1136,54 +1181,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         return new LocalRelation(plan.source(), new EmptyExecutable(plan.output()));
     }
 
-    static class ReplaceAggregationsInLocalRelations extends OptimizerRule<UnaryPlan> {
-
-        @Override
-        protected LogicalPlan rule(UnaryPlan plan) {
-            if (plan instanceof Aggregate || plan instanceof Filter) {
-                // This optimization is only correct if `plan` has a LocalRelation descendant that is not filtered.
-                // Because PushDownAndCombineFilters might push down filters to become descendants of `plan`, this optimization
-                // must never run before PushDownAndCombineFilters.
-                LocalRelation relation = unfilteredLocalRelation(plan.child());
-                if (relation != null) {
-                    long count = (relation.executable() instanceof EmptyExecutable ? 0L : 1L);
-
-                    return plan.transformExpressionsDown(AggregateFunction.class, aggregateFunction -> {
-                        if (aggregateFunction instanceof Count) {
-                            return new Literal(Source.EMPTY, count, DataTypes.LONG);
-                        } else if (count == 0) {
-                            return new Literal(Source.EMPTY, null, aggregateFunction.dataType());
-                        } else {
-                            // note, most aggregation functions have already been substituted by something like
-                            // IIF(COUNT(1) == 0, literal, literal) in ReplaceAggregatesWithLiterals
-                            return aggregateFunction;
-                        }
-                    });
-                }
-            }
-
-            return plan;
-        }
-
-        private LocalRelation unfilteredLocalRelation(LogicalPlan plan) {
-            List<LogicalPlan> filterOrRelations = plan.collectFirstChildren(p -> p instanceof Filter || p instanceof LocalRelation);
-
-            if (filterOrRelations.size() == 1) {
-                LogicalPlan filterOrRelation = filterOrRelations.get(0);
-                if (filterOrRelation instanceof LocalRelation) {
-                    return (LocalRelation) filterOrRelation;
-                }
-            }
-            return null;
-        }
-
-    }
-
     static class PushProjectionsIntoLocalRelation extends OptimizerRule<UnaryPlan> {
 
         @Override
         protected LogicalPlan rule(UnaryPlan plan) {
-            if((plan instanceof Project || plan instanceof Aggregate) && plan.child() instanceof LocalRelation) {
+            if((plan instanceof Project || plan instanceof Aggregate)
+                && plan.child() instanceof LocalRelation) {
+
                 LocalRelation relation = (LocalRelation) plan.child();
 
                 List<Object> foldedValues = null;
@@ -1195,12 +1199,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         foldedValues = extractConstants(((Aggregate)plan).aggregates());
                     }
                 } else if (relation.executable() instanceof EmptyExecutable) {
-                    // Implicit aggregations on empty relations must produce a singleton result set with the aggregation results
-                    // E.g. `SELECT COUNT(*) WHERE FALSE`
                     if (plan instanceof Aggregate) {
                         Aggregate agg = (Aggregate) plan;
                         if (agg.groupings().isEmpty()) {
+                            // Implicit groupings on empty relations must produce a singleton result set with the aggregation results
+                            // E.g. `SELECT COUNT(*) WHERE FALSE`
                             foldedValues = extractConstants(agg.aggregates());
+                        } else {
+                            // Explicit groupings on empty relations like `SELECT 'a' WHERE FALSE GROUP BY 1`
+                            return new LocalRelation(plan.source(), new EmptyExecutable(plan.output()));
                         }
                     }
                 }
@@ -1214,46 +1221,52 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return plan;
         }
 
+        private List<Object> extractConstants(List<? extends NamedExpression> named) {
+            List<Object> values = new ArrayList<>();
+            for (NamedExpression n : named) {
+                if (n instanceof Alias) {
+                    Alias a = (Alias) n;
+                    if (a.child().foldable()) {
+                        values.add(a.child().fold());
+                    }
+                    // not everything is foldable, bail out early
+                    else {
+                        return null;
+                    }
+                } else if (n.foldable()) {
+                    values.add(n.fold());
+                } else {
+                    // not everything is foldable, bail-out early
+                    return null;
+                }
+            }
+            return values;
+        }
+
     }
 
     static class SkipQueryForOnlyConstantAggregations extends OptimizerRule<Aggregate> {
 
         @Override
         protected LogicalPlan rule(Aggregate plan) {
-            if(plan.groupings().isEmpty()) {
-                List<Object> foldedValues = extractConstants(plan.aggregates());
+            if (plan.groupings().isEmpty()
+                && plan.child() instanceof EsRelation
+                && plan.aggregates().stream().allMatch(this::foldable)) {
 
-                if (foldedValues != null) {
-                    return new LocalRelation(plan.source(),
-                        new SingletonExecutable(plan.output(), foldedValues.toArray()));
-                }
+                return plan.replaceChildrenSameSize(singletonList(new LocalRelation(plan.source(), new SingletonExecutable())));
             }
 
             return plan;
         }
 
-    }
-
-    private static List<Object> extractConstants(List<? extends Expression> expressions) {
-        List<Object> values = new ArrayList<>();
-        for (Expression e : expressions) {
-            if (e instanceof Alias) {
-                Alias a = (Alias) e;
-                if (a.child().foldable()) {
-                    values.add(a.child().fold());
-                }
-                // not everything is foldable, bail out early
-                else {
-                    return null;
-                }
-            } else if (e.foldable()) {
-                values.add(e.fold());
+        private boolean foldable(Expression e) {
+            if(e instanceof Alias){
+                return foldable(((Alias) e).child());
             } else {
-                // not everything is foldable, bail-out early
-                return null;
+                return e.foldable();
             }
         }
-        return values;
+
     }
 
     abstract static class OptimizerBasicRule extends Rule<LogicalPlan, LogicalPlan> {

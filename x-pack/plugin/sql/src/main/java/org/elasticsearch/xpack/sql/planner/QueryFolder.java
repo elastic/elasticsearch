@@ -124,8 +124,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 );
 
         Batch local = new Batch("Local queries",
-                new PropagateEmptyLocal(),
-                new LocalLimit()
+                new LocalLimit(),
+                new PropagateEmptyLocal()
                 );
 
         Batch finish = new Batch("Finish query", Limiter.ONCE,

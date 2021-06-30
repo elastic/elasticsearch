@@ -1,0 +1,112 @@
+---
+setup:
+  - skip:
+      version: " - 7.99.99"
+      reason: analyze index disk usage API is introduced in 8.0
+
+---
+"Disk usage stats":
+  - do:
+      indices.create:
+        index: testindex
+        body:
+          mappings:
+            properties:
+              name:
+                type: text
+              quantity:
+                type: long
+                doc_values: false
+              genre:
+                type: keyword
+                doc_values: true
+  - do:
+      index:
+        index: testindex
+        body: { "name": "foo", "quantity": 0, "genre": [ "rock", "pop" ] }
+  - do:
+      index:
+        index: testindex
+        body: { "name": "bar", "quantity": 99, "genre": "pop" }
+  - do:
+      index:
+        index: testindex
+        body: { "name": "baz", "quantity": 50, "genre": "jazz" }
+  - do:
+      index:
+        index: testindex
+        body: { "name": "bar & baz", "quantity": 1000, "genre": "blue" }
+  - do:
+      index:
+        index: testindex
+        body: { "name": "foobar", "quantity": 1000, "genre": "country" }
+  - do:
+      indices.disk_usage: { index: "testindex", "run_expensive_tasks": true }
+
+  - gt: { testindex.store_size_in_bytes: 100 }
+  # all_fields
+  - set: { testindex.all_fields: all }
+  - gt: { $all.total_in_bytes: 0 }
+  - gt: { $all.inverted_index.total_in_bytes: 0 }
+  - gt: { $all.stored_fields_in_bytes: 0 }
+  - gt: { $all.doc_values_in_bytes: 0 }
+  - gt: { $all.points_in_bytes: 0 }
+  - match: { $all.term_vectors_in_bytes: 0 }
+
+  # genre
+  - set: { testindex.fields.genre: genre }
+  - gt: { $genre.total_in_bytes: 0 }
+  - gt: { $genre.inverted_index.total_in_bytes: 0 }
+  - match: { $genre.stored_fields_in_bytes: 0 }
+  - gt: { $genre.doc_values_in_bytes: 0 }
+  - match: { $genre.points_in_bytes: 0 }
+  - match: { $genre.norms_in_bytes: 0 }
+  - match: { $genre.term_vectors_in_bytes: 0 }
+
+  # name
+  - set: { testindex.fields.name: name }
+  - gt: { $name.total_in_bytes: 0 }
+  - gt: { $name.inverted_index.total_in_bytes: 0 }
+  - match: { $name.stored_fields_in_bytes: 0 }
+  - match: { $name.doc_values_in_bytes: 0 }
+  - match: { $name.points_in_bytes: 0 }
+  - match: { $name.term_vectors_in_bytes: 0 }
+
+  # quantity
+  - set: { testindex.fields.quantity: quantity }
+  - gt: { $quantity.total_in_bytes: 0 }
+  - match: { $quantity.inverted_index.total_in_bytes: 0 }
+  - match: { $quantity.stored_fields_in_bytes: 0 }
+  - match: { $quantity.doc_values_in_bytes: 0 }
+  - gt: { $quantity.points_in_bytes: 0 }
+  - match: { $quantity.norms_in_bytes: 0 }
+  - match: { $quantity.term_vectors_in_bytes: 0 }
+
+  # _source
+  - set: { testindex.fields._source: source }
+  - gt: { $source.total_in_bytes: 0 }
+  - match: { $source.inverted_index.total_in_bytes: 0 }
+  - gt: { $source.stored_fields_in_bytes: 0 }
+  - match: { $source.doc_values_in_bytes: 0 }
+  - match: { $source.points_in_bytes: 0 }
+  - match: { $source.norms_in_bytes: 0 }
+  - match: { $source.term_vectors_in_bytes: 0 }
+
+  # _id
+  - set: { testindex.fields._id: id }
+  - gt: { $id.total_in_bytes: 0 }
+  - gt: { $id.inverted_index.total_in_bytes: 0 }
+  - gt: { $id.stored_fields_in_bytes: 0 }
+  - match: { $id.doc_values_in_bytes: 0 }
+  - match: { $id.points_in_bytes: 0 }
+  - match: { $id.norms_in_bytes: 0 }
+  - match: { $id.term_vectors_in_bytes: 0 }
+
+  # _seq_no
+  - set: { testindex.fields._seq_no: seqno }
+  - gt: { $seqno.total_in_bytes: 0 }
+  - match: { $seqno.inverted_index.total_in_bytes: 0 }
+  - match: { $seqno.stored_fields_in_bytes: 0 }
+  - gt: { $seqno.points_in_bytes: 0 }
+  - match: { $seqno.norms_in_bytes: 0 }
+  - match: { $seqno.term_vectors_in_bytes: 0 }

@@ -711,7 +711,6 @@ PUT /_cluster/settings
 }
 -----------------------------------------------
 
-
 Alternatively, you can add the following lines to the end of the
 `log4j2.properties` configuration file in the `ES_PATH_CONF`:
 
@@ -720,6 +719,8 @@ Alternatively, you can add the following lines to the end of the
 logger.saml.name = org.elasticsearch.xpack.security.authc.saml
 logger.saml.level = DEBUG
 ----------------
+
+See <<configuring-logging-levels,configuring logging levels>> for more information.
 
 [[trb-security-internalserver]]
 === Internal Server Error in Kibana

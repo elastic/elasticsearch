@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -59,6 +60,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -582,18 +584,28 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     private void writeResponse(R response, OutputStream os) throws IOException {
+        os = new FilterOutputStream(os) {
+            @Override
+            public void close() {
+                // do not close the output
+            }
+        };
         final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
-        final OutputStreamStreamOutput out = new OutputStreamStreamOutput(os);
-        out.setVersion(minNodeVersion);
-        Version.writeVersion(minNodeVersion, out);
-        response.writeTo(out);
+        Version.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
+        if (minNodeVersion.onOrAfter(Version.V_8_0_0)) {
+            os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
+        }
+        try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
+            out.setVersion(minNodeVersion);
+            response.writeTo(out);
+        }
     }
 
     /**
      * Decode the provided base-64 bytes into a {@link AsyncSearchResponse}.
      */
     private R decodeResponse(CharBuffer encodedBuffer) throws IOException {
-        final InputStream encodedIn = Base64.getDecoder().wrap(new InputStream() {
+        InputStream encodedIn = Base64.getDecoder().wrap(new InputStream() {
             @Override
             public int read() {
                 if (encodedBuffer.hasRemaining()) {
@@ -603,9 +615,12 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 }
             }
         });
+        final Version version = Version.readVersion(new InputStreamStreamInput(encodedIn));
+        assert version.onOrBefore(Version.CURRENT) : version + " >= " + Version.CURRENT;
+        if (version.onOrAfter(Version.V_8_0_0)) {
+            encodedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(encodedIn);
+        }
         try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), registry)) {
-            final Version version = Version.readVersion(in);
-            assert version.onOrBefore(Version.CURRENT) : version + " >= " + Version.CURRENT;
             in.setVersion(version);
             return reader.read(in);
         }

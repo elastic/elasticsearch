@@ -305,47 +305,48 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testMaxAsyncSearchResponseSize() throws Exception {
-        // successfully create an initial response
-        AsyncExecutionId executionId1 = new AsyncExecutionId(Long.toString(randomNonNegativeLong()),
-            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
-        TestAsyncResponse initialResponse = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
-        PlainActionFuture<IndexResponse> createFuture1 = new PlainActionFuture<>();
-        indexService.createResponse(executionId1.getDocId(), Map.of(), initialResponse, createFuture1);
-        createFuture1.actionGet();
+        try {
+            // successfully create an initial response
+            AsyncExecutionId executionId1 = new AsyncExecutionId(Long.toString(randomNonNegativeLong()),
+                new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
+            TestAsyncResponse initialResponse = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
+            PlainActionFuture<IndexResponse> createFuture1 = new PlainActionFuture<>();
+            indexService.createResponse(executionId1.getDocId(), Map.of(), initialResponse, createFuture1);
+            createFuture1.actionGet();
 
-        // setting very small limit for the max size of async search response
-        int limit = randomIntBetween(1, 125);
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", limit + "b"));
-        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
-        String expectedErrMsg = "Can't store an async search response larger than ["+ limit + "] bytes. " +
-            "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting.";
+            // setting very small limit for the max size of async search response
+            int limit = randomIntBetween(1, 125);
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", limit + "b"));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            String expectedErrMsg = "Can't store an async search response larger than [" + limit + "] bytes. " +
+                "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting.";
 
-        // test that an update operation of the initial response fails
-        PlainActionFuture<UpdateResponse> updateFuture = new PlainActionFuture<>();
-        TestAsyncResponse updateResponse = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
-        indexService.updateResponse(executionId1.getDocId(), Map.of(), updateResponse, updateFuture);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, updateFuture::actionGet);
-        assertEquals(expectedErrMsg, e.getMessage());
-        assertEquals(0, e.getSuppressed().length); // no other suppressed exceptions
-        // test that the inital response is overwritten with a failure
-        PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
-        indexService.getResponse(executionId1, randomBoolean(), getFuture);
-        assertEquals(expectedErrMsg, getFuture.actionGet().failure);
+            // test that an update operation of the initial response fails
+            PlainActionFuture<UpdateResponse> updateFuture = new PlainActionFuture<>();
+            TestAsyncResponse updateResponse = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
+            indexService.updateResponse(executionId1.getDocId(), Map.of(), updateResponse, updateFuture);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, updateFuture::actionGet);
+            assertEquals(expectedErrMsg, e.getMessage());
+            // test that the inital response is overwritten with a failure
+            PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
+            indexService.getResponse(executionId1, randomBoolean(), getFuture);
+            assertEquals(expectedErrMsg, getFuture.actionGet().failure);
 
-        // test that a create operation fails
-        AsyncExecutionId executionId2 = new AsyncExecutionId(Long.toString(randomNonNegativeLong()),
-            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
-        PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
-        TestAsyncResponse initialResponse2 = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
-        indexService.createResponse(executionId2.getDocId(), Map.of(), initialResponse2, createFuture);
-        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
-        assertEquals(expectedErrMsg, e2.getMessage());
-        assertEquals(0, e2.getSuppressed().length); // no other suppressed exceptions
-
-        // restoring limit
-        updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
-        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            // test that a create operation fails
+            AsyncExecutionId executionId2 = new AsyncExecutionId(Long.toString(randomNonNegativeLong()),
+                new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
+            PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
+            TestAsyncResponse initialResponse2 = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
+            indexService.createResponse(executionId2.getDocId(), Map.of(), initialResponse2, createFuture);
+            IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
+            assertEquals(expectedErrMsg, e2.getMessage());
+        } finally {
+            // restoring limit
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        }
     }
+
 }

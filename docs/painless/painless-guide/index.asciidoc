@@ -11,5 +11,3 @@ include::painless-debugging.asciidoc[]
 include::painless-execute-script.asciidoc[]
 
 include::painless-ingest.asciidoc[]
-
-include::../redirects.asciidoc[]

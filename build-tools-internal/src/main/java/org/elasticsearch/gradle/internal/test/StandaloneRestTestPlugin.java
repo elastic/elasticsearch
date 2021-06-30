@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.test;
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
+import org.elasticsearch.gradle.internal.test.rest.RestTestUtil;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -55,7 +56,7 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
 
         // create a compileOnly configuration as others might expect it
         project.getConfigurations().create("compileOnly");
-        project.getDependencies().add("testImplementation", project.project(":test:framework"));
+        RestTestUtil.setupTestDependenciesDefaults(project, testSourceSet);
 
         EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
         eclipse.getClasspath().setSourceSets(Arrays.asList(testSourceSet));

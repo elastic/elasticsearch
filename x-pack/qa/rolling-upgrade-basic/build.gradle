@@ -87,5 +87,5 @@ tasks.withType(Test).configureEach {
 }
 
 tasks.named("testingConventions").configure {
-  enabled ==  BuildParams.inFipsJvm == false
+  enabled = BuildParams.inFipsJvm == false
 }

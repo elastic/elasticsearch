@@ -185,10 +185,12 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     @Override
-    protected Set<String> getObjectsHoldingArbitraryContent() {
+    protected Map<String, String> getObjectsHoldingArbitraryContent() {
         //document contains arbitrary content, no error expected when an object is added to it
-        return new HashSet<>(Arrays.asList(PercolateQueryBuilder.DOCUMENT_FIELD.getPreferredName(),
-                PercolateQueryBuilder.DOCUMENTS_FIELD.getPreferredName()));
+        return Map.of(
+            PercolateQueryBuilder.DOCUMENT_FIELD.getPreferredName(), "",
+            PercolateQueryBuilder.DOCUMENTS_FIELD.getPreferredName(), ""
+        );
     }
 
     public void testRequiredParameters() {

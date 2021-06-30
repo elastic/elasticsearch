@@ -319,7 +319,6 @@ final class TranslogDirectoryReader extends DirectoryReader {
             if (docID != 0) {
                 throw new IllegalArgumentException("no such doc ID " + docID);
             }
-            assert visitor instanceof FieldsVisitor;
             if (delegate.get() == null) {
                 if (visitor instanceof FieldsVisitor) {
                     // override this for ShardGetService

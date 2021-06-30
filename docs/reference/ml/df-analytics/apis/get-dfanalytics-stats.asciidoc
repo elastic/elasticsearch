@@ -527,8 +527,8 @@ values: `failed`, `started`, `starting`,`stopping`, `stopped`.
 [[ml-get-dfanalytics-stats-example]]
 == {api-examples-title}
 
-The following API retrieves usage information for the
-{ml-docs}/ecommerce-outliers.html[{oldetection} {dfanalytics-job} example]:
+// The following API retrieves usage information for the
+// {ml-docs}//ml-dfa-finding-outliers.html#ecommerce-outliers[{oldetection} {dfanalytics-job} example]:
 
 [source,console]
 --------------------------------------------------

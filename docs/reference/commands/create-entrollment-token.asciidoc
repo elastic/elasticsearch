@@ -1,0 +1,52 @@
+[roles="xpack"]
+[[create-enrollment-token]]
+
+== elasticsearch-create-enrollment-token
+
+The `elasticsearch-create-enrollment-token` command creates enrollment tokens for
+{es} nodes and {kib} instances.
+
+[discrete]
+=== Synopsis
+
+[source,shell]
+----
+bin/elasticsearch-create-enrollment-token
+[-b, --batch] [-h, --help] [-E <KeyValuePair>]
+[-s, --scope]
+----
+
+[discrete]
+=== Description
+
+This command allows users to create enrollment tokens that can be subsequently
+used to enroll new {es} nodes to an existing cluster or configure {kib} instances
+to communicate with an existing cluster that has security features enabled.
+It uses a temporary superuser in the <<file-realm, file realm>> that is automatically
+generated and then removed,in order to run the request to create enrollment tokens.
+
+This command uses an HTTP connection to connect to the cluster and run the user
+management requests. The command automatically attempts to establish the connection
+over HTTPS by using the `xpack.security.http.ssl` settings in
+the `elasticsearch.yml` file. If you do not use the default config directory
+location, ensure that the *ES_PATH_CONF* environment variable returns the
+correct path before you run the `elasticsearch-create-enrollment-token` command. You can
+override settings in your `elasticsearch.yml` file by using the `-E` command
+option. For more information about debugging connection failures, see
+<<trb-security-setup>>.
+
+[discrete]
+[[create-enrollment-token-parameters]]
+=== Parameters
+
+`-s, --scope`:: Specifies the scope of the generated token. Supported values are `node` and `kibana`.
+
+[discrete]
+=== Examples
+
+The following command creates an enrollment token to be used by an {es} node:
+
+[source,shell]
+----
+bin/elasticsearch-create-enrollment-token -s node
+----

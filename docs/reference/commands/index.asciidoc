@@ -22,6 +22,7 @@ tasks from the command line:
 
 include::certgen.asciidoc[]
 include::certutil.asciidoc[]
+include::create-entrollment-token.asciidoc[]
 include::croneval.asciidoc[]
 include::keystore.asciidoc[]
 include::node-tool.asciidoc[]

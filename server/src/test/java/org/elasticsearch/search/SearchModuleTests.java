@@ -304,7 +304,7 @@ public class SearchModuleTests extends ESTestCase {
             "combined_fields",
             "dis_max",
             "exists",
-            NAME.getPreferredName(),
+            "span_field_masking",
             "function_score",
             "fuzzy",
             "geo_bounding_box",

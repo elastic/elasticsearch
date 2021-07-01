@@ -27,10 +27,10 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -1406,6 +1406,23 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
+     *
+     * @param clazz the enum class
+     * @param key the key for the setting
+     * @param fallbackSetting the fallback setting for this setting
+     * @param validator validator for this setting
+     * @param properties properties for this setting like scope, filtering...
+     * @param <T> the generics type parameter reflecting the actual type of the enum
+     * @return the setting object
+     */
+    public static <T extends Enum<T>> Setting<T> enumSetting(Class<T> clazz, String key, Setting<T> fallbackSetting,
+                                                             Validator<T> validator, Property... properties) {
+        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw,
+            e -> Enum.valueOf(clazz, e.toUpperCase(Locale.ROOT)), validator, properties);
+    }
+
+    /**
      * Creates a setting which specifies a memory size. This can either be
      * specified as an absolute bytes value or as a percentage of the heap
      * memory.
@@ -1520,18 +1537,11 @@ public class Setting<T> implements ToXContentObject {
         // fromXContent doesn't use named xcontent or deprecation.
         try (XContentParser xContentParser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, parsableString)) {
-            XContentParser.Token token = xContentParser.nextToken();
-            if (token != XContentParser.Token.START_ARRAY) {
-                throw new IllegalArgumentException("expected START_ARRAY but got " + token);
-            }
-            ArrayList<String> list = new ArrayList<>();
-            while ((token = xContentParser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                if (token != XContentParser.Token.VALUE_STRING) {
-                    throw new IllegalArgumentException("expected VALUE_STRING but got " + token);
-                }
-                list.add(xContentParser.text());
-            }
-            return list;
+            xContentParser.nextToken();
+            return XContentParserUtils.parseList(xContentParser, p -> {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, p.currentToken(), p);
+                return p.text();
+            });
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse array", e);
         }

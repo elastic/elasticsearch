@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -52,6 +53,7 @@ public class PolicyStepsRegistry {
     private static final Logger logger = LogManager.getLogger(PolicyStepsRegistry.class);
 
     private final Client client;
+    private final XPackLicenseState licenseState;
     // keeps track of existing policies in the cluster state
     private final SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap;
     // keeps track of what the first step in a policy is, the key is policy name
@@ -60,18 +62,19 @@ public class PolicyStepsRegistry {
     private final Map<String, Map<Step.StepKey, Step>> stepMap;
     private final NamedXContentRegistry xContentRegistry;
 
-    public PolicyStepsRegistry(NamedXContentRegistry xContentRegistry, Client client) {
-        this(new TreeMap<>(), new HashMap<>(), new HashMap<>(), xContentRegistry, client);
+    public PolicyStepsRegistry(NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
+        this(new TreeMap<>(), new HashMap<>(), new HashMap<>(), xContentRegistry, client, licenseState);
     }
 
     PolicyStepsRegistry(SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap,
                         Map<String, Step> firstStepMap, Map<String, Map<Step.StepKey, Step>> stepMap,
-                        NamedXContentRegistry xContentRegistry, Client client) {
+                        NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
         this.lifecyclePolicyMap = lifecyclePolicyMap;
         this.firstStepMap = firstStepMap;
         this.stepMap = stepMap;
         this.xContentRegistry = xContentRegistry;
         this.client = client;
+        this.licenseState = licenseState;
     }
 
     SortedMap<String, LifecyclePolicyMetadata> getLifecyclePolicyMap() {
@@ -124,7 +127,7 @@ public class PolicyStepsRegistry {
                 LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
                         policyMetadata.getHeaders());
                 lifecyclePolicyMap.put(policyMetadata.getName(), policyMetadata);
-                List<Step> policyAsSteps = policyMetadata.getPolicy().toSteps(policyClient);
+                List<Step> policyAsSteps = policyMetadata.getPolicy().toSteps(policyClient, licenseState);
                 if (policyAsSteps.isEmpty() == false) {
                     firstStepMap.put(policyMetadata.getName(), policyAsSteps.get(0));
                     final Map<Step.StepKey, Step> stepMapForPolicy = new LinkedHashMap<>();
@@ -166,7 +169,7 @@ public class PolicyStepsRegistry {
         }
         LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client,
             ClientHelper.INDEX_LIFECYCLE_ORIGIN, lifecyclePolicyMap.get(policy).getHeaders());
-        final List<Step> steps = policyToExecute.toSteps(policyClient);
+        final List<Step> steps = policyToExecute.toSteps(policyClient, licenseState);
         // Build a list of steps that correspond with the phase the index is currently in
         final List<Step> phaseSteps;
         if (steps == null) {

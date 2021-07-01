@@ -84,7 +84,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
     //@SuppressForbidden(reason = "InetAddress#getCanonicalHostName used to populate FQDN of HTTPS cert")
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        if (Files.isDirectory(env.dataFile())) {
+        if (Files.isDirectory(env.dataFile()) && Files.list(env.dataFile()).findAny().isPresent()) {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because it appears that the node is not starting up for the first time.");
             terminal.println(Terminal.Verbosity.VERBOSE,

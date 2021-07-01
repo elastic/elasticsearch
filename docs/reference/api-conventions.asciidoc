@@ -677,6 +677,7 @@ The response looks like:
 // TESTRESPONSE[s/"stack_trace": "java.lang.Number.+\.\.\."/"stack_trace": $body.error.caused_by.stack_trace/]
 
 [discrete]
+[[api-request-body-query-string]]
 ==== Request body in query string
 
 For libraries that don't accept a request body for non-POST requests,

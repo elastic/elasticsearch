@@ -37,7 +37,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         new Builder<>(name, BooleanFieldScript.CONTEXT, BooleanFieldScript.PARSE_FROM_SOURCE) {
             @Override
             RuntimeField newRuntimeField(BooleanFieldScript.Factory scriptFactory) {
-                return runtimeField(name, this, scriptFactory, script.get(), meta.get());
+                return runtimeField(name, this, scriptFactory, getScript(), meta());
             }
         });
 

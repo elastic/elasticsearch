@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -49,7 +50,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     ) {
         super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         this.factory = factory;
-        this.script = script;
+        this.script = Objects.requireNonNull(script);
     }
 
     @Override

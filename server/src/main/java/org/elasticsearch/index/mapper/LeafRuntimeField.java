@@ -15,12 +15,16 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-public abstract class ScriptRuntimeField implements RuntimeField {
+/**
+ * RuntimeField base class for leaf fields that will only ever return
+ * a single MappedFieldType from {@link RuntimeField#asMappedFieldTypes()}
+ */
+public abstract class LeafRuntimeField implements RuntimeField {
 
     protected final String name;
     protected final ToXContent toXContent;
 
-    public ScriptRuntimeField(String name, ToXContent toXContent) {
+    public LeafRuntimeField(String name, ToXContent toXContent) {
         this.name = name;
         this.toXContent = toXContent;
     }

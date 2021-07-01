@@ -49,7 +49,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         Script script,
         Map<String, String> meta
     ) {
-        return new ScriptRuntimeField(name, toXContent) {
+        return new LeafRuntimeField(name, toXContent) {
             @Override
             public String typeName() {
                 return NumberType.DOUBLE.typeName();

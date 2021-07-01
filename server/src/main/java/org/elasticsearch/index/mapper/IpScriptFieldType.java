@@ -45,7 +45,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         new Builder<>(name, IpFieldScript.CONTEXT, IpFieldScript.PARSE_FROM_SOURCE) {
             @Override
             RuntimeField newRuntimeField(IpFieldScript.Factory scriptFactory) {
-                return new ScriptRuntimeField(name, this) {
+                return new LeafRuntimeField(name, this) {
                     @Override
                     public String typeName() {
                         return IpFieldMapper.CONTENT_TYPE;

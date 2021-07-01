@@ -48,7 +48,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         Script script,
         Map<String, String> meta
     ) {
-        return new ScriptRuntimeField(name, toXContent) {
+        return new LeafRuntimeField(name, toXContent) {
             @Override
             public String typeName() {
                 return BooleanFieldMapper.CONTENT_TYPE;

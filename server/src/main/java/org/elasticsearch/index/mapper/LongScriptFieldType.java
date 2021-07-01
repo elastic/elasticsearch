@@ -49,7 +49,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         Script script,
         Map<String, String> meta
     ) {
-        return new ScriptRuntimeField(name, toXContent) {
+        return new LeafRuntimeField(name, toXContent) {
             @Override
             public String typeName() {
                 return NumberType.LONG.typeName();

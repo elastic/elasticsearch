@@ -38,7 +38,7 @@ Use the index template exists API
 to determine whether one or more index templates exist.
 
 Index templates define <<index-modules-settings,settings>>, <<mapping,mappings>>, 
-and <<indices-aliases,aliases>> that can be applied automatically to new indices. 
+and <<alias,aliases>> that can be applied automatically to new indices. 
 
 [[template-exists-api-path-params]]
 ==== {api-path-parms-title}

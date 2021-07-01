@@ -8,7 +8,29 @@ setup:
         wait_for_status: yellow
 
 ---
-"Test get builtin privileges":
+"Test get builtin privileges 8.x":
+  - skip:
+        version: "all"
+        reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/73148"
+        # once fixed, reinstate these lines:
+        # version: " - 7.99.99"
+        # reason: "new privileges in 8.0 only"
+
+  - do:
+      security.get_builtin_privileges: {}
+
+  # This is fragile - it needs to be updated every time we add a new cluster/index privilege
+  # I would much prefer we could just check that specific entries are in the array, but we don't have
+  # an assertion for that
+  - length: { "cluster" : 43 }
+  - length: { "index" : 19 }
+
+---
+"Test get builtin privileges 7.x":
+  - skip:
+        version: "7.99.99 - "
+        reason: "new privileges in 8.0 only"
+
   - do:
       security.get_builtin_privileges: {}
 

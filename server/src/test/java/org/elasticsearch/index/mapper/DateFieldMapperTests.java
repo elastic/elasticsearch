@@ -10,12 +10,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -139,15 +140,17 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testIgnoreMalformed() throws IOException {
         testIgnoreMalformedForValue("2016-03-99",
-                "failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]");
+            "failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]",
+            "strict_date_optional_time||epoch_millis");
         testIgnoreMalformedForValue("-2147483648",
-                "Invalid value for Year (valid values -999999999 - 999999999): -2147483648");
-        testIgnoreMalformedForValue("-522000000", "long overflow");
+            "failed to parse date field [-2147483648] with format [strict_date_optional_time||epoch_millis]",
+            "strict_date_optional_time||epoch_millis");
+        testIgnoreMalformedForValue("-522000000", "long overflow", "date_optional_time");
     }
 
-    private void testIgnoreMalformedForValue(String value, String expectedCause) throws IOException {
+    private void testIgnoreMalformedForValue(String value, String expectedCause, String dateFormat) throws IOException {
 
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping((builder)-> dateFieldMapping(builder, dateFormat)));
 
         MapperParsingException e = expectThrows(MapperParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", value))));
@@ -157,6 +160,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         DocumentMapper mapper2 = createDocumentMapper(fieldMapping(b -> b
             .field("type", "date")
+            .field("format", dateFormat)
             .field("ignore_malformed", true)));
 
         ParsedDocument doc = mapper2.parse(source(b -> b.field("field", value)));
@@ -166,6 +170,11 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
     }
 
+    private void dateFieldMapping(XContentBuilder builder, String dateFormat) throws IOException {
+         builder.field("type", "date");
+         builder.field("format", dateFormat);
+
+    }
     public void testChangeFormat() throws IOException {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b
@@ -309,8 +318,8 @@ public class DateFieldMapperTests extends MapperTestCase {
         MappedFieldType ft = mapperService.fieldType("field");
         DocValueFormat format = ft.docValueFormat(null, null);
         String date = "2020-05-15T21:33:02.123Z";
-        assertEquals(org.elasticsearch.common.collect.List.of(date), fetchFromDocValues(mapperService, ft, format, date));
-        assertEquals(org.elasticsearch.common.collect.List.of(date), fetchFromDocValues(mapperService, ft, format, 1589578382123L));
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, 1589578382123L));
     }
 
     public void testFormatPreserveNanos() throws IOException {
@@ -321,7 +330,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertEquals(ft.dateTimeFormatter, DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER);
         DocValueFormat format = ft.docValueFormat(null, null);
         String date = "2020-05-15T21:33:02.123456789Z";
-        assertEquals(org.elasticsearch.common.collect.List.of(date), fetchFromDocValues(mapperService, ft, format, date));
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
     }
 
     public void testFetchDocValuesNanos() throws IOException {
@@ -331,9 +340,9 @@ public class DateFieldMapperTests extends MapperTestCase {
         MappedFieldType ft = mapperService.fieldType("field");
         DocValueFormat format = ft.docValueFormat(null, null);
         String date = "2020-05-15T21:33:02.123456789Z";
-        assertEquals(org.elasticsearch.common.collect.List.of(date), fetchFromDocValues(mapperService, ft, format, date));
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
         assertEquals(
-            org.elasticsearch.common.collect.List.of("2020-05-15T21:33:02.123Z"),
+            List.of("2020-05-15T21:33:02.123Z"),
             fetchFromDocValues(mapperService, ft, format, 1589578382123L)
         );
     }

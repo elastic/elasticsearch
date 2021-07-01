@@ -11,7 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -68,10 +68,10 @@ public class ReadonlyActionIT extends ESRestTestCase {
         String originalIndex = index + "-000001";
 
         // add a policy
-        Map<String, LifecycleAction> hotActions = org.elasticsearch.common.collect.Map.of(
+        Map<String, LifecycleAction> hotActions = org.elasticsearch.core.Map.of(
             RolloverAction.NAME, new RolloverAction(null, null, null, 1L),
             ReadOnlyAction.NAME, new ReadOnlyAction());
-        Map<String, Phase> phases = org.elasticsearch.common.collect.Map.of(
+        Map<String, Phase> phases = org.elasticsearch.core.Map.of(
             "hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);

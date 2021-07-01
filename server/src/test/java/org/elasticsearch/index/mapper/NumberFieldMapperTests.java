@@ -258,10 +258,10 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
         if (context == LongFieldScript.CONTEXT) {
-            return (T) LongScriptFieldType.PARSE_FROM_SOURCE;
+            return (T) LongFieldScript.PARSE_FROM_SOURCE;
         }
         if (context == DoubleFieldScript.CONTEXT) {
-            return (T) DoubleScriptFieldType.PARSE_FROM_SOURCE;
+            return (T) DoubleFieldScript.PARSE_FROM_SOURCE;
         }
         throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
     }

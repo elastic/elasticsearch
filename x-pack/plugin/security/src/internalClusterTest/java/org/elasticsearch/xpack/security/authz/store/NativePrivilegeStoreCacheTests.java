@@ -17,6 +17,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
@@ -105,17 +106,17 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
     public void configureApplicationPrivileges() {
         final List<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors = Arrays.asList(
             new ApplicationPrivilegeDescriptor("app-1", "read",
-                org.elasticsearch.common.collect.Set.of("r:a:b:c", "r:x:y:z"), emptyMap()),
+                Set.of("r:a:b:c", "r:x:y:z"), emptyMap()),
             new ApplicationPrivilegeDescriptor("app-1", "write",
-                org.elasticsearch.common.collect.Set.of("w:a:b:c", "w:x:y:z"), emptyMap()),
+                Set.of("w:a:b:c", "w:x:y:z"), emptyMap()),
             new ApplicationPrivilegeDescriptor("app-1", "admin",
-                org.elasticsearch.common.collect.Set.of("a:a:b:c", "a:x:y:z"), emptyMap()),
+                Set.of("a:a:b:c", "a:x:y:z"), emptyMap()),
             new ApplicationPrivilegeDescriptor("app-2", "read",
-                org.elasticsearch.common.collect.Set.of("r:e:f:g", "r:t:u:v"), emptyMap()),
+                Set.of("r:e:f:g", "r:t:u:v"), emptyMap()),
             new ApplicationPrivilegeDescriptor("app-2", "write",
-                org.elasticsearch.common.collect.Set.of("w:e:f:g", "w:t:u:v"), emptyMap()),
+                Set.of("w:e:f:g", "w:t:u:v"), emptyMap()),
             new ApplicationPrivilegeDescriptor("app-2", "admin",
-                org.elasticsearch.common.collect.Set.of("a:e:f:g", "a:t:u:v"), emptyMap()));
+                Set.of("a:e:f:g", "a:t:u:v"), emptyMap()));
 
         final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest();
         putPrivilegesRequest.setPrivileges(applicationPrivilegeDescriptors);
@@ -319,7 +320,7 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
     private void addApplicationPrivilege(String applicationName, String privilegeName, String... actions) {
         final List<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors = Collections.singletonList(
             new ApplicationPrivilegeDescriptor(applicationName, privilegeName,
-                org.elasticsearch.common.collect.Set.of(actions), emptyMap()));
+                Set.of(actions), emptyMap()));
         final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest();
         putPrivilegesRequest.setPrivileges(applicationPrivilegeDescriptors);
         assertEquals(1, client().execute(PutPrivilegesAction.INSTANCE, putPrivilegesRequest).actionGet().created().keySet().size());

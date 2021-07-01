@@ -17,13 +17,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
@@ -35,15 +34,14 @@ import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -64,7 +62,6 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     private final Client client;
     private final ClusterService clusterService;
     private final LongSupplier nowNanoSupplier;
-    private final ThreadPool threadPool;
     private final SnapshotHistoryStore historyStore;
 
     /**
@@ -73,12 +70,11 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     private final Set<SnapshotId> runningDeletions = Collections.synchronizedSet(new HashSet<>());
 
     public SnapshotRetentionTask(Client client, ClusterService clusterService, LongSupplier nowNanoSupplier,
-                                 SnapshotHistoryStore historyStore, ThreadPool threadPool) {
+                                 SnapshotHistoryStore historyStore) {
         this.client = new OriginSettingClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN);
         this.clusterService = clusterService;
         this.nowNanoSupplier = nowNanoSupplier;
         this.historyStore = historyStore;
-        this.threadPool = threadPool;
     }
 
     private static String formatSnapshots(Map<String, List<SnapshotInfo>> snapshotMap) {
@@ -244,49 +240,38 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             return;
         }
 
-        threadPool.generic().execute(() -> {
-            final Map<String, List<SnapshotInfo>> snapshots = new ConcurrentHashMap<>();
-            final CountDown countDown = new CountDown(repositories.size());
-            final Runnable onComplete = () -> {
-                if (countDown.countDown()) {
+        client.admin().cluster()
+            .prepareGetSnapshots(repositories.toArray(Strings.EMPTY_ARRAY))
+            // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
+            .setMasterNodeTimeout(TimeValue.MAX_VALUE)
+            .setIgnoreUnavailable(true)
+            .execute(ActionListener.wrap(resp -> {
                     if (logger.isTraceEnabled()) {
-                        logger.trace("retrieved snapshots: {}", formatSnapshots(snapshots));
+                        logger.trace("retrieved snapshots: {}",
+                            repositories.stream()
+                                .flatMap(repo ->
+                                    resp.getSnapshots()
+                                        .stream()
+                                        .filter(info -> repo.equals(info.repository()))
+                                        .map(si -> si.snapshotId().getName())
+                                ).collect(Collectors.toList()));
                     }
+                    Map<String, List<SnapshotInfo>> snapshots = new HashMap<>();
+                    final Set<SnapshotState> retainableStates =
+                        org.elasticsearch.core.Set.of(SnapshotState.SUCCESS, SnapshotState.FAILED, SnapshotState.PARTIAL);
+                    repositories.forEach(repo -> {
+                        snapshots.put(repo,
+                            // Only return snapshots in the SUCCESS state
+                            resp.getSnapshots().stream()
+                                .filter(info -> repo.equals(info.repository()) && retainableStates.contains(info.state()))
+                                .collect(Collectors.toList()));
+                    });
                     listener.onResponse(snapshots);
-                }
-            };
-            for (String repository : repositories) {
-                client.admin().cluster()
-                    .prepareGetSnapshots(repository)
-                    // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
-                    .setMasterNodeTimeout(TimeValue.MAX_VALUE)
-                    .setIgnoreUnavailable(true)
-                    .execute(ActionListener.wrap(resp -> {
-                            final Set<SnapshotState> retainableStates =
-                                new HashSet<>(Arrays.asList(SnapshotState.SUCCESS, SnapshotState.FAILED, SnapshotState.PARTIAL));
-                            try {
-                                snapshots.compute(repository, (k, previousSnaps) -> {
-                                    if (previousSnaps != null) {
-                                        throw new IllegalStateException("duplicate snapshot retrieval for repository" + repository);
-                                    }
-                                    return resp.getSnapshots().stream()
-                                        .filter(info -> retainableStates.contains(info.state()))
-                                        .collect(Collectors.toList());
-                                });
-                                onComplete.run();
-                            } catch (Exception e) {
-                                logger.error(new ParameterizedMessage("exception computing snapshots for repository {}", repository), e);
-                                throw e;
-                            }
-                        },
-                        e -> {
-                            logger.warn(new ParameterizedMessage("unable to retrieve snapshots for repository [{}]", repository), e);
-                            onComplete.run();
-                            errorHandler.accept(e);
-                        }
-                    ));
-            }
-        });
+                },
+                e -> {
+                    logger.debug(new ParameterizedMessage("unable to retrieve snapshots for [{}] repositories", repositories), e);
+                    errorHandler.accept(e);
+                }));
     }
 
     static String getPolicyId(SnapshotInfo snapshotInfo) {

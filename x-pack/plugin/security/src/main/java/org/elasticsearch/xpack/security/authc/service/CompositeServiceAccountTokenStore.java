@@ -36,15 +36,16 @@ public final class CompositeServiceAccountTokenStore implements ServiceAccountTo
     }
 
     @Override
-    public void authenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
+    public void authenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
         // TODO: optimize store order based on auth result?
-        final IteratingActionListener<Boolean, ServiceAccountTokenStore> authenticatingListener = new IteratingActionListener<>(
-            listener,
-            (store, successListener) -> store.authenticate(token, successListener),
-            stores,
-            threadContext,
-            Function.identity(),
-            success -> Boolean.FALSE == success);
+        final IteratingActionListener<StoreAuthenticationResult, ServiceAccountTokenStore> authenticatingListener =
+            new IteratingActionListener<>(
+                listener,
+                (store, successListener) -> store.authenticate(token, successListener),
+                stores,
+                threadContext,
+                Function.identity(),
+                storeAuthenticationResult -> false == storeAuthenticationResult.isSuccess());
         try {
             authenticatingListener.run();
         } catch (Exception e) {
@@ -77,7 +78,7 @@ public final class CompositeServiceAccountTokenStore implements ServiceAccountTo
         @Override
         public void run() {
             if (stores.isEmpty()) {
-                delegate.onResponse(org.elasticsearch.common.collect.List.of());
+                delegate.onResponse(org.elasticsearch.core.List.of());
             } else if (position < 0 || position >= stores.size()) {
                 onFailure(new IllegalArgumentException("invalid position [" + position + "]. List size [" + stores.size() + "]"));
             } else {
@@ -89,7 +90,7 @@ public final class CompositeServiceAccountTokenStore implements ServiceAccountTo
         public void onResponse(Collection<TokenInfo> response) {
             result.addAll(response);
             if (position == stores.size()) {
-                delegate.onResponse(org.elasticsearch.common.collect.List.copyOf(result));
+                delegate.onResponse(org.elasticsearch.core.List.copyOf(result));
             } else {
                 stores.get(position++).findTokensFor(accountId, this);
             }

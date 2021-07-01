@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -30,14 +30,14 @@ import static java.util.Collections.unmodifiableMap;
  */
 
 public final class MappingParser {
-    private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
+    private final Supplier<MappingParserContext> parserContextSupplier;
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
     private final Function<String, Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersFunction;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
     private final NamedXContentRegistry xContentRegistry;
 
-    MappingParser(Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier,
+    MappingParser(Supplier<MappingParserContext> parserContextSupplier,
                   Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
                   Function<String, Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersFunction,
                   Function<String, String> documentTypeResolver,
@@ -106,7 +106,7 @@ public final class MappingParser {
         }
 
         ContentPath contentPath = new ContentPath(1);
-        Mapper.TypeParser.ParserContext parserContext = parserContextSupplier.get();
+        MappingParserContext parserContext = parserContextSupplier.get();
         RootObjectMapper rootObjectMapper = rootObjectTypeParser.parse(type, mapping, parserContext).build(contentPath);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersFunction.apply(type);

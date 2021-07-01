@@ -323,7 +323,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         );
         ensureGreen(indexName);
 
-        for (String version : org.elasticsearch.common.collect.List.of(
+        for (String version : org.elasticsearch.core.List.of(
             "1.0.0-alpha.2.1.0-rc.1",
             "1.3.0+build.1234567",
             "2.1.0-alpha.beta",

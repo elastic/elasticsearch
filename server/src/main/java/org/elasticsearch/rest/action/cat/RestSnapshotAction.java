@@ -9,12 +9,14 @@
 package org.elasticsearch.rest.action.cat;
 
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -76,6 +78,7 @@ public class RestSnapshotAction extends AbstractCatAction {
         return new Table()
                 .startHeaders()
                 .addCell("id", "alias:id,snapshot;desc:unique snapshot")
+                .addCell("repository", "alias:re,repo;desc:repository name")
                 .addCell("status", "alias:s,status;text-align:right;desc:snapshot name")
                 .addCell("start_epoch", "alias:ste,startEpoch;desc:start time in seconds since 1970-01-01 00:00:00")
                 .addCell("start_time", "alias:sti,startTime;desc:start time in HH:MM:SS")
@@ -94,10 +97,28 @@ public class RestSnapshotAction extends AbstractCatAction {
 
     private Table buildTable(RestRequest req, GetSnapshotsResponse getSnapshotsResponse) {
         Table table = getTableWithHeader(req);
-        for (SnapshotInfo snapshotStatus : getSnapshotsResponse.getSnapshots()) {
+
+        if (getSnapshotsResponse.isFailed()) {
+            ElasticsearchException causes = null;
+
+            for (ElasticsearchException e : getSnapshotsResponse.getFailures().values()) {
+                if (causes == null) {
+                    causes = e;
+                } else {
+                    causes.addSuppressed(e);
+                }
+            }
+            throw new ElasticsearchException(
+                    "Repositories [" +
+                            Strings.collectionToCommaDelimitedString(getSnapshotsResponse.getFailures().keySet()) +
+                    "] failed to retrieve snapshots", causes);
+        }
+
+        for (SnapshotInfo snapshotStatus: getSnapshotsResponse.getSnapshots()) {
             table.startRow();
 
             table.addCell(snapshotStatus.snapshotId().getName());
+            table.addCell(snapshotStatus.repository());
             table.addCell(snapshotStatus.state());
             table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.startTime(), TimeUnit.MILLISECONDS));
             table.addCell(FORMATTER.format(Instant.ofEpochMilli(snapshotStatus.startTime())));

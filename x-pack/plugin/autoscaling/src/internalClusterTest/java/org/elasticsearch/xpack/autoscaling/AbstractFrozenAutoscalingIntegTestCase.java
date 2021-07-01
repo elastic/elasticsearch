@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Map;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -27,7 +30,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
-import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Locale;
@@ -74,7 +76,7 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return org.elasticsearch.common.collect.List.of(LocalStateAutoscalingAndSearchableSnapshots.class);
+        return List.of(LocalStateAutoscalingAndSearchableSnapshots.class);
     }
 
     @Override
@@ -82,18 +84,19 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
-        if (DiscoveryNode.canContainData(otherSettings)) {
+        if (DiscoveryNode.hasRole(otherSettings, DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)) {
             builder.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(10, ByteSizeUnit.MB));
         }
         return builder.build();
     }
 
-    @Before
-    public void setupPolicyAndMountedIndex() throws Exception {
+    protected void setupRepoAndPolicy() {
         createRepository(fsRepoName, "fs");
         putAutoscalingPolicy();
-        assertAcked(prepareCreate(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
+    }
 
+    protected void createAndMountIndex() throws InterruptedException, java.util.concurrent.ExecutionException {
+        assertAcked(prepareCreate(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
         indexRandom(
             randomBoolean(),
             IntStream.range(0, 10).mapToObj(i -> client().prepareIndex(indexName, "_doc").setSource()).collect(Collectors.toList())
@@ -129,8 +132,8 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
         final Settings settings = randomBoolean() ? Settings.EMPTY : addDeciderSettings(Settings.builder()).build();
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             policyName,
-            new TreeSet<>(org.elasticsearch.common.collect.Set.of(DataTier.DATA_FROZEN)),
-            new TreeMap<>(org.elasticsearch.common.collect.Map.of(deciderName(), settings))
+            new TreeSet<>(Set.of(DataTier.DATA_FROZEN)),
+            new TreeMap<>(Map.of(deciderName(), settings))
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
     }

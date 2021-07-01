@@ -18,6 +18,7 @@ exception of the <<search-explain,explain API>>.
 * <<scroll-api>>
 * <<clear-scroll-api>>
 * <<search-suggesters>>
+* <<search-terms-enum>>
 
 [discrete]
 [[search-testing-apis]]
@@ -34,8 +35,9 @@ exception of the <<search-explain,explain API>>.
 [[search-template-apis]]
 === Search templates
 
-* <<search-template>>
+* <<search-template-api>>
 * <<multi-search-template>>
+* <<render-search-template-api>>
 
 [discrete]
 [[eql-search-apis]]
@@ -59,7 +61,11 @@ include::search/scroll-api.asciidoc[]
 
 include::search/clear-scroll-api.asciidoc[]
 
-include::search/search-template.asciidoc[]
+include::search/search-template-api.asciidoc[]
+
+include::search/multi-search-template-api.asciidoc[]
+
+include::search/render-search-template-api.asciidoc[]
 
 include::search/search-shards.asciidoc[]
 
@@ -78,6 +84,8 @@ include::eql/delete-async-eql-search-api.asciidoc[]
 include::search/count.asciidoc[]
 
 include::search/validate.asciidoc[]
+
+include::search/terms-enum.asciidoc[]
 
 include::search/explain.asciidoc[]
 

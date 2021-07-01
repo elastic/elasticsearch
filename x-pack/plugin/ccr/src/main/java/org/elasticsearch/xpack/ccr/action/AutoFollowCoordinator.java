@@ -27,25 +27,27 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -75,6 +77,8 @@ import static org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedClust
 public class AutoFollowCoordinator extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger LOGGER = LogManager.getLogger(AutoFollowCoordinator.class);
+    public static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AutoFollowCoordinator.class);
+
     private static final int MAX_AUTO_FOLLOW_ERRORS = 256;
 
     private final Client client;
@@ -538,6 +542,14 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow),
                             error -> groupedListener.onResponse(new Tuple<>(indexToFollow, error)));
                     } else {
+                        if (indexAbstraction.isSystem()) {
+                            deprecationLogger.deprecate(DeprecationCategory.INDICES,
+                                "ccr_auto_follow_system_indices",
+                                "Auto following a leader system index " + indexToFollow.getName() +
+                                    " will not work in the next major version"
+                            );
+                        }
+
                         followLeaderIndex(autoFollowPattenName, remoteCluster, indexToFollow, autoFollowPattern, headers,
                             error -> groupedListener.onResponse(new Tuple<>(indexToFollow, error)));
                     }
@@ -555,9 +567,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 // we should let the auto follower attempt to auto follow it, so it can fail later and
                 // it is then visible in the auto follow stats. For example a cluster can just happen to have
                 // an index with the same name as the new follower index.
-                Map<String, String> customData = indexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+                Map<String, String> customData = indexMetadata.getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY);
                 if (customData != null) {
-                    String recordedLeaderIndexUUID = customData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+                    String recordedLeaderIndexUUID = customData.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
                     return leaderIndex.getUUID().equals(recordedLeaderIndexUUID);
                 }
             }

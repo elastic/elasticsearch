@@ -21,9 +21,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.xpack.core.DataTier;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -55,17 +56,17 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
     private static final DataTierValidator VALIDATOR = new DataTierValidator();
     public static final Setting<String> CLUSTER_ROUTING_REQUIRE_SETTING = Setting.simpleString(CLUSTER_ROUTING_REQUIRE,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope);
+        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
     public static final Setting<String> CLUSTER_ROUTING_INCLUDE_SETTING = Setting.simpleString(CLUSTER_ROUTING_INCLUDE,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope);
+        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
     public static final Setting<String> CLUSTER_ROUTING_EXCLUDE_SETTING = Setting.simpleString(CLUSTER_ROUTING_EXCLUDE,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope);
+        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
     public static final Setting<String> INDEX_ROUTING_REQUIRE_SETTING = Setting.simpleString(INDEX_ROUTING_REQUIRE,
-        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.Deprecated);
     public static final Setting<String> INDEX_ROUTING_INCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_INCLUDE,
-        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.Deprecated);
     public static final Setting<String> INDEX_ROUTING_EXCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_EXCLUDE,
-        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.Deprecated);
     public static final Setting<String> INDEX_ROUTING_PREFER_SETTING = new Setting<String>(new Setting.SimpleKey(INDEX_ROUTING_PREFER),
         DataTierValidator::getDefaultTierPreference, Function.identity(), VALIDATOR,
         Setting.Property.Dynamic, Setting.Property.IndexScope) {
@@ -95,7 +96,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
     private static class DataTierValidator implements Setting.Validator<String> {
         private static final Collection<Setting<?>> dependencies =
-            org.elasticsearch.common.collect.List.of(IndexModule.INDEX_STORE_TYPE_SETTING,
+            List.of(IndexModule.INDEX_STORE_TYPE_SETTING,
                 SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING);
 
         public static String getDefaultTierPreference(Settings settings) {

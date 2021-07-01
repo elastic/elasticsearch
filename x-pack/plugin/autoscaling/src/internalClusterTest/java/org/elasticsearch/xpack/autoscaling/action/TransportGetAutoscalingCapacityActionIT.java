@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -89,7 +90,7 @@ public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTes
     private void putAutoscalingPolicy(String policyName) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             policyName,
-            new TreeSet<>(org.elasticsearch.common.collect.Set.of("data")),
+            new TreeSet<>(Set.of("data")),
             new TreeMap<>()
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());

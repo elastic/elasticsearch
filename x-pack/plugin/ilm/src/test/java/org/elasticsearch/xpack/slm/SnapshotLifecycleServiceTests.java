@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -363,7 +363,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
                     .build()))
             .build();
 
-        for (String schedule : org.elasticsearch.common.collect.List.of(
+        for (String schedule : org.elasticsearch.core.List.of(
             "0 0/15 * * * ?",
             "0 0 1 * * ?",
             "0 0 0 1 1 ? 2099" /* once */,

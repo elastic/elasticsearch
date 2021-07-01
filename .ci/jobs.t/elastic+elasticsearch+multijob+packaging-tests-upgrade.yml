@@ -25,6 +25,7 @@
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            JAVA15_HOME=$HOME/.java/openjdk15
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
           ./.ci/os.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$BWC_VERSION

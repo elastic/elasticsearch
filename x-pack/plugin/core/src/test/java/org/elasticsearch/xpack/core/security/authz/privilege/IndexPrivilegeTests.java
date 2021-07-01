@@ -17,7 +17,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
 
-import org.elasticsearch.common.collect.List;
+import org.elasticsearch.core.List;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.findPrivilegesThatGrant;

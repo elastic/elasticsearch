@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.compat.PreviewTransformActionDeprecated;
@@ -23,6 +24,7 @@ public class TransportPreviewTransformActionDeprecated extends TransportPreviewT
 
     @Inject
     public TransportPreviewTransformActionDeprecated(
+        XPackLicenseState licenseState,
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
@@ -34,6 +36,7 @@ public class TransportPreviewTransformActionDeprecated extends TransportPreviewT
     ) {
         super(
             PreviewTransformActionDeprecated.NAME,
+            licenseState,
             transportService,
             actionFilters,
             client,

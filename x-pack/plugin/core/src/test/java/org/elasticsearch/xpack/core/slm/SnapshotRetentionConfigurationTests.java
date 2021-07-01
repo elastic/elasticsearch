@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.core.slm;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
@@ -286,7 +287,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         meta.put(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD, REPO);
         final int totalShards = between(1,20);
         SnapshotInfo snapInfo = new SnapshotInfo(
-            new SnapshotId("snap-" + randomAlphaOfLength(3), "uuid"),
+            new Snapshot(REPO, new SnapshotId("snap-" + randomAlphaOfLength(3), "uuid")),
             Collections.singletonList("foo"),
             Collections.singletonList("bar"),
             Collections.emptyList(),
@@ -322,7 +323,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         }
         assert failureCount == failures.size();
         SnapshotInfo snapInfo = new SnapshotInfo(
-            new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail"),
+            new Snapshot(REPO, new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail")),
             Collections.singletonList("foo-fail"),
             Collections.singletonList("bar-fail"),
             Collections.emptyList(),
@@ -350,7 +351,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         }
         assert failureCount == failures.size();
         SnapshotInfo snapInfo = new SnapshotInfo(
-            new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail"),
+            new Snapshot(REPO, new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail")),
             Collections.singletonList("foo-fail"),
             Collections.singletonList("bar-fail"),
             Collections.emptyList(),

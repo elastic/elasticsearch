@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -91,7 +91,8 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         GeoIpCache geoIpCache = new GeoIpCache(cacheSize);
         DatabaseRegistry registry = new DatabaseRegistry(parameters.env, parameters.client, geoIpCache, parameters.genericExecutor);
         databaseRegistry.set(registry);
-        return Collections.singletonMap(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry));
+        return Collections.singletonMap(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry,
+            parameters.ingestService.getClusterService()));
     }
 
     @Override
@@ -113,10 +114,6 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             throw new UncheckedIOException(e);
         }
 
-        if(GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false){
-            return Collections.singletonList(databaseRegistry.get());
-        }
-
         geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(client, new HttpClient(), clusterService, threadPool);
         return Arrays.asList(databaseRegistry.get(), geoIpDownloaderTaskExecutor);
     }
@@ -130,9 +127,6 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool,
                                                                        Client client, SettingsModule settingsModule,
                                                                        IndexNameExpressionResolver expressionResolver) {
-        if (GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false) {
-            return Collections.emptyList();
-        }
         return Collections.singletonList(geoIpDownloaderTaskExecutor);
     }
 
@@ -166,9 +160,6 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        if (GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false) {
-            return Collections.emptyList();
-        }
         SystemIndexDescriptor geoipDatabasesIndex = SystemIndexDescriptor.builder()
             .setIndexPattern(DATABASES_INDEX)
             .setDescription("GeoIP databases")
@@ -181,6 +172,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             .setOrigin("geoip")
             .setVersionMetaKey("version")
             .setPrimaryIndex(DATABASES_INDEX)
+            .setNetNew()
             .build();
         return Collections.singleton(geoipDatabasesIndex);
     }

@@ -23,12 +23,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
@@ -85,7 +86,7 @@ public class IndexMetadataTests extends ESTestCase {
             .putCustom("my_custom", customMap)
             .putRolloverInfo(
                 new RolloverInfo(randomAlphaOfLength(5),
-                    org.elasticsearch.common.collect.List.of(
+                    List.of(
                         new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
                         new MaxDocsCondition(randomNonNegativeLong()),
                         new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -64,7 +64,7 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        Map<String, Object> aggParams = this.aggParams == null ? org.elasticsearch.common.collect.Map.of() : this.aggParams;
+        Map<String, Object> aggParams = this.aggParams == null ? org.elasticsearch.core.Map.of() : this.aggParams;
 
         Script reduceScript = deepCopyScript(this.reduceScript, aggParams);
 

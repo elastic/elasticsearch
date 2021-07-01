@@ -11,13 +11,14 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
@@ -45,7 +46,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return org.elasticsearch.common.collect.List.of(new AggregateMetricMapperPlugin(Settings.EMPTY));
+        return org.elasticsearch.core.List.of(new AggregateMetricMapperPlugin(Settings.EMPTY));
     }
 
     @Override
@@ -91,7 +92,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        return org.elasticsearch.common.collect.Map.of("min", -10.1, "max", 50.0, "value_count", 14);
+        return Map.of("min", -10.1, "max", 50.0, "value_count", 14);
     }
 
     @Override
@@ -525,7 +526,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
      * Since all queries for aggregate_metric_double fields are delegated to their default_metric numeric
      *  sub-field, we override this method so that testExistsQueryMinimalMapping() passes successfully.
      */
-    protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
         assertThat(query, Matchers.instanceOf(DocValuesFieldExistsQuery.class));
         DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery) query;
         String defaultMetric = ((AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType) fieldType).getDefaultMetric().name();

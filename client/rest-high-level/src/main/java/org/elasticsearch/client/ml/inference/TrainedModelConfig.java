@@ -10,7 +10,7 @@ package org.elasticsearch.client.ml.inference;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;

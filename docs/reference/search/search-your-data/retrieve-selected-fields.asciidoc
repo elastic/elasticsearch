@@ -28,7 +28,7 @@ advantages over referencing the `_source` directly. Specifically, the `fields`
 parameter:
 
 * Returns each value in a standardized way that matches its mapping type
-* Accepts <<multi-fields,multi-fields>> and <<alias,field aliases>>
+* Accepts <<multi-fields,multi-fields>> and <<field-alias,field aliases>>
 * Formats dates and spatial data types
 * Retrieves <<runtime-retrieving-fields,runtime field values>>
 * Returns fields calculated by a script at index time

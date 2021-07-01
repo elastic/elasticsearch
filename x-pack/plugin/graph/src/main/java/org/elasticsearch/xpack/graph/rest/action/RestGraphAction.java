@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.graph.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
@@ -73,10 +73,16 @@ public class RestGraphAction extends XPackRestHandler {
                 .replaces(GET, "/{index}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7).build(),
             Route.builder(POST, "/{index}/_graph/explore")
                 .replaces(POST, "/{index}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7).build(),
+
+            Route.builder(GET, "/{index}/{type}" + URI_BASE + "/graph/_explore")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/{type}" + URI_BASE + "/graph/_explore")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+
             Route.builder(GET, "/{index}/{type}/_graph/explore")
-                .replaces(GET, "/{index}/{type}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}_graph/explore")
-                .replaces(POST, "/{index}/{type}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7).build()
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/{type}/_graph/explore")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
         ));
     }
 

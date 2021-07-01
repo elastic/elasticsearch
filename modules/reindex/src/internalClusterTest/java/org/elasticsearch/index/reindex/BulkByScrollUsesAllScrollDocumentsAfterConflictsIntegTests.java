@@ -73,7 +73,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         @Override
         @SuppressWarnings("unchecked")
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return org.elasticsearch.common.collect.Map.of(NOOP_GENERATOR, (vars) -> {
+            return org.elasticsearch.core.Map.of(NOOP_GENERATOR, (vars) -> {
                 final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
                 final Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
                 if (source.containsKey(RETURN_NOOP_FIELD)) {

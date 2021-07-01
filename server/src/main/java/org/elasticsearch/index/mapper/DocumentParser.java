@@ -12,8 +12,9 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -46,12 +48,12 @@ import java.util.function.Function;
 public final class DocumentParser {
 
     private final NamedXContentRegistry xContentRegistry;
-    private final Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext;
+    private final Function<DateFormatter, MappingParserContext> dateParserContext;
     private final IndexSettings indexSettings;
     private final IndexAnalyzers indexAnalyzers;
 
     DocumentParser(NamedXContentRegistry xContentRegistry,
-                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext,
+                   Function<DateFormatter, MappingParserContext> dateParserContext,
                    IndexSettings indexSettings,
                    IndexAnalyzers indexAnalyzers) {
         this.xContentRegistry = xContentRegistry;
@@ -493,13 +495,13 @@ public final class DocumentParser {
     }
 
     private static void nested(ParseContext context, ObjectMapper.Nested nested) {
-        ParseContext.Document nestedDoc = context.doc();
-        ParseContext.Document parentDoc = nestedDoc.getParent();
+        LuceneDocument nestedDoc = context.doc();
+        LuceneDocument parentDoc = nestedDoc.getParent();
         if (nested.isIncludeInParent()) {
             addFields(nestedDoc, parentDoc);
         }
         if (nested.isIncludeInRoot()) {
-            ParseContext.Document rootDoc = context.rootDoc();
+            LuceneDocument rootDoc = context.rootDoc();
             // don't add it twice, if its included in parent, and we are handling the master doc...
             if (nested.isIncludeInParent() == false || parentDoc != rootDoc) {
                 addFields(nestedDoc, rootDoc);
@@ -507,7 +509,7 @@ public final class DocumentParser {
         }
     }
 
-    private static void addFields(ParseContext.Document nestedDoc, ParseContext.Document rootDoc) {
+    private static void addFields(LuceneDocument nestedDoc, LuceneDocument rootDoc) {
         for (IndexableField field : nestedDoc.getFields()) {
             if (field.name().equals(TypeFieldMapper.NAME) == false) {
                 rootDoc.add(field);
@@ -517,8 +519,8 @@ public final class DocumentParser {
 
     private static ParseContext nestedContext(ParseContext context, ObjectMapper mapper) {
         context = context.createNestedContext(mapper.fullPath());
-        ParseContext.Document nestedDoc = context.doc();
-        ParseContext.Document parentDoc = nestedDoc.getParent();
+        LuceneDocument nestedDoc = context.doc();
+        LuceneDocument parentDoc = nestedDoc.getParent();
 
         // We need to add the uid or id to this nested Lucene document too,
         // If we do not do this then when a document gets deleted only the root Lucene document gets deleted and
@@ -548,7 +550,16 @@ public final class DocumentParser {
         } else if (mapper instanceof FieldMapper) {
             FieldMapper fieldMapper = (FieldMapper) mapper;
             fieldMapper.parse(context);
-            parseCopyFields(context, fieldMapper.copyTo().copyToFields());
+            List<String> copyToFields = fieldMapper.copyTo().copyToFields();
+            if (context.isWithinCopyTo() == false && copyToFields.isEmpty() == false) {
+                XContentParser.Token currentToken = context.parser().currentToken();
+                if (currentToken.isValue() == false) {
+                    // sanity check, we currently support copy-to only for value-type field, not objects
+                    throw new MapperParsingException("Cannot copy field [" + mapper.name() + "] to fields " + copyToFields +
+                        ". Copy-to currently only works for value-type fields, not objects.");
+                }
+                parseCopyFields(context, copyToFields);
+            }
         } else if (mapper instanceof FieldAliasMapper) {
             throw new IllegalArgumentException("Cannot write to a field alias [" + mapper.name() + "].");
         } else {
@@ -560,7 +571,6 @@ public final class DocumentParser {
     private static void parseObject(final ParseContext context, ObjectMapper mapper, String currentFieldName,
                                     String[] paths) throws IOException {
         assert currentFieldName != null;
-
         Mapper objectMapper = getMapper(context, mapper, currentFieldName, paths);
         if (objectMapper != null) {
             context.path().add(currentFieldName);
@@ -573,12 +583,19 @@ public final class DocumentParser {
             ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(mapper.fullPath(), currentFieldName);
-            } else if ( dynamic == ObjectMapper.Dynamic.FALSE) {
+            } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
                 // not dynamic, read everything up to end object
                 context.parser().skipChildren();
             } else {
-                Mapper dynamicObjectMapper = dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, currentFieldName);
-                context.addDynamicMapper(dynamicObjectMapper);
+                Mapper dynamicObjectMapper;
+                if (dynamic == ObjectMapper.Dynamic.RUNTIME) {
+                    //with dynamic:runtime all leaf fields will be runtime fields unless explicitly mapped,
+                    //hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
+                    dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
+                } else {
+                    dynamicObjectMapper = dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, currentFieldName);
+                    context.addDynamicMapper(dynamicObjectMapper);
+                }
                 context.path().add(currentFieldName);
                 parseObjectOrField(context, dynamicObjectMapper);
                 context.path().remove();
@@ -709,27 +726,25 @@ public final class DocumentParser {
 
     /** Creates instances of the fields that the current field should be copied to */
     private static void parseCopyFields(ParseContext context, List<String> copyToFields) throws IOException {
-        if (context.isWithinCopyTo() == false && copyToFields.isEmpty() == false) {
-            context = context.createCopyToContext();
-            for (String field : copyToFields) {
-                // In case of a hierarchy of nested documents, we need to figure out
-                // which document the field should go to
-                ParseContext.Document targetDoc = null;
-                for (ParseContext.Document doc = context.doc(); doc != null; doc = doc.getParent()) {
-                    if (field.startsWith(doc.getPrefix())) {
-                        targetDoc = doc;
-                        break;
-                    }
+        context = context.createCopyToContext();
+        for (String field : copyToFields) {
+            // In case of a hierarchy of nested documents, we need to figure out
+            // which document the field should go to
+            LuceneDocument targetDoc = null;
+            for (LuceneDocument doc = context.doc(); doc != null; doc = doc.getParent()) {
+                if (field.startsWith(doc.getPrefix())) {
+                    targetDoc = doc;
+                    break;
                 }
-                assert targetDoc != null;
-                final ParseContext copyToContext;
-                if (targetDoc == context.doc()) {
-                    copyToContext = context;
-                } else {
-                    copyToContext = context.switchDoc(targetDoc);
-                }
-                parseCopy(field, copyToContext);
             }
+            assert targetDoc != null;
+            final ParseContext copyToContext;
+            if (targetDoc == context.doc()) {
+                copyToContext = context;
+            } else {
+                copyToContext = context.switchDoc(targetDoc);
+            }
+            parseCopy(field, copyToContext);
         }
     }
 
@@ -766,7 +781,8 @@ public final class DocumentParser {
         int pathsAdded = 0;
         ObjectMapper parent = mapper;
         for (int i = 0; i < paths.length-1; i++) {
-            String currentPath = context.path().pathAsText(paths[i]);
+            String name = paths[i];
+            String currentPath = context.path().pathAsText(name);
             Mapper existingFieldMapper = context.mappingLookup().getMapper(currentPath);
             if (existingFieldMapper != null) {
                 throw new MapperParsingException(
@@ -778,13 +794,14 @@ public final class DocumentParser {
                 // One mapping is missing, check if we are allowed to create a dynamic one.
                 ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context);
                 if (dynamic == ObjectMapper.Dynamic.STRICT) {
-                    throw new StrictDynamicMappingException(parent.fullPath(), paths[i]);
+                    throw new StrictDynamicMappingException(parent.fullPath(), name);
                 } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
                     // Should not dynamically create any more mappers so return the last mapper
                     return new Tuple<>(pathsAdded, parent);
+                } else if (dynamic == ObjectMapper.Dynamic.RUNTIME) {
+                        mapper = new NoOpObjectMapper(name, currentPath);
                 } else {
-                    //objects are created under properties even with dynamic: runtime, as the runtime section only holds leaf fields
-                    final Mapper fieldMapper = dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, paths[i]);
+                    final Mapper fieldMapper = dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, name);
                     if (fieldMapper instanceof ObjectMapper == false) {
                         assert context.sourceToParse().dynamicTemplates().containsKey(currentPath) :
                             "dynamic templates [" + context.sourceToParse().dynamicTemplates() + "]";
@@ -880,9 +897,11 @@ public final class DocumentParser {
         // if a leaf field is not mapped, and is defined as a runtime field, then we
         // don't create a dynamic mapping for it and don't index it.
         String fieldPath = context.path().pathAsText(fieldName);
-        RuntimeField runtimeField = context.root().getRuntimeField(fieldPath);
-        if (runtimeField != null) {
-            return new NoOpFieldMapper(subfields[subfields.length - 1], runtimeField.asMappedFieldType().name());
+        MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldPath);
+        if (fieldType != null) {
+            //we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
+            assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
+            return new NoOpFieldMapper(subfields[subfields.length - 1], fieldType.name());
         }
         return null;
     }
@@ -960,6 +979,12 @@ public final class DocumentParser {
         @Override
         protected String contentType() {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    private static class NoOpObjectMapper extends ObjectMapper {
+        NoOpObjectMapper(String name, String fullPath) {
+            super(name, fullPath, new Explicit<>(true, false), Nested.NO, Dynamic.RUNTIME, Collections.emptyMap(), Version.CURRENT);
         }
     }
 }

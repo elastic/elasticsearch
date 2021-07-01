@@ -21,11 +21,11 @@ public class PointFieldTypeTests extends FieldTypeTestCase {
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper = new PointFieldMapper.Builder("field", false).build(new ContentPath()).fieldType();
 
-        Map<String, Object> jsonPoint = org.elasticsearch.common.collect.Map.of(
+        Map<String, Object> jsonPoint = org.elasticsearch.core.Map.of(
             "type", "Point",
             "coordinates", Arrays.asList(42.0, 27.1));
         String wktPoint = "POINT (42.0 27.1)";
-        Map<String, Object> otherJsonPoint = org.elasticsearch.common.collect.Map.of(
+        Map<String, Object> otherJsonPoint = org.elasticsearch.core.Map.of(
             "type", "Point",
             "coordinates", Arrays.asList(30.0, 50.0));
         String otherWktPoint = "POINT (30.0 50.0)";

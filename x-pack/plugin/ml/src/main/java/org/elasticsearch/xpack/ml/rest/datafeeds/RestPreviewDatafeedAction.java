@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -26,7 +26,7 @@ public class RestPreviewDatafeedAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             Route.builder(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_preview")
                 .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_preview", RestApiVersion.V_7).build(),
             new Route(GET, BASE_PATH + "datafeeds/_preview"),
@@ -43,7 +43,10 @@ public class RestPreviewDatafeedAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         PreviewDatafeedAction.Request request = restRequest.hasContentOrSourceParam() ?
-            PreviewDatafeedAction.Request.fromXContent(restRequest.contentOrSourceParamParser()) :
+            PreviewDatafeedAction.Request.fromXContent(
+                restRequest.contentOrSourceParamParser(),
+                restRequest.param(DatafeedConfig.ID.getPreferredName(), null)
+            ) :
             new PreviewDatafeedAction.Request(restRequest.param(DatafeedConfig.ID.getPreferredName()));
         return channel -> client.execute(PreviewDatafeedAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

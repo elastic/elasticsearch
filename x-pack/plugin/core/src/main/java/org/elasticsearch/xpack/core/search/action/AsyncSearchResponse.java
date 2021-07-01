@@ -10,7 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
@@ -205,5 +205,19 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public AsyncSearchResponse convertToFailure(Exception exc) {
+        exc.setStackTrace(new StackTraceElement[0]); // we don't need to store stack traces
+        return new AsyncSearchResponse(
+            id,
+            null,
+            exc,
+            isPartial,
+            false,
+            startTimeMillis,
+            expirationTimeMillis
+        );
     }
 }

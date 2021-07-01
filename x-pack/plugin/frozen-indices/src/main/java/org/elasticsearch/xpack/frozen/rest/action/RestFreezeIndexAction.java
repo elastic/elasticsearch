@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.frozen.rest.action;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -17,17 +18,19 @@ import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public final class RestFreezeIndexAction extends XPackRestHandler {
 
+    public static final String DEPRECATION_WARNING = "Frozen indices are deprecated because they provide no benefit given improvements "
+        + "in heap memory utilization. They will be removed in a future release.";
+
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(POST, "/{index}/_freeze"),
-            new Route(POST, "/{index}/_unfreeze")));
+        return org.elasticsearch.core.List.of(
+            Route.builder(POST, "/{index}/_freeze").deprecated(DEPRECATION_WARNING, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/_unfreeze").deprecated(DEPRECATION_WARNING, RestApiVersion.V_7).build()
+        );
     }
 
     @Override

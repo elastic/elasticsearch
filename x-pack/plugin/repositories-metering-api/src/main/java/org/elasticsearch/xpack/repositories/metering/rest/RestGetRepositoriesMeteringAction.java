@@ -12,8 +12,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.xpack.repositories.metering.action.RepositoriesMeteringRequest;
 import org.elasticsearch.xpack.repositories.metering.action.RepositoriesMeteringAction;
+import org.elasticsearch.xpack.repositories.metering.action.RepositoriesMeteringRequest;
 
 import java.util.List;
 
@@ -28,7 +28,7 @@ public final class RestGetRepositoriesMeteringAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(GET, "/_nodes/{nodeId}/_repositories_metering"));
+        return org.elasticsearch.core.List.of(new Route(GET, "/_nodes/{nodeId}/_repositories_metering"));
     }
 
     @Override

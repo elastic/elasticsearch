@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.sql;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.action.SqlQueryAction;
+import org.elasticsearch.xpack.sql.action.SqlQueryTask;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
@@ -28,6 +32,7 @@ import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
@@ -58,52 +63,45 @@ public final class SqlTestUtils {
         return ZonedDateTime.now(Clock.tick(Clock.system(DateUtils.UTC), Duration.ofMillis(1)));
     }
 
-    public static SqlConfiguration randomConfiguration() {
-        return new SqlConfiguration(randomZone(),
-                randomIntBetween(0, 1000),
-                new TimeValue(randomNonNegativeLong()),
-                new TimeValue(randomNonNegativeLong()),
-                null,
-                null,
-                randomFrom(Mode.values()),
-                randomAlphaOfLength(10),
-                null,
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                false,
-                randomBoolean());
-    }
-
-    public static SqlConfiguration randomConfiguration(ZoneId providedZoneId) {
-        return new SqlConfiguration(providedZoneId,
+    public static SqlConfiguration randomConfiguration(ZoneId providedZoneId, SqlVersion sqlVersion) {
+        Mode mode = randomFrom(Mode.values());
+        long taskId = randomNonNegativeLong();
+        return new SqlConfiguration(providedZoneId != null ? providedZoneId : randomZone(),
             randomIntBetween(0, 1000),
             new TimeValue(randomNonNegativeLong()),
             new TimeValue(randomNonNegativeLong()),
             null,
             null,
-            randomFrom(Mode.values()),
+            mode,
             randomAlphaOfLength(10),
-            null,
+            sqlVersion,
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             false,
-            randomBoolean());
+            randomBoolean(),
+            new TaskId(randomAlphaOfLength(10), taskId),
+            randomTask(taskId, mode, sqlVersion),
+            new TimeValue(randomNonNegativeLong()),
+            randomBoolean(),
+            new TimeValue(randomNonNegativeLong()));
+    }
+
+    public static SqlConfiguration randomConfiguration() {
+        return randomConfiguration(null, null);
+    }
+
+    public static SqlConfiguration randomConfiguration(ZoneId providedZoneId) {
+        return randomConfiguration(providedZoneId, null);
     }
 
     public static SqlConfiguration randomConfiguration(SqlVersion version) {
-        return new SqlConfiguration(randomZone(),
-                randomIntBetween(0, 1000),
-                new TimeValue(randomNonNegativeLong()),
-                new TimeValue(randomNonNegativeLong()),
-                null,
-                null,
-                randomFrom(Mode.values()),
-                randomAlphaOfLength(10),
-                version,
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                false,
-                randomBoolean());
+        return randomConfiguration(null, version);
+    }
+
+    public static SqlQueryTask randomTask(long taskId, Mode mode, SqlVersion sqlVersion) {
+        return new SqlQueryTask(taskId, "transport", SqlQueryAction.NAME, "", null, emptyMap(), emptyMap(),
+            new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)), TimeValue.timeValueDays(5), mode, sqlVersion,
+            randomBoolean());
     }
 
     public static String randomWhitespaces() {

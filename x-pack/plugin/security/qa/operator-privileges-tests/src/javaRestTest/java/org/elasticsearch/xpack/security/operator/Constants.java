@@ -11,7 +11,7 @@ import java.util.Set;
 
 public class Constants {
 
-    public static final Set<String> NON_OPERATOR_ACTIONS = org.elasticsearch.common.collect.Set.of(
+    public static final Set<String> NON_OPERATOR_ACTIONS = org.elasticsearch.core.Set.of(
         // "cluster:admin/autoscaling/delete_autoscaling_policy",
         "cluster:admin/autoscaling/get_autoscaling_capacity",
         "cluster:admin/autoscaling/get_autoscaling_policy",
@@ -44,6 +44,7 @@ public class Constants {
         "cluster:admin/logstash/pipeline/delete",
         "cluster:admin/logstash/pipeline/get",
         "cluster:admin/logstash/pipeline/put",
+        "cluster:admin/migrate_to_data_tiers",
         "cluster:admin/nodes/reload_secure_settings",
         "cluster:admin/persistent/completion",
         "cluster:admin/persistent/remove",
@@ -153,6 +154,7 @@ public class Constants {
         "cluster:admin/xpack/ml/job/open",
         "cluster:admin/xpack/ml/job/persist",
         "cluster:admin/xpack/ml/job/put",
+        "cluster:admin/xpack/ml/job/reset",
         "cluster:admin/xpack/ml/job/update",
         "cluster:admin/xpack/ml/job/validate",
         "cluster:admin/xpack/ml/job/validate/detector",
@@ -214,6 +216,7 @@ public class Constants {
         "cluster:admin/xpack/watcher/watch/execute",
         "cluster:admin/xpack/watcher/watch/put",
         "cluster:internal/xpack/ml/datafeed/isolate",
+        "cluster:internal/xpack/ml/datafeed/running_state",
         "cluster:internal/xpack/ml/inference/infer",
         "cluster:internal/xpack/ml/job/finalize_job_execution",
         "cluster:internal/xpack/ml/job/kill/process",
@@ -275,6 +278,7 @@ public class Constants {
         "cluster:monitor/xpack/searchable_snapshots/stats",
         "cluster:monitor/xpack/security/saml/metadata",
         "cluster:monitor/xpack/spatial/stats",
+        "cluster:monitor/xpack/sql/async/status", // org.elasticsearch.xpack.core.sql.SqlAsyncActionNames.SQL_ASYNC_GET_STATUS_ACTION_NAME
         "cluster:monitor/xpack/sql/stats/dist",
         "cluster:monitor/xpack/ssl/certificates/get",
         "cluster:monitor/xpack/usage",
@@ -301,6 +305,7 @@ public class Constants {
         "indices:admin/forcemerge",
         "indices:admin/freeze",
         "indices:admin/get",
+        "indices:admin/analyze_disk_usage",
         "indices:admin/ilm/explain",
         "indices:admin/ilm/remove_policy",
         "indices:admin/ilm/retry",
@@ -360,6 +365,7 @@ public class Constants {
         "indices:data/read/sql",
         "indices:data/read/sql/close_cursor",
         "indices:data/read/sql/translate",
+        "indices:data/read/sql/async/get", // org.elasticsearch.xpack.core.sql.SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME
         "indices:data/read/tv",
         "indices:data/read/xpack/ccr/shard_changes",
         "indices:data/read/xpack/enrich/coordinate_lookups",

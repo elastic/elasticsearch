@@ -11,7 +11,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -21,10 +20,6 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
@@ -70,7 +65,9 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
                 templatesToWaitFor = XPackRestTestConstants.ML_POST_V660_TEMPLATES;
             }
         }
-        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
+        boolean clusterUnderstandsComposableTemplates =
+            isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_7_8_0);
+        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor, clusterUnderstandsComposableTemplates);
     }
 
     private void createTestIndex() throws IOException {
@@ -96,18 +93,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
 
     private void oldClusterTests() throws IOException {
         // create jobs and datafeeds
-        Detector.Builder d = new Detector.Builder("metric", "responsetime");
-        d.setByFieldName("airline");
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
-        analysisConfig.setBucketSpan(TimeValue.timeValueMinutes(10));
-
-        Job.Builder closedJob = new Job.Builder(OLD_CLUSTER_CLOSED_JOB_ID);
-        closedJob.setAnalysisConfig(analysisConfig);
-        closedJob.setDataDescription(new DataDescription.Builder());
-
-        Request putClosedJob = new Request("PUT", "/_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_CLOSED_JOB_ID);
-        putClosedJob.setJsonEntity(Strings.toString(closedJob));
-        client().performRequest(putClosedJob);
+        putJob(OLD_CLUSTER_CLOSED_JOB_ID);
 
         DatafeedConfig.Builder stoppedDfBuilder = new DatafeedConfig.Builder(OLD_CLUSTER_STOPPED_DATAFEED_ID, OLD_CLUSTER_CLOSED_JOB_ID);
         if (getOldClusterVersion().before(Version.V_6_6_0)) {
@@ -120,13 +106,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         client().performRequest(putStoppedDatafeed);
 
         // open job and started datafeed
-        Job.Builder openJob = new Job.Builder(OLD_CLUSTER_OPEN_JOB_ID);
-        openJob.setAnalysisConfig(analysisConfig);
-        openJob.setDataDescription(new DataDescription.Builder());
-        Request putOpenJob = new Request("PUT", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_OPEN_JOB_ID);
-        putOpenJob.setJsonEntity(Strings.toString(openJob));
-        client().performRequest(putOpenJob);
-
+        putJob(OLD_CLUSTER_OPEN_JOB_ID);
         Request openOpenJob = new Request("POST", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_OPEN_JOB_ID + "/_open");
         client().performRequest(openOpenJob);
 
@@ -275,5 +255,24 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time").subAggregation(airline);
         dfBuilder.setParsedAggregations(AggregatorFactories.builder().addAggregator(
                 AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
+    }
+
+    private void putJob(String jobId) throws IOException {
+        String jobConfig =
+            "{\n" +
+                "    \"job_id\": \"" + jobId + "\",\n" +
+                "    \"analysis_config\": {\n" +
+                "        \"bucket_span\": \"10m\",\n" +
+                "        \"detectors\": [{\n" +
+                "            \"function\": \"metric\",\n" +
+                "            \"by_field_name\": \"airline\",\n" +
+                "            \"field_name\": \"responsetime\"\n" +
+                "        }]\n" +
+                "    },\n" +
+                "    \"data_description\": {}\n" +
+                "}";
+        Request putClosedJob = new Request("PUT", "/_xpack/ml/anomaly_detectors/" + jobId);
+        putClosedJob.setJsonEntity(jobConfig);
+        client().performRequest(putClosedJob);
     }
 }

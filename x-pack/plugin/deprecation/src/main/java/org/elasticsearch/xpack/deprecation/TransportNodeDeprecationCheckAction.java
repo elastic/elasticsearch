@@ -17,11 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
-import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckAction;
-import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckRequest;
-import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -67,7 +62,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     @Override
     protected NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request) {
         List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
-            (c) -> c.apply(settings, pluginsService.info()));
+            (c) -> c.apply(settings, pluginsService.info(), clusterService.state()));
 
         return new NodesDeprecationCheckAction.NodeResponse(transportService.getLocalNode(), issues);
     }

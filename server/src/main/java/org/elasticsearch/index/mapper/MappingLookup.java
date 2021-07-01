@@ -160,9 +160,7 @@ public final class MappingLookup {
         }
 
         this.fieldTypeLookup = new FieldTypeLookup(mapping.type(), mappers, aliasMappers, mapping.getRoot().runtimeFields());
-        this.indexTimeLookup = indexTimeScriptMappers.isEmpty()
-            ? null
-            : new FieldTypeLookup(mapping.type(), mappers, aliasMappers, emptyList());
+        this.indexTimeLookup = new FieldTypeLookup(mapping.type(), mappers, aliasMappers, emptyList());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
@@ -203,13 +201,6 @@ public final class MappingLookup {
         return fieldMappers.values();
     }
 
-    /**
-     * Returns the registered mapped field types.
-     */
-    public Collection<MappedFieldType> fieldTypes() {
-        return fieldTypeLookup.get();
-    }
-
     void checkLimits(IndexSettings settings) {
         checkFieldLimit(settings.getMappingTotalFieldsLimit());
         checkObjectDepthLimit(settings.getMappingDepthLimit());
@@ -218,8 +209,13 @@ public final class MappingLookup {
     }
 
     private void checkFieldLimit(long limit) {
-        if (fieldMappers.size() + objectMappers.size() - mapping.getSortedMetadataMappers().length > limit) {
-            throw new IllegalArgumentException("Limit of total fields [" + limit + "] has been exceeded");
+        checkFieldLimit(limit, 0);
+    }
+
+    void checkFieldLimit(long limit, int additionalFieldsToAdd) {
+        if (fieldMappers.size() + objectMappers.size() + additionalFieldsToAdd - mapping.getSortedMetadataMappers().length > limit) {
+            throw new IllegalArgumentException("Limit of total fields [" + limit + "] has been exceeded" +
+                (additionalFieldsToAdd > 0 ? " while adding new fields [" + additionalFieldsToAdd + "]" : ""));
         }
     }
 
@@ -298,8 +294,15 @@ public final class MappingLookup {
         return field.substring(0, lastDot);
     }
 
-    public Set<String> simpleMatchToFullName(String pattern) {
-        return fieldTypesLookup().simpleMatchToFullName(pattern);
+    /**
+     * Returns a set of field names that match a regex-like pattern
+     *
+     * All field names in the returned set are guaranteed to resolve to a field
+     *
+     * @param pattern the pattern to match field names against
+     */
+    public Set<String> getMatchingFieldNames(String pattern) {
+        return fieldTypeLookup.getMatchingFieldNames(pattern);
     }
 
     /**
@@ -356,27 +359,6 @@ public final class MappingLookup {
      */
     public Mapping getMapping() {
         return mapping;
-    }
-
-    /**
-     * Given an object path, checks to see if any of its parents are non-nested objects
-     */
-    public boolean hasNonNestedParent(String path) {
-        ObjectMapper mapper = objectMappers().get(path);
-        if (mapper == null) {
-            return false;
-        }
-        while (mapper != null) {
-            if (mapper.nested().isNested() == false) {
-                return true;
-            }
-            if (path.contains(".") == false) {
-                return false;
-            }
-            path = path.substring(0, path.lastIndexOf("."));
-            mapper = objectMappers().get(path);
-        }
-        return false;
     }
 
     /**

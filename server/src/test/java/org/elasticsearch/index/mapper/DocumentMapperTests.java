@@ -249,9 +249,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Map<String, Object> expected = org.elasticsearch.common.collect.Map.of(
+        Map<String, Object> expected = org.elasticsearch.core.Map.of(
             "field", "value",
-            "object", org.elasticsearch.common.collect.Map.of("field1", "value1", "field2", "value2"));
+            "object", org.elasticsearch.core.Map.of("field1", "value1", "field2", "value2"));
         assertThat(initMapper.mapping().getMeta(), equalTo(expected));
 
         DocumentMapper updatedMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
@@ -273,9 +273,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         }));
         merged = merged.merge(updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE);
 
-        expected = org.elasticsearch.common.collect.Map.of(
+        expected = org.elasticsearch.core.Map.of(
             "field", "value",
-            "object", org.elasticsearch.common.collect.Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
+            "object", org.elasticsearch.core.Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
         assertThat(merged.getMeta(), equalTo(expected));
     }
 
@@ -289,6 +289,6 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertNotNull(documentMapper.sourceMapper());
         assertNotNull(documentMapper.IndexFieldMapper());
         assertEquals(10, documentMapper.mappers().getMapping().getMetadataMappersMap().size());
-        assertEquals(10, documentMapper.mappers().fieldTypes().size());
+        assertEquals(10, documentMapper.mappers().getMatchingFieldNames("*").size());
     }
 }

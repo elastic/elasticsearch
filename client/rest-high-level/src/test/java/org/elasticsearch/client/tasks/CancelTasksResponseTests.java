@@ -58,6 +58,7 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
         }
 
         for (int i = 0; i < 4; i++) {
+            boolean isCancellable = randomBoolean();
             tasks.add(new org.elasticsearch.tasks.TaskInfo(
                 new TaskId(NODE_ID, (long) i),
                 randomAlphaOfLength(4),
@@ -66,7 +67,8 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
                 new FakeTaskStatus(randomAlphaOfLength(4), randomInt()),
                 randomLongBetween(1, 3),
                 randomIntBetween(5, 10),
-                false,
+                isCancellable,
+                isCancellable && randomBoolean(),
                 new TaskId("node1", randomLong()),
                 Collections.singletonMap("x-header-of", "some-value")));
         }
@@ -100,6 +102,7 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
             assertEquals(ti.getStartTime(), taskInfo.getStartTime());
             assertEquals(ti.getRunningTimeNanos(), taskInfo.getRunningTimeNanos());
             assertEquals(ti.isCancellable(), taskInfo.isCancellable());
+            assertEquals(ti.isCancelled(), taskInfo.isCancelled());
             assertEquals(ti.getParentTaskId().getNodeId(), taskInfo.getParentTaskId().getNodeId());
             assertEquals(ti.getParentTaskId().getId(), taskInfo.getParentTaskId().getId());
             FakeTaskStatus status = (FakeTaskStatus) ti.getStatus();

@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.List;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
@@ -128,10 +129,10 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         if (anonymousUser.enabled()) {
             final Authentication auth = responseRef.get().authentication();
             final User authUser = auth.getUser();
-            org.elasticsearch.common.collect.List.of(authUser.roles()).containsAll(
-                org.elasticsearch.common.collect.List.of(authentication.getUser().roles()));
-            org.elasticsearch.common.collect.List.of(authUser.roles()).containsAll(
-                org.elasticsearch.common.collect.List.of(anonymousUser.roles()));
+            List.of(authUser.roles()).containsAll(
+                List.of(authentication.getUser().roles()));
+            List.of(authUser.roles()).containsAll(
+                List.of(anonymousUser.roles()));
             assertThat(authUser.authenticatedUser(), sameInstance(user.authenticatedUser()));
             assertThat(auth.getAuthenticatedBy(), sameInstance(auth.getAuthenticatedBy()));
             assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));

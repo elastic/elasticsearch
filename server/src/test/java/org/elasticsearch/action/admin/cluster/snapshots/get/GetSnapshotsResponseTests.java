@@ -12,7 +12,9 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotFeatureInfo;
 import org.elasticsearch.snapshots.SnapshotFeatureInfoTests;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -41,7 +43,7 @@ public class GetSnapshotsResponseTests extends AbstractSerializingTestCase<GetSn
     @Override
     protected ToXContent.Params getToXContentParams() {
         // Explicitly include the index details, excluded by default, since this is required for a faithful round-trip
-        return new ToXContent.MapParams(org.elasticsearch.common.collect.Map.of(INDEX_DETAILS_XCONTENT_PARAM, "true"));
+        return new ToXContent.MapParams(Map.of(INDEX_DETAILS_XCONTENT_PARAM, "true"));
     }
 
     @Override
@@ -53,8 +55,9 @@ public class GetSnapshotsResponseTests extends AbstractSerializingTestCase<GetSn
             ShardId shardId = new ShardId("index", UUIDs.base64UUID(), 2);
             List<SnapshotShardFailure> shardFailures = Collections.singletonList(new SnapshotShardFailure("node-id", shardId, "reason"));
             List<SnapshotFeatureInfo> featureInfos = randomList(0, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo);
-            snapshots.add(new SnapshotInfo(
-                    snapshotId,
+            snapshots.add(
+                new SnapshotInfo(
+                    new Snapshot(randomAlphaOfLength(5), snapshotId),
                     Arrays.asList("index1", "index2"),
                     Collections.singletonList("ds"),
                     featureInfos,
@@ -65,9 +68,11 @@ public class GetSnapshotsResponseTests extends AbstractSerializingTestCase<GetSn
                     randomBoolean(),
                     SnapshotInfoTestUtils.randomUserMetadata(),
                     System.currentTimeMillis(),
-                    SnapshotInfoTestUtils.randomIndexSnapshotDetails()));
+                    SnapshotInfoTestUtils.randomIndexSnapshotDetails()
+                )
+            );
         }
-        return new GetSnapshotsResponse(snapshots);
+        return new GetSnapshotsResponse(snapshots, Collections.emptyMap(), null);
     }
 
     @Override

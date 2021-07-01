@@ -13,13 +13,17 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.index.IndexingSlowLog;
+import org.elasticsearch.index.SearchSlowLog;
+import org.elasticsearch.index.SlowLogLevel;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -102,7 +106,7 @@ public class IndexDeprecationChecks {
                     "Index created before 7.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
                         "breaking-changes-8.0.html",
-                    "This index was created using version: " + createdWith);
+                    "This index was created using version: " + createdWith, null);
         }
         return null;
     }
@@ -126,7 +130,7 @@ public class IndexDeprecationChecks {
                     "This index has [" + fieldCount.get() + "] fields, which exceeds the automatic field expansion limit of 1024 " +
                         "and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING.getKey() + "] set, which may cause queries which use " +
                         "automatic field expansion, such as query_string, simple_query_string, and multi_match to fail if fields are not " +
-                        "explicitly specified in the query.");
+                        "explicitly specified in the query.", null);
             }
         }
         return null;
@@ -147,7 +151,7 @@ public class IndexDeprecationChecks {
                     "Date field format uses patterns which has changed meaning in 7.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
                     "This index has date fields with deprecated formats: " + fields + ". "
-                        + JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
+                        + JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, null);
             }
         }
         return null;
@@ -169,7 +173,7 @@ public class IndexDeprecationChecks {
                 "Multi-fields within multi-fields",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
                     "#_defining_multi_fields_within_multi_fields",
-                "The names of fields that contain chained multi-fields: " + issues.toString());
+                "The names of fields that contain chained multi-fields: " + issues, null);
         }
         return null;
     }
@@ -197,7 +201,8 @@ public class IndexDeprecationChecks {
                     "Index mapping contains explicit `_field_names` enabling settings.",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
                             "#fieldnames-enabling",
-                    "The index mapping contains a deprecated `enabled` setting for `_field_names` that should be removed moving foward.");
+                    "The index mapping contains a deprecated `enabled` setting for `_field_names` that should be removed moving foward.",
+                null);
         }
         return null;
     }
@@ -258,8 +263,41 @@ public class IndexDeprecationChecks {
                     "translog retention settings are ignored",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",
                     "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored " +
-                        "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)");
+                        "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)", null);
             }
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkIndexDataPath(IndexMetadata indexMetadata) {
+        if (IndexMetadata.INDEX_DATA_PATH_SETTING.exists(indexMetadata.getSettings())) {
+            final String message = String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in a future version", IndexMetadata.INDEX_DATA_PATH_SETTING.getKey());
+            final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/" +
+                "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+            final String details = "Found index data path configured. Discontinue use of this setting.";
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
+        }
+        return null;
+    }
+    static DeprecationIssue indexingSlowLogLevelSettingCheck(IndexMetadata indexMetadata) {
+        return slowLogSettingCheck(indexMetadata, IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING);
+    }
+
+    static DeprecationIssue searchSlowLogLevelSettingCheck(IndexMetadata indexMetadata) {
+        return slowLogSettingCheck(indexMetadata, SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL);
+    }
+
+    private static DeprecationIssue slowLogSettingCheck(IndexMetadata indexMetadata, Setting<SlowLogLevel> setting) {
+        if (setting.exists(indexMetadata.getSettings())) {
+            final String message = String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in a future version", setting.getKey());
+            final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/migrating-7.13.html" +
+                "#slow-log-level-removal";
+
+            final String details = String.format(Locale.ROOT, "Found [%s] configured. Discontinue use of this setting. Use thresholds.",
+                setting.getKey());
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, null);
         }
         return null;
     }

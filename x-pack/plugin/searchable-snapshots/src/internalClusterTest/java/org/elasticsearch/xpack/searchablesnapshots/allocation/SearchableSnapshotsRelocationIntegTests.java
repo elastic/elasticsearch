@@ -18,9 +18,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.LocalStateSearchableSnapshots;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.hamcrest.Matchers;
 
 import java.util.Collection;
@@ -38,7 +38,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return org.elasticsearch.common.collect.List.of(LocalStateSearchableSnapshots.class, MockRepository.Plugin.class);
+        return org.elasticsearch.core.List.of(LocalStateSearchableSnapshots.class, MockRepository.Plugin.class);
     }
 
     public void testRelocationWaitsForPreWarm() throws Exception {
@@ -49,7 +49,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
         final String snapshotName = "test-snapshot";
-        createSnapshot(repoName, snapshotName, org.elasticsearch.common.collect.List.of(index));
+        createSnapshot(repoName, snapshotName, org.elasticsearch.core.List.of(index));
         assertAcked(client().admin().indices().prepareDelete(index));
         final String restoredIndex = mountSnapshot(repoName, snapshotName, index, Settings.EMPTY);
         ensureGreen(restoredIndex);

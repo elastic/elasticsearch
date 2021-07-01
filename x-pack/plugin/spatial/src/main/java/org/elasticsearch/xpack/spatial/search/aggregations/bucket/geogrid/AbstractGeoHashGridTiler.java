@@ -37,10 +37,13 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
         GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         assert bounds.minX() <= bounds.maxX();
 
+        // When the shape represents a point, we compute the hash directly as we do it for GeoPoint
+        if (bounds.minX() == bounds.maxX() && bounds.minY() == bounds.maxY()) {
+            return setValue(values, geoValue, bounds);
+        }
         // TODO: optimize for when a  shape fits in a single tile an
         //  for when brute-force is expected to be faster than rasterization, which
         //  is when the number of tiles expected is less than the precision
-
         return setValuesByRasterization("", values, 0, geoValue);
     }
 

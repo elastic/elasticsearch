@@ -19,7 +19,7 @@ import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -781,6 +781,13 @@ public class GetActionIT extends ESIntegTestCase {
                 "  \"text2\": \"more text.\"\n" +
                 "}\n";
         index("test", "_doc", "1", doc);
+    }
+
+    public void testGetRemoteIndex() {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+            () -> client().prepareGet("cluster:index", "_doc", "id").get());
+        assertEquals("Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:index]",
+            iae.getMessage());
     }
 
     private void assertGetFieldsAlwaysWorks(String index, String type, String docId, String[] fields) {

@@ -128,8 +128,8 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldAliasMapper aliasMapper = new FieldAliasMapper("alias", "object2.alias", "object1.field");
 
         MappingLookup mappers = createMappingLookup(
-            org.elasticsearch.common.collect.List.of(createFieldMapper("object1", "field")),
-            org.elasticsearch.common.collect.List.of(createObjectMapper("object1"), createObjectMapper("object2")),
+            org.elasticsearch.core.List.of(createFieldMapper("object1", "field")),
+            org.elasticsearch.core.List.of(createObjectMapper("object1"), createObjectMapper("object2")),
             singletonList(aliasMapper),
             emptyList()
         );

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.client.ml.inference.NamedXContentObject;
 import org.elasticsearch.client.ml.inference.NamedXContentObjectHelper;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;

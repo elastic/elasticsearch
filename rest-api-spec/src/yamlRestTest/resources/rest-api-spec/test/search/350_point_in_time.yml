@@ -171,8 +171,8 @@ setup:
 ---
 "msearch":
   - skip:
-      version: " - 7.99.99"
-      reason: "After backport: 7.9.99 => point in time is introduced in 7.10"
+      version: " - 7.13.2"
+      reason: "point in time is introduced in 7.10 - but wasn't backported in 7.13.3"
   - do:
       open_point_in_time:
         index: "t*"

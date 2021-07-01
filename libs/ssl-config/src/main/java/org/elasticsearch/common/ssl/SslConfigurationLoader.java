@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 
 import javax.crypto.Cipher;
 import javax.net.ssl.KeyManagerFactory;

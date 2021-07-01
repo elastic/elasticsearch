@@ -15,7 +15,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemDataStreamDescriptor.Type;
 import org.elasticsearch.indices.SystemIndices;
@@ -93,7 +94,9 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         DataStream existingDataStream =
             new DataStream(dataStreamName, createTimestampField("@timestamp"), Collections.singletonList(idx.getIndex()));
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().dataStreams(Collections.singletonMap(dataStreamName, existingDataStream)).build()).build();
+            .metadata(Metadata.builder().dataStreams(Collections.singletonMap(dataStreamName, existingDataStream), Collections.emptyMap())
+                .build())
+            .build();
         CreateDataStreamClusterStateUpdateRequest req =
             new CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
 
@@ -222,7 +225,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             new ComposableIndexTemplate(
                 Collections.singletonList(".system-data-stream"), null, null, null, null, null, new DataStreamTemplate()),
             Collections.emptyMap(),
-            Collections.singletonList("stack")
-        );
+            Collections.singletonList("stack"),
+            ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS);
     }
 }

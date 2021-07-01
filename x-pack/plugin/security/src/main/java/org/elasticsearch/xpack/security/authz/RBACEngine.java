@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -73,11 +74,11 @@ import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivile
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -90,7 +91,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction.getApplicationNames;
@@ -305,8 +305,7 @@ public class RBACEngine implements AuthorizationEngine {
                 listener.onFailure(new IllegalStateException("only scroll and async-search related requests are known indices " +
                     "api that don't support retrieving the indices they relate to"));
             }
-        } else if (request instanceof IndicesRequest &&
-            IndicesAndAliasesResolver.allowsRemoteIndices((IndicesRequest) request)) {
+        } else if (request instanceof IndicesRequest && ((IndicesRequest) request).allowsRemoteIndices()) {
             // remote indices are allowed
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 assert resolvedIndices.isEmpty() == false
@@ -361,7 +360,7 @@ public class RBACEngine implements AuthorizationEngine {
 
     @Override
     public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                      Map<String, IndexAbstraction> indicesLookup, ActionListener<List<String>> listener) {
+                                      Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo, indicesLookup));
@@ -483,8 +482,15 @@ public class RBACEngine implements AuthorizationEngine {
         final Set<GetUserPrivilegesResponse.Indices> indices = new LinkedHashSet<>();
         for (IndicesPermission.Group group : userRole.indices().groups()) {
             final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
-            final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity = group.getFieldPermissions().hasFieldLevelSecurity()
-                ? group.getFieldPermissions().getFieldPermissionsDefinition().getFieldGrantExcludeGroups() : Collections.emptySet();
+            final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
+            if (group.getFieldPermissions().hasFieldLevelSecurity()) {
+                final FieldPermissionsDefinition definition = group.getFieldPermissions().getFieldPermissionsDefinition();
+                assert group.getFieldPermissions().getLimitedByFieldPermissionsDefinition() == null
+                    : "limited-by field must not exist since we do not support reporting user privileges for limited roles";
+                fieldSecurity = definition.getFieldGrantExcludeGroups();
+            } else {
+                fieldSecurity = Collections.emptySet();
+            }
             indices.add(new GetUserPrivilegesResponse.Indices(
                 Arrays.asList(group.indices()),
                 group.privilege().name(),
@@ -521,29 +527,35 @@ public class RBACEngine implements AuthorizationEngine {
         return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs);
     }
 
-    static List<String> resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Map<String, IndexAbstraction> lookup) {
+    static Set<String> resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Map<String, IndexAbstraction> lookup) {
         Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
 
         // do not include data streams for actions that do not operate on data streams
         TransportRequest request = requestInfo.getRequest();
-        boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
+        final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
 
         Set<String> indicesAndAliases = new HashSet<>();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
-        for (Map.Entry<String, IndexAbstraction> entry : lookup.entrySet()) {
-            IndexAbstraction indexAbstraction = entry.getValue();
-            if (predicate.test(indexAbstraction)) {
-                if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM) {
+        if (includeDataStreams) {
+            for (IndexAbstraction indexAbstraction : lookup.values()) {
+                if (predicate.test(indexAbstraction)) {
                     indicesAndAliases.add(indexAbstraction.getName());
-                } else if (includeDataStreams) {
-                    // add data stream and its backing indices for any authorized data streams
+                    if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+                        // add data stream and its backing indices for any authorized data streams
+                        for (IndexMetadata indexMetadata : indexAbstraction.getIndices()) {
+                            indicesAndAliases.add(indexMetadata.getIndex().getName());
+                        }
+                    }
+                }
+            }
+        } else {
+            for (IndexAbstraction indexAbstraction : lookup.values()) {
+                if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction)) {
                     indicesAndAliases.add(indexAbstraction.getName());
-                    indicesAndAliases.addAll(indexAbstraction.getIndices().stream()
-                        .map(i -> i.getIndex().getName()).collect(Collectors.toList()));
                 }
             }
         }
-        return Collections.unmodifiableList(new ArrayList<>(indicesAndAliases));
+        return Collections.unmodifiableSet(indicesAndAliases);
     }
 
     private void buildIndicesAccessControl(Authentication authentication, String action,
@@ -624,6 +636,7 @@ public class RBACEngine implements AuthorizationEngine {
         return action.equals(SubmitAsyncSearchAction.NAME) ||
             action.equals(GetAsyncSearchAction.NAME) ||
             action.equals(DeleteAsyncResultAction.NAME) ||
-            action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME);
+            action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME) ||
+            action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
     }
 }

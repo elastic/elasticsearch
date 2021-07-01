@@ -16,9 +16,9 @@ import org.elasticsearch.client.transform.transforms.SyncConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -44,16 +44,17 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 public abstract class ContinuousTestCase extends ESRestTestCase {
 
     public static final TimeValue SYNC_DELAY = new TimeValue(1, TimeUnit.SECONDS);
+    public static final int METRIC_TREND = 5000;
     public static final String CONTINUOUS_EVENTS_SOURCE_INDEX = "test-transform-continuous-events";
     public static final String INGEST_PIPELINE = "transform-ingest";
     public static final String MAX_RUN_FIELD = "run.max";
     public static final String INGEST_RUN_FIELD = "run_ingest";
     // mixture of fields to choose from, indexed and runtime
-    public static final Set<String> METRIC_FIELDS = org.elasticsearch.common.collect.Set.of("metric", "metric-rt-2x");
-    public static final Set<String> METRIC_TIMESTAMP_FIELDS = org.elasticsearch.common.collect.Set.of("metric-timestamp", "metric-timestamp-5m-earlier");
-    public static final Set<String> TERMS_FIELDS = org.elasticsearch.common.collect.Set.of("event", "event-upper");
-    public static final Set<String> TIMESTAMP_FIELDS = org.elasticsearch.common.collect.Set.of("timestamp", "timestamp-at-runtime");
-    public static final Set<String> OTHER_TIMESTAMP_FIELDS = org.elasticsearch.common.collect.Set.of("some-timestamp", "some-timestamp-10m-earlier");
+    public static final Set<String> METRIC_FIELDS = org.elasticsearch.core.Set.of("metric", "metric-rt-2x");
+    public static final Set<String> METRIC_TIMESTAMP_FIELDS = org.elasticsearch.core.Set.of("metric-timestamp", "metric-timestamp-5m-earlier");
+    public static final Set<String> TERMS_FIELDS = org.elasticsearch.core.Set.of("event", "event-upper");
+    public static final Set<String> TIMESTAMP_FIELDS = org.elasticsearch.core.Set.of("timestamp", "timestamp-at-runtime");
+    public static final Set<String> OTHER_TIMESTAMP_FIELDS = org.elasticsearch.core.Set.of("some-timestamp", "some-timestamp-10m-earlier");
     public static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS = new DateTimeFormatterBuilder().parseCaseInsensitive()
         .append(ISO_LOCAL_DATE)
         .appendLiteral('T')

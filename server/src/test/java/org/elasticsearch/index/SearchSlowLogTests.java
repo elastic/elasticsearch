@@ -18,7 +18,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -34,6 +34,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -96,6 +97,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         IndexSettings settings =
             new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index", uuid), Settings.EMPTY);
         SearchSlowLog log = new SearchSlowLog(settings);
+        assertWarnings("[index.search.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
 
         {
             //level set to WARN, should only log when WARN limit is breached
@@ -113,6 +116,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         {
             // level set INFO, should log when INFO level is breached
             settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.INFO, "index", uuid));
+            assertWarnings("[index.search.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+                " See the breaking changes documentation for the next major version.");
             log.onQueryPhase(ctx, 30L);
             assertNull(appender.getLastEventAndReset());
             log.onQueryPhase(ctx, 31L);
@@ -127,6 +132,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         {
             // level set DEBUG, should log when DEBUG level is breached
             settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.DEBUG, "index", uuid));
+            assertWarnings("[index.search.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+                " See the breaking changes documentation for the next major version.");
             log.onQueryPhase(ctx, 20L);
             assertNull(appender.getLastEventAndReset());
             log.onQueryPhase(ctx, 21L);
@@ -141,6 +148,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         {
             // level set TRACE, should log when TRACE level is breached
             settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.TRACE, "index", uuid));
+            assertWarnings("[index.search.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+                " See the breaking changes documentation for the next major version.");
             log.onQueryPhase(ctx, 10L);
             assertNull(appender.getLastEventAndReset());
             log.onQueryPhase(ctx, 11L);
@@ -160,10 +169,13 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index-1", UUIDs.randomBase64UUID()), Settings.EMPTY);
         SearchSlowLog log1 = new SearchSlowLog(settings1);
 
+        assertWarnings("[index.search.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
         IndexSettings settings2 =
             new IndexSettings(createIndexMetadata(SlowLogLevel.TRACE, "index-2", UUIDs.randomBase64UUID()), Settings.EMPTY);
         SearchSlowLog log2 = new SearchSlowLog(settings2);
-
+        assertWarnings("[index.search.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
         {
             // level set WARN, should not log
             log1.onQueryPhase(ctx1, 11L);
@@ -195,6 +207,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
         int numberOfLoggersAfter = context.getLoggers().size();
         assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
+        assertWarnings("[index.search.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
     }
 
     private IndexMetadata createIndexMetadata(SlowLogLevel level, String index, String uuid) {
@@ -286,15 +300,18 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         SearchSlowLog log = new SearchSlowLog(settings);
         assertEquals(level, log.getLevel());
-        level = randomFrom(SlowLogLevel.values());
+        level = randomFrom(EnumSet.complementOf(EnumSet.of(level)));
+        settings.updateIndexMetadata(newIndexMeta("index",
+            Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
+        assertWarnings("[index.search.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
+        assertEquals(level, log.getLevel());
+        level = randomFrom(EnumSet.complementOf(EnumSet.of(level)));
         settings.updateIndexMetadata(newIndexMeta("index",
             Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
         assertEquals(level, log.getLevel());
-        level = randomFrom(SlowLogLevel.values());
-        settings.updateIndexMetadata(newIndexMeta("index",
-            Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
-        assertEquals(level, log.getLevel());
-
+        assertWarnings("[index.search.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
 
         settings.updateIndexMetadata(newIndexMeta("index",
             Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
@@ -321,6 +338,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             assertThat(cause, hasToString(containsString("No enum constant org.elasticsearch.index.SlowLogLevel.NOT A LEVEL")));
         }
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
+        assertWarnings("[index.search.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
 
         metadata = newIndexMeta("index", Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -340,6 +359,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
         assertEquals(SlowLogLevel.DEBUG, debugLog.getLevel());
         assertEquals(SlowLogLevel.INFO, infoLog.getLevel());
+        assertWarnings("[index.search.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
     }
 
     public void testSetQueryLevels() {

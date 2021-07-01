@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Collections;
 import java.util.Map;

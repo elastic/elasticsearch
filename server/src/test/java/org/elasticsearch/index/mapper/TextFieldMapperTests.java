@@ -222,11 +222,11 @@ public class TextFieldMapperTests extends MapperTestCase {
             )
         );
         return new IndexAnalyzers(
-            org.elasticsearch.common.collect.Map.of(
+            org.elasticsearch.core.Map.of(
                 "default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop
             ),
-            org.elasticsearch.common.collect.Map.of(),
-            org.elasticsearch.common.collect.Map.of()
+            org.elasticsearch.core.Map.of(),
+            org.elasticsearch.core.Map.of()
         );
     }
 
@@ -843,9 +843,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         when(context.indexVersionCreated()).thenReturn(Version.CURRENT);
         QueryStringQueryParser parser = new QueryStringQueryParser(context, "f");
         Query q = parser.parse("foo:*");
-        assertEquals(new ConstantScoreQuery(new BooleanQuery.Builder()
-            .add(new NormsFieldExistsQuery("foo.bar"), BooleanClause.Occur.SHOULD)
-            .build()), q);
+        assertEquals(new ConstantScoreQuery(new NormsFieldExistsQuery("foo.bar")), q);
     }
 
     private static void assertAnalyzesTo(Analyzer analyzer, String field, String input, String[] output) throws IOException {

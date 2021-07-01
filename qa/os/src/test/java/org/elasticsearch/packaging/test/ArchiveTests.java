@@ -302,7 +302,7 @@ public class ArchiveTests extends PackagingTestCase {
 
         withCustomConfig(tempConf -> {
             setHeap("512m", tempConf);
-            final List<String> jvmOptions = org.elasticsearch.common.collect.List.of("-Dlog4j2.disable.jmx=true");
+            final List<String> jvmOptions = org.elasticsearch.core.List.of("-Dlog4j2.disable.jmx=true");
             Files.write(tempConf.resolve("jvm.options"), jvmOptions, CREATE, APPEND);
 
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");

@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
@@ -61,8 +62,10 @@ testClusters.matching { it.name == "integTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     setting 'ingest.geoip.downloader.enabled', 'false'
+    if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
+      setting 'es.shutdown_feature_flag_enabled', 'true'
+    }
     systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
-    systemProperty 'es.shutdown_feature_flag_enabled', 'true'
     keystorePassword 'keystore-password'
   }
 
@@ -1527,6 +1530,47 @@ setups['setup-repository'] = '''
           body: |
 #atomic_red_data#
 '''
+  // fake data used by the correlation bucket agg
+  buildRestTests.setups['correlate_latency'] = '''
+  - do:
+        indices.create:
+          index: correlate_latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                latency:
+                  type: double
+                version:
+                  type: keyword
+  - do:
+        bulk:
+          index: correlate_latency
+          refresh: true
+          body: |'''
+
+
+  for (int i = 100; i < 200; i++) {
+    def value = i
+    if (i % 10) {
+      value = i * 10
+    }
+    buildRestTests.setups['correlate_latency'] += """
+            {"index":{}}
+            {"latency": "$value", "version": "1.0"}"""
+  }
+  for (int i = 0; i < 100; i++) {
+    def value = i
+    if (i % 10) {
+      value = i * 10
+    }
+    buildRestTests.setups['correlate_latency'] += """
+            {"index":{}}
+            {"latency": "$value", "version": "2.0"}"""
+  }
+
   /* Load the actual events only if we're going to use them. */
   File atomicRedRegsvr32File = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
   inputs.file(atomicRedRegsvr32File)

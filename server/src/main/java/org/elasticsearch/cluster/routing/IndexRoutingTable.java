@@ -54,7 +54,7 @@ import java.util.function.Predicate;
  */
 public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
 
-    private static final List<Predicate<ShardRouting>> PRIORITY_REMOVE_CLAUSES = org.elasticsearch.common.collect.List.of(
+    private static final List<Predicate<ShardRouting>> PRIORITY_REMOVE_CLAUSES = org.elasticsearch.core.List.of(
         ShardRouting::unassigned,
         ShardRouting::initializing,
         shardRouting -> true

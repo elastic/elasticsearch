@@ -37,7 +37,7 @@ public class TransportDeleteServiceAccountTokenAction
     @Override
     protected void doExecute(Task task, DeleteServiceAccountTokenRequest request,
                              ActionListener<DeleteServiceAccountTokenResponse> listener) {
-        httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "create service account token", () -> {
+        httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "delete service account token", () -> {
             indexServiceAccountTokenStore.deleteToken(request, ActionListener.wrap(found -> {
                 listener.onResponse(new DeleteServiceAccountTokenResponse(found));
             }, listener::onFailure));

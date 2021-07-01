@@ -274,4 +274,33 @@ public class UserAgentProcessorTests extends ESTestCase {
         device.put("name", "Other");
         assertThat(target.get("device"), is(device));
     }
+
+    @SuppressWarnings("unchecked")
+    public void testExtractDeviceTypeAndEcsDisabled() {
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field",
+            "Something I made up v42.0.1");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        InputStream regexStream = UserAgentProcessor.class.getResourceAsStream("/regexes.yml");
+        InputStream deviceTypeRegexStream = UserAgentProcessor.class.getResourceAsStream("/device_type_regexes.yml");
+        UserAgentParser parser = new UserAgentParser(randomAlphaOfLength(10), regexStream, deviceTypeRegexStream, new UserAgentCache(1000));
+        UserAgentProcessor processor = new UserAgentProcessor(randomAlphaOfLength(10), null, "source_field", "target_field", parser,
+            EnumSet.allOf(UserAgentProcessor.Property.class), true, false, false);
+        processor.execute(ingestDocument);
+        Map<String, Object> data = ingestDocument.getSourceAndMetadata();
+
+        assertThat(data, hasKey("target_field"));
+        Map<String, Object> target = (Map<String, Object>) data.get("target_field");
+
+        assertThat(target.get("name"), is("Other"));
+        assertNull(target.get("major"));
+        assertNull(target.get("minor"));
+        assertNull(target.get("patch"));
+        assertNull(target.get("build"));
+        assertThat(target.get("os"), is("Other"));
+        assertThat(target.get("device"), is("Other"));
+        assertThat(target.get("device_type"), is("Other"));
+    }
+
 }

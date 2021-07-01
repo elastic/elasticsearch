@@ -41,7 +41,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
@@ -1313,6 +1313,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             public void onFailure(Exception e) {
                 assertThat(e, is(instanceOf(TaskCancelledException.class)));
                 assertThat(e.getMessage(), is("cancelled"));
+                assertThat(((TaskCancelledException)e).status(), is(RestStatus.BAD_REQUEST));
                 assertThat(searchContextCreated.get(), is(false));
                 latch3.countDown();
             }
@@ -1336,6 +1337,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             public void onFailure(Exception e) {
                 assertThat(e, is(instanceOf(TaskCancelledException.class)));
                 assertThat(e.getMessage(), is("cancelled"));
+                assertThat(((TaskCancelledException)e).status(), is(RestStatus.BAD_REQUEST));
                 assertThat(searchContextCreated.get(), is(false));
                 latch4.countDown();
             }
@@ -1388,6 +1390,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 Throwable cancelledExc = e.getCause().getCause();
                 assertThat(cancelledExc, is(instanceOf(TaskCancelledException.class)));
                 assertThat(cancelledExc.getMessage(), is("cancelled"));
+                assertThat(((TaskCancelledException) cancelledExc).status(), is(RestStatus.BAD_REQUEST));
                 latch.countDown();
             }
         });

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.List;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.hamcrest.Matchers;
 import org.mockito.Mockito;
@@ -30,7 +31,7 @@ import java.util.Locale;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
-public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<RolloverStep> {
+public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
 
     @Override
     public RolloverStep createRandomInstance() {
@@ -70,11 +71,6 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
             .putAlias(AliasMetadata.builder(alias))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-    }
-
-    @Override
-    protected IndexMetadata getIndexMetadata() {
-        return getIndexMetadata(randomAlphaOfLength(5));
     }
 
     private static void assertRolloverIndexRequest(RolloverRequest request, String rolloverTarget) {
@@ -122,7 +118,7 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
                 Metadata.builder()
                     .put(new DataStream(
                         dataStreamName, createTimestampField("@timestamp"),
-                        org.elasticsearch.common.collect.List.of(indexMetadata.getIndex()))
+                        List.of(indexMetadata.getIndex()))
                     )
                     .put(indexMetadata, true)
             )
@@ -150,7 +146,7 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
                 Metadata.builder().put(firstGenerationIndex, true)
                     .put(writeIndex, true)
                     .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                        org.elasticsearch.common.collect.List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())))
+                        List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())))
             )
             .build();
         assertTrue(PlainActionFuture.get(f -> step.performAction(firstGenerationIndex, clusterState, null, f)));

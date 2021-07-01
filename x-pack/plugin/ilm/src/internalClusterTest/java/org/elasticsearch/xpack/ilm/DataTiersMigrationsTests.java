@@ -14,7 +14,8 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
@@ -124,7 +125,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.emptyMap());
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, Collections.emptyMap());
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(
-            policy, org.elasticsearch.common.collect.Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase)
+            policy, Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase)
         );
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
@@ -186,7 +187,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.emptyMap());
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, Collections.emptyMap());
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(
-            policy, org.elasticsearch.common.collect.Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase)
+            policy, Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase)
         );
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());

@@ -32,15 +32,27 @@ import java.util.Set;
 /**
  * Transport action for get repositories operation
  */
-public class TransportGetRepositoriesAction extends
-    TransportMasterNodeReadAction<GetRepositoriesRequest, GetRepositoriesResponse> {
+public class TransportGetRepositoriesAction extends TransportMasterNodeReadAction<GetRepositoriesRequest, GetRepositoriesResponse> {
 
     @Inject
-    public TransportGetRepositoriesAction(TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetRepositoriesAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              GetRepositoriesRequest::new, indexNameExpressionResolver, GetRepositoriesResponse::new, ThreadPool.Names.SAME);
+    public TransportGetRepositoriesAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetRepositoriesAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetRepositoriesRequest::new,
+            indexNameExpressionResolver,
+            GetRepositoriesResponse::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
@@ -49,15 +61,28 @@ public class TransportGetRepositoriesAction extends
     }
 
     @Override
-    protected void masterOperation(final GetRepositoriesRequest request, ClusterState state,
-                                   final ActionListener<GetRepositoriesResponse> listener) {
+    protected void masterOperation(
+        final GetRepositoriesRequest request,
+        ClusterState state,
+        final ActionListener<GetRepositoriesResponse> listener
+    ) {
+        listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetadata(getRepositories(state, request.repositories()))));
+    }
+
+    /**
+     * Get repository metadata for given repository names from given cluster state.
+     *
+     * @param state     Cluster state
+     * @param repoNames Repository names or patterns to get metadata for
+     * @return list of repository metadata
+     */
+    public static List<RepositoryMetadata> getRepositories(ClusterState state, String[] repoNames) {
         RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-        if (request.repositories().length == 0 || (request.repositories().length == 1
-                && ("_all".equals(request.repositories()[0]) || "*".equals(request.repositories()[0])))) {
-                listener.onResponse(new GetRepositoriesResponse(repositories));
+        if (repoNames.length == 0 || (repoNames.length == 1 && ("_all".equals(repoNames[0]) || "*".equals(repoNames[0])))) {
+            return repositories.repositories();
         } else {
             Set<String> repositoriesToGet = new LinkedHashSet<>(); // to keep insertion order
-            for (String repositoryOrPattern : request.repositories()) {
+            for (String repositoryOrPattern : repoNames) {
                 if (Regex.isSimpleMatchPattern(repositoryOrPattern) == false) {
                     repositoriesToGet.add(repositoryOrPattern);
                 } else {
@@ -72,12 +97,11 @@ public class TransportGetRepositoriesAction extends
             for (String repository : repositoriesToGet) {
                 RepositoryMetadata repositoryMetadata = repositories.repository(repository);
                 if (repositoryMetadata == null) {
-                    listener.onFailure(new RepositoryMissingException(repository));
-                    return;
+                    throw new RepositoryMissingException(repository);
                 }
                 repositoryListBuilder.add(repositoryMetadata);
             }
-            listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetadata(repositoryListBuilder)));
+            return repositoryListBuilder;
         }
     }
 }

@@ -10,7 +10,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.collect.Set;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex.DocumentVersion;
@@ -36,7 +36,7 @@ public class ManageServiceProviderRestIT extends IdpRestTestCase {
 
     @Before
     public void defineApplicationPrivileges() throws IOException {
-        super.createApplicationPrivileges("elastic-cloud", org.elasticsearch.common.collect.Map.of(
+        super.createApplicationPrivileges("elastic-cloud", org.elasticsearch.core.Map.of(
             "deployment_admin", Set.of("sso:superuser"),
             "deployment_viewer", Set.of("sso:viewer")
         ));

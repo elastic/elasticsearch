@@ -32,21 +32,21 @@ public class RuntimeFieldsPainlessExtension implements PainlessExtension {
         Whitelist commonWhitelist = WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "common_whitelist.txt");
         Whitelist grokWhitelist = new Whitelist(
             commonWhitelist.classLoader,
-            org.elasticsearch.common.collect.List.of(),
-            org.elasticsearch.common.collect.List.of(),
-            org.elasticsearch.common.collect.List.of(),
-            org.elasticsearch.common.collect.List.of(
+            org.elasticsearch.core.List.of(),
+            org.elasticsearch.core.List.of(),
+            org.elasticsearch.core.List.of(),
+            org.elasticsearch.core.List.of(
                 new WhitelistInstanceBinding(
                     AbstractFieldScript.class.getCanonicalName(),
                     plugin.grokHelper(),
                     "grok",
                     NamedGroupExtractor.class.getName(),
-                    org.elasticsearch.common.collect.List.of(String.class.getName()),
-                    org.elasticsearch.common.collect.List.of(CompileTimeOnlyAnnotation.INSTANCE)
+                    org.elasticsearch.core.List.of(String.class.getName()),
+                    org.elasticsearch.core.List.of(CompileTimeOnlyAnnotation.INSTANCE)
                 )
             )
         );
-        this.whitelists = org.elasticsearch.common.collect.List.of(commonWhitelist, grokWhitelist);
+        this.whitelists = org.elasticsearch.core.List.of(commonWhitelist, grokWhitelist);
     }
 
     @Override

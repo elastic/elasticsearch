@@ -75,7 +75,7 @@ authentication; it will not have authority to call {es} APIs.
 expire.
 
 `metadata`::
-(object) Arbitrary metadata that you want to associate with the API key.
+(Optional, object) Arbitrary metadata that you want to associate with the API key.
 It supports nested data structure.
 Within the `metadata` object, keys beginning with `_` are reserved for
 system usage.

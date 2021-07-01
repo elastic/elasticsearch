@@ -13,11 +13,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -90,10 +90,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private Integer preFilterShardSize;
 
     private String[] types = Strings.EMPTY_ARRAY;
-    private Boolean ccsMinimizeRoundtrips;
+    private boolean ccsMinimizeRoundtrips;
 
     @Nullable
-    private Version minCompatibleShardNode;
+    private final Version minCompatibleShardNode;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS =
         IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
@@ -138,6 +138,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         indices(indices);
         this.source = source;
+    }
+
+    @Override
+    public boolean allowsRemoteIndices() {
+        return true;
     }
 
     /**
@@ -236,10 +241,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         } else {
             ccsMinimizeRoundtrips = true;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            if (in.readBoolean()) {
-                minCompatibleShardNode = Version.readVersion(in);
-            }
+        if (in.getVersion().onOrAfter(Version.V_7_12_0) && in.readBoolean()) {
+            minCompatibleShardNode = Version.readVersion(in);
+        } else {
+            minCompatibleShardNode = null;
         }
     }
 
@@ -455,6 +460,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         this.types = types;
         return this;
+    }
+
+    /**
+     * Returns the default value of {@link #ccsMinimizeRoundtrips} of a search request
+     */
+    public static boolean defaultCcsMinimizeRoundtrips(SearchRequest request) {
+        return request.minCompatibleShardNode == null;
     }
 
     /**

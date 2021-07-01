@@ -1,7 +1,7 @@
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.internal.jvm.Jvm
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.LoggedExec
+import org.elasticsearch.gradle.LoggedExec
 
 import org.elasticsearch.gradle.util.GradleUtils
 
@@ -119,7 +119,6 @@ tasks.named("yamlRestTest").configure {
    * other if we allow them to set the number of available processors as it's set-once in Netty.
    */
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
-
 
   // TODO: fix this rest test to not depend on a hardcoded port!
   def blacklist = ['getting_started/10_monitor_cluster_health/*']

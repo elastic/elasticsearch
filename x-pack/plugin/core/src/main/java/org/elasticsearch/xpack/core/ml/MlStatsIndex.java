@@ -11,12 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
-
-import java.util.Collections;
 
 /**
  * Describes the indices where ML is storing various stats about the users jobs.
@@ -29,13 +27,17 @@ public class MlStatsIndex {
 
     private MlStatsIndex() {}
 
-    public static String mapping() {
-        return mapping(MapperService.SINGLE_MAPPING_NAME);
+    public static String wrappedMapping() {
+        return "{\n\"" + MapperService.SINGLE_MAPPING_NAME + "\" : " + mapping() + "\n}";
     }
 
-    public static String mapping(String mappingType) {
+    public static String wrappedMapping(String mappingType) {
+        return "{\n\"" + mappingType + "\" : " + mapping() + "\n}";
+    }
+
+    public static String mapping() {
         return TemplateUtils.loadTemplate("/org/elasticsearch/xpack/core/ml/stats_index_mappings.json",
-            Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE, Collections.singletonMap("xpack.ml.mapping_type", mappingType));
+            Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);
     }
 
     public static String indexPattern() {

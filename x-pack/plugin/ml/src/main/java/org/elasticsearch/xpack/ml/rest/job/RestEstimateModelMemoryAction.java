@@ -22,7 +22,7 @@ public class RestEstimateModelMemoryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(POST, BASE_PATH + "anomaly_detectors/_estimate_model_memory"));
+        return org.elasticsearch.core.List.of(new Route(POST, BASE_PATH + "anomaly_detectors/_estimate_model_memory"));
     }
 
     @Override

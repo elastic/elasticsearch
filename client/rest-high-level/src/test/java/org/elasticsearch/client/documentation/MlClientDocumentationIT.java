@@ -108,6 +108,8 @@ import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.PutTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.PutTrainedModelResponse;
+import org.elasticsearch.client.ml.ResetJobRequest;
+import org.elasticsearch.client.ml.ResetJobResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
@@ -196,7 +198,7 @@ import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -445,6 +447,64 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testResetJob() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("a-job-to-reset");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        Job secondJob = MachineLearningIT.buildJob("another-job-to-reset");
+        client.machineLearning().putJob(new PutJobRequest(secondJob), RequestOptions.DEFAULT);
+
+        {
+            //tag::reset-job-request
+            ResetJobRequest resetJobRequest = new ResetJobRequest("a-job-to-reset"); // <1>
+            //end::reset-job-request
+
+            //tag::reset-job-request-wait-for-completion
+            resetJobRequest.setWaitForCompletion(true); // <1>
+            //end::reset-job-request-wait-for-completion
+
+            //tag::reset-job-execute
+            ResetJobResponse resetJobResponse = client.machineLearning().resetJob(resetJobRequest, RequestOptions.DEFAULT);
+            //end::reset-job-execute
+
+            //tag::reset-job-response
+            Boolean isAcknowledged = resetJobResponse.getAcknowledged(); // <1>
+            TaskId task = resetJobResponse.getTask(); // <2>
+            //end::reset-job-response
+
+            assertTrue(isAcknowledged);
+            assertNull(task);
+        }
+        {
+            //tag::reset-job-execute-listener
+            ActionListener<ResetJobResponse> listener = new ActionListener<ResetJobResponse>() {
+                @Override
+                public void onResponse(ResetJobResponse resetJobResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::reset-job-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            ResetJobRequest resetJobRequest = new ResetJobRequest("another-job-to-reset");
+            // tag::reset-job-execute-async
+            client.machineLearning().resetJobAsync(resetJobRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::reset-job-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     public void testOpenJob() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -588,14 +648,13 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setDescription("My description") // <2>
                 .setAnalysisLimits(new AnalysisLimits(1000L, null)) // <3>
                 .setBackgroundPersistInterval(TimeValue.timeValueHours(3)) // <4>
-                .setCategorizationFilters(Arrays.asList("categorization-filter")) // <5>
-                .setDetectorUpdates(Arrays.asList(detectorUpdate)) // <6>
-                .setGroups(Arrays.asList("job-group-1")) // <7>
-                .setResultsRetentionDays(10L) // <8>
-                .setModelPlotConfig(new ModelPlotConfig(true, null, true)) // <9>
-                .setModelSnapshotRetentionDays(7L) // <10>
-                .setCustomSettings(customSettings) // <11>
-                .setRenormalizationWindowDays(3L) // <12>
+                .setDetectorUpdates(Arrays.asList(detectorUpdate)) // <5>
+                .setGroups(Arrays.asList("job-group-1")) // <6>
+                .setResultsRetentionDays(10L) // <7>
+                .setModelPlotConfig(new ModelPlotConfig(true, null, true)) // <8>
+                .setModelSnapshotRetentionDays(7L) // <9>
+                .setCustomSettings(customSettings) // <10>
+                .setRenormalizationWindowDays(3L) // <11>
                 .build();
             // end::update-job-options
 

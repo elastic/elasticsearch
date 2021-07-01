@@ -12,9 +12,11 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -30,7 +32,7 @@ public class RestDeleteServiceAccountTokenAction extends SecurityBaseRestHandler
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new Route(DELETE, "/_security/service/{namespace}/{service}/credential/token/{name}"));
     }
 
@@ -47,9 +49,12 @@ public class RestDeleteServiceAccountTokenAction extends SecurityBaseRestHandler
         if (refreshPolicy != null) {
             deleteServiceAccountTokenRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
         }
-
-        return channel -> client.execute(DeleteServiceAccountTokenAction.INSTANCE,
-            deleteServiceAccountTokenRequest,
-            new RestToXContentListener<>(channel));
+        return channel -> client.execute(DeleteServiceAccountTokenAction.INSTANCE, deleteServiceAccountTokenRequest,
+            new RestToXContentListener<DeleteServiceAccountTokenResponse>(channel) {
+                @Override
+                protected RestStatus getStatus(DeleteServiceAccountTokenResponse response) {
+                    return response.found() ? RestStatus.OK : RestStatus.NOT_FOUND;
+                }
+            });
     }
 }

@@ -110,16 +110,40 @@ public class MetadataIndexAliasesService {
                     // Handled above
                     continue;
                 }
+
+                /* It is important that we look up the index using the metadata builder we are modifying so we can remove an
+                 * index and replace it with an alias. */
+                Function<String, String> lookup = name -> {
+                    IndexMetadata imd = metadata.get(name);
+                    if (imd != null) {
+                        return imd.getIndex().getName();
+                    }
+                    DataStream dataStream = metadata.dataStream(name);
+                    if (dataStream != null) {
+                        return dataStream.getName();
+                    }
+                    return null;
+                };
+
+                // Handle the actions that do data streams aliases separately:
+                DataStream dataStream = metadata.dataStream(action.getIndex());
+                if (dataStream != null) {
+                    NewAliasValidator newAliasValidator = (alias, indexRouting, filter, writeIndex) -> {
+                        aliasValidator.validateAlias(alias, action.getIndex(), indexRouting, lookup);
+                    };
+                    if (action.apply(newAliasValidator, metadata, null)) {
+                        changed = true;
+                    }
+                    continue;
+                }
+
                 IndexMetadata index = metadata.get(action.getIndex());
                 if (index == null) {
                     throw new IndexNotFoundException(action.getIndex());
                 }
                 validateAliasTargetIsNotDSBackingIndex(currentState, action);
                 NewAliasValidator newAliasValidator = (alias, indexRouting, filter, writeIndex) -> {
-                    /* It is important that we look up the index using the metadata builder we are modifying so we can remove an
-                     * index and replace it with an alias. */
-                    Function<String, IndexMetadata> indexLookup = name -> metadata.get(name);
-                    aliasValidator.validateAlias(alias, action.getIndex(), indexRouting, indexLookup);
+                    aliasValidator.validateAlias(alias, action.getIndex(), indexRouting, lookup);
                     if (Strings.hasLength(filter)) {
                         IndexService indexService = indices.get(index.getIndex().getName());
                         if (indexService == null) {

@@ -35,10 +35,12 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
@@ -53,11 +55,13 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
@@ -152,25 +156,28 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
 
         // success
         responseProviderHolder.set((r, l) -> l.onResponse(getResponse1));
-        final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
+        final PlainActionFuture<StoreAuthenticationResult> future1 = new PlainActionFuture<>();
         store.doAuthenticate(serviceAccountToken, future1);
         final GetRequest getRequest = (GetRequest) requestHolder.get();
         assertThat(getRequest.id(), equalTo("service_account_token-" + serviceAccountToken.getQualifiedName()));
-        assertThat(future1.get(), is(true));
+        assertThat(future1.get().isSuccess(), is(true));
+        assertThat(future1.get().getTokenSource(), is(TokenSource.INDEX));
 
         // token mismatch
         final GetResponse getResponse2 = createGetResponse(ServiceAccountToken.newToken(accountId, randomAlphaOfLengthBetween(3, 8)), true);
         responseProviderHolder.set((r, l) -> l.onResponse(getResponse2));
-        final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
+        final PlainActionFuture<StoreAuthenticationResult> future2 = new PlainActionFuture<>();
         store.doAuthenticate(serviceAccountToken, future2);
-        assertThat(future2.get(), is(false));
+        assertThat(future2.get().isSuccess(), is(false));
+        assertThat(future2.get().getTokenSource(), is(TokenSource.INDEX));
 
         // token document not found
         final GetResponse getResponse3 = createGetResponse(serviceAccountToken, false);
         responseProviderHolder.set((r, l) -> l.onResponse(getResponse3));
-        final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
+        final PlainActionFuture<StoreAuthenticationResult> future3 = new PlainActionFuture<>();
         store.doAuthenticate(serviceAccountToken, future3);
-        assertThat(future3.get(), is(false));
+        assertThat(future3.get().isSuccess(), is(false));
+        assertThat(future3.get().getTokenSource(), is(TokenSource.INDEX));
     }
 
     public void testCreateToken() throws ExecutionException, InterruptedException {
@@ -241,7 +248,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                     .mapToObj(i ->
                         new SearchHit(randomIntBetween(0, Integer.MAX_VALUE),
                             SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/" + tokenNames[i], null,
-                            org.elasticsearch.common.collect.Map.of(), org.elasticsearch.common.collect.Map.of()))
+                            org.elasticsearch.core.Map.of(), org.elasticsearch.core.Map.of()))
                     .toArray(SearchHit[]::new);
                 final InternalSearchResponse internalSearchResponse;
                     internalSearchResponse = new InternalSearchResponse(new SearchHits(hits,
@@ -263,9 +270,9 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         final PlainActionFuture<Collection<TokenInfo>> future = new PlainActionFuture<>();
         store.findTokensFor(accountId, future);
         final Collection<TokenInfo> tokenInfos = future.actionGet();
-        assertThat(tokenInfos.stream().map(TokenInfo::getSource).allMatch(TokenInfo.TokenSource.INDEX::equals), is(true));
+        assertThat(tokenInfos.stream().map(TokenInfo::getSource).allMatch(TokenSource.INDEX::equals), is(true));
         assertThat(tokenInfos.stream().map(TokenInfo::getName).collect(Collectors.toSet()),
-            equalTo(org.elasticsearch.common.collect.Set.of(tokenNames)));
+            equalTo(Set.of(tokenNames)));
     }
 
     public void testFindTokensForException() {
@@ -292,8 +299,8 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             } else if (r instanceof ClearSecurityCacheRequest) {
                 cacheCleared.set(true);
                 l.onResponse(new ClearSecurityCacheResponse(mock(ClusterName.class),
-                    org.elasticsearch.common.collect.List.of(mock(ClearSecurityCacheResponse.Node.class)),
-                    org.elasticsearch.common.collect.List.of()));
+                    List.of(mock(ClearSecurityCacheResponse.Node.class)),
+                    List.of()));
             } else {
                 fail("unexpected request " + r);
             }
@@ -330,7 +337,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         final PlainActionFuture<Collection<TokenInfo>> future1 = new PlainActionFuture<>();
         store.findTokensFor(accountId, future1);
-        assertThat(future1.actionGet(), equalTo(org.elasticsearch.common.collect.List.of()));
+        assertThat(future1.actionGet(), equalTo(List.of()));
 
         final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest = new DeleteServiceAccountTokenRequest(
             randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
@@ -360,13 +367,13 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
     private GetResponse createGetResponse(ServiceAccountToken serviceAccountToken, boolean exists) throws IOException {
         final char[] hash = Hasher.PBKDF2_STRETCH.hash(serviceAccountToken.getSecret());
         final Map<String, Object> documentMap
-            = org.elasticsearch.common.collect.Map.of("password", new String(CharArrays.toUtf8Bytes(hash), StandardCharsets.UTF_8));
+            = org.elasticsearch.core.Map.of("password", new String(CharArrays.toUtf8Bytes(hash), StandardCharsets.UTF_8));
         return new GetResponse(new GetResult(
             randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8),
             exists ? randomLongBetween(0, Long.MAX_VALUE) : UNASSIGNED_SEQ_NO,
             exists ? randomLongBetween(1, Long.MAX_VALUE) : UNASSIGNED_PRIMARY_TERM, randomLong(), exists,
             XContentTestUtils.convertToXContent(documentMap, XContentType.JSON),
-            org.elasticsearch.common.collect.Map.of(), org.elasticsearch.common.collect.Map.of()));
+            org.elasticsearch.core.Map.of(), org.elasticsearch.core.Map.of()));
     }
 
     private Authentication createAuthentication() {

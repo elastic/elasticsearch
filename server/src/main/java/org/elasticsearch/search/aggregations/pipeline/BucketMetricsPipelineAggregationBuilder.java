@@ -23,11 +23,17 @@ import java.util.Optional;
 public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketMetricsPipelineAggregationBuilder<AF>>
         extends AbstractPipelineAggregationBuilder<AF> {
 
-    private String format = null;
-    private GapPolicy gapPolicy = GapPolicy.SKIP;
+    private String format;
+    private GapPolicy gapPolicy;
 
     protected BucketMetricsPipelineAggregationBuilder(String name, String type, String[] bucketsPaths) {
+        this(name, type, bucketsPaths, null, GapPolicy.SKIP);
+    }
+
+    protected BucketMetricsPipelineAggregationBuilder(String name, String type, String[] bucketsPaths, String format, GapPolicy gapPolicy) {
         super(name, type, bucketsPaths);
+        this.format = format;
+        this.gapPolicy = gapPolicy;
     }
 
     /**

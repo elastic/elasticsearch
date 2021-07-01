@@ -16,7 +16,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
@@ -222,6 +222,6 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return org.elasticsearch.common.collect.List.of(CoreValuesSourceType.GEOPOINT, GeoShapeValuesSourceType.instance());
+        return org.elasticsearch.core.List.of(CoreValuesSourceType.GEOPOINT, GeoShapeValuesSourceType.instance());
     }
 }

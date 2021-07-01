@@ -21,7 +21,7 @@ public class AzureRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPI
 
     @Override
     protected Map<String, String> repositoryLocation() {
-        return org.elasticsearch.common.collect.Map.of(
+        return org.elasticsearch.core.Map.of(
             "container",
             getProperty("test.azure.container"),
             "base_path",
@@ -45,11 +45,11 @@ public class AzureRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPI
 
     @Override
     protected List<String> readCounterKeys() {
-        return org.elasticsearch.common.collect.List.of("GetBlob", "GetBlobProperties", "ListBlobs");
+        return org.elasticsearch.core.List.of("GetBlob", "GetBlobProperties", "ListBlobs");
     }
 
     @Override
     protected List<String> writeCounterKeys() {
-        return org.elasticsearch.common.collect.List.of("PutBlob");
+        return org.elasticsearch.core.List.of("PutBlob");
     }
 }

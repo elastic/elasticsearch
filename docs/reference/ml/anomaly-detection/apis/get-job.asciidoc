@@ -59,6 +59,24 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-generated]
 The API returns an array of {anomaly-job} resources. For the full list of
 properties, see <<ml-put-job-request-body,create {anomaly-jobs} API>>.
 
+//Begin blocked
+`blocked`::
+(object) When present, it explains that a task is executed on the job
+that blocks it from opening.
++
+.Properties of `blocked`
+[%collapsible%open]
+====
+`reason`:::
+(string) The reason the job is blocked. Values may be `delete`, `reset`, `revert`.
+Each value means the corresponding action is being executed.
+
+`task_id`:::
+(string) The task id of the blocking action. You can use the <<tasks>> API to
+monitor progress.
+====
+//End blocked
+
 `create_time`::
 (string) The time the job was created. For example, `1491007356077`. This
 property is informational; you cannot change its value.

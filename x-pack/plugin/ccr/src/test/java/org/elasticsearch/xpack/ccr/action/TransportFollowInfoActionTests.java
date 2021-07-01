@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ccr.Ccr;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
@@ -59,7 +59,7 @@ public class TransportFollowInfoActionTests extends ESTestCase {
                 .numberOfReplicas(0);
 
             if (isFollowIndex) {
-                imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
+                imdBuilder.putCustom(CcrConstants.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
                 if (active) {
                     persistentTasks.addTask(Integer.toString(i), ShardFollowTask.NAME,
                         createShardFollowTask(new Index(index, IndexMetadata.INDEX_UUID_NA_VALUE)), null);

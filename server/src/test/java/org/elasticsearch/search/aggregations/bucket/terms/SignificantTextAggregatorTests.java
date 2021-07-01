@@ -23,6 +23,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -195,7 +196,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType);
                 SignificantTerms terms = sampler.getAggregations().get("sig_text");
-                assertTrue(terms.getBuckets().isEmpty()); 
+                assertTrue(terms.getBuckets().isEmpty());
             }
         }
     }
@@ -338,6 +339,6 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected FieldMapper buildMockFieldMapper(MappedFieldType ft) {
-        return new MockFieldMapper(ft, org.elasticsearch.common.collect.Map.of(ft.name(), ft.getTextSearchInfo().getSearchAnalyzer()));
+        return new MockFieldMapper(ft, Map.of(ft.name(), ft.getTextSearchInfo().getSearchAnalyzer()));
     }
 }

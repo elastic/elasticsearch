@@ -10,6 +10,7 @@ package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.core.List;
 import org.elasticsearch.script.Script;
 
 import static org.hamcrest.Matchers.containsString;
@@ -129,42 +130,42 @@ public class StringScriptFieldRangeQueryTests extends AbstractStringScriptFieldQ
     @Override
     public void testMatches() {
         StringScriptFieldRangeQuery query = new StringScriptFieldRangeQuery(randomScript(), leafFactory, "test", "a", "b", true, true);
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("a")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("ab")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("b")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("ba")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("a", "c")));
+        assertTrue(query.matches(List.of("a")));
+        assertTrue(query.matches(List.of("ab")));
+        assertTrue(query.matches(List.of("b")));
+        assertFalse(query.matches(List.of("ba")));
+        assertTrue(query.matches(List.of("a", "c")));
         query = new StringScriptFieldRangeQuery(randomScript(), leafFactory, "test", "a", "b", false, false);
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("a")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("ab")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("b")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("ba")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("a")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("ab")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("b")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("ba")));
+        assertFalse(query.matches(List.of("a")));
+        assertTrue(query.matches(List.of("ab")));
+        assertFalse(query.matches(List.of("b")));
+        assertFalse(query.matches(List.of("ba")));
+        assertFalse(query.matches(List.of("a")));
+        assertTrue(query.matches(List.of("ab")));
+        assertFalse(query.matches(List.of("b")));
+        assertFalse(query.matches(List.of("ba")));
         query = new StringScriptFieldRangeQuery(randomScript(), leafFactory, "test", "b", "a", randomBoolean(), randomBoolean());
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("a")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("ab")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("b")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("ba")));
+        assertFalse(query.matches(List.of("a")));
+        assertFalse(query.matches(List.of("ab")));
+        assertFalse(query.matches(List.of("b")));
+        assertFalse(query.matches(List.of("ba")));
         query = new StringScriptFieldRangeQuery(randomScript(), leafFactory, "test", null, "b", true, false);
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("a")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("ab")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("b")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("ba")));
+        assertTrue(query.matches(List.of("a")));
+        assertTrue(query.matches(List.of("ab")));
+        assertFalse(query.matches(List.of("b")));
+        assertFalse(query.matches(List.of("ba")));
         query = new StringScriptFieldRangeQuery(randomScript(), leafFactory, "test", "a", null, false, true);
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("a")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("ab")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("b")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("ba")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("z")));
+        assertFalse(query.matches(List.of("a")));
+        assertTrue(query.matches(List.of("ab")));
+        assertTrue(query.matches(List.of("b")));
+        assertTrue(query.matches(List.of("ba")));
+        assertTrue(query.matches(List.of("z")));
         query = new StringScriptFieldRangeQuery(randomScript(), leafFactory, "test", null, null, true, true);
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("a")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("ab")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("b")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("ba")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("z")));
+        assertTrue(query.matches(List.of("a")));
+        assertTrue(query.matches(List.of("ab")));
+        assertTrue(query.matches(List.of("b")));
+        assertTrue(query.matches(List.of("ba")));
+        assertTrue(query.matches(List.of("z")));
     }
 
     @Override

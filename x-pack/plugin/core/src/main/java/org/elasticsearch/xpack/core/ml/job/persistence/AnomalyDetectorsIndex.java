@@ -11,12 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
-
-import java.util.Collections;
 
 /**
  * Methods for handling index naming related functions
@@ -86,12 +84,16 @@ public final class AnomalyDetectorsIndex {
             finalListener);
     }
 
-    public static String resultsMapping() {
-        return resultsMapping(MapperService.SINGLE_MAPPING_NAME);
+    public static String wrappedResultsMapping() {
+        return "{\n\"" + MapperService.SINGLE_MAPPING_NAME + "\" : " + resultsMapping() + "\n}";
     }
 
-    public static String resultsMapping(String mappingType) {
+    public static String wrappedResultsMapping(String mappingType) {
+        return "{\n\"" + mappingType + "\" : " + resultsMapping() + "\n}";
+    }
+
+    public static String resultsMapping() {
         return TemplateUtils.loadTemplate(RESOURCE_PATH + "results_index_mappings.json",
-            Version.CURRENT.toString(), RESULTS_MAPPINGS_VERSION_VARIABLE, Collections.singletonMap("xpack.ml.mapping_type", mappingType));
+            Version.CURRENT.toString(), RESULTS_MAPPINGS_VERSION_VARIABLE);
     }
 }

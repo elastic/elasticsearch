@@ -21,7 +21,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 /**
  * Abstract base for scripts to execute to build scripted fields. Inspired by
@@ -63,7 +63,7 @@ public abstract class AbstractFieldScript {
         );
     }
 
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.common.collect.Map.of(
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.core.Map.of(
         "_source",
         value -> ((SourceLookup) value).source()
     );
@@ -102,8 +102,16 @@ public abstract class AbstractFieldScript {
         return leafSearchLookup.doc();
     }
 
-    protected final List<Object> extractFromSource(String path) {
+    protected List<Object> extractFromSource(String path) {
         return XContentMapValues.extractRawValues(path, leafSearchLookup.source().source());
+    }
+
+    protected abstract void emitFromObject(Object v);
+
+    protected final void emitFromSource() {
+        for (Object v : extractFromSource(fieldName)) {
+            emitFromObject(v);
+        }
     }
 
     /**

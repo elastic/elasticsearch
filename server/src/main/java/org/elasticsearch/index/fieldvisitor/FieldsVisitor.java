@@ -10,7 +10,7 @@ package org.elasticsearch.index.fieldvisitor;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -75,6 +75,10 @@ public class FieldsVisitor extends StoredFieldVisitor {
         return requiredFields.isEmpty()
             ? Status.STOP
             : Status.NO;
+    }
+
+    public Set<String> getFieldNames() {
+        return requiredFields;
     }
 
     public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup, @Nullable String type) {

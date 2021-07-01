@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -149,7 +150,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
 
     public void testXContentHashSetSerialization() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(),
-            org.elasticsearch.common.collect.Map.of("key", org.elasticsearch.common.collect.Set.of("value")));
+            org.elasticsearch.core.Map.of("key", Set.of("value")));
         final WriteableIngestDocument writeableIngestDocument = new WriteableIngestDocument(ingestDocument);
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();

@@ -352,22 +352,22 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             InternalRareTerms<?, ?> evenRare = even.getAggregations().get("rare");
             assertEquals(
                 evenRare.getBuckets().stream().map(InternalRareTerms.Bucket::getKeyAsString).collect(toList()),
-                org.elasticsearch.common.collect.List.of("2")
+                org.elasticsearch.core.List.of("2")
             );
             assertEquals(
                 evenRare.getBuckets().stream().map(InternalRareTerms.Bucket::getDocCount).collect(toList()),
-                org.elasticsearch.common.collect.List.of(2L)
+                org.elasticsearch.core.List.of(2L)
             );
 
             StringTerms.Bucket odd = terms.getBucketByKey("odd");
             InternalRareTerms<?, ?> oddRare = odd.getAggregations().get("rare");
             assertEquals(
                 oddRare.getBuckets().stream().map(InternalRareTerms.Bucket::getKeyAsString).collect(toList()),
-                org.elasticsearch.common.collect.List.of("1")
+                org.elasticsearch.core.List.of("1")
             );
             assertEquals(
                 oddRare.getBuckets().stream().map(InternalRareTerms.Bucket::getDocCount).collect(toList()),
-                org.elasticsearch.common.collect.List.of(1L)
+                org.elasticsearch.core.List.of(1L)
             );
         }
     }
@@ -611,7 +611,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ObjectMapper> objectMappers() {
-        return org.elasticsearch.common.collect.List.of(NestedAggregatorTests.nestedObject("nested_object"));
+        return org.elasticsearch.core.List.of(NestedAggregatorTests.nestedObject("nested_object"));
     }
 
 }

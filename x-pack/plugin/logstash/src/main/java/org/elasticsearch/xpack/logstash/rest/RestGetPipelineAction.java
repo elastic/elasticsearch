@@ -32,7 +32,7 @@ public class RestGetPipelineAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(GET, "/_logstash/pipeline"), new Route(GET, "/_logstash/pipeline/{id}"));
+        return org.elasticsearch.core.List.of(new Route(GET, "/_logstash/pipeline"), new Route(GET, "/_logstash/pipeline/{id}"));
     }
 
     @Override

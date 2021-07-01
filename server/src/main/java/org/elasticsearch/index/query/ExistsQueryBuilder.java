@@ -10,19 +10,17 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -30,8 +28,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Constructs a query that only match on documents that the field has a value in them.
@@ -74,8 +73,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
         if (context != null) {
-            Collection<String> fields = getMappedField(context, fieldName);
-            if (fields.isEmpty()) {
+            if (getMappedFields(context, fieldName).isEmpty()) {
                 return new MatchNoneQueryBuilder();
             }
         }
@@ -133,8 +131,8 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     public static Query newFilter(SearchExecutionContext context, String fieldPattern, boolean checkRewrite) {
-
-       Collection<String> fields = getMappedField(context, fieldPattern);
+       Collection<MappedFieldType> fields = getMappedFields(context, fieldPattern)
+           .stream().map(context::getFieldType).collect(Collectors.toList());
 
         if (fields.isEmpty()) {
             if (checkRewrite) {
@@ -145,98 +143,43 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         }
 
         if (context.indexVersionCreated().before(Version.V_6_1_0)) {
-            return newLegacyExistsQuery(context, fields);
+            return newLegacyExistsQuery(fields);
         }
 
         if (fields.size() == 1) {
-            String field = fields.iterator().next();
-            return newFieldExistsQuery(context, field);
+            MappedFieldType field = fields.iterator().next();
+            return new ConstantScoreQuery(field.existsQuery(context));
         }
 
         BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
-        for (String field : fields) {
-            boolFilterBuilder.add(newFieldExistsQuery(context, field), BooleanClause.Occur.SHOULD);
+        for (MappedFieldType field : fields) {
+            boolFilterBuilder.add(field.existsQuery(context), BooleanClause.Occur.SHOULD);
         }
         return new ConstantScoreQuery(boolFilterBuilder.build());
     }
 
-    private static Query newLegacyExistsQuery(SearchExecutionContext context, Collection<String> fields) {
+    private static Query newLegacyExistsQuery(Collection<MappedFieldType> fields) {
         // We create TermsQuery directly here rather than using FieldNamesFieldType.termsQuery()
         // so we don't end up with deprecation warnings
         if (fields.size() == 1) {
-            Query filter = newLegacyExistsQuery(context, fields.iterator().next());
-            return new ConstantScoreQuery(filter);
+            return new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, fields.iterator().next().name())));
         }
 
         BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
-        for (String field : fields) {
-            Query filter = newLegacyExistsQuery(context, field);
+        for (MappedFieldType field : fields) {
+            Query filter = new TermQuery(new Term(FieldNamesFieldMapper.NAME, field.name()));
             boolFilterBuilder.add(filter, BooleanClause.Occur.SHOULD);
         }
         return new ConstantScoreQuery(boolFilterBuilder.build());
     }
 
-    private static Query newLegacyExistsQuery(SearchExecutionContext context, String field) {
-        MappedFieldType fieldType = context.getFieldType(field);
-        String fieldName = fieldType != null ? fieldType.name() : field;
-        return new TermQuery(new Term(FieldNamesFieldMapper.NAME, fieldName));
-    }
-
-    private static Query newFieldExistsQuery(SearchExecutionContext context, String field) {
-        if (context.isFieldMapped(field)) {
-            Query filter = context.getFieldType(field).existsQuery(context);
-            return new ConstantScoreQuery(filter);
-        } else {
-            // The field does not exist as a leaf but could be an object so
-            // check for an object mapper
-            if (context.getObjectMapper(field) != null) {
-                return newObjectFieldExistsQuery(context, field);
-            }
-            return Queries.newMatchNoDocsQuery("User requested \"match_none\" query.");
+    private static Collection<String> getMappedFields(SearchExecutionContext context, String fieldPattern) {
+        Set<String> matchingFieldNames = context.getMatchingFieldNames(fieldPattern);
+        if (matchingFieldNames.isEmpty()) {
+            // might be an object field, so try matching it as an object prefix pattern
+            matchingFieldNames = context.getMatchingFieldNames(fieldPattern + ".*");
         }
-    }
-
-    private static Query newObjectFieldExistsQuery(SearchExecutionContext context, String objField) {
-        BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
-        Collection<String> fields = context.simpleMatchToIndexNames(objField + ".*");
-        for (String field : fields) {
-            Query existsQuery = context.getFieldType(field).existsQuery(context);
-            booleanQuery.add(existsQuery, Occur.SHOULD);
-        }
-        return new ConstantScoreQuery(booleanQuery.build());
-    }
-
-    /**
-     * Helper method to get field mapped to this fieldPattern
-     * @return return collection of fields if exists else return empty.
-     */
-    private static Collection<String> getMappedField(SearchExecutionContext context, String fieldPattern) {
-        if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
-            // can only happen when no types exist, so no docs exist either
-            return Collections.emptySet();
-        }
-
-        final Collection<String> fields;
-        if (context.getObjectMapper(fieldPattern) != null) {
-            // the _field_names field also indexes objects, so we don't have to
-            // do any more work to support exists queries on whole objects
-            fields = Collections.singleton(fieldPattern);
-        } else {
-            fields = context.simpleMatchToIndexNames(fieldPattern);
-        }
-
-        if (fields.size() == 1) {
-            String field = fields.iterator().next();
-            if (context.isFieldMapped(field) == false) {
-                // The field does not exist as a leaf but could be an object so
-                // check for an object mapper
-                if (context.getObjectMapper(field) == null) {
-                    return Collections.emptySet();
-                }
-            }
-        }
-
-        return fields;
+        return matchingFieldNames;
     }
 
     @Override

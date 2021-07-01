@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.core.List;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -19,13 +21,13 @@ public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType mapper
             = new GeoShapeFieldMapper.Builder("field", true, true).build(new ContentPath()).fieldType();
 
-        Map<String, Object> jsonLineString = org.elasticsearch.common.collect.Map.of(
+        Map<String, Object> jsonLineString = org.elasticsearch.core.Map.of(
             "type", "LineString",
             "coordinates", Arrays.asList(Arrays.asList(42.0, 27.1), Arrays.asList(30.0, 50.0)));
-        Map<String, Object> jsonPoint = org.elasticsearch.common.collect.Map.of(
+        Map<String, Object> jsonPoint = org.elasticsearch.core.Map.of(
             "type", "Point",
             "coordinates", Arrays.asList(14.0, 15.0));
-        Map<String, Object> jsonMalformed = org.elasticsearch.common.collect.Map.of("type", "Point", "coordinates", "foo");
+        Map<String, Object> jsonMalformed = org.elasticsearch.core.Map.of("type", "Point", "coordinates", "foo");
         String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
         String wktPoint = "POINT (14.0 15.0)";
         String wktMalformed = "POINT foo";
@@ -46,12 +48,12 @@ public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Arrays.asList(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
 
         // Test a list of shapes including one malformed in geojson format
-        sourceValue = org.elasticsearch.common.collect.List.of(jsonLineString, jsonMalformed, jsonPoint);
+        sourceValue = List.of(jsonLineString, jsonMalformed, jsonPoint);
         assertEquals(
-            org.elasticsearch.common.collect.List.of(jsonLineString, jsonPoint),
+            List.of(jsonLineString, jsonPoint),
             fetchSourceValue(mapper, sourceValue, null));
         assertEquals(
-            org.elasticsearch.common.collect.List.of(wktLineString, wktPoint),
+            List.of(wktLineString, wktPoint),
             fetchSourceValue(mapper, sourceValue, "wkt"));
 
         // Test a single shape in wkt format.

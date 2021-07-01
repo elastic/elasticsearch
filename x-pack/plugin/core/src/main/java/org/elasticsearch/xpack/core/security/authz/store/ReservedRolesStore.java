@@ -37,6 +37,8 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
+    public static final String LEGACY_ALERTS_INDEX = ".siem-signals*";
+    public static final String ALERTS_INDEX = ".alerts*";
 
     public static final RoleDescriptor SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor("superuser",
             new String[] { "all" },
@@ -61,9 +63,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("monitoring_user", new RoleDescriptor("monitoring_user",
                         new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info", RemoteInfoAction.NAME },
                         new RoleDescriptor.IndicesPrivileges[] {
-                            RoleDescriptor.IndicesPrivileges.builder()
-                                .indices(".monitoring-*").privileges("read", "read_cross_cluster").build()
-                        },
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices("metricbeat-*").privileges("read", "read_cross_cluster").build() },
                         new RoleDescriptor.ApplicationResourcePrivileges[] {
                             RoleDescriptor.ApplicationResourcePrivileges.builder()
                                 .application("kibana-*").resources("*").privileges("reserved_monitoring").build()
@@ -145,9 +148,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                         .indices(".management-beats").privileges("create_index", "read", "write").build(),
                                 // To facilitate ML UI functionality being controlled using Kibana security privileges
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".ml-anomalies*", ".ml-notifications*", ".ml-stats-*")
+                                        .indices(".ml-anomalies*", ".ml-stats-*")
                                         .privileges("read").build(),
-                                RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*")
+                                RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*", ".ml-notifications*")
                                         .privileges("read", "write").build(),
                                 // APM agent configuration
                                 RoleDescriptor.IndicesPrivileges.builder()
@@ -172,6 +175,24 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices(".fleet*")
                                     .privileges("all").build(),
+                                // Legacy "Alerts as data" index. Kibana user will create this index.
+                                // Kibana user will read / write to these indices
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices(ReservedRolesStore.LEGACY_ALERTS_INDEX)
+                                    .privileges("all").build(),
+                                // "Alerts as data" index. Kibana user will create this index.
+                                // Kibana user will read / write to these indices
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices(ReservedRolesStore.ALERTS_INDEX)
+                                    .privileges("all").build(),
+                                // Endpoint / Fleet policy responses. Kibana requires read access to send telemetry
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices("metrics-endpoint.policy-*")
+                                    .privileges("read").build(),
+                                // Endpoint metrics. Kibana requires read access to send telemetry
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices("metrics-endpoint.metrics-*")
+                                    .privileges("read").build()
                         },
                         null,
                         new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },

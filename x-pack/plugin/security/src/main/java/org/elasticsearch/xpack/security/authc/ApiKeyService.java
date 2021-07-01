@@ -34,16 +34,18 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.cache.RemovalListener;
+import org.elasticsearch.common.cache.RemovalNotification.RemovalReason;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -51,7 +53,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -117,6 +119,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -174,7 +178,7 @@ public class ApiKeyService {
     public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting("xpack.security.authc.api_key.cache.ttl",
         TimeValue.timeValueHours(24L), Property.NodeScope);
     public static final Setting<Integer> CACHE_MAX_KEYS_SETTING = Setting.intSetting("xpack.security.authc.api_key.cache.max_keys",
-        10000, Property.NodeScope);
+        25000, Property.NodeScope);
     public static final Setting<TimeValue> DOC_CACHE_TTL_SETTING = Setting.timeSetting("xpack.security.authc.api_key.doc_cache.ttl",
         TimeValue.timeValueMinutes(5), TimeValue.timeValueMinutes(0), TimeValue.timeValueMinutes(15), Property.NodeScope);
 
@@ -195,6 +199,12 @@ public class ApiKeyService {
 
     private volatile long lastExpirationRunMs;
 
+    private static final long EVICTION_MONITOR_INTERVAL_SECONDS = 300L; // 5 minutes
+    private static final long EVICTION_MONITOR_INTERVAL_NANOS = EVICTION_MONITOR_INTERVAL_SECONDS * 1_000_000_000L;
+    private static final long EVICTION_WARNING_THRESHOLD = 15L * EVICTION_MONITOR_INTERVAL_SECONDS; // 15 eviction per sec = 4500 in 5 min
+    private final AtomicLong lastEvictionCheckedAt = new AtomicLong(0);
+    private final LongAdder evictionCounter = new LongAdder();
+
     public ApiKeyService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex,
                          ClusterService clusterService, CacheInvalidatorRegistry cacheInvalidatorRegistry, ThreadPool threadPool) {
         this.clock = clock;
@@ -210,11 +220,12 @@ public class ApiKeyService {
         this.threadPool = threadPool;
         this.cacheHasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
-        final Integer maximumWeight = CACHE_MAX_KEYS_SETTING.get(settings);
+        final int maximumWeight = CACHE_MAX_KEYS_SETTING.get(settings);
         if (ttl.getNanos() > 0) {
             this.apiKeyAuthCache = CacheBuilder.<String, ListenableFuture<CachedApiKeyHashResult>>builder()
-                .setExpireAfterWrite(ttl)
+                .setExpireAfterAccess(ttl)
                 .setMaximumWeight(maximumWeight)
+                .removalListener(getAuthCacheRemovalListener(maximumWeight))
                 .build();
             final TimeValue doc_ttl = DOC_CACHE_TTL_SETTING.get(settings);
             this.apiKeyDocCache = doc_ttl.getNanos() == 0 ? null : new ApiKeyDocCache(doc_ttl, maximumWeight);
@@ -286,33 +297,43 @@ public class ApiKeyService {
                     Version.V_6_7_0);
         }
 
-        try (XContentBuilder builder = newDocument(apiKey, request.getName(), authentication, roleDescriptorSet, created, expiration,
-            request.getRoleDescriptors(), version, request.getMetadata())) {
+        computeHashForApiKey(apiKey, listener.delegateFailure((l, apiKeyHashChars) -> {
+            try (XContentBuilder builder = newDocument(apiKeyHashChars, request.getName(), authentication,
+                roleDescriptorSet, created, expiration,
+                request.getRoleDescriptors(), version, request.getMetadata())) {
 
-            final IndexRequest indexRequest =
-                client.prepareIndex(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME)
-                    .setSource(builder)
-                    .setRefreshPolicy(request.getRefreshPolicy())
-                    .request();
-            final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
+                final IndexRequest indexRequest =
+                    client.prepareIndex(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME)
+                        .setSource(builder)
+                        .setRefreshPolicy(request.getRefreshPolicy())
+                        .request();
+                final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
 
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-                executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
-                    TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(
-                        indexResponse -> listener.onResponse(
-                            new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
-                        listener::onFailure))));
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
+                securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+                    executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
+                        TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(
+                            indexResponse -> {
+                                final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
+                                listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
+                                apiKeyAuthCache.put(indexResponse.getId(), listenableFuture);
+                                listener.onResponse(
+                                    new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration));
+                            },
+                            listener::onFailure))));
+            } catch (IOException e) {
+                listener.onFailure(e);
+            } finally {
+                Arrays.fill(apiKeyHashChars, (char) 0);
+            }
+        }));
     }
 
     /**
      * package-private for testing
      */
-    XContentBuilder newDocument(SecureString apiKey, String name, Authentication authentication, Set<RoleDescriptor> userRoles,
-                                        Instant created, Instant expiration, List<RoleDescriptor> keyRoles,
-                                        Version version, @Nullable Map<String, Object> metadata) throws IOException {
+    XContentBuilder newDocument(char[] apiKeyHashChars, String name, Authentication authentication, Set<RoleDescriptor> userRoles,
+                                Instant created, Instant expiration, List<RoleDescriptor> keyRoles,
+                                Version version, @Nullable Map<String, Object> metadata) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
             .field("doc_type", "api_key")
@@ -320,16 +341,15 @@ public class ApiKeyService {
             .field("expiration_time", expiration == null ? null : expiration.toEpochMilli())
             .field("api_key_invalidated", false);
 
+
         byte[] utf8Bytes = null;
-        final char[] keyHash = hasher.hash(apiKey);
         try {
-            utf8Bytes = CharArrays.toUtf8Bytes(keyHash);
+            utf8Bytes = CharArrays.toUtf8Bytes(apiKeyHashChars);
             builder.field("api_key_hash").utf8Value(utf8Bytes, 0, utf8Bytes.length);
         } finally {
             if (utf8Bytes != null) {
                 Arrays.fill(utf8Bytes, (byte) 0);
             }
-            Arrays.fill(keyHash, (char) 0);
         }
 
         // Save role_descriptors
@@ -459,6 +479,9 @@ public class ApiKeyService {
                     }
                     validator.accept(apiKeyDoc);
                 } else {
+                    if (apiKeyAuthCache != null) {
+                        apiKeyAuthCache.invalidate(docId);
+                    }
                     listener.onResponse(
                         AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
                 }
@@ -603,6 +626,9 @@ public class ApiKeyService {
         } else if (apiKeyDoc.invalidated == null) {
             listener.onResponse(AuthenticationResult.unsuccessful("api key document is missing invalidated field", null));
         } else if (apiKeyDoc.invalidated) {
+            if (apiKeyAuthCache != null) {
+                apiKeyAuthCache.invalidate(docId);
+            }
             listener.onResponse(AuthenticationResult.unsuccessful("api key has been invalidated", null));
         } else {
             if (apiKeyDoc.hash == null) {
@@ -672,6 +698,11 @@ public class ApiKeyService {
     // pkg private for testing
     CachedApiKeyHashResult getFromCache(String id) {
         return apiKeyAuthCache == null ? null : FutureUtils.get(apiKeyAuthCache.get(id), 0L, TimeUnit.MILLISECONDS);
+    }
+
+    // pkg private for testing
+    Cache<String, ListenableFuture<CachedApiKeyHashResult>> getApiKeyAuthCache() {
+        return apiKeyAuthCache;
     }
 
     // pkg private for testing
@@ -752,6 +783,10 @@ public class ApiKeyService {
         } else {
             return false;
         }
+    }
+
+    void computeHashForApiKey(SecureString apiKey, ActionListener<char[]> listener) {
+        threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> hasher.hash(apiKey)));
     }
 
     // Protected instance method so this can be mocked
@@ -1115,6 +1150,37 @@ public class ApiKeyService {
             }, listener::onFailure));
     }
 
+    private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {
+        return notification -> {
+            if (RemovalReason.EVICTED == notification.getRemovalReason() && getApiKeyAuthCache().count() >= maximumWeight) {
+                evictionCounter.increment();
+                logger.trace("API key with ID [{}] was evicted from the authentication cache, "
+                        + "possibly due to cache size limit", notification.getKey());
+                final long last = lastEvictionCheckedAt.get();
+                final long now = System.nanoTime();
+                if (now - last >= EVICTION_MONITOR_INTERVAL_NANOS && lastEvictionCheckedAt.compareAndSet(last, now)) {
+                    final long sum = evictionCounter.sum();
+                    evictionCounter.add(-sum); // reset by decrease
+                    if (sum >= EVICTION_WARNING_THRESHOLD) {
+                        logger.warn("Possible thrashing for API key authentication cache, "
+                                + "[{}] eviction due to cache size within last [{}] seconds",
+                            sum, EVICTION_MONITOR_INTERVAL_SECONDS);
+                    }
+                }
+            }
+        };
+    }
+
+    // package private for test
+    LongAdder getEvictionCounter() {
+        return evictionCounter;
+    }
+
+    // package private for test
+    AtomicLong getLastEvictionCheckedAt() {
+        return lastEvictionCheckedAt;
+    }
+
     /**
      * Returns realm name for the authenticated user.
      * If the user is authenticated by realm type {@value API_KEY_REALM_TYPE}
@@ -1162,7 +1228,7 @@ public class ApiKeyService {
                 XContentHelper.convertToMap((BytesReference) apiKeyMetadata, false, XContentType.JSON);
             return tuple.v2();
         } else {
-            return org.elasticsearch.common.collect.Map.of();
+            return org.elasticsearch.core.Map.of();
         }
     }
 
@@ -1175,7 +1241,7 @@ public class ApiKeyService {
             this.hash = cacheHasher.hash(apiKey);
         }
 
-        private boolean verify(SecureString password) {
+        boolean verify(SecureString password) {
             return hash != null && cacheHasher.verify(password, hash);
         }
     }
@@ -1335,7 +1401,7 @@ public class ApiKeyService {
             // multiple API keys, so we cache for longer and rely on the weight to manage the cache size.
             this.roleDescriptorsBytesCache = CacheBuilder.<String, BytesReference>builder()
                 .setExpireAfterAccess(TimeValue.timeValueHours(1))
-                .setMaximumWeight(maximumWeight * 2)
+                .setMaximumWeight(maximumWeight * 2L)
                 .build();
             this.lockingAtomicCounter = new LockingAtomicCounter();
         }

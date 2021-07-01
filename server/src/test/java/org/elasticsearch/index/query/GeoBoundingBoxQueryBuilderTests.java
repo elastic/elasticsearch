@@ -17,14 +17,14 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.locationtech.spatial4j.io.GeohashUtils;
-import org.locationtech.spatial4j.shape.Rectangle;
 
 import java.io.IOException;
 
@@ -40,7 +40,9 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     protected GeoBoundingBoxQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME, GEO_SHAPE_FIELD_NAME);
         GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(fieldName);
-        Rectangle box = RandomShapeGenerator.xRandomRectangle(random(), RandomShapeGenerator.xRandomPoint(random()));
+        // make sure that minX != maxX after geohash encoding
+        Rectangle box = randomValueOtherThanMany((r) ->
+            Math.abs(r.getMaxX() - r.getMinX()) < 0.1 ||  Math.abs(r.getMaxY() - r.getMinY()) < 0.1, GeometryTestUtils::randomRectangle);
 
         if (randomBoolean()) {
             // check the top-left/bottom-right combination of setters
@@ -53,8 +55,8 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 break;
             case 1:
                 builder.setCorners(
-                        GeohashUtils.encodeLatLon(box.getMaxY(), box.getMinX()),
-                        GeohashUtils.encodeLatLon(box.getMinY(), box.getMaxX()));
+                        Geohash.stringEncode(box.getMinX(), box.getMaxY()),
+                        Geohash.stringEncode(box.getMaxX(), box.getMinY()));
                 break;
             default:
                 builder.setCorners(box.getMaxY(), box.getMinX(), box.getMinY(), box.getMaxX());
@@ -67,8 +69,8 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                         new GeoPoint(box.getMaxY(), box.getMaxX()));
             } else {
                 builder.setCornersOGC(
-                        GeohashUtils.encodeLatLon(box.getMinY(), box.getMinX()),
-                        GeohashUtils.encodeLatLon(box.getMaxY(), box.getMaxX()));
+                        Geohash.stringEncode(box.getMinX(), box.getMinY()),
+                        Geohash.stringEncode(box.getMaxX(), box.getMaxY()));
             }
         }
 
@@ -396,6 +398,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(json, 40.01, parsed.bottomRight().getLat(), 0.0001);
         assertEquals(json, 1.0, parsed.boost(), 0.0001);
         assertEquals(json, GeoExecType.MEMORY, parsed.type());
+        assertDeprecationWarning();
     }
 
     public void testFromWKT() throws IOException {
@@ -440,6 +443,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(expectedJson, 40.01, parsed.bottomRight().getLat(), delta);
         assertEquals(expectedJson, 1.0, parsed.boost(), delta);
         assertEquals(expectedJson, GeoExecType.MEMORY, parsed.type());
+        assertDeprecationWarning();
     }
 
     public void testFromGeohash() throws IOException {
@@ -479,6 +483,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(json, 33.75, parsed.bottomRight().getLat(), 0.0001);
         assertEquals(json, 1.0, parsed.boost(), 0.0001);
         assertEquals(json, GeoExecType.MEMORY, parsed.type());
+        assertDeprecationWarning();
     }
 
     public void testMalformedGeohashes() {
@@ -536,5 +541,27 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(searchExecutionContext));
         assertThat(e.getMessage(), containsString("failed to find geo field [unmapped]"));
+    }
+
+    @Override
+    public void testValidOutput() throws IOException {
+        super.testValidOutput();
+        assertDeprecationWarning();
+    }
+
+    @Override
+    public void testUnknownField() throws IOException {
+        super.testUnknownField();
+        assertDeprecationWarning();
+    }
+
+    @Override
+    public void testFromXContent() throws IOException {
+        super.testFromXContent();
+        assertDeprecationWarning();
+    }
+
+    private void assertDeprecationWarning() {
+        assertWarnings("Deprecated field [type] used, this field is unused and will be removed entirely");
     }
 }

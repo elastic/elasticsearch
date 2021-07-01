@@ -147,7 +147,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         Engine.GetResult get = indexShard.get(new Engine.Get(realtime, realtime, id)
             .version(version).versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm));
-        assert get.isFromTranslog() == false || realtime : "should only read from translog if realtime enabled";
         if (get.exists() == false) {
             get.close();
         }

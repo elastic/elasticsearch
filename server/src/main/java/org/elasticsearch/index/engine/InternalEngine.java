@@ -62,8 +62,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.cache.query.DisabledQueryCache;
-import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -622,17 +620,17 @@ public class InternalEngine extends Engine {
         }
     };
 
-    private final QueryCache translogQueryCache = new DisabledQueryCache(config().getIndexSettings());
-
-    public final AtomicLong translogInMemorySegmentsCount = new AtomicLong();
+    public final AtomicLong translogGetCount = new AtomicLong(); // number of times realtime get was done on translog
+    public final AtomicLong translogInMemorySegmentsCount = new AtomicLong(); // number of times in-memory index needed to be created
 
     private GetResult getFromTranslog(Get get, Translog.Index index, MappingLookup mappingLookup, DocumentParser documentParser,
                                       Function<Searcher, Searcher> searcherWrapper) throws IOException {
         assert get.isReadFromTranslog();
+        translogGetCount.incrementAndGet();
         final TranslogDirectoryReader inMemoryReader = new TranslogDirectoryReader(shardId, index, mappingLookup, documentParser,
             config().getAnalyzer(), translogInMemorySegmentsCount::incrementAndGet);
         final Engine.Searcher searcher = new Engine.Searcher("realtime_get", ElasticsearchDirectoryReader.wrap(inMemoryReader, shardId),
-            config().getSimilarity(), translogQueryCache, NEVER_CACHE_POLICY, inMemoryReader);
+            config().getSimilarity(), null /*query cache disabled*/, NEVER_CACHE_POLICY, inMemoryReader);
         final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
         return getFromSearcher(get, wrappedSearcher, true);
     }

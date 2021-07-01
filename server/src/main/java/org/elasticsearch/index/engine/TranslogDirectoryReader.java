@@ -32,6 +32,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
@@ -41,7 +42,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.DocumentLeafReader;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -58,7 +58,6 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -237,13 +236,13 @@ final class TranslogDirectoryReader extends DirectoryReader {
             if (delegate.get() == null) {
                 // override this for VersionsAndSeqNoResolver
                 if (field.equals(VersionFieldMapper.NAME)) {
-                    return DocumentLeafReader.numericDocValues(List.of(operation.version()));
+                    return new FakeNumericDocValues(operation.version());
                 }
                 if (field.equals(SeqNoFieldMapper.NAME)) {
-                    return DocumentLeafReader.numericDocValues(List.of(operation.seqNo()));
+                    return new FakeNumericDocValues(operation.seqNo());
                 }
                 if (field.equals(SeqNoFieldMapper.PRIMARY_TERM_NAME)) {
-                    return DocumentLeafReader.numericDocValues(List.of(operation.primaryTerm()));
+                    return new FakeNumericDocValues(operation.primaryTerm());
                 }
             }
             return getDelegate().getNumericDocValues(field);
@@ -446,6 +445,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
         @Override
         public BytesRef term() throws IOException {
+            assert position == 0;
             return term;
         }
 
@@ -535,6 +535,45 @@ final class TranslogDirectoryReader extends DirectoryReader {
         @Override
         public long cost() {
             return 0;
+        }
+    }
+
+    private static class FakeNumericDocValues extends NumericDocValues {
+        private final long value;
+        private final DocIdSetIterator disi = DocIdSetIterator.all(1);
+
+        FakeNumericDocValues(long value) {
+            this.value = value;
+        }
+
+        @Override
+        public long longValue() {
+            return value;
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            return disi.advance(target) == target;
+        }
+
+        @Override
+        public int docID() {
+            return disi.docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return disi.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return disi.advance(target);
+        }
+
+        @Override
+        public long cost() {
+            return disi.cost();
         }
     }
 }

@@ -25,15 +25,10 @@ public interface TestClustersAware extends Task {
             throw new TestClustersException("Task " + getPath() + " can't use test cluster from" + " another project " + cluster);
         }
 
-        // Add configured distributions as task dependencies so they are built before starting the cluster
-        cluster.getNodes()
-            .stream()
-            .flatMap(node -> node.getDistributions().stream())
-            .forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze())));
-
-        // Add legacy BWC JDK runtime as a dependency so it's downloaded before starting the cluster if necessary
         cluster.getNodes().stream().map(node -> (Callable<Jdk>) node::getBwcJdk).forEach(this::dependsOn);
-        cluster.getNodes().forEach(node -> dependsOn((Callable<Collection<Configuration>>) node::getPluginAndModuleConfigurations));
+        cluster.getNodes().all(node -> node.getDistributions().stream()
+                .forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze()))));
+        cluster.getNodes().all(node -> dependsOn((Callable<Collection<Configuration>>) node::getPluginAndModuleConfigurations));
         getClusters().add(cluster);
     }
 

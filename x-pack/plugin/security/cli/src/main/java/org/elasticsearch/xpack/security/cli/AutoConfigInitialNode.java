@@ -8,12 +8,16 @@
 package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionSet;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralNames;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import javax.security.auth.x500.X500Principal;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyPair;
@@ -34,8 +39,10 @@ import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.time.ZonedDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.security.cli.CertificateTool.fullyWriteFile;
 
@@ -78,21 +85,24 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "The node might already be part of a cluster and this auto setup utility is designed to configure Security for new " +
                             "clusters only.");
-            throw new UserException(ExitCodes.OK, "Skipping security auto configuration: node restarted");
+            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: node restarted");
+            return;
         }
         if (env.settings().hasValue(XPackSettings.SECURITY_ENABLED.getKey())) {
             // do not try to validate, correct or fill in any incomplete security configuration,
             // but instead rely on the regular node startup to do this validation
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because it appears that security is already configured.");
-            throw new UserException(ExitCodes.OK, "Skipping security auto configuration: Security already configured");
+            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: Security already configured");
+            return;
         }
         if (env.settings().hasValue(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey())) {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because this node is explicitly configured to form a new cluster.");
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "The node cannot be auto configured to participate in forming a new multi-node secure cluster.");
-            throw new UserException(ExitCodes.OK, "Skipping security auto configuration: configured cluster formation");
+            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: configured cluster formation");
+            return;
         }
         List<DiscoveryNodeRole> nodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(env.settings());
         boolean canBecomeMaster = nodeRoles.contains(DiscoveryNodeRole.MASTER_ROLE) &&
@@ -100,20 +110,23 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
         if (false == canBecomeMaster) {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because the node is configured such that it cannot become master.");
-            throw new UserException(ExitCodes.OK, "Skipping security auto configuration: cannot become master");
+            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: cannot become master");
+            return;
         }
         boolean canHoldSecurityIndex = nodeRoles.stream().anyMatch(DiscoveryNodeRole::canContainData);
         if (false == canHoldSecurityIndex) {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because the node is configured such that it cannot contain data.");
-            throw new UserException(ExitCodes.OK, "Skipping security auto configuration: cannot contain data");
+            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: cannot contain data");
+            return;
         }
         if (false == env.settings().getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX).isEmpty() ||
                 false == env.settings().getByPrefix(XPackSettings.HTTP_SSL_PREFIX).isEmpty()) {
             // again, zero validation for the TLS settings, let the node startup do its thing
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because it appears that TLS is already configured.");
-            throw new UserException(ExitCodes.OK, "Skipping security auto configuration: TLS already configured");
+            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: TLS already configured");
+            return;
         }
         // check that no file realms have been configured.
         // this can technically be improved upon:
@@ -122,7 +135,8 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
         if (false == env.settings().getByPrefix(RealmSettings.realmSettingPrefix(FileRealmSettings.TYPE)).isEmpty()) {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because it appears that a file-based realm is already configured.");
-            throw new UserException(ExitCodes.OK, "Skipping security auto configuration: file realm configured");
+            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: file realm configured");
+            return;
         }
         // tolerate enabling enrollment explicitly, as it could be useful to enable it by a command line option
         // only the first time that the node is started
@@ -130,10 +144,9 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 XPackSettings.ENROLLMENT_ENABLED.get(env.settings())) {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because enrollment is explicitly disabled.");
-            throw new UserException(ExitCodes.OK, "Skipping security auto configuration: enrollment disabled");
+            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: enrollment disabled");
+            return;
         }
-
-        // TODO check logging
 
         final ZonedDateTime autoConfigDate = ZonedDateTime.now();
         final String instantAutoConfigName = "auto_generated_" + autoConfigDate.toInstant().getEpochSecond();
@@ -144,25 +157,38 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
 
         // the transport key-pair is the same across the cluster and is trusted without hostname verification (it is self-signed),
         // do not populate the certificate's IP, DN, and CN certificate fields
-        X500Principal certificatePrincipal = new X500Principal("CN=" + System.getenv("HOSTNAME"));
+        final X500Principal certificatePrincipal = new X500Principal("CN=" + System.getenv("HOSTNAME"));
+        Set<GeneralName> generalNameSet = new HashSet<>();
+        // use only ipv4 addresses
+        // ipv6 can also technically be used, but they are many and they are long
+        for (InetAddress ip : NetworkUtils.getAllIPV4Addresses()) {
+            String ipString = ip.getHostAddress();
+            generalNameSet.add(new GeneralName(GeneralName.iPAddress, ipString));
+            String reverseFQDN = ip.getCanonicalHostName();
+            if (false == ipString.equals(reverseFQDN)) {
+                // reverse FQDN successful
+                generalNameSet.add(new GeneralName(GeneralName.dNSName, reverseFQDN));
+            }
+        }
+        final GeneralNames subjectAltNames = new GeneralNames(generalNameSet.toArray(new GeneralName[0]));
+
         KeyPair transportKeyPair = CertGenUtils.generateKeyPair(TRANSPORT_KEY_SIZE);
         // self-signed which is not a CA
         X509Certificate transportCert = CertGenUtils.generateSignedCertificate(certificatePrincipal,
-                null, transportKeyPair, null, null, false, TRANSPORT_CERTIFICATE_DAYS, null);
+                subjectAltNames, transportKeyPair, null, null, false, TRANSPORT_CERTIFICATE_DAYS, null);
         KeyPair httpCAKeyPair = CertGenUtils.generateKeyPair(HTTP_CA_KEY_SIZE);
         // self-signed CA
         X509Certificate httpCACert = CertGenUtils.generateSignedCertificate(certificatePrincipal,
-                null, httpCAKeyPair, null, null, true, HTTP_CA_CERTIFICATE_DAYS, null);
+                subjectAltNames, httpCAKeyPair, null, null, true, HTTP_CA_CERTIFICATE_DAYS, null);
         KeyPair httpKeyPair = CertGenUtils.generateKeyPair(HTTP_KEY_SIZE);
         // non-CA
         X509Certificate httpCert = CertGenUtils.generateSignedCertificate(certificatePrincipal,
-                null, httpKeyPair, httpCACert, httpCAKeyPair.getPrivate(), false, HTTP_CERTIFICATE_DAYS, null);
+                subjectAltNames, httpKeyPair, httpCACert, httpCAKeyPair.getPrivate(), false, HTTP_CERTIFICATE_DAYS, null);
 
         try (SecureString nodeKeystorePassword = new SecureString(terminal.readSecret("", KeyStoreWrapper.MAX_PASSPHRASE_LENGTH));
              KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> nodeKeystorePassword)) {
             Path transportKeystoreOutput = instantAutoConfigDir.resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12");
-            //try (SecureString transportKeystorePassword = UUIDs.randomBase64UUIDSecureString()) {
-            try (SecureString transportKeystorePassword = new SecureString("pass")) {
+            try (SecureString transportKeystorePassword = keystorePassword()) {
                 KeyStore transportKeystore = KeyStore.getInstance("PKCS12");
                 transportKeystore.load(null);
                 // the PKCS12 keystore and the contained private key use the same password
@@ -174,8 +200,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 nodeKeystore.save(env.configFile(), nodeKeystorePassword.getChars());
             }
             Path httpKeystoreOutput = instantAutoConfigDir.resolve(HTTP_AUTOGENERATED_KEYSTORE_NAME + ".p12");
-            try (SecureString httpKeystorePassword = new SecureString("pass")) {
-            //try (SecureString httpKeystorePassword = UUIDs.randomBase64UUIDSecureString()) {
+            try (SecureString httpKeystorePassword = keystorePassword()) {
                 KeyStore httpKeystore = KeyStore.getInstance("PKCS12");
                 httpKeystore.load(null);
                 // the keystore contains both the node's and the CA's private keys
@@ -200,7 +225,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
         }
 
         {
-            // the trustore contains only the CA certificate
+            // the truststore contains only the CA certificate
             // the ES node doesn't strictly require it, but if someone else does, it's good to have it handy
             // so we don't have to share a keystore with a CA key inside it
             Path httpTruststoreOutput = instantAutoConfigDir.resolve(HTTP_AUTOGENERATED_TRUSTSTORE_NAME + ".p12");
@@ -308,4 +333,8 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
         return order;
     }
 
+    // for tests
+    protected SecureString keystorePassword() {
+        return UUIDs.randomBase64UUIDSecureString();
+    }
 }

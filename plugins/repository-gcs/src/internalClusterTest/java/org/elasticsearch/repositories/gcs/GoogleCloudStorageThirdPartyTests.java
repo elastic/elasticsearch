@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
+import org.junit.BeforeClass;
 
 import java.util.Base64;
 import java.util.Collection;
@@ -24,6 +25,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
+
+    @BeforeClass
+    public static void skipJava8() {
+        GoogleCloudStorageBlobStoreRepositoryTests.assumeNotJava8();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

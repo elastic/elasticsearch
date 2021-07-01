@@ -156,7 +156,7 @@ public class CuckooFilter implements Writeable {
         if (out.getVersion().before(Version.V_8_0_0)) {
             // This is probably slow but it should only happen if we have a mixed clusters (e.g during upgrade).
             PackedInts.Mutable mutable = PackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
-            for (int i = 0; i < mutable.size(); i++) {
+            for (int i = 0; i < data.size(); i++) {
                 mutable.set(i, data.get(i));
             }
             mutable.save(new DataOutput() {

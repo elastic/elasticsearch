@@ -39,17 +39,6 @@ exception of the <<search-explain,explain API>>.
 * <<multi-search-template>>
 * <<render-search-template-api>>
 
-[discrete]
-[[eql-search-apis]]
-=== EQL search
-
-For an overview of EQL and related tutorials, see <<eql>>.
-
-* <<eql-search-api>>
-* <<get-async-eql-search-api>>
-* <<get-async-eql-status-api>>
-* <<delete-async-eql-search-api>>
-
 
 include::search/search.asciidoc[]
 
@@ -72,14 +61,6 @@ include::search/search-shards.asciidoc[]
 include::search/suggesters.asciidoc[]
 
 include::search/multi-search.asciidoc[]
-
-include::eql/eql-search-api.asciidoc[]
-
-include::eql/get-async-eql-search-api.asciidoc[]
-
-include::eql/get-async-eql-status-api.asciidoc[]
-
-include::eql/delete-async-eql-search-api.asciidoc[]
 
 include::search/count.asciidoc[]
 

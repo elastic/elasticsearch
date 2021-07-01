@@ -11,7 +11,6 @@ import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -121,7 +120,9 @@ public class TestClustersPlugin implements Plugin<Project> {
             );
         });
         project.getExtensions().add(EXTENSION_NAME, container);
-        container.all(cluster -> cluster.systemProperty("ingest.geoip.downloader.enabled.default", "false"));
+        container.stream()
+            .filter(cluster -> cluster.getName().equals("yamlRestTest") == false)
+            .forEach(cluster -> cluster.systemProperty("ingest.geoip.downloader.enabled.default", "false"));
         return container;
     }
 

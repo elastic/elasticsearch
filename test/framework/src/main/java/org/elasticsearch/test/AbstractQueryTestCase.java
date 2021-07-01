@@ -165,17 +165,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             String expectedException = testQuery.v2();
             try {
                 parseQuery(testQuery.v1());
-                if (expectedException != "") {
+                if (expectedException != null) {
                     fail("some parsing exception expected for query: " + testQuery);
                 }
             } catch (ParsingException | ElasticsearchParseException | XContentParseException e) {
                 // different kinds of exception wordings depending on location
                 // of mutation, so no simple asserts possible here
-                if (expectedException == "") {
+                if (expectedException == null) {
                     throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
                 }
             } catch (IllegalArgumentException e) {
-                if (expectedException == "") {
+                if (expectedException == null) {
                     throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
                 }
                 assertThat(e.getMessage(), containsString(expectedException));
@@ -299,7 +299,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Returns a map where the keys are object names that won't trigger a standard exception (an exception that contains the string
      * "unknown field [newField]") through {@link #testUnknownObjectException()}. The value is a string that is contained in the thrown
-     * exception or an empty string in the case that no exception is thrown (including their children).
+     * exception or null in the case that no exception is thrown (including their children).
      * Default is an empty Map. Can be overridden by subclasses that test queries which contain objects that get parsed on the data nodes
      * (e.g. score functions) or objects that can contain arbitrary content (e.g. documents for percolate or more like this query, params
      * for scripts) and/or expect some content(e.g documents with geojson geometries).

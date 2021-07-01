@@ -17,7 +17,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.test.AbstractQueryTestCase.alterateQueries;
@@ -70,7 +69,7 @@ public class AbstractQueryTestCaseTests extends ESTestCase {
 
     public void testAlterateQueriesWithArbitraryContent() throws IOException {
         Map<String, String> arbitraryContentHolders = new HashMap<>();
-        arbitraryContentHolders.put("params", ""); // no exception expected
+        arbitraryContentHolders.put("params", null); // no exception expected
         arbitraryContentHolders.put("doc", "my own error");
         Set<String> queries = Sets.newHashSet(
                 "{\"query\":{\"script\":\"test\",\"params\":{\"foo\":\"bar\"}}}",
@@ -81,7 +80,7 @@ public class AbstractQueryTestCaseTests extends ESTestCase {
         assertAlterations(alterations, allOf(
             hasEntry("{\"newField\":{\"query\":{\"script\":\"test\",\"params\":{\"foo\":\"bar\"}}}}", STANDARD_ERROR),
             hasEntry("{\"query\":{\"newField\":{\"script\":\"test\",\"params\":{\"foo\":\"bar\"}}}}", STANDARD_ERROR),
-            hasEntry("{\"query\":{\"script\":\"test\",\"params\":{\"newField\":{\"foo\":\"bar\"}}}}", "")
+            hasEntry("{\"query\":{\"script\":\"test\",\"params\":{\"newField\":{\"foo\":\"bar\"}}}}", null)
         ));
         assertAlterations(alterations, allOf(
             hasEntry("{\"newField\":{\"query\":{\"more_like_this\":{\"fields\":[\"a\",\"b\"],\"like\":{\"doc\":{\"c\":\"d\"}}}}}}",
@@ -98,6 +97,8 @@ public class AbstractQueryTestCaseTests extends ESTestCase {
     }
 
     private static <K, V> void assertAlterations(List<Tuple<K, V>> alterations, Matcher<Map<K, V>> matcher) {
-        assertThat(alterations.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)), matcher);
+        Map<K, V> alterationsMap = new HashMap<>();
+        alterations.forEach(t -> alterationsMap.put(t.v1(), t.v2()));
+        assertThat(alterationsMap, matcher);
     }
 }

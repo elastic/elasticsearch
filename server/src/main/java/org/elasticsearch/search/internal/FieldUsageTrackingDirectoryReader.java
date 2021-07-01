@@ -29,8 +29,11 @@ import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.index.fieldvisitor.FieldNamesProvidingStoredFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * Wraps a DirectoryReader and tracks all access to fields, notifying a
@@ -103,7 +106,11 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public void document(final int docID, final StoredFieldVisitor visitor) throws IOException {
-            super.document(docID, new FieldUsageStoredFieldVisitor(visitor));
+            if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
+                super.document(docID, new FieldUsageFieldsVisitor((FieldNamesProvidingStoredFieldsVisitor) visitor));
+            } else {
+                super.document(docID, new FieldUsageStoredFieldVisitor(visitor));
+            }
         }
 
         @Override
@@ -327,6 +334,21 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
         private class FieldUsageStoredFieldVisitor extends FilterStoredFieldVisitor {
             FieldUsageStoredFieldVisitor(StoredFieldVisitor visitor) {
+                super(visitor);
+            }
+
+            @Override
+            public Status needsField(FieldInfo fieldInfo) throws IOException {
+                Status status = super.needsField(fieldInfo);
+                if (status == Status.YES) {
+                    notifier.onStoredFieldsUsed(fieldInfo.name);
+                }
+                return status;
+            }
+        }
+
+        private class FieldUsageFieldsVisitor extends FilterFieldNamesProvidingStoredFieldsVisitor {
+            FieldUsageFieldsVisitor(FieldNamesProvidingStoredFieldsVisitor visitor) {
                 super(visitor);
             }
 

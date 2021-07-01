@@ -13,7 +13,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.StaticCoreCacheKeyDirectoryReaderWrapper;
+import org.apache.lucene.index.StaticCacheKeyDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.core.SuppressForbidden;
@@ -175,7 +175,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 }
                 final DirectoryReader dirReader = openDirectory(engineConfig.getStore().directory());
                 reader = lastOpenedReader = wrapReader(
-                    new StaticCoreCacheKeyDirectoryReaderWrapper(dirReader, cachedKeys, onCloseCallbacks), readerWrapperFunction);
+                    new StaticCacheKeyDirectoryReaderWrapper(dirReader, cachedKeys, onCloseCallbacks), readerWrapperFunction);
                 processReader(reader);
                 ElasticsearchDirectoryReader finalReader = reader;
                 reader.getReaderCacheHelper().addClosedListener(key -> this.onReaderClosed(finalReader, key));

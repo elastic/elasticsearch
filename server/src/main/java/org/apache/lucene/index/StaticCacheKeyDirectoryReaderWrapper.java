@@ -16,16 +16,20 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
-public class StaticCoreCacheKeyDirectoryReaderWrapper extends FilterDirectoryReader {
+public class StaticCacheKeyDirectoryReaderWrapper extends FilterDirectoryReader {
 
-    public StaticCoreCacheKeyDirectoryReaderWrapper(DirectoryReader in, Map<String, CacheKey> cachedKeys,
-                                                    List<Closeable> onCloseCallbacks) throws IOException {
+    private final CacheHelper readerCacheHelper;
+
+    public StaticCacheKeyDirectoryReaderWrapper(DirectoryReader in, Map<String, CacheKey> cachedKeys,
+                                                List<Closeable> onCloseCallbacks) throws IOException {
         super(in, new StaticCacheKeySubReaderWrapper(cachedKeys, onCloseCallbacks));
+        readerCacheHelper = in.getReaderCacheHelper() == null ? null :
+            createCacheHelper(cachedKeys, onCloseCallbacks, "$$dir_reader$$", in.getReaderCacheHelper().getKey());
     }
 
     @Override
     public CacheHelper getReaderCacheHelper() {
-        return in.getReaderCacheHelper();
+        return readerCacheHelper;
     }
 
     private static class StaticCacheKeySubReaderWrapper extends SubReaderWrapper {
@@ -39,7 +43,7 @@ public class StaticCoreCacheKeyDirectoryReaderWrapper extends FilterDirectoryRea
 
         @Override
         public LeafReader wrap(LeafReader reader) {
-            return StaticCoreCacheKeyDirectoryReaderWrapper.wrap(reader, cachedKeys, onCloseCallbacks);
+            return StaticCacheKeyDirectoryReaderWrapper.wrap(reader, cachedKeys, onCloseCallbacks);
         }
     }
 
@@ -51,10 +55,12 @@ public class StaticCoreCacheKeyDirectoryReaderWrapper extends FilterDirectoryRea
         final byte[] id = segmentInfo.getId();
         final String idString = Base64.getEncoder().encodeToString(id);
         final CacheHelper adaptedCoreCacheHelper =
-            createCacheHelper(cachedKeys, onCloseCallbacks, idString, segmentReader.getCoreCacheHelper().getKey());
+            createCacheHelper(cachedKeys, onCloseCallbacks, idString + "_core", segmentReader.getCoreCacheHelper().getKey());
+        final CacheHelper adaptedReaderCacheHelper =
+            createCacheHelper(cachedKeys, onCloseCallbacks, idString + "_reader", segmentReader.getReaderCacheHelper().getKey());
         return reader instanceof CodecReader ?
-            new StaticCacheKeyFilterCodecReader((CodecReader) reader, adaptedCoreCacheHelper) :
-            new StaticCacheKeyFilterLeafReader(reader, adaptedCoreCacheHelper);
+            new StaticCacheKeyFilterCodecReader((CodecReader) reader, adaptedCoreCacheHelper, adaptedReaderCacheHelper) :
+            new StaticCacheKeyFilterLeafReader(reader, adaptedCoreCacheHelper, adaptedReaderCacheHelper);
     }
 
     private static CacheHelper createCacheHelper(Map<String, CacheKey> cachedKeys, List<Closeable> onCloseCallbacks, String idString,
@@ -77,10 +83,12 @@ public class StaticCoreCacheKeyDirectoryReaderWrapper extends FilterDirectoryRea
     public static final class StaticCacheKeyFilterCodecReader extends FilterCodecReader {
 
         private final CacheHelper coreCacheHelper;
+        private final CacheHelper readerCacheHelper;
 
-        public StaticCacheKeyFilterCodecReader(CodecReader in, CacheHelper coreCacheHelper) {
+        public StaticCacheKeyFilterCodecReader(CodecReader in, CacheHelper coreCacheHelper, CacheHelper readerCacheHelper) {
             super(in);
             this.coreCacheHelper = coreCacheHelper;
+            this.readerCacheHelper = readerCacheHelper;
         }
 
         @Override
@@ -90,17 +98,19 @@ public class StaticCoreCacheKeyDirectoryReaderWrapper extends FilterDirectoryRea
 
         @Override
         public CacheHelper getReaderCacheHelper() {
-            return in.getReaderCacheHelper();
+            return readerCacheHelper;
         }
     }
 
     public static final class StaticCacheKeyFilterLeafReader extends FilterLeafReader {
 
         private final CacheHelper coreCacheHelper;
+        private final CacheHelper readerCacheHelper;
 
-        public StaticCacheKeyFilterLeafReader(LeafReader in, CacheHelper coreCacheHelper) {
+        public StaticCacheKeyFilterLeafReader(LeafReader in, CacheHelper coreCacheHelper, CacheHelper readerCacheHelper) {
             super(in);
             this.coreCacheHelper = coreCacheHelper;
+            this.readerCacheHelper = readerCacheHelper;
         }
 
         @Override
@@ -110,7 +120,7 @@ public class StaticCoreCacheKeyDirectoryReaderWrapper extends FilterDirectoryRea
 
         @Override
         public CacheHelper getReaderCacheHelper() {
-            return in.getReaderCacheHelper();
+            return readerCacheHelper;
         }
     }
 

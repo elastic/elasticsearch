@@ -400,6 +400,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SearchService.LOW_LEVEL_CANCELLATION_SETTING,
             SearchService.MAX_OPEN_SCROLL_CONTEXT,
             SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER,
+            SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING,
             Node.WRITE_PORTS_FILE_SETTING,
             Node.NODE_NAME_SETTING,
             Node.NODE_ATTRIBUTES,

@@ -182,13 +182,15 @@ tasks.named("yamlRestCompatTest").configure {
 
 //    'roles/11_idx_arrays/Test put role api using as array of index names',
 //    'roles/30_prohibited_role_query/Test use prohibited query inside role query',
-//    'rollup/delete_job/Test basic delete_job',
-//    'rollup/delete_job/Test delete job twice',
-//    'rollup/delete_job/Test delete running job',
-//    'rollup/get_jobs/Test basic get_jobs',
-//    'rollup/put_job/Test basic put_job',
-//    'rollup/put_job/Test put_job in non-rollup index',
-//    'rollup/start_job/Test start job twice',
+//https://github.com/elastic/elasticsearch/pull/41227.
+    'rollup/delete_job/Test basic delete_job',
+    'rollup/delete_job/Test delete job twice',
+    'rollup/delete_job/Test delete running job',
+    'rollup/get_jobs/Test basic get_jobs',
+    'rollup/put_job/Test basic put_job',
+    'rollup/put_job/Test put_job in non-rollup index',
+    //https://github.com/elastic/elasticsearch/pull/41502
+    'rollup/start_job/Test start job twice',
 //    'security/authz/14_cat_indices/Test empty request while no-authorized index',
 //    'security/authz/14_cat_indices/Test empty request while single authorized index',
 //    'security/authz/14_cat_indices/Test explicit request while multiple authorized indices',

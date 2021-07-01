@@ -489,8 +489,7 @@ GET /my-index-000001/_eql/search
 
 By default, EQL search requests are synchronous and wait for complete results
 before returning a response. However, complete results can take longer for
-searches across <<frozen-indices,frozen indices>> or
-<<modules-cross-cluster-search,multiple clusters>>.
+searches across large data sets or <<frozen-indices,frozen indices>>.
 
 To avoid long waits, run an async EQL search. Set the
 `wait_for_completion_timeout` parameter to a duration you'd like to wait for

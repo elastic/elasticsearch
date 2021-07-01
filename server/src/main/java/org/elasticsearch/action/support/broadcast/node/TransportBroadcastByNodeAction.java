@@ -372,8 +372,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
 
         protected void onCompletion() {
-            if (task instanceof CancellableTask && ((CancellableTask)task).isCancelled()) {
-                listener.onFailure(new TaskCancelledException("task cancelled"));
+            if (task instanceof CancellableTask && ((CancellableTask)task).notifyIfCancelled(listener)) {
                 return;
             }
 
@@ -433,13 +432,18 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         private void finishHim(NodeRequest request, TransportChannel channel, Task task,
                                AtomicArray<Object> shardResultOrExceptions) {
-            if (task instanceof CancellableTask && ((CancellableTask)task).isCancelled()) {
+            if (task instanceof CancellableTask) {
                 try {
-                    channel.sendResponse(new TaskCancelledException("task cancelled"));
-                } catch (IOException e) {
-                    logger.warn("failed to send response", e);
+                    ((CancellableTask) task).ensureNotCancelled();
+                } catch (TaskCancelledException e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (IOException ioException) {
+                        e.addSuppressed(ioException);
+                        logger.warn("failed to send response", e);
+                    }
+                    return;
                 }
-                return;
             }
             List<BroadcastShardOperationFailedException> accumulatedExceptions = new ArrayList<>();
             List<ShardOperationResult> results = new ArrayList<>();
@@ -461,8 +465,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         private void onShardOperation(final NodeRequest request, final ShardRouting shardRouting, final Task task,
                                       final ActionListener<ShardOperationResult> listener) {
-            if (task instanceof CancellableTask && ((CancellableTask)task).isCancelled()) {
-                listener.onFailure(new TaskCancelledException("task cancelled"));
+            if (task instanceof CancellableTask && ((CancellableTask)task).notifyIfCancelled(listener)) {
                 return;
             }
             if (logger.isTraceEnabled()) {

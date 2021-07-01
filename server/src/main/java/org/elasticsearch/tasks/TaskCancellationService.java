@@ -91,7 +91,7 @@ public class TaskCancellationService {
             logger.trace("cancelling task [{}] and its descendants", taskId);
             StepListener<Void> completedListener = new StepListener<>();
             GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(completedListener.map(r -> null), 3);
-            Collection<Transport.Connection> childConnections = taskManager.startBanOnChildTasks(task.getId(), () -> {
+            Collection<Transport.Connection> childConnections = taskManager.startBanOnChildTasks(task.getId(), reason, () -> {
                 logger.trace("child tasks of parent [{}] are completed", taskId);
                 groupedListener.onResponse(null);
             });

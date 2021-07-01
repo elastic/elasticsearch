@@ -43,7 +43,6 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -282,8 +281,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         SortOrder order,
         ActionListener<SnapshotsInRepo> listener
     ) {
-        if (task.isCancelled()) {
-            listener.onFailure(new TaskCancelledException("task cancelled"));
+        if (task.notifyIfCancelled(listener)) {
             return;
         }
 
@@ -371,8 +369,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         SortOrder order,
         ActionListener<SnapshotsInRepo> listener
     ) {
-        if (task.isCancelled()) {
-            listener.onFailure(new TaskCancelledException("task cancelled"));
+        if (task.notifyIfCancelled(listener)) {
             return;
         }
         final Set<SnapshotInfo> snapshotSet = new HashSet<>();

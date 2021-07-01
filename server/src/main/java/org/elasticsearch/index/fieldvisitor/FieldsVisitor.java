@@ -77,6 +77,10 @@ public class FieldsVisitor extends StoredFieldVisitor {
             : Status.NO;
     }
 
+    public Set<String> getFieldNames() {
+        return requiredFields;
+    }
+
     public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup, @Nullable String type) {
         assert this.type == null || this.type.equals(type);
         this.type = type;

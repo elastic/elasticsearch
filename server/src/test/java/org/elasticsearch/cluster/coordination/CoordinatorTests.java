@@ -1436,8 +1436,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                                     .equals(getNodeIdForLogContext(n.getLocalNode()))).collect(Collectors.toList());
                             assertThat(matchingNodes, hasSize(1));
 
-                            assertTrue(Regex.simpleMatch(
-                                "*have discovered *" + matchingNodes.get(0).toString() + "*discovery will continue*",
+                            assertTrue(
+                                message,
+                                Regex.simpleMatch(
+                                    "*have only discovered non-quorum *" + matchingNodes.get(0).toString() + "*discovery will continue*",
                                 message));
 
                             nodesLogged.add(matchingNodes.get(0).getLocalNode());

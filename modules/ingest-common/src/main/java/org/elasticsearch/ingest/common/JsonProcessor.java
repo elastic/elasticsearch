@@ -39,7 +39,8 @@ public final class JsonProcessor extends AbstractProcessor {
     private final boolean addToRootRecursiveMerge;
     private final boolean allowDuplicateKeys;
 
-    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot, boolean addToRootRecursiveMerge, boolean allowDuplicateKeys) {
+    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot, boolean addToRootRecursiveMerge,
+                  boolean allowDuplicateKeys) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
@@ -143,14 +144,15 @@ public final class JsonProcessor extends AbstractProcessor {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");
             boolean addToRoot = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "add_to_root", false);
-            boolean addToRootRecursiveMerge = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "add_to_root_recursive_merge", false);
+            boolean addToRootRecursiveMerge = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config,
+                "add_to_root_recursive_merge", false);
             boolean allowDuplicateKeys = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "allow_duplicate_keys", false);
 
             if (addToRoot && targetField != null) {
                 throw newConfigurationException(TYPE, processorTag, "target_field",
                     "Cannot set a target field while also setting `add_to_root` to true");
             }
-            if (!addToRoot && addToRootRecursiveMerge) {
+            if (addToRoot == false && addToRootRecursiveMerge) {
                 throw newConfigurationException(TYPE, processorTag, "add_to_root_recursive_merge",
                     "Cannot set `add_to_root_recursive_merge` to true if `add_to_root` is false");
             }

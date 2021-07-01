@@ -17,7 +17,6 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -87,9 +86,9 @@ public class BlobStoreFormatTests extends ESTestCase {
         // Write blobs in different formats
         final String randomText = randomAlphaOfLengthBetween(0, 1024 * 8 * 3);
         final String normalText = "checksum smile: " + randomText;
-        checksumSMILE.write(new BlobObj(normalText), blobContainer, "check-smile", false, MockBigArrays.NON_RECYCLING_INSTANCE);
+        checksumSMILE.write(new BlobObj(normalText), blobContainer, "check-smile", false);
         final String compressedText = "checksum smile compressed: " + randomText;
-        checksumSMILE.write(new BlobObj(compressedText), blobContainer, "check-smile-comp", true, MockBigArrays.NON_RECYCLING_INSTANCE);
+        checksumSMILE.write(new BlobObj(compressedText), blobContainer, "check-smile-comp", true);
 
         // Assert that all checksum blobs can be read
         assertEquals(normalText, checksumSMILE.read("repo", blobContainer, "check-smile", xContentRegistry()).getText());
@@ -109,8 +108,8 @@ public class BlobStoreFormatTests extends ESTestCase {
             (repo, parser) -> BlobObj.fromXContent(parser)
         );
         BlobObj blobObj = new BlobObj(veryRedundantText.toString());
-        checksumFormat.write(blobObj, blobContainer, "blob-comp", true, MockBigArrays.NON_RECYCLING_INSTANCE);
-        checksumFormat.write(blobObj, blobContainer, "blob-not-comp", false, MockBigArrays.NON_RECYCLING_INSTANCE);
+        checksumFormat.write(blobObj, blobContainer, "blob-comp", true);
+        checksumFormat.write(blobObj, blobContainer, "blob-not-comp", false);
         Map<String, BlobMetadata> blobs = blobContainer.listBlobsByPrefix("blob-");
         assertEquals(blobs.size(), 2);
         assertThat(blobs.get("blob-not-comp").length(), greaterThan(blobs.get("blob-comp").length()));
@@ -121,12 +120,13 @@ public class BlobStoreFormatTests extends ESTestCase {
         BlobContainer blobContainer = blobStore.blobContainer(BlobPath.EMPTY);
         String testString = randomAlphaOfLength(randomInt(10000));
         BlobObj blobObj = new BlobObj(testString);
+
         ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(
             BLOB_CODEC,
             "%s",
             (repo, parser) -> BlobObj.fromXContent(parser)
         );
-        checksumFormat.write(blobObj, blobContainer, "test-path", randomBoolean(), MockBigArrays.NON_RECYCLING_INSTANCE);
+        checksumFormat.write(blobObj, blobContainer, "test-path", randomBoolean());
         assertEquals(checksumFormat.read("repo", blobContainer, "test-path", xContentRegistry()).getText(), testString);
         randomCorruption(blobContainer, "test-path");
         try {

@@ -39,9 +39,9 @@ GET my-index-000001/_search
 WARNING: The total number of hits in the response indicates the number of matching documents without collapsing.
 The total number of distinct group is unknown.
 
-The field used for collapsing must be a single valued <<keyword, `keyword`>> or <<number, `numeric`>> field with <<doc-values, `doc_values`>> activated
+The field used for collapsing must be a single valued <<keyword, `keyword`>> or <<number, `numeric`>> field with <<doc-values, `doc_values`>> activated.
 
-NOTE: The collapsing is applied to the top hits only and does not affect aggregations.
+NOTE: Collapsing is applied to the top hits only and does not affect aggregations.
 
 [discrete]
 [[expand-collapse-results]]

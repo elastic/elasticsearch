@@ -79,11 +79,7 @@ public final class Grok {
         this.namedCaptures = namedCaptures;
         this.matcherWatchdog = matcherWatchdog;
 
-        for (Map.Entry<String, String> entry : patternBank.entrySet()) {
-            String name = entry.getKey();
-            String pattern = entry.getValue();
-            forbidCircularReferences(name, new ArrayList<>(), pattern);
-        }
+        forbidCircularReferences();
 
         String expression = toRegex(grokPattern);
         byte[] expressionBytes = expression.getBytes(StandardCharsets.UTF_8);
@@ -104,7 +100,8 @@ public final class Grok {
      * a reference to another named pattern. This method will navigate to all these named patterns and
      * check for a circular reference.
      */
-    private void forbidCircularReferences(String patternName, List<String> path, String pattern) {
+    private void forbidCircularReferences() {
+
         // first ensure that the pattern bank contains no simple circular references (i.e., any pattern
         // containing an immediate reference to itself) as those can cause the remainder of this algorithm
         // to recurse infinitely
@@ -114,8 +111,12 @@ public final class Grok {
             }
         }
 
-        // next recursively check any other pattern names referenced in the pattern
-        innerForbidCircularReferences(patternName, path, pattern);
+        // next, recursively check any other pattern names referenced in each pattern
+        for (Map.Entry<String, String> entry : patternBank.entrySet()) {
+            String name = entry.getKey();
+            String pattern = entry.getValue();
+            innerForbidCircularReferences(name, new ArrayList<>(), pattern);
+        }
     }
 
     private void innerForbidCircularReferences(String patternName, List<String> path, String pattern) {
@@ -151,7 +152,7 @@ public final class Grok {
             }
             String otherPatternName = pattern.substring(begin, end);
             path.add(otherPatternName);
-            forbidCircularReferences(patternName, path, patternBank.get(otherPatternName));
+            innerForbidCircularReferences(patternName, path, patternBank.get(otherPatternName));
         }
     }
 

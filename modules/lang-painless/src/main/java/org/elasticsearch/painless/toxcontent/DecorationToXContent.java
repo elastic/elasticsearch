@@ -466,7 +466,7 @@ public class DecorationToXContent {
 
     public static void ToXContent(FunctionTable.LocalFunction localFunction, XContentBuilderWrapper builder) {
         builder.startObject();
-        builder.field("functionName", localFunction.getFunctionName());
+        builder.field("mangledName", localFunction.getMangledName());
         builder.field("returnType", localFunction.getReturnType().getSimpleName());
         if (localFunction.getTypeParameters().isEmpty() == false) {
             builder.field("typeParameters", classNames(localFunction.getTypeParameters()));

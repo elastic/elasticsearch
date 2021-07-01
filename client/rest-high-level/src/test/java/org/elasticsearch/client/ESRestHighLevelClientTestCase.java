@@ -35,6 +35,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
@@ -324,7 +325,10 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
             }
             TaskGroup taskGroup = taskGroups.get(0);
             assertThat(taskGroup.getChildTasks(), empty());
-            return taskGroup.getTaskInfo().getTaskId();
+            // check that the task initialized enough that it can rethrottle too.
+            if (((RawTaskStatus) taskGroup.getTaskInfo().getStatus()).toMap().containsKey("batches")) {
+                return taskGroup.getTaskInfo().getTaskId();
+            }
         } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));
         throw new AssertionError("Couldn't find tasks to rethrottle. Here are the running tasks " +
             highLevelClient().tasks().list(request, RequestOptions.DEFAULT));

@@ -358,6 +358,7 @@ public class Constants {
         "indices:admin/forcemerge",
         "indices:admin/freeze",
         "indices:admin/get",
+        "indices:admin/analyze_disk_usage",
         "indices:admin/ilm/explain",
         "indices:admin/ilm/remove_policy",
         "indices:admin/ilm/retry",

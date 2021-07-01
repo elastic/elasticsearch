@@ -812,7 +812,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             }
         }
 
-        CertificateAndKey generateCertificateAndKey(CertificateInformation certificateInformation, CAInfo caInfo,
+        private CertificateAndKey generateCertificateAndKey(CertificateInformation certificateInformation, CAInfo caInfo,
                                                     int keySize, int days) throws Exception {
             KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
             Certificate certificate;

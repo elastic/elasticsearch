@@ -138,7 +138,7 @@ public class CuckooFilter implements Writeable {
             });
             // This is probably slow but it should only happen if we have a mixed clusters (e.g during upgrade).
             data = new PackedArray(numBuckets * entriesPerBucket, bitsPerEntry);
-            for (int i = 0; i < count; i++) {
+            for (int i = 0; i < reader.size(); i++) {
                 data.set(i, reader.get(i));
             }
         } else {
@@ -156,7 +156,7 @@ public class CuckooFilter implements Writeable {
         if (out.getVersion().before(Version.V_8_0_0)) {
             // This is probably slow but it should only happen if we have a mixed clusters (e.g during upgrade).
             PackedInts.Mutable mutable = PackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
-            for (int i = 0; i < count; i++) {
+            for (int i = 0; i < mutable.size(); i++) {
                 mutable.set(i, data.get(i));
             }
             mutable.save(new DataOutput() {
@@ -527,8 +527,10 @@ public class CuckooFilter implements Writeable {
             && Objects.equals(this.evictedFingerprint, that.evictedFingerprint);
     }
 
-    //  Forked from Lucene's Packed64 class.vThe main difference is that this version
-    //  can be read from / write to Elasticsearch streams.
+    /**
+     * Forked from Lucene's Packed64 class. The main difference is that this version
+     * can be read from / write to Elasticsearch streams.
+     */
     private static class PackedArray {
         private static final int BLOCK_SIZE = 64; // 32 = int, 64 = long
         private static final int BLOCK_BITS = 6; // The #bits representing BLOCK_SIZE
@@ -563,10 +565,7 @@ public class CuckooFilter implements Writeable {
             throws IOException {
             this.bitsPerValue = in.readVInt();
             this.valueCount = in.readVInt();
-            this.blocks = new long[in.readVInt()];
-            for (int i = 0; i < blocks.length; ++i) {
-                blocks[i] = in.readLong();
-            }
+            this.blocks = in.readLongArray();
             maskRight = ~0L << (BLOCK_SIZE - bitsPerValue) >>> (BLOCK_SIZE - bitsPerValue);
             bpvMinusBlockSize = bitsPerValue - BLOCK_SIZE;
         }
@@ -574,10 +573,7 @@ public class CuckooFilter implements Writeable {
         public void save(StreamOutput out) throws IOException {
             out.writeVInt(bitsPerValue);
             out.writeVInt(valueCount);
-            out.writeVInt(blocks.length);
-            for (int i = 0; i < blocks.length; ++i) {
-                out.writeLong(blocks[i]);
-            }
+            out.writeLongArray(blocks);
         }
 
         public int size() {

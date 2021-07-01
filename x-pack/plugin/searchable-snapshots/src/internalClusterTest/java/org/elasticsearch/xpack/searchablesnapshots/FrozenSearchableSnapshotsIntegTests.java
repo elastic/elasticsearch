@@ -15,7 +15,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -48,7 +47,6 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -73,7 +71,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
@@ -643,79 +640,4 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertEquals(Arrays.asList(expectedHits, expectedMisses, 0L),
             Arrays.asList(queryCacheStats.getHitCount(), queryCacheStats.getMissCount(), queryCacheStats.getEvictions()));
     }
-
-    public void testFieldDataOnFrozen() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("index")
-            .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
-                .startObject("f")
-                .field("type", "keyword")
-                .endObject()
-                .endObject().endObject().endObject())
-            .setSettings(Settings.builder()
-                .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false)
-                .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
-            .get());
-        client().prepareIndex("index").setSource("f", "bar").get();
-        client().admin().indices().prepareFlush("index").get();
-        client().prepareIndex("index").setSource("f", "baz").get();
-        client().admin().indices().prepareRefresh("index").get();
-        ensureSearchable("index");
-
-        createRepository(
-            "repo",
-            "fs",
-            Settings.builder().put("location", randomRepoPath())
-        );
-
-        createFullSnapshot("repo", "snap");
-
-        assertAcked(client().admin().indices().prepareDelete("index"));
-
-        logger.info("--> restoring index [{}]", "index");
-
-        Settings.Builder indexSettingsBuilder = Settings.builder().put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
-        final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
-            "index",
-            "repo",
-            "snap",
-            "index",
-            indexSettingsBuilder.build(),
-            Strings.EMPTY_ARRAY,
-            true,
-            MountSearchableSnapshotRequest.Storage.SHARED_CACHE
-        );
-
-        final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
-        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
-        ensureSearchable("index");
-
-        // TODO: this does not work as GlobalOrdinalsIndexFieldData.segmentAfd captures readers, which means that subsequent access to this
-        // turns into accessing closed resources
-        // IndicesRequestCache and IndicesQueryCache do not capture state of Lucene reader
-        assertSearchResponse(client().prepareSearch("index")
-            .setQuery(QueryBuilders.matchQuery("f", "baz"))
-            .addAggregation(AggregationBuilders.significantTerms("sig")
-                .field("f"))
-            .get());
-
-        ClusterStatsResponse response1 = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response1.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
-        assertThat(response1.getIndicesStats().getFieldData().getEvictions(), equalTo(0L));
-
-        assertSearchResponse(client().prepareSearch("index")
-            .setQuery(QueryBuilders.matchQuery("f", "baz"))
-            .addAggregation(AggregationBuilders.significantTerms("sig")
-                .field("f"))
-            .get());
-
-        ClusterStatsResponse response2 = client().admin().cluster().prepareClusterStats().get();
-        assertEquals(response1.getIndicesStats().getFieldData().getMemorySizeInBytes(),
-            response2.getIndicesStats().getFieldData().getMemorySizeInBytes());
-        assertEquals(response1.getIndicesStats().getFieldData().getEvictions(),
-            response2.getIndicesStats().getFieldData().getEvictions());
-    }
-
 }

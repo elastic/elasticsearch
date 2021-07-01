@@ -179,7 +179,7 @@ GET /my-index-000001/_search
 [[second-level-of-collapsing]]
 === Second level of collapsing
 
-Second level of collapsing is also supported and is applied to `inner_hits`.
+A second level of collapsing is also supported and is applied to `inner_hits`.
 
 For example, the following search collapses results by `geo.country_name`.
 Within each `geo.country_name`, inner hits are collapsed by `user.id`.
@@ -195,7 +195,7 @@ PUT my-index-000001/
 
 [source,console]
 ----
-POST my-index-000001/_doc
+POST my-index-000001/_doc/oX9uXXoB0da05OCR3adK?refresh=true
 {"@timestamp":"2099-11-15T14:12:12","geo":{"country_name":"Amsterdam"},"http":{"request":{"method":"get"},"response":{"bytes":1070000,"status_code":200},"version":"1.1"},"message":"GET /search HTTP/1.1 200 1070000","source":{"ip":"127.0.0.1"},"user":{"id":"kimchy"}}
 ----
 // TEST[continued]
@@ -221,7 +221,7 @@ GET /my-index-000001/_search
 }
 ----
 // TEST[continued]
-// TEST[s/_search/_search\?filter_path=hits.hits.inner_hits/]
+// TEST[s/_search/_search\?filter_path=hits.hits/]
 
 [source,console-result]
 ----
@@ -229,6 +229,37 @@ GET /my-index-000001/_search
   "hits" : {
     "hits" : [
       {
+        "_index" : "my-index-000001",
+        "_id" : "oX9uXXoB0da05OCR3adK",
+        "_score" : 0.5753642,
+        "_source" : {
+          "@timestamp" : "2099-11-15T14:12:12",
+          "geo" : {
+            "country_name" : "Amsterdam"
+          },
+          "http" : {
+            "request" : {
+              "method" : "get"
+            },
+            "response" : {
+              "bytes" : 1070000,
+              "status_code" : 200
+            },
+            "version" : "1.1"
+          },
+          "message" : "GET /search HTTP/1.1 200 1070000",
+          "source" : {
+            "ip" : "127.0.0.1"
+          },
+          "user" : {
+            "id" : "kimchy"
+          }
+        },
+        "fields" : {
+          "geo.country_name" : [
+            "Amsterdam"
+          ]
+        },
         "inner_hits" : {
           "by_location" : {
             "hits" : {
@@ -236,11 +267,10 @@ GET /my-index-000001/_search
                 "value" : 1,
                 "relation" : "eq"
               },
-              "max_score" : 0.8630463,
+              "max_score" : null,
               "hits" : [
                 {
                   "_index" : "my-index-000001",
-                  "_type" : "_doc",
                   "_id" : "oX9uXXoB0da05OCR3adK",
                   "_score" : 0.5753642,
                   "_source" : {

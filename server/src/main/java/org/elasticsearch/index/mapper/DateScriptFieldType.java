@@ -121,7 +121,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             },
             dateTimeFormatter,
             DateFieldScript.PARSE_FROM_SOURCE,
-            null,
+            DEFAULT_SCRIPT,
             Collections.emptyMap());
     }
 

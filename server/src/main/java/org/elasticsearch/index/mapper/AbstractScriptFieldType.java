@@ -37,6 +37,7 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  * Abstract base {@linkplain MappedFieldType} for runtime fields based on a script.
  */
 abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
+
     protected final Script script;
     private final Function<SearchLookup, LeafFactory> factory;
 
@@ -188,7 +189,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     // Placeholder Script for source-only fields
     // TODO rework things so that we don't need this
-    private static final Script DEFAULT_SCRIPT = new Script("");
+    protected static final Script DEFAULT_SCRIPT = new Script("");
 
     abstract static class Builder<Factory> extends RuntimeField.Builder {
         private final ScriptContext<Factory> scriptContext;

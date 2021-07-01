@@ -56,6 +56,11 @@ Elasticsearch will prefer using local shards -- shards in the same awareness
 group -- to execute the request. This is usually faster than crossing between
 racks or across zone boundaries.
 
+Note that shard awareness routing takes precedence over the custom string
+preference parameter used in the search requests. The shard awareness
+behavior can be disabled by specifying
+`export ES_JAVA_OPTS="$ES_JAVA_OPTS -Des.search.ignore_awareness_attributes=true"`
+
 *********************************************
 
 Multiple awareness attributes can be specified, in which case each attribute

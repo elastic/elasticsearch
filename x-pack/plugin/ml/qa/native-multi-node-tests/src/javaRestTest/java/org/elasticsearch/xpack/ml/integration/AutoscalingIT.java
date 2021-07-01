@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 
 public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
@@ -52,7 +52,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             Settings.builder().put(MlAutoscalingDeciderService.DOWN_SCALE_DELAY.getKey(), TimeValue.ZERO).build());
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             "ml_test",
-            new TreeSet<>(Arrays.asList("ml")),
+            new TreeSet<>(Arrays.asList("master","data","ingest","ml")),
             deciders
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
@@ -151,8 +151,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
 
         AutoscalingDeciderResult autoscalingDeciderResult = autoscalingDeciderResults.results().get("ml");
         assertThat(autoscalingDeciderResult.reason().summary(), containsString(reason));
-        assertThat(autoscalingDeciderResult.requiredCapacity().total().memory().getBytes(), equalTo(tierBytes));
-        assertThat(autoscalingDeciderResult.requiredCapacity().node().memory().getBytes(), equalTo(nodeBytes));
+        assertThat(autoscalingDeciderResult.requiredCapacity().total().memory().getBytes(), greaterThanOrEqualTo(tierBytes - 1L));
+        assertThat(autoscalingDeciderResult.requiredCapacity().node().memory().getBytes(), greaterThanOrEqualTo(nodeBytes - 1L));
     }
 
     private void putJob(String jobId, long limitMb) {

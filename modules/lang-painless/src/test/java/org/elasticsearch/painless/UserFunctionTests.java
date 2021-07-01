@@ -25,7 +25,7 @@ public class UserFunctionTests extends ScriptTestCase {
                 "if (l[0] == 100) { l.remove(l.size() - 1) ; l.sort((a, b) -> -1 * myCompare(a, b)) } \n"+
                 "if (getSource().startsWith('sour')) { l.add(255); }\n" +
                 "return l;";
-        assertEquals(org.elasticsearch.common.collect.List.of(1, 49, 100, 255), exec(source));
+        assertEquals(org.elasticsearch.core.List.of(1, 49, 100, 255), exec(source));
         assertBytecodeExists(source, "public static &getSource()Ljava/lang/String");
         assertBytecodeExists(source, "public static &getMulti()I");
         assertBytecodeExists(source, "INVOKESTATIC org/elasticsearch/painless/PainlessScript$Script.&getMulti ()I");

@@ -129,24 +129,6 @@ public class StoreKeyConfig extends KeyConfig {
         return certificates;
     }
 
-    /**
-     * Returns all certificates that can be found in the keystore, either as part of a PrivateKeyEntry or a TrustedCertificateEntry.
-     * Duplicates are removed.
-     */
-    public Collection<X509Certificate> x509Certificates(Environment environment) throws GeneralSecurityException, IOException {
-        final KeyStore trustStore = getStore(CertParsingUtils.resolvePath(keyStorePath, environment), keyStoreType, keyStorePassword);
-        final Set<X509Certificate> certificates = new HashSet<>();
-        final Enumeration<String> aliases = trustStore.aliases();
-        while (aliases.hasMoreElements()) {
-            String alias = aliases.nextElement();
-            final Certificate certificate = trustStore.getCertificate(alias);
-            if (certificate instanceof X509Certificate) {
-                certificates.add((X509Certificate) certificate);
-            }
-        }
-        return certificates;
-    }
-
     @Override
     List<Path> filesToMonitor(@Nullable Environment environment) {
         if (keyStorePath == null) {

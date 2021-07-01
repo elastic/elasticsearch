@@ -30,10 +30,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.index.fieldvisitor.FieldNamesProvidingStoredFieldsVisitor;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
  * Wraps a DirectoryReader and tracks all access to fields, notifying a

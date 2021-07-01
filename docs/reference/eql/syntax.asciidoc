@@ -792,7 +792,7 @@ For a list of supported pipes, see <<eql-pipe-ref>>.
 [[eql-syntax-limitations]]
 === Limitations
 
-EQL does not support the following features and syntax.
+EQL has the following limitations.
 
 [discrete]
 [[eql-uses-fields-parameter]]

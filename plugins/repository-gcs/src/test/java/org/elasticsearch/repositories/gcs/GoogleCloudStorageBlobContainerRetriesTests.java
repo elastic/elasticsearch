@@ -15,6 +15,7 @@ import com.sun.net.httpserver.HttpHandler;
 import fixture.gcs.FakeOAuth2HttpHandler;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.jdk.JavaVersion;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -154,7 +155,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
         httpServer.createContext("/token", new FakeOAuth2HttpHandler());
         final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, "repo", service,
-            randomIntBetween(1, 8) * 1024);
+            BigArrays.NON_RECYCLING_INSTANCE, randomIntBetween(1, 8) * 1024);
 
         return new GoogleCloudStorageBlobContainer(randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo"), blobStore);
     }

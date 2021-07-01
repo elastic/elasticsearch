@@ -87,6 +87,7 @@ teardown:
                 "json" : {
                   "field" : "json",
                   "add_to_root": true,
+                  "add_to_root_recursive_merge": true,
                   "allow_duplicate_keys": true
                 }
               }

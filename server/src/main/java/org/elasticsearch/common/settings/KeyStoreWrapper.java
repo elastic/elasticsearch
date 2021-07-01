@@ -60,7 +60,6 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**

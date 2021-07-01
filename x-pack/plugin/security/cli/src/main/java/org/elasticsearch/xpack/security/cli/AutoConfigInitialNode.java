@@ -17,10 +17,12 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.node.NodeRoleSettings;
@@ -30,10 +32,12 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 
 import javax.security.auth.x500.X500Principal;
 import java.io.BufferedWriter;
-import java.io.FileWriter;
+import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
@@ -77,6 +81,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
         exit(new AutoConfigInitialNode().main(args, Terminal.DEFAULT));
     }
 
+    //@SuppressForbidden(reason = "InetAddress#getCanonicalHostName used to populate FQDN of HTTPS cert")
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         if (Files.isDirectory(env.dataFile())) {
@@ -151,26 +156,16 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
         final ZonedDateTime autoConfigDate = ZonedDateTime.now();
         final String instantAutoConfigName = "auto_generated_" + autoConfigDate.toInstant().getEpochSecond();
         final Path instantAutoConfigDir = env.configFile().resolve(instantAutoConfigName);
-        if (false == instantAutoConfigDir.toFile().mkdir()) {
-            throw new UserException(ExitCodes.CANT_CREATE, "Could not create auto configuration directory");
+        try {
+            Files.createDirectory(instantAutoConfigDir);
+        } catch (IOException e) {
+            throw new UserException(ExitCodes.CANT_CREATE, "Could not create auto configuration directory", e);
         }
 
         // the transport key-pair is the same across the cluster and is trusted without hostname verification (it is self-signed),
         // do not populate the certificate's IP, DN, and CN certificate fields
         final X500Principal certificatePrincipal = new X500Principal("CN=" + System.getenv("HOSTNAME"));
-        Set<GeneralName> generalNameSet = new HashSet<>();
-        // use only ipv4 addresses
-        // ipv6 can also technically be used, but they are many and they are long
-        for (InetAddress ip : NetworkUtils.getAllIPV4Addresses()) {
-            String ipString = ip.getHostAddress();
-            generalNameSet.add(new GeneralName(GeneralName.iPAddress, ipString));
-            String reverseFQDN = ip.getCanonicalHostName();
-            if (false == ipString.equals(reverseFQDN)) {
-                // reverse FQDN successful
-                generalNameSet.add(new GeneralName(GeneralName.dNSName, reverseFQDN));
-            }
-        }
-        final GeneralNames subjectAltNames = new GeneralNames(generalNameSet.toArray(new GeneralName[0]));
+        final GeneralNames subjectAltNames = getSubjectAltNames();
 
         KeyPair transportKeyPair = CertGenUtils.generateKeyPair(TRANSPORT_KEY_SIZE);
         // self-signed which is not a CA
@@ -236,81 +231,80 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
         }
 
         Path path = env.configFile().resolve("elasticsearch.yml");
-        FileWriter fw = new FileWriter(path.toFile(), true);
-        BufferedWriter bw = new BufferedWriter(fw);
-        bw.newLine();
-        bw.newLine();
-        bw.write("###################################################################################");
-        bw.newLine();
-        bw.write("# The following settings, and associated TLS certificates and keys configuration, #");
-        bw.newLine();
-        bw.write("# have been automatically generated in order to configure Security.               #");
-        bw.newLine();
-        bw.write("# These have been generated the first time that the new node was started without  #");
-        bw.newLine();
-        bw.write("# joining or enrolling to an existing cluster and only if Security had not been   #");
-        bw.newLine();
-        bw.write("# explicitly configured beforehand.                                               #");
-        bw.newLine();
-        bw.write(String.format(Locale.ROOT, "# %-79s #", ""));
-        bw.newLine();
-        bw.write(String.format(Locale.ROOT, "# %-79s #", autoConfigDate));
-        bw.newLine();
-        bw.write("###################################################################################");
-        bw.newLine();
-        bw.newLine();
-        bw.write(XPackSettings.SECURITY_ENABLED.getKey() + ": true");
-        bw.newLine();
-        bw.newLine();
-        if (false == env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())) {
-            bw.write(XPackSettings.ENROLLMENT_ENABLED.getKey() + ": true");
+        try (BufferedWriter bw = Files.newBufferedWriter(path, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
             bw.newLine();
             bw.newLine();
-        }
-        int autoRealmOrder = minimumRealmOrder(env.settings());
-        bw.write(RealmSettings.ORDER_SETTING.apply(FileRealmSettings.TYPE)
-                .getConcreteSettingForNamespace(instantAutoConfigName).getKey() + ": " + autoRealmOrder);
-        bw.newLine();
+            bw.write("###################################################################################");
+            bw.newLine();
+            bw.write("# The following settings, and associated TLS certificates and keys configuration, #");
+            bw.newLine();
+            bw.write("# have been automatically generated in order to configure Security.               #");
+            bw.newLine();
+            bw.write("# These have been generated the first time that the new node was started without  #");
+            bw.newLine();
+            bw.write("# joining or enrolling to an existing cluster and only if Security had not been   #");
+            bw.newLine();
+            bw.write("# explicitly configured beforehand.                                               #");
+            bw.newLine();
+            bw.write(String.format(Locale.ROOT, "# %-79s #", ""));
+            bw.newLine();
+            bw.write(String.format(Locale.ROOT, "# %-79s #", autoConfigDate));
+            bw.newLine();
+            bw.write("###################################################################################");
+            bw.newLine();
+            bw.newLine();
+            bw.write(XPackSettings.SECURITY_ENABLED.getKey() + ": true");
+            bw.newLine();
+            bw.newLine();
+            if (false == env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())) {
+                bw.write(XPackSettings.ENROLLMENT_ENABLED.getKey() + ": true");
+                bw.newLine();
+                bw.newLine();
+            }
+            int autoRealmOrder = minimumRealmOrder(env.settings());
+            bw.write(RealmSettings.ORDER_SETTING.apply(FileRealmSettings.TYPE)
+                    .getConcreteSettingForNamespace(instantAutoConfigName).getKey() + ": " + autoRealmOrder);
+            bw.newLine();
 
-        {
-            bw.newLine();
-            bw.write("xpack.security.transport.ssl.enabled: true");
-            bw.newLine();
-            bw.write("# All the nodes use the same key and certificate on the inter-node connection");
-            bw.newLine();
-            bw.write("xpack.security.transport.ssl.verification_mode: certificate");
-            bw.newLine();
-            bw.write("xpack.security.transport.ssl.client_authentication: required");
-            bw.newLine();
-            bw.write("xpack.security.transport.ssl.keystore.path: " + Path.of(instantAutoConfigName,
-                    TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"));
-            bw.newLine();
-            bw.write("xpack.security.transport.ssl.truststore.path: " + Path.of(instantAutoConfigName,
-                    TRANSPORT_AUTOGENERATED_TRUSTSTORE_NAME + ".p12"));
-            bw.newLine();
-        }
+            {
+                bw.newLine();
+                bw.write("xpack.security.transport.ssl.enabled: true");
+                bw.newLine();
+                bw.write("# All the nodes use the same key and certificate on the inter-node connection");
+                bw.newLine();
+                bw.write("xpack.security.transport.ssl.verification_mode: certificate");
+                bw.newLine();
+                bw.write("xpack.security.transport.ssl.client_authentication: required");
+                bw.newLine();
+                bw.write("xpack.security.transport.ssl.keystore.path: " + instantAutoConfigDir
+                        .resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"));
+                bw.newLine();
+                bw.write("xpack.security.transport.ssl.truststore.path: " + instantAutoConfigDir
+                        .resolve(TRANSPORT_AUTOGENERATED_TRUSTSTORE_NAME + ".p12"));
+                bw.newLine();
+            }
 
-        {
-            bw.newLine();
-            bw.write("xpack.security.http.ssl.enabled: true");
-            bw.newLine();
-            bw.write("xpack.security.http.ssl.keystore.path: " + Path.of(instantAutoConfigName,
-                    HTTP_AUTOGENERATED_KEYSTORE_NAME + ".p12"));
-            bw.newLine();
-            bw.write("# A trustore is set on the HTTP interface in case clients wish to use mTLS");
-            bw.newLine();
-            bw.write("xpack.security.http.ssl.truststore.path: " + Path.of(instantAutoConfigName,
-                    HTTP_AUTOGENERATED_TRUSTSTORE_NAME + ".p12"));
-            bw.newLine();
-        }
+            {
+                bw.newLine();
+                bw.write("xpack.security.http.ssl.enabled: true");
+                bw.newLine();
+                bw.write("xpack.security.http.ssl.keystore.path: " + instantAutoConfigDir.resolve(HTTP_AUTOGENERATED_KEYSTORE_NAME +
+                        ".p12"));
+                bw.newLine();
+                bw.write("# A trustore is set on the HTTP interface in case clients wish to use mTLS");
+                bw.newLine();
+                bw.write("xpack.security.http.ssl.truststore.path: " + instantAutoConfigDir.resolve(HTTP_AUTOGENERATED_TRUSTSTORE_NAME +
+                        ".p12"));
+                bw.newLine();
+            }
 
-        if (false == env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_HOST.getKey())) {
-            bw.newLine();
-            bw.write("# With security now configured, it's reasonable to serve requests on the local network too");
-            bw.newLine();
-            bw.write(HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": [_local_, _site_]");
+            if (false == env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_HOST.getKey())) {
+                bw.newLine();
+                bw.write("# With security now configured, it's reasonable to serve requests on the local network too");
+                bw.newLine();
+                bw.write(HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": [_local_, _site_]");
+            }
         }
-        bw.close();
     }
 
     private Integer minimumRealmOrder(Settings settings) {
@@ -331,6 +325,23 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             }
         }
         return order;
+    }
+
+    @SuppressForbidden(reason = "InetAddress#getCanonicalHostName used to populate auto generated HTTPS cert")
+    private GeneralNames getSubjectAltNames() throws IOException {
+        Set<GeneralName> generalNameSet = new HashSet<>();
+        // use only ipv4 addresses
+        // ipv6 can also technically be used, but they are many and they are long
+        for (InetAddress ip : NetworkUtils.getAllIPV4Addresses()) {
+            String ipString = NetworkAddress.format(ip);
+            generalNameSet.add(new GeneralName(GeneralName.iPAddress, ipString));
+            String reverseFQDN = ip.getCanonicalHostName();
+            if (false == ipString.equals(reverseFQDN)) {
+                // reverse FQDN successful
+                generalNameSet.add(new GeneralName(GeneralName.dNSName, reverseFQDN));
+            }
+        }
+        return new GeneralNames(generalNameSet.toArray(new GeneralName[0]));
     }
 
     // for tests

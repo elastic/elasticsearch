@@ -19,7 +19,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.XmlProvider;
 import org.gradle.api.file.ProjectLayout;
-import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.ExtensionContainer;
@@ -67,10 +66,8 @@ public class PublishPlugin implements Plugin<Project> {
     }
 
     private void configurePublications(Project project) {
-        ExtensionContainer extensions = project.getExtensions();
-        var publishingExtension = extensions.getByType(PublishingExtension.class);
+        var publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
         var publication = publishingExtension.getPublications().create("elastic", MavenPublication.class);
-
         project.afterEvaluate(project1 -> {
             if (project1.getPlugins().hasPlugin(ShadowPlugin.class)) {
                 configureWithShadowPlugin(project1, publication);
@@ -80,18 +77,18 @@ public class PublishPlugin implements Plugin<Project> {
         });
         var projectLicenses = (MapProperty<String, String>) project.getExtensions().getExtraProperties().get("projectLicenses");
         publication.getPom().withXml(xml -> {
-                var node = xml.asNode();
-                node.appendNode("inceptionYear", "2009");
-                var licensesNode = node.appendNode("licenses");
-                projectLicenses.get().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
-                    Node license = licensesNode.appendNode("license");
-                    license.appendNode("name", entry.getKey());
-                    license.appendNode("url", entry.getValue());
-                    license.appendNode("distribution", "repo");
-                });
-                var developer = node.appendNode("developers").appendNode("developer");
-                developer.appendNode("name", "Elastic");
-                developer.appendNode("url", "https://www.elastic.co");
+            var node = xml.asNode();
+            node.appendNode("inceptionYear", "2009");
+            var licensesNode = node.appendNode("licenses");
+            projectLicenses.get().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
+                Node license = licensesNode.appendNode("license");
+                license.appendNode("name", entry.getKey());
+                license.appendNode("url", entry.getValue());
+                license.appendNode("distribution", "repo");
+            });
+            var developer = node.appendNode("developers").appendNode("developer");
+            developer.appendNode("name", "Elastic");
+            developer.appendNode("url", "https://www.elastic.co");
         });
         publishingExtension.getRepositories().maven(mavenArtifactRepository -> {
             mavenArtifactRepository.setName("test");
@@ -111,19 +108,19 @@ public class PublishPlugin implements Plugin<Project> {
         var generatePomTask = project.getTasks().register("generatePom");
         project.getTasks().named(LifecycleBasePlugin.ASSEMBLE_TASK_NAME).configure(assemble -> assemble.dependsOn(generatePomTask));
         var extensions = project.getExtensions();
-        var archivesBaseName = providerFactory.provider(() ->getArchivesBaseName(extensions));
-        var projectVersion = providerFactory.provider(() ->project.getVersion());
+        var archivesBaseName = providerFactory.provider(() -> getArchivesBaseName(extensions));
+        var projectVersion = providerFactory.provider(() -> project.getVersion());
         var generateMavenPoms = project.getTasks().withType(GenerateMavenPom.class);
         generateMavenPoms.all(
-                        pomTask -> pomTask.setDestination(
-                                (Callable<String>) () -> String.format(
-                                        "%s/distributions/%s-%s.pom",
-                                        projectLayout.getBuildDirectory().get().getAsFile().getPath(),
-                                        archivesBaseName.get(),
-                                        projectVersion.get()
-                                )
-                        )
-                );
+            pomTask -> pomTask.setDestination(
+                (Callable<String>) () -> String.format(
+                    "%s/distributions/%s-%s.pom",
+                    projectLayout.getBuildDirectory().get().getAsFile().getPath(),
+                    archivesBaseName.get(),
+                    projectVersion.get()
+                )
+            )
+        );
         var publishing = extensions.getByType(PublishingExtension.class);
         final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);
         addNameAndDescriptiontoPom(project, mavenPublications);

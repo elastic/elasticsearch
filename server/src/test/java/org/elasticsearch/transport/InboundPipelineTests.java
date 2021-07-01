@@ -16,11 +16,11 @@ import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.Streams;
@@ -93,9 +93,16 @@ public class InboundPipelineTests extends ESTestCase {
             try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
                 while (streamOutput.size() < BYTE_THRESHOLD) {
                     final Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
-                    final String value = randomAlphaOfLength(randomIntBetween(10, 200));
+                    final String value = randomRealisticUnicodeOfCodepointLength(randomIntBetween(200, 400));
                     final boolean isRequest = randomBoolean();
-                    final boolean isCompressed = randomBoolean();
+
+                    Compression.Scheme scheme;
+                    if (randomBoolean()) {
+                        scheme = null;
+                    } else {
+                        scheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
+                    }
+                    boolean isCompressed = isCompressed(version, scheme);
                     final long requestId = totalMessages++;
 
                     final MessageData messageData;
@@ -106,17 +113,17 @@ public class InboundPipelineTests extends ESTestCase {
                         if (rarely()) {
                             messageData = new MessageData(version, requestId, true, isCompressed, breakThisAction, null);
                             message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                                version, breakThisAction, requestId, false, isCompressed);
+                                version, breakThisAction, requestId, false, scheme);
                             expectedExceptionClass = new CircuitBreakingException("", CircuitBreaker.Durability.PERMANENT);
                         } else {
                             messageData = new MessageData(version, requestId, true, isCompressed, actionName, value);
                             message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                                version, actionName, requestId, false, isCompressed);
+                                version, actionName, requestId, false, scheme);
                         }
                     } else {
                         messageData = new MessageData(version, requestId, false, isCompressed, null, value);
                         message = new OutboundMessage.Response(threadContext, new TestResponse(value),
-                            version, requestId, false, isCompressed);
+                            version, requestId, false, scheme);
                     }
 
                     expected.add(new Tuple<>(messageData, expectedExceptionClass));
@@ -165,6 +172,14 @@ public class InboundPipelineTests extends ESTestCase {
         }
     }
 
+    private static boolean isCompressed(Version version, Compression.Scheme scheme) {
+        if (version.before(Compression.Scheme.LZ4_VERSION) && scheme == Compression.Scheme.LZ4) {
+            return false;
+        } else {
+            return scheme != null;
+        }
+    }
+
     public void testDecodeExceptionIsPropagated() throws IOException {
         BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
         final StatsTracker statsTracker = new StatsTracker();
@@ -184,10 +199,10 @@ public class InboundPipelineTests extends ESTestCase {
             OutboundMessage message;
             if (isRequest) {
                 message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                    invalidVersion, actionName, requestId, false, false);
+                    invalidVersion, actionName, requestId, false, null);
             } else {
                 message = new OutboundMessage.Response(threadContext, new TestResponse(value),
-                    invalidVersion, requestId, false, false);
+                    invalidVersion, requestId, false, null);
             }
 
             final BytesReference reference = message.serialize(streamOutput);
@@ -221,10 +236,10 @@ public class InboundPipelineTests extends ESTestCase {
             OutboundMessage message;
             if (isRequest) {
                 message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                    version, actionName, requestId, false, false);
+                    version, actionName, requestId, false, null);
             } else {
                 message = new OutboundMessage.Response(threadContext, new TestResponse(value),
-                    version, requestId, false, false);
+                    version, requestId, false, null);
             }
 
             final BytesReference reference = message.serialize(streamOutput);

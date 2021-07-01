@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +29,7 @@ import java.util.List;
  */
 public class SetPriorityAction implements LifecycleAction {
     public static final String NAME = "set_priority";
-    private static final ParseField RECOVERY_PRIORITY_FIELD = new ParseField("priority");
+    public static final ParseField RECOVERY_PRIORITY_FIELD = new ParseField("priority");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SetPriorityAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
@@ -62,6 +62,10 @@ public class SetPriorityAction implements LifecycleAction {
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    public Integer getRecoveryPriority() {
+        return recoveryPriority;
     }
 
     @Override

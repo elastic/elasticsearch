@@ -29,16 +29,16 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -890,6 +890,7 @@ public class RecoverySourceHandler {
                 new MultiChunkTransfer<>(logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files)) {
 
                     final Deque<byte[]> buffers = new ConcurrentLinkedDeque<>();
+                    final AtomicInteger liveBufferCount = new AtomicInteger(); // only used in assertions to verify proper recycling
                     IndexInput currentInput = null;
                     long offset = 0;
 
@@ -905,11 +906,15 @@ public class RecoverySourceHandler {
                         assert Transports.assertNotTransportThread("read file chunk");
                         cancellableThreads.checkForCancel();
                         final byte[] buffer = Objects.requireNonNullElseGet(buffers.pollFirst(), () -> new byte[chunkSizeInBytes]);
+                        assert liveBufferCount.incrementAndGet() > 0;
                         final int toRead = Math.toIntExact(Math.min(md.length() - offset, buffer.length));
                         currentInput.readBytes(buffer, 0, toRead, false);
                         final boolean lastChunk = offset + toRead == md.length();
                         final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, toRead), offset, lastChunk,
-                            () -> buffers.addFirst(buffer));
+                            () -> {
+                                assert liveBufferCount.decrementAndGet() >= 0;
+                                buffers.addFirst(buffer);
+                            });
                         offset += toRead;
                         return chunk;
                     }
@@ -931,6 +936,12 @@ public class RecoverySourceHandler {
                     @Override
                     public void close() throws IOException {
                         IOUtils.close(currentInput, storeRef);
+                    }
+
+                    @Override
+                    protected boolean assertOnSuccess() {
+                        assert liveBufferCount.get() == 0 : "leaked [" + liveBufferCount + "] buffers";
+                        return true;
                     }
                 };
             resources.add(multiFileSender);

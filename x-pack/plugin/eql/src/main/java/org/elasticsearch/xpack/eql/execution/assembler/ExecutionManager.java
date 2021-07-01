@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
@@ -109,7 +109,7 @@ public class ExecutionManager {
         }
 
         int completionStage = criteria.size() - 1;
-        SequenceMatcher matcher = new SequenceMatcher(completionStage, descending, maxSpan, limit);
+        SequenceMatcher matcher = new SequenceMatcher(completionStage, descending, maxSpan, limit, session.circuitBreaker());
 
         TumblingWindow w = new TumblingWindow(new PITAwareQueryClient(session),
                 criteria.subList(0, completionStage),

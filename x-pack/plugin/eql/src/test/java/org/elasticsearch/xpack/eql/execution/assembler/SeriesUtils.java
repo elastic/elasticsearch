@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.eql.execution.assembler;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;

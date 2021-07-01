@@ -12,8 +12,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,17 +36,9 @@ public class CommunityIdProcessorTests extends ESTestCase {
     // https://github.com/elastic/beats/blob/master/libbeat/processors/communityid/communityid_test.go
 
     private Map<String, Object> event;
-    private ThreadLocal<MessageDigest> messageDigest;
 
     @Before
     public void setup() throws Exception {
-        messageDigest = ThreadLocal.withInitial(() -> {
-            try {
-                return MessageDigest.getInstance("SHA-1");
-            } catch (NoSuchAlgorithmException e) {
-                throw new IllegalStateException("unable to obtain SHA-1 hasher", e);
-            }
-        });
         event = buildEvent();
     }
 
@@ -323,6 +313,19 @@ public class CommunityIdProcessorTests extends ESTestCase {
         testCommunityIdProcessor(event, 0, null, true);
     }
 
+    public void testIgnoreMissingIsFalse() throws Exception {
+        @SuppressWarnings("unchecked")
+        var source = (Map<String, Object>) event.get("source");
+        source.remove("ip");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> testCommunityIdProcessor(event, 0, null, false)
+        );
+
+        assertThat(e.getMessage(), containsString("field [ip] not present as part of path [source.ip]"));
+    }
+
     private void testCommunityIdProcessor(Map<String, Object> source, String expectedHash) throws Exception {
         testCommunityIdProcessor(source, 0, expectedHash);
     }
@@ -346,7 +349,6 @@ public class CommunityIdProcessorTests extends ESTestCase {
             DEFAULT_ICMP_TYPE,
             DEFAULT_ICMP_CODE,
             DEFAULT_TARGET,
-            messageDigest,
             CommunityIdProcessor.toUint16(seed),
             ignoreMissing
         );

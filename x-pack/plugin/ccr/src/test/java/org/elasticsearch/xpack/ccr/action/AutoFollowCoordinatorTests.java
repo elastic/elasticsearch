@@ -24,11 +24,11 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
@@ -2085,15 +2085,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                         Map.of(pattern, Map.of()))))
             .build();
 
-        ClusterState remoteState = null;
+        ClusterState remoteState = ClusterState.EMPTY_STATE;
         final int nbLeaderIndices = randomIntBetween(0, 15);
         for (int i = 0; i < nbLeaderIndices; i++) {
             String indexName = "docs-" + i;
-            if (remoteState == null) {
-                remoteState = createRemoteClusterState(indexName, true);
-            } else {
-                remoteState = createRemoteClusterState(remoteState, indexName);
-            }
+            remoteState = createRemoteClusterState(remoteState, indexName);
         }
 
         final int nbLeaderExcludedIndices = randomIntBetween(1, 15);

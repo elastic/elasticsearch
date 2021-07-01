@@ -12,9 +12,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -74,6 +74,15 @@ public class DataLoader {
         // frozen index
         loadEmpDatasetIntoEs(client, "frozen_emp", "employees");
         freeze(client, "frozen_emp");
+        loadNoColsDatasetIntoEs(client, "empty_mapping");
+    }
+
+    private static void loadNoColsDatasetIntoEs(RestClient client, String index) throws Exception {
+        createEmptyIndex(client, index);
+        Request request = new Request("POST", "/" + index + "/_bulk");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity("{\"index\":{}\n{}\n" + "{\"index\":{}\n{}\n");
+        client.performRequest(request);
     }
 
     public static void loadDocsDatasetIntoEs(RestClient client) throws Exception {

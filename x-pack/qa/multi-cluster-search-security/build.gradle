@@ -2,7 +2,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
@@ -12,7 +12,7 @@ dependencies {
 restResources {
   restApi {
     include '_common', 'bulk', 'field_caps', 'security', 'search', 'clear_scroll', 'scroll', 'async_search', 'cluster',
-      'indices', 'open_point_in_time', 'close_point_in_time'
+      'indices', 'open_point_in_time', 'close_point_in_time', 'terms_enum'
   }
 }
 
@@ -77,5 +77,4 @@ tasks.register("integTest") {
   dependsOn 'mixed-cluster'
 }
 
-tasks.named("test").configure { enabled = false } // no unit tests for multi-cluster-search, only the rest integration test
 tasks.named("check").configure { dependsOn("integTest") }

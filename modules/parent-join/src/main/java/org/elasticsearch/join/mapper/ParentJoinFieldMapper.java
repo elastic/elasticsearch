@@ -150,6 +150,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
             return SourceValueFetcher.identity(name(), context, format);
         }
 

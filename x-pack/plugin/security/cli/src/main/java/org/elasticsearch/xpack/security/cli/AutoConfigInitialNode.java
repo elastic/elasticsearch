@@ -13,10 +13,14 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
@@ -29,6 +33,7 @@ import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.security.cli.CertificateTool.fullyWriteFile;
@@ -81,6 +86,20 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                     "The node cannot be auto configured to participate in forming a new multi-node secure cluster.");
             throw new UserException(ExitCodes.OK, "Skipping security auto configuration: configured cluster formation");
         }
+        List<DiscoveryNodeRole> nodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(env.settings());
+        boolean canBecomeMaster = nodeRoles.contains(DiscoveryNodeRole.MASTER_ROLE) &&
+                false == nodeRoles.contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
+        if (false == canBecomeMaster) {
+            terminal.println(Terminal.Verbosity.VERBOSE,
+                    "Skipping security auto configuration because the node is configured such that it cannot become master.");
+            throw new UserException(ExitCodes.OK, "Skipping security auto configuration: cannot become master");
+        }
+        boolean canHoldSecurityIndex = nodeRoles.stream().anyMatch(DiscoveryNodeRole::canContainData);
+        if (false == canHoldSecurityIndex) {
+            terminal.println(Terminal.Verbosity.VERBOSE,
+                    "Skipping security auto configuration because the node is configured such that it cannot contain data.");
+            throw new UserException(ExitCodes.OK, "Skipping security auto configuration: cannot contain data");
+        }
         if (false == env.settings().getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX).isEmpty() ||
                 false == env.settings().getByPrefix(XPackSettings.HTTP_SSL_PREFIX).isEmpty()) {
             // again, zero validation for the TLS settings, let the node startup do its thing
@@ -88,9 +107,13 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                     "Skipping security auto configuration because it appears that TLS is already configured.");
             throw new UserException(ExitCodes.OK, "Skipping security auto configuration: TLS already configured");
         }
+        // check that no file realms have been configured.
+        // this can technically be improved upon:
+        // auto configuration only requires that the file realm be enabled, and, for optimal experience,
+        // also be the first in the chain
         if (false == env.settings().getByPrefix(RealmSettings.realmSettingPrefix(FileRealmSettings.TYPE)).isEmpty()) {
             terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because it appears that TLS is already configured.");
+                    "Skipping security auto configuration because it appears that a file-based realm is already configured.");
             throw new UserException(ExitCodes.OK, "Skipping security auto configuration: file realm configured");
         }
         // tolerate enabling enrollment explicitly, as it could be useful to enable it by a command line option
@@ -108,12 +131,6 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
         if (false == instantAutoConfigDir.toFile().mkdir()) {
             throw new UserException(ExitCodes.CANT_CREATE, "Could not create auto configuration directory");
         }
-
-        // TODO check if cannot become leader (if not master)
-
-        // TODO enable ip filtering
-
-        // TODO http bind to local and site
 
         // the transport key-pair is the same across the cluster and is trusted without hostname verification (it is self-signed),
         // do not populate the certificate's IP, DN, and CN certificate fields
@@ -166,22 +183,24 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
         bw.newLine();
         bw.write("# explicitly configured beforehand.                                               #");
         bw.newLine();
-        bw.write(String.format(Locale.ROOT, "# %-82s #", ""));
+        bw.write(String.format(Locale.ROOT, "# %-79s #", ""));
         bw.newLine();
-        bw.write(String.format(Locale.ROOT, "# %-82s #", autoConfigDate));
+        bw.write(String.format(Locale.ROOT, "# %-79s #", autoConfigDate));
         bw.newLine();
         bw.write("###################################################################################");
         bw.newLine();
         bw.newLine();
         bw.write(XPackSettings.SECURITY_ENABLED.getKey() + ": true");
         bw.newLine();
+        bw.newLine();
         if (false == env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())) {
             bw.write(XPackSettings.ENROLLMENT_ENABLED.getKey() + ": true");
             bw.newLine();
+            bw.newLine();
         }
-        bw.newLine();
-        // TODO check if realm order or realm enabled are set
-        bw.write("xpack.security.authc.realms.file." + instantAutoConfigName + ".order: 0");
+        int autoRealmOrder = minimumRealmOrder(env.settings());
+        bw.write(RealmSettings.ORDER_SETTING.apply(FileRealmSettings.TYPE)
+                .getConcreteSettingForNamespace(instantAutoConfigName).getKey() + ": " + autoRealmOrder);
         bw.newLine();
         bw.newLine();
         bw.write("xpack.security.transport.ssl.enabled: true");
@@ -196,7 +215,33 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
         bw.write("xpack.security.transport.ssl.truststore.path: " + Path.of(instantAutoConfigName,
                 TRANSPORT_AUTOGENERATED_TRUSTSTORE_NAME + ".p12"));
         bw.newLine();
+        if (false == env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_HOST.getKey())) {
+            bw.newLine();
+            bw.write("# With security now configured, it's reasonable to serve requests on the local network too");
+            bw.newLine();
+            bw.write(HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": [_local_, _site_]");
+        }
         bw.close();
+    }
+
+    private Integer minimumRealmOrder(Settings settings) {
+        Integer order = 0;
+        Settings realmsSettings = settings.getByPrefix(RealmSettings.PREFIX);
+        if (realmsSettings == null || realmsSettings.isEmpty()) {
+            return order;
+        }
+        for (String realmType : realmsSettings.names()) {
+            // return the first enabled file realm
+            Settings realmSettings = realmsSettings.getByPrefix(realmType);
+            if (realmSettings == null || realmSettings.isEmpty()) {
+                continue;
+            }
+            for (String realmName : realmSettings.names()) {
+                order = Math.min(order,
+                        RealmSettings.ORDER_SETTING.apply(realmType).getConcreteSettingForNamespace(realmName).get(settings));
+            }
+        }
+        return order;
     }
 
 }

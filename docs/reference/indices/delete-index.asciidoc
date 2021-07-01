@@ -30,7 +30,7 @@ or `manage` <<privileges-list-indices,index privilege>> for the target index.
 `<index>`::
 +
 --
-(Required, string) Comma-separated list indices to delete. You cannot specify
+(Required, string) Comma-separated list of indices to delete. You cannot specify
 <<alias,index aliases>>.
 
 To use wildcards (`*`) or `_all`, change the `action.destructive_requires_name`

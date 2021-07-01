@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.Tuple;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
@@ -26,9 +28,13 @@ import java.util.TreeSet;
  */
 public class SequenceMatcher {
 
+    private static final String CB_INFLIGHT_LABEL = "sequence_inflight";
+    private static final String CB_COMPLETED_LABEL = "sequence_completed";
+
     private final Logger log = LogManager.getLogger(SequenceMatcher.class);
 
     static class Stats {
+
         long seen = 0;
         long ignored = 0;
         long rejectionMaxspan = 0;
@@ -68,12 +74,15 @@ public class SequenceMatcher {
     private final boolean descending;
 
     private final Limit limit;
-    private boolean headLimit = false;
+    private final CircuitBreaker circuitBreaker;
 
     private final Stats stats = new Stats();
 
+    private boolean headLimit = false;
+    private long totalRamBytesUsed = 0;
+
     @SuppressWarnings("rawtypes")
-    public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit) {
+    public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit, CircuitBreaker circuitBreaker) {
         this.numberOfStages = stages;
         this.completionStage = stages - 1;
 
@@ -84,8 +93,8 @@ public class SequenceMatcher {
 
         this.maxSpanInMillis = maxSpan.millis();
 
-        // limit
         this.limit = limit;
+        this.circuitBreaker = circuitBreaker;
     }
 
     private void trackSequence(Sequence sequence) {
@@ -102,6 +111,9 @@ public class SequenceMatcher {
      * Returns false if the process needs to be stopped.
      */
     boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
+        long ramBytesUsedInFlight = ramBytesUsedInFlight();
+        long ramBytesUsedCompleted = ramBytesUsedCompleted();
+
         for (Tuple<KeyAndOrdinal, HitReference> tuple : hits) {
             KeyAndOrdinal ko = tuple.v1();
             HitReference hit = tuple.v2();
@@ -121,13 +133,17 @@ public class SequenceMatcher {
             }
         }
 
+        boolean matched;
         // check tail limit
         if (tailLimitReached()) {
             log.trace("(Tail) Limit reached {}", stats);
-            return false;
+            matched = false;
+        } else {
+            log.trace("{}", stats);
+            matched = true;
         }
-        log.trace("{}", stats);
-        return true;
+        trackMemory(ramBytesUsedInFlight, ramBytesUsedCompleted);
+        return matched;
     }
 
     private boolean tailLimitReached() {
@@ -283,6 +299,37 @@ public class SequenceMatcher {
         keyToSequences.clear();
         stageToKeys.clear();
         completed.clear();
+        clearCircuitBreaker();
+    }
+
+    private long ramBytesUsedInFlight() {
+        return RamUsageEstimator.sizeOf(keyToSequences) + RamUsageEstimator.sizeOf(stageToKeys);
+    }
+
+    private long ramBytesUsedCompleted() {
+        return RamUsageEstimator.sizeOfCollection(completed);
+    }
+
+    private void addMemory(long bytes, String label) {
+        totalRamBytesUsed += bytes;
+        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
+    }
+
+    private void clearCircuitBreaker() {
+        circuitBreaker.addWithoutBreaking(-totalRamBytesUsed);
+        totalRamBytesUsed = 0;
+    }
+
+    // The method is called at the end of match() which is called for every sub query in the sequence query
+    // and for each subquery every "fetch_size" docs. Doing RAM accounting on object creation is
+    // expensive, so we just calculate the difference in bytes of the total memory that the matcher's
+    // structure occupy for the in-flight tracking of sequences, as well as for the list of completed
+    // sequences.
+    private void trackMemory(long prevRamBytesUsedInflight, long prevRamBytesUsedCompleted) {
+        long bytesDiff = ramBytesUsedInFlight() - prevRamBytesUsedInflight;
+        addMemory(bytesDiff, CB_INFLIGHT_LABEL);
+        bytesDiff = ramBytesUsedCompleted() - prevRamBytesUsedCompleted;
+        addMemory(bytesDiff, CB_COMPLETED_LABEL);
     }
 
     @Override

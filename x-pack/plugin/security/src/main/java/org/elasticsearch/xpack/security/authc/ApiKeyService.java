@@ -1149,6 +1149,11 @@ public class ApiKeyService {
         return evictionCounter;
     }
 
+    // package private for test
+    AtomicLong getLastEvictionCheckedAt() {
+        return lastEvictionCheckedAt;
+    }
+
     /**
      * Returns realm name for the authenticated user.
      * If the user is authenticated by realm type {@value API_KEY_REALM_TYPE}

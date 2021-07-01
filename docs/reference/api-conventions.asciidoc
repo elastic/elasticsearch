@@ -3,8 +3,13 @@
 
 The {es} REST APIs are exposed over HTTP.
 
-The conventions listed in this chapter can be applied throughout the REST
-API, unless otherwise specified.
+A number of {es} GET APIs--most notably the search API--support a request body. 
+While the GET action makes sense in the context of retrieving information, 
+GET requests with a body are not supported by all HTTP libraries.
+All {es} GET APIs that require a body can also be submitted as POST requests.
+Alternatively, you can pass the request body as the 
+<<api-request-body-query-string, `source` query string parameter>>
+when using GET.
 
 * <<multi-index>>
 * <<date-math-index-names>>

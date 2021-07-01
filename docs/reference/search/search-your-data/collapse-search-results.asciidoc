@@ -230,6 +230,7 @@ GET /my-index-000001/_search
     "hits" : [
       {
         "_index" : "my-index-000001",
+        "_type" : "_doc",
         "_id" : "oX9uXXoB0da05OCR3adK",
         "_score" : 0.5753642,
         "_source" : {
@@ -271,6 +272,7 @@ GET /my-index-000001/_search
               "hits" : [
                 {
                   "_index" : "my-index-000001",
+                  "_type" : "_doc",
                   "_id" : "oX9uXXoB0da05OCR3adK",
                   "_score" : 0.5753642,
                   "_source" : {

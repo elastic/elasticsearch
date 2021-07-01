@@ -231,7 +231,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             // then wait for the new leader to commit a state without the old leader
             + DEFAULT_CLUSTER_STATE_UPDATE_DELAY;
 
-    class Cluster implements Releasable {
+    public class Cluster implements Releasable {
 
         static final long EXTREME_DELAY_VARIABILITY = 10000L;
         static final long DEFAULT_DELAY_VARIABILITY = 100L;
@@ -261,7 +261,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             this(initialNodeCount, true, Settings.EMPTY);
         }
 
-        Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings) {
+        public Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings) {
             this(initialNodeCount, allNodesMasterEligible, nodeSettings, () -> new StatusInfo(HEALTHY, "healthy-info"));
         }
 
@@ -326,7 +326,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return clusterNodes.size();
         }
 
-        void runRandomly() {
+        public void runRandomly() {
             runRandomly(true, true, EXTREME_DELAY_VARIABILITY);
         }
 
@@ -495,7 +495,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
         }
 
-        void stabilise() {
+        public void stabilise() {
             stabilise(DEFAULT_STABILISATION_TIME);
         }
 
@@ -653,7 +653,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 (n1.nodeHealthService.getHealth().getStatus() == HEALTHY && n2.nodeHealthService.getHealth().getStatus() == HEALTHY);
         }
 
-        ClusterNode getAnyLeader() {
+        public ClusterNode getAnyLeader() {
             List<ClusterNode> allLeaders = clusterNodes.stream().filter(ClusterNode::isLeader).collect(Collectors.toList());
             assertThat("leaders", allLeaders, not(empty()));
             return randomFrom(allLeaders);
@@ -883,7 +883,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
         }
 
-        class ClusterNode {
+        public class ClusterNode {
             private final Logger logger = LogManager.getLogger(ClusterNode.class);
 
             private final int nodeIndex;
@@ -1019,7 +1019,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 return localNode.getId();
             }
 
-            DiscoveryNode getLocalNode() {
+            public DiscoveryNode getLocalNode() {
                 return localNode;
             }
 

@@ -34,7 +34,13 @@ public abstract class EqlSpecTestCase extends BaseEqlSpecTestCase {
         return "serial_event_id";
     }
 
+    // constructor for "local" rest tests
     public EqlSpecTestCase(String query, String name, long[] eventIds) {
-        super(TEST_INDEX, query, name, eventIds);
+        this(TEST_INDEX, query, name, eventIds);
+    }
+
+    // constructor for multi-cluster tests
+    public EqlSpecTestCase(String index, String query, String name, long[] eventIds) {
+        super(index, query, name, eventIds);
     }
 }

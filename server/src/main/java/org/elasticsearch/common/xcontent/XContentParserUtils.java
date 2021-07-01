@@ -12,8 +12,11 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.core.CheckedFunction;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
@@ -150,5 +153,26 @@ public final class XContentParserUtils {
         } else {
             throw new ParsingException(parser.getTokenLocation(), "Failed to parse object: empty key");
         }
+    }
+
+    /**
+     * Parses a list of a given type from the given {@code parser}. Assumes that the parser is currently positioned on a
+     * {@link Token#START_ARRAY} token and will fail if it is not. The returned list may or may not be mutable.
+     *
+     * @param parser      x-content parser
+     * @param valueParser parser for expected list value type
+     * @return list parsed from parser
+     */
+    public static <T> List<T> parseList(XContentParser parser,
+                                        CheckedFunction<XContentParser, T, IOException> valueParser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(Token.START_ARRAY, parser.currentToken(), parser);
+        if (parser.nextToken() == Token.END_ARRAY) {
+            return List.of();
+        }
+        final ArrayList<T> list = new ArrayList<>();
+        do {
+            list.add(valueParser.apply(parser));
+        } while (parser.nextToken() != Token.END_ARRAY);
+        return list;
     }
 }

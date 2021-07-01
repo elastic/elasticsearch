@@ -18,10 +18,13 @@ import org.elasticsearch.common.transport.TransportAddress;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 public class DiscoveryNodeFilters {
+
+    static final Set<String> NON_ATTRIBUTE_NAMES = Set.of("_ip", "_host_ip", "_publish_ip", "host", "_id", "_name", "name");
 
     public enum OpType {
         AND,
@@ -224,6 +227,14 @@ public class DiscoveryNodeFilters {
         } else {
             return true;
         }
+    }
+
+    /**
+     *
+     * @return true if this filter only contains attribute values, i.e., no node specific info.
+     */
+    public boolean isOnlyAttributeValueFilter() {
+        return filters.keySet().stream().anyMatch(NON_ATTRIBUTE_NAMES::contains) == false;
     }
 
     /**

@@ -23,6 +23,9 @@ import java.util.Set;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDate;
@@ -84,7 +87,7 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = isString(first(), sourceText(), Expressions.ParamOrdinal.FIRST);
+        TypeResolution resolution = isString(first(), sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -107,12 +110,12 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
             }
         }
 
-        resolution = isInteger(second(), sourceText(), Expressions.ParamOrdinal.SECOND);
+        resolution = isInteger(second(), sourceText(), SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        resolution = isDate(third(), sourceText(), Expressions.ParamOrdinal.THIRD);
+        resolution = isDate(third(), sourceText(), THIRD);
         if (resolution.unresolved()) {
             return resolution;
         }

@@ -506,8 +506,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }, listener::onFailure), snapshot().totalFileCount());
 
         for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
-            if (file.metadata().hashEqualsContents() || isExcludedFromCache(file.physicalName())) {
-                if (file.metadata().hashEqualsContents()) {
+            boolean hashEqualsContents = file.metadata().hashEqualsContents();
+            if (hashEqualsContents || isExcludedFromCache(file.physicalName())) {
+                if (hashEqualsContents) {
                     recoveryState.getIndex().addFileDetail(file.physicalName(), file.length(), true);
                 } else {
                     recoveryState.ignoreFile(file.physicalName());
@@ -516,17 +517,24 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 continue;
             }
             recoveryState.getIndex().addFileDetail(file.physicalName(), file.length(), false);
+            boolean submitted = false;
             try {
                 final IndexInput input = openInput(file.physicalName(), CachedBlobContainerIndexInput.CACHE_WARMING_CONTEXT);
                 assert input instanceof CachedBlobContainerIndexInput : "expected cached index input but got " + input.getClass();
 
                 final int numberOfParts = file.numberOfParts();
                 final StepListener<Collection<Void>> fileCompletionListener = new StepListener<>();
-                fileCompletionListener.whenComplete(voids -> input.close(), e -> IOUtils.closeWhileHandlingException(input));
                 fileCompletionListener.addListener(completionListener.map(voids -> null));
+                fileCompletionListener.whenComplete(voids -> {
+                    logger.debug("{} file [{}] prewarmed", shardId, file.physicalName());
+                    input.close();
+                }, e -> {
+                    logger.warn(() -> new ParameterizedMessage("{} prewarming failed for file [{}]", shardId, file.physicalName()), e);
+                    IOUtils.closeWhileHandlingException(input);
+                });
 
                 final GroupedActionListener<Void> partsListener = new GroupedActionListener<>(fileCompletionListener, numberOfParts);
-
+                submitted = true;
                 for (int p = 0; p < numberOfParts; p++) {
                     final int part = p;
                     queue.add(Tuple.tuple(partsListener, () -> {
@@ -555,6 +563,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 }
             } catch (IOException e) {
                 logger.warn(() -> new ParameterizedMessage("{} unable to prewarm file [{}]", shardId, file.physicalName()), e);
+                if (submitted == false) {
+                    completionListener.onFailure(e);
+                }
             }
         }
 

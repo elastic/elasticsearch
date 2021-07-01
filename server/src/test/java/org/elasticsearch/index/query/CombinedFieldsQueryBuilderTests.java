@@ -9,11 +9,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.CombinedFieldQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.XCombinedFieldQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -64,7 +64,7 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
             instanceOf(TermQuery.class),
             instanceOf(MatchAllDocsQuery.class),
             instanceOf(MatchNoDocsQuery.class),
-            instanceOf(CombinedFieldQuery.class)
+            instanceOf(XCombinedFieldQuery.class)
         )));
     }
 

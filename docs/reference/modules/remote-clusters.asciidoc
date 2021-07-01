@@ -288,11 +288,12 @@ separately.
 
 `cluster.remote.<cluster_alias>.transport.compress`::
 
-  Per cluster boolean setting that enables you to configure compression for
-  requests to a specific remote cluster. This setting impacts only requests
+  Per cluster setting that enables you to configure compression for requests
+  to a specific remote cluster. This setting impacts only requests
   sent to the remote cluster. If the inbound request is compressed,
-  Elasticsearch compresses the response. If unset, the global
-  `transport.compress` is used as the fallback setting.
+  Elasticsearch compresses the response. The setting options are `true`,
+  `indexing_data`, and `false`. The option `indexing_data` is experimental.
+  If unset, the global `transport.compress` is used as the fallback setting.
 
 [discrete]
 [[remote-cluster-sniff-settings]]

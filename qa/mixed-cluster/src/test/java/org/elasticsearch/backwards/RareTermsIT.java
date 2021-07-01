@@ -24,7 +24,7 @@ import java.util.List;
  */
 public class RareTermsIT extends ESRestTestCase {
 
-    private final static String index = "idx";
+    private static final String index = "idx";
 
     private int indexDocs(int numDocs, int id) throws Exception  {
         final Request request = new Request("POST", "/_bulk");

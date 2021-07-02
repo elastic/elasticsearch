@@ -413,6 +413,9 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
 
     @Override
     protected boolean doEquals(PinnedQueryBuilder other) {
-        return Objects.equals(ids, other.ids) && Objects.equals(documents, other.documents) && Objects.equals(organicQuery, other.organicQuery) && boost == other.boost;
+        return Objects.equals(ids, other.ids) &&
+            Objects.equals(documents, other.documents) &&
+            Objects.equals(organicQuery, other.organicQuery) &&
+            boost == other.boost;
     }
 }

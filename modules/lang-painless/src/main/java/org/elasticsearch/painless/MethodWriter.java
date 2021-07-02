@@ -514,11 +514,6 @@ public final class MethodWriter extends GeneratorAdapter {
         args[6] = functionRef.isDelegateAugmented ? 1 : 0;
         System.arraycopy(functionRef.delegateInjections, 0, args, 7, functionRef.delegateInjections.length);
 
-        invokeDynamic(
-                functionRef.interfaceMethodName,
-                functionRef.factoryMethodType.toMethodDescriptorString(),
-                LAMBDA_BOOTSTRAP_HANDLE,
-                args
-        );
+        invokeDynamic(functionRef.interfaceMethodName, functionRef.getFactoryMethodDescriptor(), LAMBDA_BOOTSTRAP_HANDLE, args);
     }
 }

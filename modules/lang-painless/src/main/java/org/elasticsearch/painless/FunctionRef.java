@@ -14,6 +14,7 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
+import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.objectweb.asm.Opcodes.H_INVOKEINTERFACE;
@@ -44,9 +46,11 @@ public class FunctionRef {
      * @param methodName the right hand side of a method reference expression
      * @param numberOfCaptures number of captured arguments
      * @param constants constants used for injection when necessary
+     * @param needsScriptInstance uses an instance method and so receiver must be captured.
      */
     public static FunctionRef create(PainlessLookup painlessLookup, FunctionTable functionTable, Location location,
-            Class<?> targetClass, String typeName, String methodName, int numberOfCaptures, Map<String, Object> constants) {
+            Class<?> targetClass, String typeName, String methodName, int numberOfCaptures, Map<String, Object> constants,
+            boolean needsScriptInstance) {
 
         Objects.requireNonNull(painlessLookup);
         Objects.requireNonNull(targetClass);
@@ -98,7 +102,7 @@ public class FunctionRef {
                 delegateClassName = CLASS_NAME;
                 isDelegateInterface = false;
                 isDelegateAugmented = false;
-                delegateInvokeType = H_INVOKESTATIC;
+                delegateInvokeType = needsScriptInstance ? H_INVOKEVIRTUAL : H_INVOKESTATIC;
                 delegateMethodName = localFunction.getMangledName();
                 delegateMethodType = localFunction.getMethodType();
                 delegateInjections = new Object[0];
@@ -213,7 +217,7 @@ public class FunctionRef {
             return new FunctionRef(interfaceMethodName, interfaceMethodType,
                     delegateClassName, isDelegateInterface, isDelegateAugmented,
                     delegateInvokeType, delegateMethodName, delegateMethodType, delegateInjections,
-                    factoryMethodType
+                    factoryMethodType, needsScriptInstance ? WriterConstants.CLASS_TYPE : null
             );
         } catch (IllegalArgumentException iae) {
             if (location != null) {
@@ -243,13 +247,15 @@ public class FunctionRef {
     /** injected constants */
     public final Object[] delegateInjections;
     /** factory (CallSite) method signature */
-    public final MethodType factoryMethodType;
+    private final MethodType factoryMethodType;
+    /** factory (CallSite) method receiver, this modifies the method descriptor for the factory method */
+    public final Type factoryMethodReceiver;
 
     private FunctionRef(
             String interfaceMethodName, MethodType interfaceMethodType,
             String delegateClassName, boolean isDelegateInterface, boolean isDelegateAugmented,
             int delegateInvokeType, String delegateMethodName, MethodType delegateMethodType, Object[] delegateInjections,
-            MethodType factoryMethodType) {
+            MethodType factoryMethodType, Type factoryMethodReceiver) {
 
         this.interfaceMethodName = interfaceMethodName;
         this.interfaceMethodType = interfaceMethodType;
@@ -261,5 +267,27 @@ public class FunctionRef {
         this.delegateMethodType = delegateMethodType;
         this.delegateInjections = delegateInjections;
         this.factoryMethodType = factoryMethodType;
+        this.factoryMethodReceiver = factoryMethodReceiver;
+    }
+
+    /** Get the factory method type, with updated receiver if {@code factoryMethodReceiver} is set */
+    public String getFactoryMethodDescriptor() {
+        if (factoryMethodReceiver == null) {
+            return factoryMethodType.toMethodDescriptorString();
+        }
+        List<Type> arguments = factoryMethodType.parameterList().stream().map(Type::getType).collect(Collectors.toList());
+        arguments.add(0, factoryMethodReceiver);
+        Type[] argArray = new Type[arguments.size()];
+        arguments.toArray(argArray);
+        return Type.getMethodDescriptor(Type.getType(factoryMethodType.returnType()), argArray);
+    }
+
+    /** Get the factory method type, updating the receiver if {@code factoryMethodReceiverClass} is non-null */
+    public Class<?>[] factoryMethodParameters(Class<?> factoryMethodReceiverClass) {
+        List<Class<?>> parameters = new ArrayList<>(factoryMethodType.parameterList());
+        if (factoryMethodReceiverClass != null) {
+            parameters.add(0, factoryMethodReceiverClass);
+        }
+        return parameters.toArray(new Class<?>[0]);
     }
 }

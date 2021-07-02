@@ -27,6 +27,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -211,8 +212,8 @@ public class SearchSliceIT extends ESIntegTestCase {
             OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
             String pointInTimeId = response.getPointInTimeId();
 
-            // Test _doc sort
-            assertSearchSlicesWithPointInTime(field, "_doc", pointInTimeId, max, numDocs);
+            // Test sort on document IDs
+            assertSearchSlicesWithPointInTime(field, ShardDocSortField.NAME, pointInTimeId, max, numDocs);
             // Test numeric sort
             assertSearchSlicesWithPointInTime(field, "random_int", pointInTimeId, max, numDocs);
 

@@ -86,8 +86,8 @@ public abstract class SslKeystoreConfig implements SslKeyConfig {
         return KeyStoreUtil.stream(keyStore, ex -> keystoreException(path, ex))
             .filter(KeyStoreUtil.KeyStoreEntry::isKeyEntry)
             .map(entry -> {
-                for (X509Certificate certificate : entry.getX509CertificateChain()) {
-                    // Return the first certificate found, this is the certificate that matches the key
+                final X509Certificate certificate = entry.getX509Certificate();
+                if (certificate != null) {
                     return new Tuple<>(entry.getKey(keyPassword), certificate);
                 }
                 return null;

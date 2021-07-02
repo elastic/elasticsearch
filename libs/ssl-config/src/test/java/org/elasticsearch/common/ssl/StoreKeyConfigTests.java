@@ -186,7 +186,7 @@ public class StoreKeyConfigTests extends ESTestCase {
             assertThat(certificate.getIssuerDN().getName(), is("CN=Test CA 1"));
         }
     }
-
+    
     private void assertKeysNotLoaded(StoreKeyConfig keyConfig, String... names) throws CertificateParsingException {
         final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager();
         assertThat(keyManager, notNullValue());

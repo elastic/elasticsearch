@@ -39,7 +39,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 
@@ -90,39 +89,14 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
         Files.createDirectories(confDir);
         Files.write(confDir.resolve("users"), List.of(), StandardCharsets.UTF_8);
         Files.write(confDir.resolve("users_roles"),  List.of(), StandardCharsets.UTF_8);
-        final Path httpCaPath = confDir.resolve("httpCa.p12");
-        final Path srcHttpCaPath =
-            Paths.get(getClass().getResource("/org/elasticsearch/xpack/security/enrollment/tool/httpCa.p12").toURI()).toAbsolutePath()
-                .normalize();
-        Files.copy(srcHttpCaPath, httpCaPath);
-        final Path srcTransportPath = Paths.get(getClass().getResource("/org/elasticsearch/xpack/security/enrollment/tool/transport.p12")
-            .toURI()).toAbsolutePath().normalize();
-        final Path transportPath = confDir.resolve("transport.p12");
-        Files.copy(srcTransportPath, transportPath);
         settings = Settings.builder()
             .put("path.home", homeDir)
-            .put("xpack.security.enabled", true)
             .put("xpack.security.enrollment.enabled", true)
-            .put("xpack.security.authc.api_key.enabled", true)
-            .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.keystore.path", "/work/" + httpCaPath)
-            .put("xpack.security.http.ssl.truststore.path", "/work/" + httpCaPath)
-            .put("xpack.security.transport.ssl.enabled", true)
-            .put("xpack.security.transport.ssl.keystore.path", "/work/" + transportPath)
-            .put("xpack.security.transport.ssl.truststore.path", "/work/" + transportPath)
             .build();
         pathHomeParameter = "-Epath.home=" + homeDir;
 
         this.keyStoreWrapper = mock(KeyStoreWrapper.class);
         when(keyStoreWrapper.isLoaded()).thenReturn(true);
-        when(keyStoreWrapper.getString("xpack.security.http.ssl.keystore.secure_password"))
-            .thenReturn(new SecureString("password".toCharArray()));
-        when(keyStoreWrapper.getString("xpack.security.http.ssl.truststore.secure_password"))
-            .thenReturn(new SecureString("password".toCharArray()));
-        when(keyStoreWrapper.getString("xpack.security.transport.ssl.keystore.secure_password"))
-            .thenReturn(new SecureString("password".toCharArray()));
-        when(keyStoreWrapper.getString("xpack.security.transport.ssl.truststore.secure_password"))
-            .thenReturn(new SecureString("password".toCharArray()));
 
         this.client = mock(CommandLineHttpClient.class);
         when(client.getDefaultURL()).thenReturn("https://localhost:9200");

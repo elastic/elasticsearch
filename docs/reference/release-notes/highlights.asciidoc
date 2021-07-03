@@ -26,14 +26,12 @@ Other versions:
 // Use the notable-highlights tag to mark entries that
 // should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
-// end::notable-highlights[]
+[discrete]
+[[cross-cluster-eql-search]]
+=== Cross-cluster EQL search
 
-// Omit the notable highlights tag for entries that only need to appear in the ES ref:
-// [discrete]
-// === Heading
-//
-// Description.
+In 7.14, we added cross-cluster search support to EQL. Cross-cluster search lets
+you run a single EQL search across one or more remote clusters. See
+{ref}/eql.html#run-eql-search-across-clusters[Run an EQL search across
+clusters].
+// end::notable-highlights[]

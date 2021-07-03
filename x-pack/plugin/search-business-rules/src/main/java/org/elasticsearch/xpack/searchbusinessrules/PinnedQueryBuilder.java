@@ -374,7 +374,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         if (items.isEmpty()) {
             return new CappedScoreQuery(organicQuery.toQuery(context), MAX_ORGANIC_SCORE);
         } else {
-            BooleanQuery.Builder pinnedQueries = new BooleanQuery.Builder();
+            List<Query> pinnedQueries = new ArrayList<>();
 
             // Ensure each pin order using a Boost query with the relevant boost factor
             int minPin = NumericUtils.floatToSortableInt(MAX_ORGANIC_SCORE) + 1;
@@ -388,17 +388,17 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
                 BooleanQuery.Builder documentQueries = new BooleanQuery.Builder();
                 documentQueries.add(idField.termQuery(item.id, context), BooleanClause.Occur.FILTER);
                 if (item.index != null) {
-                  documentQueries.add(indexField.termQuery(item.index, context), BooleanClause.Occur.FILTER);
+                    documentQueries.add(indexField.termQuery(item.index, context), BooleanClause.Occur.FILTER);
                 }
                 // Ensure the pin order using a Boost query with the relevant boost factor
                 Query documentQuery = new BoostQuery(new ConstantScoreQuery(documentQueries.build()), pinScore);
-                pinnedQueries.add(documentQuery, BooleanClause.Occur.SHOULD);
+                pinnedQueries.add(documentQuery);
             }
 
             // Score for any pinned query clause should be used, regardless of any organic clause score, to preserve pin order.
             // Use dismax to always take the larger (ie pinned) of the organic vs pinned scores
             List<Query> organicAndPinned = new ArrayList<>();
-            organicAndPinned.add(pinnedQueries.build());
+            organicAndPinned.add(new DisjunctionMaxQuery(pinnedQueries, 0));
             // Cap the scores of the organic query
             organicAndPinned.add(new CappedScoreQuery(organicQuery.toQuery(context), MAX_ORGANIC_SCORE));
             return new DisjunctionMaxQuery(organicAndPinned, 0);

@@ -19,12 +19,14 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -158,6 +160,18 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         @Override
         public String getWriteableName() {
             return NAME;
+        }
+
+        @Override
+        public String toString() {
+            try {
+                XContentBuilder builder = XContentFactory.jsonBuilder();
+                builder.prettyPrint();
+                toXContent(builder, EMPTY_PARAMS);
+                return Strings.toString(builder);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override

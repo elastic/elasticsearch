@@ -45,6 +45,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -295,19 +296,6 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         return this.documents.map(Collections::unmodifiableList).orElse(Collections.emptyList());
     }
 
-    private List<Item> queryItems() {
-      List<Item> items = new ArrayList<>();
-      if (ids.isPresent()) {
-        for (String id : ids.get()) {
-          items.add(new Item(null, id));
-        }
-      }
-      if (documents.isPresent()) {
-        items.addAll(documents.get());
-      }
-      return items;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -384,7 +372,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         if (idField == null || indexField == null) {
             return new MatchNoDocsQuery("No mappings");
         }
-        List<Item> items = queryItems();
+        List<Item> items = documents.orElseGet(() -> ids.get().stream().map(id -> new Item(null, id)).collect(Collectors.toList()));
         if (items.isEmpty()) {
             return new CappedScoreQuery(organicQuery.toQuery(context), MAX_ORGANIC_SCORE);
         } else {

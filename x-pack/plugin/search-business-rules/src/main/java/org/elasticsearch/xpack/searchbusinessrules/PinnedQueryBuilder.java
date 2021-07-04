@@ -16,7 +16,6 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -80,8 +79,8 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         private static final ParseField INDEX_FIELD = new ParseField("_index");
         private static final ParseField ID_FIELD = new ParseField("_id");
 
-        private String index;
-        private String id;
+        private final String index;
+        private final String id;
 
         /**
          * Constructor for a given item request
@@ -111,31 +110,6 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
             out.writeString(id);
         }
 
-        /**
-         * Parses and returns the given item.
-         */
-        public static Item parse(XContentParser parser, Item item) throws IOException {
-            XContentParser.Token token;
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (currentFieldName != null) {
-                    if (INDEX_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        item.index = parser.text();
-                    } else if (ID_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        item.id = parser.text();
-                    } else {
-                        throw new ElasticsearchParseException("failed to parse Pinned item. unknown field [{}]", currentFieldName);
-                    }
-                }
-            }
-            if (item.id == null) {
-                throw new ElasticsearchParseException("failed to parse Pinned item. [id] is not specified!");
-            }
-            return item;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -146,12 +120,10 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
             return builder.endObject();
         }
 
-        private static final ConstructingObjectParser<Item, Void> PARSER = new ConstructingObjectParser<>(NAME,
-                a ->
-                    {
-                        return new Item((String) a[1], (String) a[0]);
-                    }
-                 );
+        private static final ConstructingObjectParser<Item, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            a -> new Item((String) a[1], (String) a[0])
+        );
 
         static {
             PARSER.declareString(constructorArg(), ID_FIELD);
@@ -190,63 +162,65 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     }
 
     public PinnedQueryBuilder(QueryBuilder organicQuery) {
-      this(organicQuery, new ArrayList<>(), null);
+        this(organicQuery, new ArrayList<>(), null);
     }
 
     public PinnedQueryBuilder(QueryBuilder organicQuery, String... ids) {
-      this(organicQuery, Arrays.asList(ids), null);
+        this(organicQuery, Arrays.asList(ids), null);
     }
 
     public PinnedQueryBuilder(QueryBuilder organicQuery, Item... documents) {
-      this(organicQuery, null, Arrays.asList(documents));
+        this(organicQuery, null, Arrays.asList(documents));
     }
 
     /**
      * Creates a new PinnedQueryBuilder
      */
     public PinnedQueryBuilder(QueryBuilder organicQuery, List<String> ids, List<Item> documents) {
-      if (organicQuery == null) {
-          throw new IllegalArgumentException("[" + NAME + "] organicQuery cannot be null");
-      }
-      this.organicQuery = organicQuery;
-      if (ids == null && documents == null) {
-          throw new IllegalArgumentException("[" + NAME + "] ids and documents cannot both be null");
-      }
-      if (ids != null && documents != null) {
-          throw new IllegalArgumentException("[" + NAME + "] ids and documents cannot both be used");
-      }
-      if (ids != null) {
-        if (ids.size() > MAX_NUM_PINNED_HITS) {
-            throw new IllegalArgumentException("[" + NAME + "] Max of "+MAX_NUM_PINNED_HITS+" ids exceeded: "+
-                    ids.size()+" provided.");
+        if (organicQuery == null) {
+            throw new IllegalArgumentException("[" + NAME + "] organicQuery cannot be null");
         }
-        LinkedHashSet<String> deduped = new LinkedHashSet<>();
-        for (String id : ids) {
-            if (id == null) {
-                throw new IllegalArgumentException("[" + NAME + "] id cannot be null");
-            }
-            if(deduped.add(id) == false) {
-                throw new IllegalArgumentException("[" + NAME + "] duplicate id found in list: "+id);
-            }
+        this.organicQuery = organicQuery;
+        if (ids == null && documents == null) {
+            throw new IllegalArgumentException("[" + NAME + "] ids and documents cannot both be null");
         }
-      }
-      if (documents != null) {
-        if (documents.size() > MAX_NUM_PINNED_HITS) {
-            throw new IllegalArgumentException("[" + NAME + "] Max of "+MAX_NUM_PINNED_HITS+" documents exceeded: "+
-                    documents.size()+" provided.");
+        if (ids != null && documents != null) {
+            throw new IllegalArgumentException("[" + NAME + "] ids and documents cannot both be used");
         }
-        LinkedHashSet<Item> deduped = new LinkedHashSet<>();
-        for (Item document : documents) {
-            if (document == null) {
-                throw new IllegalArgumentException("[" + NAME + "] document cannot be null");
+        if (ids != null) {
+            if (ids.size() > MAX_NUM_PINNED_HITS) {
+                throw new IllegalArgumentException(
+                    "[" + NAME + "] Max of " + MAX_NUM_PINNED_HITS + " ids exceeded: " + ids.size() + " provided."
+                );
             }
-            if(deduped.add(document) == false) {
-                throw new IllegalArgumentException("[" + NAME + "] duplicate document found in list: "+document);
+            LinkedHashSet<String> deduped = new LinkedHashSet<>();
+            for (String id : ids) {
+                if (id == null) {
+                    throw new IllegalArgumentException("[" + NAME + "] id cannot be null");
+                }
+                if (deduped.add(id) == false) {
+                    throw new IllegalArgumentException("[" + NAME + "] duplicate id found in list: " + id);
+                }
             }
         }
-      }
-      this.ids = Optional.ofNullable(ids);
-      this.documents = Optional.ofNullable(documents);
+        if (documents != null) {
+            if (documents.size() > MAX_NUM_PINNED_HITS) {
+                throw new IllegalArgumentException(
+                    "[" + NAME + "] Max of " + MAX_NUM_PINNED_HITS + " documents exceeded: " + documents.size() + " provided."
+                );
+            }
+            LinkedHashSet<Item> deduped = new LinkedHashSet<>();
+            for (Item document : documents) {
+                if (document == null) {
+                    throw new IllegalArgumentException("[" + NAME + "] document cannot be null");
+                }
+                if (deduped.add(document) == false) {
+                    throw new IllegalArgumentException("[" + NAME + "] duplicate document found in list: " + document);
+                }
+            }
+        }
+        this.ids = Optional.ofNullable(ids);
+        this.documents = Optional.ofNullable(documents);
     }
 
     /**
@@ -415,9 +389,9 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
 
     @Override
     protected boolean doEquals(PinnedQueryBuilder other) {
-        return Objects.equals(ids, other.ids) &&
-            Objects.equals(documents, other.documents) &&
-            Objects.equals(organicQuery, other.organicQuery) &&
-            boost == other.boost;
+        return Objects.equals(ids, other.ids)
+            && Objects.equals(documents, other.documents)
+            && Objects.equals(organicQuery, other.organicQuery)
+            && boost == other.boost;
     }
 }

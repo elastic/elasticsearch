@@ -44,6 +44,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public static final Version PAGINATED_GET_SNAPSHOTS_VERSION = Version.V_7_14_0;
 
+    public static final Version SEARCH_FIELD_VERSION = Version.V_8_0_0;
+
     public static final int NO_LIMIT = -1;
 
     /**
@@ -106,7 +108,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             sort = in.readEnum(SortBy.class);
             size = in.readVInt();
             order = SortOrder.readFromStream(in);
-            search = in.readOptionalWriteable(Search::readFrom);
+            if (in.getVersion().onOrAfter(SEARCH_FIELD_VERSION)) {
+                search = in.readOptionalWriteable(Search::readFrom);
+            }
         }
     }
 
@@ -133,7 +137,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             out.writeEnum(sort);
             out.writeVInt(size);
             order.writeTo(out);
-            out.writeOptionalWriteable(search);
+            if (out.getVersion().onOrAfter(SEARCH_FIELD_VERSION)) {
+                out.writeOptionalWriteable(search);
+            }
         } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null || order != SortOrder.ASC || search != null) {
             throw new IllegalArgumentException("can't use paginated get snapshots request with node version [" + out.getVersion() + "]");
         }

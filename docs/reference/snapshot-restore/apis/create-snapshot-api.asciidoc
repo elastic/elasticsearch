@@ -176,6 +176,7 @@ The API returns the following response:
   "snapshot": {
     "snapshot": "snapshot_2",
     "uuid": "vdRctLCxSketdKb54xw67g",
+    "repository": "my_repository",
     "version_id": <version_id>,
     "version": <version>,
     "indices": [],

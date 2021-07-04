@@ -333,7 +333,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 try {
                     GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                         .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
-                    SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
+                    SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
                     assertEquals(expectedUnsuccessfulState, snapshotInfo.state());
                 } catch (SnapshotMissingException ex) {
                     logger.info("failed to find snapshot {}, retrying", failedSnapshotName);
@@ -368,11 +368,11 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             assertNotNull(successfulSnapshotName.get());
             logger.info("-->  verify that snapshot [{}] succeeded", successfulSnapshotName.get());
             assertBusy(() -> {
-                GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                        .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).execute().get();
                 final SnapshotInfo snapshotInfo;
                 try {
-                    snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
+                    GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
+                        .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).execute().actionGet();
+                    snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
                 } catch (SnapshotMissingException sme) {
                     throw new AssertionError(sme);
                 }
@@ -385,7 +385,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             logger.info("-->  verify that snapshot [{}] still exists", failedSnapshotName.get());
             GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                 .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
             assertEquals(expectedUnsuccessfulState, snapshotInfo.state());
         }
 
@@ -398,7 +398,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 try {
                     GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                         .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
-                    assertThat(snapshotsStatusResponse.getSnapshots(REPO), empty());
+                    assertThat(snapshotsStatusResponse.getSnapshots(), empty());
                 } catch (SnapshotMissingException e) {
                     // This is what we want to happen
                 }
@@ -406,7 +406,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                     expectedUnsuccessfulState, failedSnapshotName.get(), successfulSnapshotName.get());
                 GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                     .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).get();
-                SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
+                SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
                 assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
             }, 30L, TimeUnit.SECONDS);
         }
@@ -454,7 +454,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             try {
                 GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                     .prepareGetSnapshots(REPO).setSnapshots(snapshotName).get();
-                assertThat(snapshotsStatusResponse.getSnapshots(REPO), empty());
+                assertThat(snapshotsStatusResponse.getSnapshots(), empty());
             } catch (SnapshotMissingException e) {
                 // This is what we want to happen
             }

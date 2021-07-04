@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.DateMathExpressionResolver;
+import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -33,7 +34,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
     private final DateMathExpressionResolver expressionResolver = new DateMathExpressionResolver();
     private final Context context = new Context(
         ClusterState.builder(new ClusterName("_name")).build(), IndicesOptions.strictExpand(),
-        name -> false
+        SystemIndexAccessLevel.NONE
     );
 
     public void testNormal() throws Exception {
@@ -136,7 +137,8 @@ public class DateMathExpressionResolverTests extends ESTestCase {
             // rounding to today 00:00
             now = DateTime.now(UTC).withHourOfDay(0).withMinuteOfHour(0).withSecondOfMinute(0);
         }
-        Context context = new Context(this.context.getState(), this.context.getOptions(), now.getMillis(), name -> false);
+        Context context = new Context(this.context.getState(), this.context.getOptions(), now.getMillis(),
+            SystemIndexAccessLevel.NONE, name -> false, name -> false);
         List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{yyyy.MM.dd|" + timeZone.getID() + "}}>"));
         assertThat(results.size(), equalTo(1));
         logger.info("timezone: [{}], now [{}], name: [{}]", timeZone, now, results.get(0));

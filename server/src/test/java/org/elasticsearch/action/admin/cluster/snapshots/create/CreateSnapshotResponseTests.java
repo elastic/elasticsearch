@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotFeatureInfo;
 import org.elasticsearch.snapshots.SnapshotFeatureInfoTests;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -67,7 +68,7 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
 
         return new CreateSnapshotResponse(
             new SnapshotInfo(
-                snapshotId,
+                new Snapshot("test-repo", snapshotId),
                 indices,
                 dataStreams,
                 featureStates,

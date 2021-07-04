@@ -126,7 +126,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         return orderedPhases;
     }
 
-    static boolean shouldInjectMigrateStepForPhase(Phase phase) {
+    public static boolean shouldInjectMigrateStepForPhase(Phase phase) {
         AllocateAction allocateAction = (AllocateAction) phase.getActions().get(AllocateAction.NAME);
         if (allocateAction != null) {
             if (definesAllocationRules(allocateAction)) {

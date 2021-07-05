@@ -87,17 +87,23 @@ public class AbstractNativeProcessTests extends ESTestCase {
     public void testStart_DoNotDetectCrashWhenNoInputPipeProvided() throws Exception {
         when(processPipes.getProcessInStream()).thenReturn(Optional.empty());
         try (AbstractNativeProcess process = new TestNativeProcess()) {
-            process.start(executorService);
-            mockNativeProcessLoggingStreamEnds.countDown();
-            // Not detecting a crash is confirmed in terminateExecutorService()
+            try {
+                process.start(executorService);
+            } finally {
+                mockNativeProcessLoggingStreamEnds.countDown();
+                // Not detecting a crash is confirmed in terminateExecutorService()
+            }
         }
     }
 
     public void testStart_DoNotDetectCrashWhenProcessIsBeingClosed() throws Exception {
         try (AbstractNativeProcess process = new TestNativeProcess()) {
-            process.start(executorService);
-            mockNativeProcessLoggingStreamEnds.countDown();
-            // Not detecting a crash is confirmed in terminateExecutorService()
+            try {
+                process.start(executorService);
+            } finally {
+                mockNativeProcessLoggingStreamEnds.countDown();
+                // Not detecting a crash is confirmed in terminateExecutorService()
+            }
         }
     }
 
@@ -140,58 +146,74 @@ public class AbstractNativeProcessTests extends ESTestCase {
 
     public void testWriteRecord() throws Exception {
         try (AbstractNativeProcess process = new TestNativeProcess()) {
-            process.start(executorService);
-            process.writeRecord(new String[] {"a", "b", "c"});
-            process.flushStream();
-
-            verify(inputStream).write(any(), anyInt(), anyInt());
-            mockNativeProcessLoggingStreamEnds.countDown();
+            try {
+                process.start(executorService);
+                process.writeRecord(new String[]{"a", "b", "c"});
+                process.flushStream();
+                verify(inputStream).write(any(), anyInt(), anyInt());
+            } finally {
+                mockNativeProcessLoggingStreamEnds.countDown();
+            }
         }
     }
 
     public void testWriteRecord_FailWhenNoInputPipeProvided() throws Exception {
         when(processPipes.getProcessInStream()).thenReturn(Optional.empty());
         try (AbstractNativeProcess process = new TestNativeProcess()) {
-            process.start(executorService);
-            expectThrows(NullPointerException.class, () -> process.writeRecord(new String[] {"a", "b", "c"}));
-            mockNativeProcessLoggingStreamEnds.countDown();
+            try {
+                process.start(executorService);
+                expectThrows(NullPointerException.class, () -> process.writeRecord(new String[]{"a", "b", "c"}));
+            } finally {
+                mockNativeProcessLoggingStreamEnds.countDown();
+            }
         }
     }
 
     public void testFlush() throws Exception {
         try (AbstractNativeProcess process = new TestNativeProcess()) {
-            process.start(executorService);
-            process.flushStream();
-
-            verify(inputStream).flush();
-            mockNativeProcessLoggingStreamEnds.countDown();
+            try {
+                process.start(executorService);
+                process.flushStream();
+                verify(inputStream).flush();
+            } finally {
+                mockNativeProcessLoggingStreamEnds.countDown();
+            }
         }
     }
 
     public void testFlush_FailWhenNoInputPipeProvided() throws Exception {
         when(processPipes.getProcessInStream()).thenReturn(Optional.empty());
         try (AbstractNativeProcess process = new TestNativeProcess()) {
-            process.start(executorService);
-            expectThrows(NullPointerException.class, process::flushStream);
-            mockNativeProcessLoggingStreamEnds.countDown();
+            try {
+                process.start(executorService);
+                expectThrows(NullPointerException.class, process::flushStream);
+            } finally {
+                mockNativeProcessLoggingStreamEnds.countDown();
+            }
         }
     }
 
     public void testIsReady() throws Exception {
         try (AbstractNativeProcess process = new TestNativeProcess()) {
-            process.start(executorService);
-            assertThat(process.isReady(), is(false));
-            process.setReady();
-            assertThat(process.isReady(), is(true));
-            mockNativeProcessLoggingStreamEnds.countDown();
+            try {
+                process.start(executorService);
+                assertThat(process.isReady(), is(false));
+                process.setReady();
+                assertThat(process.isReady(), is(true));
+            } finally {
+                mockNativeProcessLoggingStreamEnds.countDown();
+            }
         }
     }
 
     public void testConsumeAndCloseOutputStream_GivenNoOutputStream() throws Exception {
         when(processPipes.getProcessOutStream()).thenReturn(Optional.empty());
         try (AbstractNativeProcess process = new TestNativeProcess()) {
-            process.consumeAndCloseOutputStream();
-            mockNativeProcessLoggingStreamEnds.countDown();
+            try {
+                process.consumeAndCloseOutputStream();
+            } finally {
+                mockNativeProcessLoggingStreamEnds.countDown();
+            }
         }
     }
 

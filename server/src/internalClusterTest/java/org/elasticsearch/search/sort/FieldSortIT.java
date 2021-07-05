@@ -947,10 +947,10 @@ public class FieldSortIT extends ESIntegTestCase {
 
         client().prepareIndex("test_date").setId("1").setSource("mydate", "2021-01-01").get();
         client().prepareIndex("test_date").setId("2").setSource("mydate", "2021-02-01").get();
-        client().prepareIndex("test_date").setId("3").setSource("other_field", "value").get();
+        client().prepareIndex("test_date").setId("3").setSource("other_field", 1).get();
         client().prepareIndex("test_date_nanos").setId("4").setSource("mydate", "2021-03-01").get();
         client().prepareIndex("test_date_nanos").setId("5").setSource("mydate", "2021-04-01").get();
-        client().prepareIndex("test_date_nanos").setId("6").setSource("other_field", "value").get();
+        client().prepareIndex("test_date_nanos").setId("6").setSource("other_field", 2).get();
         refresh();
 
             for (boolean withFormat : List.of(true, false)) {
@@ -962,6 +962,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 String index = "test*";
                 SearchResponse searchResponse = client().prepareSearch(index)
                     .addSort(SortBuilders.fieldSort("mydate").order(SortOrder.ASC).setFormat(format).setNumericType("date_nanos"))
+                    .addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC))
                     .get();
                 assertHitsInOrder(searchResponse, new String[] { "1", "2", "4", "5", "3", "6" });
 
@@ -973,11 +974,13 @@ public class FieldSortIT extends ESIntegTestCase {
                             .setFormat(format)
                             .setNumericType("date_nanos")
                     )
+                    .addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC))
                     .get();
                 assertHitsInOrder(searchResponse, new String[] { "3", "6", "1", "2", "4", "5" });
 
                 searchResponse = client().prepareSearch(index)
                     .addSort(SortBuilders.fieldSort("mydate").order(SortOrder.DESC).setFormat(format).setNumericType("date_nanos"))
+                    .addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC))
                     .get();
                 assertHitsInOrder(searchResponse, new String[] { "5", "4", "2", "1", "3", "6" });
 
@@ -989,6 +992,7 @@ public class FieldSortIT extends ESIntegTestCase {
                             .setFormat(format)
                             .setNumericType("date_nanos")
                     )
+                    .addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC))
                     .get();
                 assertHitsInOrder(searchResponse, new String[] { "3", "6", "5", "4", "2", "1" });
             }

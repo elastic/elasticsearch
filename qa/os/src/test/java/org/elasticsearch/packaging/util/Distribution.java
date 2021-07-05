@@ -32,6 +32,8 @@ public class Distribution {
             this.packaging = Packaging.DOCKER_UBI;
         } else if (filename.endsWith(".ironbank.tar")) {
             this.packaging = Packaging.DOCKER_IRON_BANK;
+        } else if (filename.endsWith(".cloud.tar")) {
+            this.packaging = Packaging.DOCKER_CLOUD;
         } else {
             int lastDot = filename.lastIndexOf('.');
             this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));
@@ -63,6 +65,7 @@ public class Distribution {
             case DOCKER:
             case DOCKER_UBI:
             case DOCKER_IRON_BANK:
+            case DOCKER_CLOUD:
                 return true;
         }
         return false;
@@ -76,7 +79,8 @@ public class Distribution {
         RPM(".rpm", Platforms.isRPM()),
         DOCKER(".docker.tar", Platforms.isDocker()),
         DOCKER_UBI(".ubi.tar", Platforms.isDocker()),
-        DOCKER_IRON_BANK(".ironbank.tar", Platforms.isDocker());
+        DOCKER_IRON_BANK(".ironbank.tar", Platforms.isDocker()),
+        DOCKER_CLOUD(".cloud.tar", Platforms.isDocker());
 
         /** The extension of this distribution's file */
         public final String extension;

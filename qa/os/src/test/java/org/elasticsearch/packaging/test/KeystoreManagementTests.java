@@ -450,6 +450,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             case DOCKER:
             case DOCKER_UBI:
             case DOCKER_IRON_BANK:
+            case DOCKER_CLOUD:
                 assertPermissionsAndOwnership(keystore, p660);
                 break;
             default:

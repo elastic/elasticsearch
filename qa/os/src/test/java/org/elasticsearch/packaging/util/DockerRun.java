@@ -150,6 +150,10 @@ public class DockerRun {
                 suffix = "-ironbank";
                 break;
 
+            case DOCKER_CLOUD:
+                suffix = "-cloud";
+                break;
+
             default:
                 throw new IllegalStateException("Unexpected distribution packaging type: " + distribution.packaging);
         }

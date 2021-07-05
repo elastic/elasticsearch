@@ -1,3 +1,4 @@
+import org.apache.commons.lang.StringUtils
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.internal.DockerBase
 import org.elasticsearch.gradle.LoggedExec
@@ -59,21 +60,21 @@ ARG BASE_TAG=8.3
 """
   }
 
-  def (major,minor) = VersionProperties.elasticsearch.split("\\.")
+  def (major, minor) = VersionProperties.elasticsearch.split("\\.")
 
   return [
-    'base_image'          : base.getImage(),
-    'bin_dir'             : base == DockerBase.IRON_BANK ? 'scripts' : 'bin',
-    'build_args'          : buildArgs,
-    'build_date'          : BuildParams.buildDate,
-    'config_dir'          : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
-    'git_revision'        : BuildParams.gitRevision,
-    'license'             : 'Elastic-License-2.0',
-    'package_manager'     : base == DockerBase.UBI ? 'microdnf' : 'yum',
-    'docker_base'         : base.name().toLowerCase(),
-    'version'             : VersionProperties.elasticsearch,
-    'major_minor_version' : "${major}.${minor}",
-    'retry'               : ShellRetry
+    'base_image'         : base.getImage(),
+    'bin_dir'            : base == DockerBase.IRON_BANK ? 'scripts' : 'bin',
+    'build_args'         : buildArgs,
+    'build_date'         : BuildParams.buildDate,
+    'config_dir'         : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
+    'git_revision'       : BuildParams.gitRevision,
+    'license'            : 'Elastic-License-2.0',
+    'package_manager'    : base == DockerBase.UBI ? 'microdnf' : 'yum',
+    'docker_base'        : base.name().toLowerCase(),
+    'version'            : VersionProperties.elasticsearch,
+    'major_minor_version': "${major}.${minor}",
+    'retry'              : ShellRetry
   ]
 }
 
@@ -87,16 +88,20 @@ class SquashNewlinesFilter extends FilterReader {
   }
 }
 
+private static String toCamel(String input) {
+  return input.split("[^a-zA-Z0-9]").collect(StringUtils::capitalize).join("")
+}
+
 private static String taskName(String prefix, Architecture architecture, DockerBase base, String suffix) {
   return prefix +
     (architecture == Architecture.AARCH64 ? 'Aarch64' : '') +
-    (base == DockerBase.UBI ? 'Ubi' : (base == DockerBase.IRON_BANK ? 'IronBank' : '')) +
+    (base == DockerBase.CENTOS ? "" : toCamel(base.name())) +
     suffix
 }
 
 ext.dockerBuildContext = { Architecture architecture, DockerBase base ->
   copySpec {
-    final Map<String,String> varExpansions = expansions(architecture, base)
+    final Map<String, String> varExpansions = expansions(architecture, base)
     final Path projectDir = project.projectDir.toPath()
 
     if (base == DockerBase.IRON_BANK) {
@@ -148,7 +153,7 @@ tasks.register("copyNodeKeyMaterial", Sync) {
 
 elasticsearch_distributions {
   Architecture.values().each { eachArchitecture ->
-    "docker_${ eachArchitecture == Architecture.AARCH64 ? '_aarch64' : '' }" {
+    "docker_${eachArchitecture == Architecture.AARCH64 ? '_aarch64' : ''}" {
       architecture = eachArchitecture
       type = DOCKER
       version = VersionProperties.getElasticsearch()
@@ -231,7 +236,7 @@ void addUnpackDockerContextTask(Architecture architecture, DockerBase base) {
     from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
       eachFile { FileCopyDetails details ->
         if (details.name.equals("Dockerfile")) {
-          filter { it.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /opt/elasticsearch.tar.gz")}
+          filter { it.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /opt/elasticsearch.tar.gz") }
         }
       }
     }
@@ -245,7 +250,7 @@ void addUnpackDockerContextTask(Architecture architecture, DockerBase base) {
     }
 
     if (base == DockerBase.IRON_BANK) {
-      from (configurations.tini) {
+      from(configurations.tini) {
         rename { _ -> 'tini' }
       }
     }
@@ -282,8 +287,8 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       if (base == DockerBase.IRON_BANK) {
         Map<String, String> buildArgsMap = [
           'BASE_REGISTRY': 'docker.elastic.co',
-          'BASE_IMAGE': 'ubi8/ubi',
-          'BASE_TAG': 'latest'
+          'BASE_IMAGE'   : 'ubi8/ubi',
+          'BASE_TAG'     : 'latest'
         ]
 
         // Iron Bank has a single, parameterized base image
@@ -331,10 +336,15 @@ subprojects { Project subProject ->
       base = DockerBase.UBI
     } else if (subProject.name.contains('ironbank-')) {
       base = DockerBase.IRON_BANK
+    } else if (subProject.name.contains('cloud-')) {
+      base = DockerBase.CLOUD
     }
 
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
-    final String extension = base == DockerBase.UBI ? 'ubi.tar' : (base == DockerBase.IRON_BANK ? 'ironbank.tar' : 'docker.tar')
+    final String extension = base == DockerBase.UBI ? 'ubi.tar' :
+      (base == DockerBase.IRON_BANK ? 'ironbank.tar' :
+        (base == DockerBase.CLOUD ? 'cloud.tar' :
+          'docker.tar'))
     final String artifactName = "elasticsearch${arch}${base.suffix}_test"
 
     final String exportTaskName = taskName("export", architecture, base, 'DockerImage')

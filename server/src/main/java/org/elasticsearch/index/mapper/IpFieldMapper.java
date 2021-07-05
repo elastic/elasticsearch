@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -472,17 +473,35 @@ public class IpFieldMapper extends FieldMapper {
         indexValue(context, address);
     }
 
+    /**
+     * Adds a field to the current document ensuring that if the field is
+     * a dimension field, it will be added as single-value.
+     */
+    private void addField(ParseContext context, Field field) {
+        if (dimension && context.doc().getByKey(name()) == null) {
+            // Add dimension field with key so that we ensure it is single-valued
+            context.doc().addWithKey(name(), field);
+        } else {
+            context.doc().add(field);
+        }
+    }
+
     private void indexValue(ParseContext context, InetAddress address) {
+        // Check that a dimension field is single-valued and not an array
+        if (dimension && context.doc().getByKey(name()) != null) {
+            throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
+        }
+
         if (indexed) {
-            context.doc().add(new InetAddressPoint(fieldType().name(), address));
+            addField(context, new InetAddressPoint(fieldType().name(), address));
         }
         if (hasDocValues) {
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+            addField(context, new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
         } else if (stored || indexed) {
             context.addToFieldNames(fieldType().name());
         }
         if (stored) {
-            context.doc().add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+            addField(context, new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
         }
     }
 

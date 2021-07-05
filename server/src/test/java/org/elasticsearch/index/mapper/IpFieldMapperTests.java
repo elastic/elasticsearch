@@ -224,6 +224,44 @@ public class IpFieldMapperTests extends MapperTestCase {
             containsString("Field [dimension] requires one of [index] or [doc_values] to be true"));
     }
 
+    public void testDimensionMultiValuedField() throws IOException {
+        {
+            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true);
+            }));
+
+            Exception e = expectThrows(MapperParsingException.class,
+                () -> mapper.parse(source(b -> b.array("field", "192.168.1.1", "192.168.1.1"))));
+            assertThat(e.getCause().getMessage(),
+                containsString("Dimension field [field] cannot be a multi-valued field"));
+        }
+        {
+            // Disable doc_values
+            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true).field("doc_values",false);
+            }));
+
+            Exception e = expectThrows(MapperParsingException.class,
+                () -> mapper.parse(source(b -> b.array("field", "192.168.1.1", "192.168.1.1"))));
+            assertThat(e.getCause().getMessage(),
+                containsString("Dimension field [field] cannot be a multi-valued field"));
+        }
+        {
+            // Disable indexed fields
+            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true).field("index",false);
+            }));
+
+            Exception e = expectThrows(MapperParsingException.class,
+                () -> mapper.parse(source(b -> b.array("field", "192.168.1.1", "192.168.1.1"))));
+            assertThat(e.getCause().getMessage(),
+                containsString("Dimension field [field] cannot be a multi-valued field"));
+        }
+    }
+
     @Override
     protected String generateRandomInputValue(MappedFieldType ft) {
         return NetworkAddress.format(randomIp(randomBoolean()));

@@ -505,6 +505,19 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(parseContext, value));
     }
 
+    /**
+     * Adds a field to the current document ensuring that if the field is
+     * a dimension field, it will be added as single-value.
+     */
+    private void addField(ParseContext context, Field field) {
+        if (dimension && context.doc().getByKey(name()) == null) {
+            // Add dimension field with key so that we ensure it is single-valued
+            context.doc().addWithKey(name(), field);
+        } else {
+            context.doc().add(field);
+        }
+    }
+
     private void indexValue(ParseContext context, String value) {
         if (value == null) {
             return;
@@ -528,27 +541,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
-            Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
-            if (dimension && context.doc().getByKey(name()) == null) {
-                // Add dimension field with key so that we ensure it is single-valued
-                context.doc().addWithKey(name(), field);
-            } else {
-                context.doc().add(field);
-            }
-
+            addField(context, new KeywordField(fieldType().name(), binaryValue, fieldType));
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());
             }
         }
 
         if (fieldType().hasDocValues()) {
-            Field field = new SortedSetDocValuesField(fieldType().name(), binaryValue);
-            if (dimension && context.doc().getByKey(name()) == null) {
-                // Add field with key so that we ensure it is single-valued
-                context.doc().addWithKey(name(), field);
-            } else {
-                context.doc().add(field);
-            }
+            addField(context, new SortedSetDocValuesField(fieldType().name(), binaryValue));
         }
     }
 

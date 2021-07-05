@@ -509,7 +509,7 @@ public final class KeywordFieldMapper extends FieldMapper {
      * Adds a field to the current document ensuring that if the field is
      * a dimension field, it will be added as single-value.
      */
-    private void addField(ParseContext context, Field field) {
+    private void indexField(ParseContext context, Field field) {
         if (dimension && context.doc().getByKey(fieldType().name()) == null) {
             // Add dimension field with key so that we ensure it is single-valued
             context.doc().addWithKey(fieldType().name(), field);
@@ -541,14 +541,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
-            addField(context, new KeywordField(fieldType().name(), binaryValue, fieldType));
+            indexField(context, new KeywordField(fieldType().name(), binaryValue, fieldType));
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());
             }
         }
 
         if (fieldType().hasDocValues()) {
-            addField(context, new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            indexField(context, new SortedSetDocValuesField(fieldType().name(), binaryValue));
         }
     }
 

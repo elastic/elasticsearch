@@ -477,7 +477,7 @@ public class IpFieldMapper extends FieldMapper {
      * Adds a field to the current document ensuring that if the field is
      * a dimension field, it will be added as single-value.
      */
-    private void addField(ParseContext context, Field field) {
+    private void indexField(ParseContext context, Field field) {
         if (dimension && context.doc().getByKey(fieldType().name()) == null) {
             // Add dimension field with key so that we ensure it is single-valued
             context.doc().addWithKey(fieldType().name(), field);
@@ -493,15 +493,15 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         if (indexed) {
-            addField(context, new InetAddressPoint(fieldType().name(), address));
+            indexField(context, new InetAddressPoint(fieldType().name(), address));
         }
         if (hasDocValues) {
-            addField(context, new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+            indexField(context, new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
         } else if (stored || indexed) {
             context.addToFieldNames(fieldType().name());
         }
         if (stored) {
-            addField(context, new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+            indexField(context, new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
         }
     }
 

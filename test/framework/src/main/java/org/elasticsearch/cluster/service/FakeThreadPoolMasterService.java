@@ -52,7 +52,7 @@ public class FakeThreadPoolMasterService extends MasterService {
     @Override
     protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
         return new PrioritizedEsThreadPoolExecutor(name, 1, 1, 1, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(name),
-            null, null) {
+            null, null, PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER) {
 
             @Override
             public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {

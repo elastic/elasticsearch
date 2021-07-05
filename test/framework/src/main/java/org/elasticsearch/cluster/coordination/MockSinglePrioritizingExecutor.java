@@ -21,7 +21,12 @@ import java.util.concurrent.TimeUnit;
 public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecutor {
 
     public MockSinglePrioritizingExecutor(String name, DeterministicTaskQueue deterministicTaskQueue, ThreadPool threadPool) {
-        super(name, 0, 1, 0L, TimeUnit.MILLISECONDS,
+        super(
+            name,
+            0,
+            1,
+            0L,
+            TimeUnit.MILLISECONDS,
             r -> new Thread() {
                 @Override
                 public void start() {
@@ -42,7 +47,9 @@ public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecu
                     });
                 }
             },
-            threadPool.getThreadContext(), threadPool.scheduler());
+            threadPool.getThreadContext(),
+            threadPool.scheduler(),
+            StarvationWatcher.NOOP_STARVATION_WATCHER);
     }
 
     @Override

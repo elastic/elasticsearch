@@ -58,7 +58,7 @@ public class InjectHeaders extends FeatureInjector implements RestTestTransformB
         final Iterator<String> stringIterator = doNodeValue.fieldNames();
         while (stringIterator.hasNext()) {
             final String fieldName = stringIterator.next();
-            if(fieldName.startsWith("cat")) {
+            if(fieldName.startsWith("cat.")) {
                 return true;
             }
         }

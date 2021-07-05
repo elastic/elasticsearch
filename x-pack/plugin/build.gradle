@@ -167,6 +167,7 @@ tasks.named("yamlRestCompatTest").configure {
     'transform/transforms_cat_apis/Test cat transform stats hiding headers',
     'transform/transforms_cat_apis/Test cat transform stats with column selection',
     'transform/transforms_cat_apis/Test cat transform stats with continuous transform',
+    'transform/transforms_crud/Test put config with invalid pivot size', // disabled until backport of #74651 has finished
     'vectors/10_dense_vector_basic/Deprecated function signature',
     'vectors/30_sparse_vector_basic/Cosine Similarity',
     'vectors/30_sparse_vector_basic/Deprecated function signature',

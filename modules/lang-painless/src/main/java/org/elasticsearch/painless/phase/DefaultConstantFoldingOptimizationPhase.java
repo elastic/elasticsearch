@@ -843,11 +843,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
             ExpressionNode argNode = irInvokeCallMemberNode.getArgumentNodes().get(i);
             IRDConstant constantDecoration = argNode.getDecoration(IRDConstant.class);
             if (constantDecoration == null) {
-                // TODO find a better string to output
                 throw irInvokeCallMemberNode.getLocation()
                     .createError(
                         new IllegalArgumentException(
-                            "all arguments to [" + javaMethod.getName() + "] must be constant but the [" + (i + 1) + "] argument isn't"
+                            "The [" + javaMethod.getName() + "] method is sad because it needs constant arguments to work properly. " +
+                                "Please provide a constant to the [" + (i + 1) + "] argument"
                         )
                     );
             }

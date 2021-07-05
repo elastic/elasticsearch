@@ -96,12 +96,7 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
                 builder.setShrinkMaxPrimaryShardSize(randomPrimaryByteSize);
                 break;
             case 8:
-                Integer oldValue = instance.getShrinkNumberOfShards();
-                int newValue;
-                do {
-                    newValue = randomIntBetween(0, 50);
-                } while (oldValue != null && newValue == oldValue);
-                builder.setShrinkNumberOfShards(newValue);
+                builder.setShrinkNumberOfShards(randomValueOtherThan(instance.getShrinkNumberOfShards(), () -> randomIntBetween(0, 50)));
                 break;
             default:
                 throw new IllegalStateException("Illegal randomization branch");

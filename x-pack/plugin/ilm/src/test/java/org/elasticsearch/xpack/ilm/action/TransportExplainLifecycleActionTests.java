@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
@@ -58,7 +57,6 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
         );
     }
 
-    @Test
     public void testGetIndexLifecycleExplainResponse() throws IOException {
         {
             // only errors index

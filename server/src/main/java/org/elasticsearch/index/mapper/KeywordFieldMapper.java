@@ -126,8 +126,15 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
                 .setValidator(v -> {
+                    if (v && indexed.getValue() == false && hasDocValues.getValue() == false) {
+                        throw new IllegalArgumentException(
+                            "Field [dimension] requires one of [" + indexed.name + "] or [" + hasDocValues.name + "] to be true"
+                        );
+                    }
                     if (v && ignoreAbove.getValue() < ignoreAbove.getDefaultValue()) {
-                        throw new IllegalArgumentException("Field [ignore_above] cannot be set in conjunction with field [dimension]");
+                        throw new IllegalArgumentException(
+                            "Field [" + ignoreAbove.name + "] cannot be set in conjunction with field [dimension]"
+                        );
                     }
                 });
         }
@@ -499,9 +506,13 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private void indexValue(ParseContext context, String value) {
-
         if (value == null) {
             return;
+        }
+
+        // Check that a dimension field is single-valued and not an array
+        if (dimension && context.doc().getByKey(name()) != null) {
+            throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
         }
 
         if (value.length() > ignoreAbove) {
@@ -518,7 +529,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         final BytesRef binaryValue = new BytesRef(value);
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
-            context.doc().add(field);
+            if (dimension && context.doc().getByKey(name()) == null) {
+                // Add dimension field with key so that we ensure it is single-valued
+                context.doc().addWithKey(name(), field);
+            } else {
+                context.doc().add(field);
+            }
 
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());
@@ -526,7 +542,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().hasDocValues()) {
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            Field field = new SortedSetDocValuesField(fieldType().name(), binaryValue);
+            if (dimension && context.doc().getByKey(name()) == null) {
+                // Add field with key so that we ensure it is single-valued
+                context.doc().addWithKey(name(), field);
+            } else {
+                context.doc().add(field);
+            }
         }
     }
 

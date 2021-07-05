@@ -12,6 +12,8 @@ import org.apache.lucene.index.IndexableField;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+
 public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests {
 
     protected void testDecimalCoerce() throws IOException {
@@ -31,6 +33,15 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
 
         assertDimension(true, NumberFieldMapper.NumberFieldType::isDimension);
         assertDimension(false, NumberFieldMapper.NumberFieldType::isDimension);
+    }
+
+    public void testDimensionAndIndexedOrDocvalues() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true).field("index", false).field("doc_values", false);
+        })));
+        assertThat(e.getCause().getMessage(),
+            containsString("Field [dimension] requires one of [index] or [doc_values] to be true"));
     }
 
     @Override

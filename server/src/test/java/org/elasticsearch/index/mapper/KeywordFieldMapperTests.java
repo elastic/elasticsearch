@@ -320,6 +320,26 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             containsString("Field [ignore_above] cannot be set in conjunction with field [dimension]"));
     }
 
+    public void testDimensionAndIndexedOrDocvalues() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true).field("index", false).field("doc_values", false);
+        })));
+        assertThat(e.getCause().getMessage(),
+            containsString("Field [dimension] requires one of [index] or [doc_values] to be true"));
+    }
+
+    public void testDimensionMultiValuedField() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true);
+        }));
+
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", "1234", "45678"))));
+        assertThat(e.getCause().getMessage(),
+            containsString("Dimension field [field] cannot be a multi-valued field"));
+    }
+
     public void testConfigureSimilarity() throws IOException {
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "keyword").field("similarity", "boolean"))

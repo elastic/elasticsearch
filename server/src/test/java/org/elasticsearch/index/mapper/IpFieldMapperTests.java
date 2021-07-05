@@ -215,6 +215,15 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertDimension(false, IpFieldMapper.IpFieldType::isDimension);
     }
 
+    public void testDimensionAndIndexedOrDocvalues() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true).field("index", false).field("doc_values", false);
+        })));
+        assertThat(e.getCause().getMessage(),
+            containsString("Field [dimension] requires one of [index] or [doc_values] to be true"));
+    }
+
     @Override
     protected String generateRandomInputValue(MappedFieldType ft) {
         return NetworkAddress.format(randomIp(randomBoolean()));

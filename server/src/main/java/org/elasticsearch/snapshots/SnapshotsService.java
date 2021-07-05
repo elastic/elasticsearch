@@ -276,6 +276,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
+                    ensureRepositoryExists(repositoryName, currentState);
                     validate(repositoryName, snapshotName, currentState);
                     SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
                     if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
@@ -460,6 +461,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
+                ensureRepositoryExists(repositoryName, currentState);
                 ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
@@ -652,6 +654,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
+                ensureRepositoryExists(repositoryName, currentState);
                 ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
                 ensureNoCleanupInProgress(currentState, repositoryName, snapshotName);
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
@@ -974,6 +977,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     + maxOps
                     + "]"
             );
+        }
+    }
+
+    /**
+     * Throws {@link RepositoryMissingException} if no repository by the given name is found in the given cluster state.
+     */
+    public static void ensureRepositoryExists(String repoName, ClusterState state) {
+        if (state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(repoName) == null) {
+            throw new RepositoryMissingException(repoName);
         }
     }
 
@@ -2357,6 +2369,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             + "]"
                     );
                 }
+                ensureRepositoryExists(repoName, currentState);
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> snapshotEntries = findInProgressSnapshots(snapshots, snapshotNames, repoName);
                 final List<SnapshotId> snapshotIds = matchingSnapshotIds(

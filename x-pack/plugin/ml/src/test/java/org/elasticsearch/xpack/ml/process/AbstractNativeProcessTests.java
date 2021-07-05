@@ -88,7 +88,6 @@ public class AbstractNativeProcessTests extends ESTestCase {
         when(processPipes.getProcessInStream()).thenReturn(Optional.empty());
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.start(executorService);
-        } finally {
             mockNativeProcessLoggingStreamEnds.countDown();
             // Not detecting a crash is confirmed in terminateExecutorService()
         }
@@ -97,7 +96,6 @@ public class AbstractNativeProcessTests extends ESTestCase {
     public void testStart_DoNotDetectCrashWhenProcessIsBeingClosed() throws Exception {
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.start(executorService);
-        } finally {
             mockNativeProcessLoggingStreamEnds.countDown();
             // Not detecting a crash is confirmed in terminateExecutorService()
         }
@@ -147,8 +145,6 @@ public class AbstractNativeProcessTests extends ESTestCase {
             process.flushStream();
 
             verify(inputStream).write(any(), anyInt(), anyInt());
-
-        } finally {
             mockNativeProcessLoggingStreamEnds.countDown();
         }
     }
@@ -158,7 +154,6 @@ public class AbstractNativeProcessTests extends ESTestCase {
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.start(executorService);
             expectThrows(NullPointerException.class, () -> process.writeRecord(new String[] {"a", "b", "c"}));
-        } finally {
             mockNativeProcessLoggingStreamEnds.countDown();
         }
     }
@@ -169,7 +164,6 @@ public class AbstractNativeProcessTests extends ESTestCase {
             process.flushStream();
 
             verify(inputStream).flush();
-        } finally {
             mockNativeProcessLoggingStreamEnds.countDown();
         }
     }
@@ -179,7 +173,6 @@ public class AbstractNativeProcessTests extends ESTestCase {
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.start(executorService);
             expectThrows(NullPointerException.class, process::flushStream);
-        } finally {
             mockNativeProcessLoggingStreamEnds.countDown();
         }
     }
@@ -190,7 +183,6 @@ public class AbstractNativeProcessTests extends ESTestCase {
             assertThat(process.isReady(), is(false));
             process.setReady();
             assertThat(process.isReady(), is(true));
-        } finally {
             mockNativeProcessLoggingStreamEnds.countDown();
         }
     }
@@ -199,7 +191,6 @@ public class AbstractNativeProcessTests extends ESTestCase {
         when(processPipes.getProcessOutStream()).thenReturn(Optional.empty());
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.consumeAndCloseOutputStream();
-        } finally {
             mockNativeProcessLoggingStreamEnds.countDown();
         }
     }

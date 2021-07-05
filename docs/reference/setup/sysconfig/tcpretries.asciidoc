@@ -6,7 +6,7 @@ Each pair of {es} nodes communicates via a number of TCP connections which
 communication between the nodes is disrupted by a failure in the underlying
 infrastructure.
 
-TCP provides reliable communication over occasionally-unreliable networks by
+TCP provides reliable communication over occasionally unreliable networks by
 hiding temporary network disruptions from the communicating applications. Your
 operating system will retransmit any lost messages a number of times before
 informing the sender of any problem. {es} must wait while the retransmissions
@@ -20,17 +20,19 @@ network partition or a failed node with this method. Windows defaults to just 5
 retransmissions which corresponds with a timeout of around 6 seconds.
 
 The Linux default allows for communication over networks that may experience
-very long periods of packet loss but this default is excessive and even harmful
-on the high quality networks used by most {es} installations. Highly-available
-clusters must be able to detect node failures promptly in order to react by
-reallocating lost shards, rerouting searches and perhaps electing a new master
-node. Connections to <<modules-remote-clusters,remote clusters>> should also
-prefer to detect failures much more quickly than the Linux default allows.
-Linux users should therefore reduce the maximum number of TCP retransmissions.
+very long periods of packet loss, but this default is excessive and even harmful
+on the high quality networks used by most {es} installations. When a cluster
+detects a node failure it reacts by reallocating lost shards, rerouting
+searches, and maybe electing a new master node. Highly available clusters must
+be able to detect node failures promptly, which can be achieved by reducing the
+permitted number of retransmissions. Connections to
+<<modules-remote-clusters,remote clusters>> should also prefer to detect
+failures much more quickly than the Linux default allows. Linux users should
+therefore reduce the maximum number of TCP retransmissions.
 
-You can decrease the maximum number of TCP retransmissions to `5` by running
-the following command as `root`. Five retransmissions corresponds with a
-timeout of around six seconds.
+You can decrease the maximum number of TCP retransmissions to `5` by running the
+following command as `root`. Five retransmissions corresponds with a timeout of
+around six seconds.
 
 [source,sh]
 -------------------------------------
@@ -43,7 +45,7 @@ To set this value permanently, update the `net.ipv4.tcp_retries2` setting in
 
 IMPORTANT: This setting applies to all TCP connections and will affect the
 reliability of communication with systems other than {es} clusters too. If your
-clusters communicate with external systems over a low-quality network then you
+clusters communicate with external systems over a low quality network then you
 may need to select a higher value for `net.ipv4.tcp_retries2`. For this reason,
 {es} does not adjust this setting automatically.
 

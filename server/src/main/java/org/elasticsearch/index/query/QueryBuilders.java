@@ -679,7 +679,7 @@ public final class QueryBuilders {
      */
     @Deprecated
     public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape) throws IOException {
-        return new GeoShapeQueryBuilder(name, shape);
+        return new GeoShapeQueryBuilder(name, shape.buildGeometry());
     }
 
     public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId) {

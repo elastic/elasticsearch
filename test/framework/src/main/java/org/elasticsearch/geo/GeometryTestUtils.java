@@ -21,6 +21,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -187,6 +188,21 @@ public class GeometryTestUtils {
         return new GeometryCollection<>(shapes);
     }
 
+    public static Geometry randomGeometry(ShapeType type, boolean hasAlt) {
+       switch (type) {
+           case GEOMETRYCOLLECTION: return randomGeometryCollection(0, hasAlt);
+           case MULTILINESTRING: return randomMultiLine(hasAlt);
+           case ENVELOPE: return randomRectangle();
+           case LINESTRING: return randomLine(hasAlt);
+           case POLYGON: return randomPolygon(hasAlt);
+           case MULTIPOLYGON: return randomMultiPolygon(hasAlt);
+           case CIRCLE: return randomCircle(hasAlt);
+           case MULTIPOINT: return randomMultiPoint(hasAlt);
+           case POINT: return randomPoint(hasAlt);
+           default: throw new IllegalArgumentException("Ussuported shape type [" + type + "]");
+       }
+    }
+
     public static Geometry randomGeometry(boolean hasAlt) {
         return randomGeometry(0, hasAlt);
     }
@@ -216,7 +232,7 @@ public class GeometryTestUtils {
             GeometryTestUtils::randomMultiPolygon,
             hasAlt ? GeometryTestUtils::randomPoint : (b) -> randomRectangle(),
             level < 3 ? (b) ->
-                randomGeometryCollectionWithoutCircle(level + 1, hasAlt) : GeometryTestUtils::randomPoint // don't build too deep
+                randomGeometryWithoutCircleCollection(level + 1, hasAlt) : GeometryTestUtils::randomPoint // don't build too deep
         );
         return geometry.apply(hasAlt);
     }

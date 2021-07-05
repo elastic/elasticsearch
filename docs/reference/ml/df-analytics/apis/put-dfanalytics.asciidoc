@@ -299,8 +299,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=training-percent]
 //Begin outlier_detection
 `outlier_detection`:::
 (Required^*^, object)
-The configuration information necessary to perform
-{ml-docs}/dfa-outlier-detection.html[{oldetection}]:
+The configuration information necessary to perform {oldetection}:
+// {ml-docs}/ml-dfa-finding-outliers.html#dfa-outlier-detection[{oldetection}]:
 +
 .Properties of `outlier_detection`
 [%collapsible%open]

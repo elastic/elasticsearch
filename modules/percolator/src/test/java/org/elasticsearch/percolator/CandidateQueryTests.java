@@ -74,8 +74,10 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -1103,8 +1105,41 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     private void addQuery(Query query, List<LuceneDocument> docs) {
-        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(
-            documentMapper.mappers(), indexService.getIndexSettings(), indexService.getIndexAnalyzers(), null, null, null);
+        ParseContext parseContext = new ParseContext(documentMapper.mappers(), indexService.getIndexSettings(),
+            indexService.getIndexAnalyzers(), null, null) {
+
+            private final LuceneDocument document = new LuceneDocument();
+
+            @Override
+            public Iterable<LuceneDocument> nonRootDocuments() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ContentPath path() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public XContentParser parser() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public LuceneDocument rootDoc() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public LuceneDocument doc() {
+                return document;
+            }
+
+            @Override
+            protected void addDoc(LuceneDocument doc) {
+                throw new UnsupportedOperationException();
+            }
+        };
         fieldMapper.processQuery(query, parseContext);
         LuceneDocument queryDocument = parseContext.doc();
         // Add to string representation of the query to make debugging easier:

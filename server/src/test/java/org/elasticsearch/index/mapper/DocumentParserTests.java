@@ -609,8 +609,39 @@ public class DocumentParserTests extends MapperServiceTestCase {
     // creates an object mapper, which is about 100x harder than it should be....
     ObjectMapper createObjectMapper(MapperService mapperService, String name) {
         DocumentMapper docMapper = mapperService.documentMapper();
-        ParseContext context = new ParseContext.InternalParseContext(docMapper.mappers(), mapperService.getIndexSettings(), null,
-            null, null, null);
+        ParseContext context = new ParseContext(docMapper.mappers(), mapperService.getIndexSettings(), null, null, null) {
+            private final ContentPath contentPath = new ContentPath(0);
+
+            @Override
+            public Iterable<LuceneDocument> nonRootDocuments() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ContentPath path() {
+                return contentPath;
+            }
+
+            @Override
+            public XContentParser parser() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public LuceneDocument rootDoc() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public LuceneDocument doc() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            protected void addDoc(LuceneDocument doc) {
+                throw new UnsupportedOperationException();
+            }
+        };
         String[] nameParts = name.split("\\.");
         for (int i = 0; i < nameParts.length - 1; ++i) {
             context.path().add(nameParts[i]);

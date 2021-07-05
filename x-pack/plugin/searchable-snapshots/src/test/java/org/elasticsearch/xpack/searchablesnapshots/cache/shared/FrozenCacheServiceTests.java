@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.List;
 import org.elasticsearch.core.Set;
@@ -51,7 +51,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
             .put("path.home", createTempDir())
             .build();
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             FrozenCacheService cacheService = new FrozenCacheService(environment, settings, taskQueue.getThreadPool())
@@ -96,7 +96,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
             .put("path.home", createTempDir())
             .build();
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             FrozenCacheService cacheService = new FrozenCacheService(environment, settings, taskQueue.getThreadPool())
@@ -132,7 +132,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
             .put("path.home", createTempDir())
             .build();
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             FrozenCacheService cacheService = new FrozenCacheService(environment, settings, taskQueue.getThreadPool())
@@ -160,7 +160,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
             .put("path.home", createTempDir())
             .build();
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             FrozenCacheService cacheService = new FrozenCacheService(environment, settings, taskQueue.getThreadPool())

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.StatusInfo;
@@ -37,7 +38,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,8 +46,7 @@ import static org.hamcrest.core.Is.is;
 public class JoinHelperTests extends ESTestCase {
 
     public void testJoinDeduplication() {
-        DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
-            Settings.builder().put(NODE_NAME_SETTING.getKey(), "node0").build(), random());
+        DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         CapturingTransport capturingTransport = new CapturingTransport();
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
         TransportService transportService = capturingTransport.createTransportService(Settings.EMPTY,
@@ -147,8 +146,7 @@ public class JoinHelperTests extends ESTestCase {
     }
 
     private void assertJoinValidationRejectsMismatchedClusterUUID(String actionName) {
-        DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
-            Settings.builder().put(NODE_NAME_SETTING.getKey(), "node0").build(), random());
+        DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         MockTransport mockTransport = new MockTransport();
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
 
@@ -210,8 +208,7 @@ public class JoinHelperTests extends ESTestCase {
     }
 
     public void testJoinFailureOnUnhealthyNodes() {
-        DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
-            Settings.builder().put(NODE_NAME_SETTING.getKey(), "node0").build(), random());
+        DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         CapturingTransport capturingTransport = new CapturingTransport();
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
         TransportService transportService = capturingTransport.createTransportService(Settings.EMPTY,

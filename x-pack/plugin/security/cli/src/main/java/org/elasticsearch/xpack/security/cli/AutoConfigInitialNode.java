@@ -81,7 +81,6 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
         exit(new AutoConfigInitialNode().main(args, Terminal.DEFAULT));
     }
 
-    //@SuppressForbidden(reason = "InetAddress#getCanonicalHostName used to populate FQDN of HTTPS cert")
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         if (Files.isDirectory(env.dataFile()) && Files.list(env.dataFile()).findAny().isPresent()) {

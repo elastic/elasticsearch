@@ -116,7 +116,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Map<String, String> map = new HashMap<>();
         int numIncludes = randomIntBetween(minEntries, maxEntries);
         for (int i = 0; i < numIncludes; i++) {
-            String attributeName = randomValueOtherThanMany(generatedName -> DiscoveryNodeRole.roleNames().contains(generatedName) == false,
+            String attributeName = randomValueOtherThanMany(generatedName -> DiscoveryNodeRole.roleNames().contains(generatedName),
                 () -> randomAlphaOfLengthBetween(2, 20));
             map.put(attributeName, randomAlphaOfLengthBetween(2, 20));
         }

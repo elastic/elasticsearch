@@ -257,6 +257,15 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     find . -xdev -perm -4000 -exec chmod ug-s {} + && \\
     find . -type f -exec chmod o+r {} +
 
+<% if (docker_base == "cloud") {
+  print "# Preinstall common plugins\n"
+  ['s3', 'gcs', 'azure'].each({
+    print "RUN curl --retry 10 -S -L --output /opt/repository-${it}.zip https://artifacts-no-kpi.elastic.co/downloads/elasticsearch-plugins/repository-${it}/repository-${it}-\$(arch)-${version}.zip\n"
+  })
+
+  print "\nRUN bin/elasticsearch-plugin install --batch file:/opt/repository-s3.zip file:/opt/repository-gcs.zip file:/opt/repository-azure.zip\n"
+} %>
+
 <% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
 
 ################################################################################

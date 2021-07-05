@@ -41,6 +41,9 @@ configurations {
   dockerSource
   log4jConfig
   tini
+  repositoryS3Plugin
+  repositoryGcsPlugin
+  repositoryAzurePlugin
 }
 
 dependencies {
@@ -48,6 +51,9 @@ dependencies {
   dockerSource project(path: ":distribution:archives:linux-tar", configuration: 'default')
   log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
   tini 'krallin:tini:0.19.0@tini-amd64'
+  repositoryS3Plugin project(path: ':plugins:repository-s3', configuration: 'zip')
+  repositoryGcsPlugin project(path: ':plugins:repository-gcs', configuration: 'zip')
+  repositoryAzurePlugin project(path: ':plugins:repository-azure', configuration: 'zip')
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
@@ -89,7 +95,7 @@ class SquashNewlinesFilter extends FilterReader {
 }
 
 private static String toCamel(String input) {
-  return input.split("[^a-zA-Z0-9]").collect(StringUtils::capitalize).join("")
+  return input.split("[^a-zA-Z0-9]").collect({ it.substring(0, 1) + it.substring(1).toLowerCase(Locale.ROOT) }).join("")
 }
 
 private static String taskName(String prefix, Architecture architecture, DockerBase base, String suffix) {
@@ -229,14 +235,30 @@ void addUnpackDockerContextTask(Architecture architecture, DockerBase base) {
     TaskProvider<Tar> buildContextTask = tasks.named(taskName("build", architecture, base, "DockerContext"))
     dependsOn(buildContextTask)
 
+    String version = VersionProperties.elasticsearch
+
     String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
-    String archiveName = "elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
-    String distributionName = "elasticsearch-${VersionProperties.elasticsearch}-linux-${architecture.classifier}.tar.gz"
+    String archiveName = "elasticsearch${base.suffix}-${version}-docker-build-context${arch}"
 
     from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
       eachFile { FileCopyDetails details ->
         if (details.name.equals("Dockerfile")) {
-          filter { it.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /opt/elasticsearch.tar.gz") }
+          filter {
+            if (it.matches('^RUN curl.*artifacts-no-kpi.*$')) {
+              String artifact = it.replaceFirst("^.*/", "")
+              String destination
+              if (it.contains("plugins")) {
+                artifact = artifact.replaceFirst('\\Q-$(arch)', '')
+                destination = artifact.replaceFirst("-${version}.zip\$", ".zip")
+              } else {
+                artifact = artifact.replaceFirst('\\Q$(arch)', architecture.classifier)
+                destination = 'elasticsearch.tar.gz'
+              }
+              return "COPY ${artifact} /opt/${destination}"
+            }
+
+            return it
+          }
         }
       }
     }
@@ -253,6 +275,12 @@ void addUnpackDockerContextTask(Architecture architecture, DockerBase base) {
       from(configurations.tini) {
         rename { _ -> 'tini' }
       }
+    }
+
+    if (base == DockerBase.CLOUD) {
+      from configurations.repositoryS3Plugin
+      from configurations.repositoryGcsPlugin
+      from configurations.repositoryAzurePlugin
     }
 
     expansions(architecture, base).findAll { it.key != 'build_date' }.each { k, v ->
@@ -299,7 +327,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
         baseImages = [baseImage]
         buildArgs = buildArgsMap
-      } else if (base == DockerBase.CENTOS) {
+      } else if (base == DockerBase.CENTOS || base == DockerBase.CLOUD) {
         baseImages = ['alpine:3.13', base.image]
       } else {
         baseImages = [base.image]

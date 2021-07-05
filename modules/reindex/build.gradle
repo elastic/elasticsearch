@@ -174,10 +174,9 @@ def v7compatiblityNotSupportedTests = {
     'update_by_query/20_validation/update_by_query without source gives useful error message' // exception with a type. Not much benefit adding _doc there.
   ]
 }
-    tasks.named("yamlRestCompatTest").configure {
-      systemProperty 'tests.rest.blacklist', ([
-      ]+ v7compatiblityNotSupportedTests())
-      .join(',')
+
+tasks.named("yamlRestCompatTest").configure {
+      systemProperty 'tests.rest.blacklist', v7compatiblityNotSupportedTests().join(',')
 }
 
 tasks.named('splitPackagesAudit').configure {

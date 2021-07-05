@@ -478,9 +478,9 @@ public class IpFieldMapper extends FieldMapper {
      * a dimension field, it will be added as single-value.
      */
     private void addField(ParseContext context, Field field) {
-        if (dimension && context.doc().getByKey(name()) == null) {
+        if (dimension && context.doc().getByKey(fieldType().name()) == null) {
             // Add dimension field with key so that we ensure it is single-valued
-            context.doc().addWithKey(name(), field);
+            context.doc().addWithKey(fieldType().name(), field);
         } else {
             context.doc().add(field);
         }
@@ -488,7 +488,7 @@ public class IpFieldMapper extends FieldMapper {
 
     private void indexValue(ParseContext context, InetAddress address) {
         // Check that a dimension field is single-valued and not an array
-        if (dimension && context.doc().getByKey(name()) != null) {
+        if (dimension && context.doc().getByKey(fieldType().name()) != null) {
             throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
         }
 

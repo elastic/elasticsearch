@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.searchbusinessrules;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
+import org.apache.lucene.search.CappedScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,7 +36,11 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBuilder> {
     @Override
     protected PinnedQueryBuilder doCreateTestQueryBuilder() {
-        return new PinnedQueryBuilder(createRandomQuery(), generateRandomStringArray(100, 256, false, true));
+        if (randomBoolean()) {
+            return new PinnedQueryBuilder(createRandomQuery(), generateRandomStringArray(100, 256, false, true));
+        } else {
+            return new PinnedQueryBuilder(createRandomQuery(), generateRandomItems());
+        }
     }
 
     private QueryBuilder createRandomQuery() {
@@ -90,15 +95,17 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
             return new TermQueryBuilder(fieldName, value);
         }
 
+    private Item[] generateRandomItems() {
+        return randomArray(1, 100, Item[]::new, () -> new Item(randomBoolean() ? randomAlphaOfLength(64) : null, randomAlphaOfLength(256)));
+    }
+
     @Override
     protected void doAssertLuceneQuery(PinnedQueryBuilder queryBuilder, Query query, SearchExecutionContext searchContext) {
-        if (queryBuilder.ids().size() == 0 && queryBuilder.organicQuery() == null) {
-            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+        if (queryBuilder.ids().size() == 0 && queryBuilder.documents().size() == 0) {
+            assertThat(query, instanceOf(CappedScoreQuery.class));
         } else {
-            if (queryBuilder.ids().size() > 0) {
-                // Have IDs and an organic query - uses DisMax
-                assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-            }
+            // Have IDs/documents and an organic query - uses DisMax
+            assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         }
     }
 
@@ -114,11 +121,26 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), (String)null));
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(null, "1"));
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), "1", null, "2"));
-        String[] bigList = new String[PinnedQueryBuilder.MAX_NUM_PINNED_HITS + 1];
-        for (int i = 0; i < bigList.length; i++) {
-            bigList[i] = String.valueOf(i);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), (PinnedQueryBuilder.Item)null)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new PinnedQueryBuilder(null, new Item(null, "1"))
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), new Item(null, "1"), null, new Item(null, "2"))
+        );
+        String[] bigIdList = new String[PinnedQueryBuilder.MAX_NUM_PINNED_HITS + 1];
+        Item[] bigItemList = new Item[PinnedQueryBuilder.MAX_NUM_PINNED_HITS + 1];
+        for (int i = 0; i < bigIdList.length; i++) {
+            bigIdList[i] = String.valueOf(i);
+            bigItemList[i] = new Item(null, String.valueOf(i));
         }
-        expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), bigList));
+        expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), bigIdList));
+        expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), bigItemList));
 
     }
 
@@ -130,7 +152,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         }
     }
 
-    public void testFromJson() throws IOException {
+    public void testIdsFromJson() throws IOException {
         String query =
                 "{" +
                 "\"pinned\" : {" +
@@ -154,6 +176,30 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         assertThat(queryBuilder.organicQuery(), instanceOf(TermQueryBuilder.class));
     }
 
+    public void testDocumentsFromJson() throws IOException {
+        String query =
+                "{" +
+                "\"pinned\" : {" +
+                "  \"organic\" : {" +
+                "    \"term\" : {" +
+                "      \"tag\" : {" +
+                "        \"value\" : \"tech\"," +
+                "        \"boost\" : 1.0" +
+                "      }" +
+                "    }" +
+                "  }, "+
+                "  \"documents\" : [{ \"_id\": \"1\" }, { \"_index\": \"three\", \"_id\": \"2\" }]," +
+                "  \"boost\":1.0 "+
+                "}" +
+              "}";
+
+        PinnedQueryBuilder queryBuilder = (PinnedQueryBuilder) parseQuery(query);
+        checkGeneratedJson(query, queryBuilder);
+
+        assertEquals(query, 2, queryBuilder.documents().size());
+        assertThat(queryBuilder.organicQuery(), instanceOf(TermQueryBuilder.class));
+    }
+
     /**
      * test that unknown query names in the clauses throw an error
      */
@@ -167,8 +213,14 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         assertEquals("[1:46] [pinned] failed to parse field [organic]", ex.getMessage());
     }
 
-    public void testRewrite() throws IOException {
+    public void testIdsRewrite() throws IOException {
         PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("foo", 1), "1");
+        QueryBuilder rewritten = pinnedQueryBuilder.rewrite(createSearchExecutionContext());
+        assertThat(rewritten, instanceOf(PinnedQueryBuilder.class));
+    }
+
+    public void testDocumentsRewrite() throws IOException {
+        PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("foo", 1), new Item(null, "1"));
         QueryBuilder rewritten = pinnedQueryBuilder.rewrite(createSearchExecutionContext());
         assertThat(rewritten, instanceOf(PinnedQueryBuilder.class));
     }

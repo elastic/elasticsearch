@@ -22,22 +22,19 @@ repositories {
   // for testing purposes.
   ivy {
     url 'https://github.com/'
-
     patternLayout {
       artifact '/[organisation]/[module]/releases/download/v[revision]/[ext]'
     }
-
     metadataSources { artifact() }
     content {includeGroup 'krallin' }
   }
+
   // Cloud builds bundle some beats
   ivy {
     url 'https://snapshots-no-kpi.elastic.co/'
-
     patternLayout {
       artifact '/downloads/[organization]/[module]/[module]-[revision]-linux-[classifier].[ext]'
     }
-
     metadataSources { artifact() }
     content {includeGroup 'beats' }
   }
@@ -72,21 +69,11 @@ dependencies {
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
-  String buildArgs = ''
-  if (base == DockerBase.IRON_BANK) {
-    buildArgs = """
-ARG BASE_REGISTRY=nexus-docker-secure.levelup-nexus.svc.cluster.local:18082
-ARG BASE_IMAGE=redhat/ubi/ubi8
-ARG BASE_TAG=8.3
-"""
-  }
-
   def (major, minor) = VersionProperties.elasticsearch.split("\\.")
 
   return [
     'base_image'         : base.getImage(),
     'bin_dir'            : base == DockerBase.IRON_BANK ? 'scripts' : 'bin',
-    'build_args'         : buildArgs,
     'build_date'         : BuildParams.buildDate,
     'config_dir'         : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
     'git_revision'       : BuildParams.gitRevision,
@@ -241,6 +228,12 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
       }
     }
 
+    if (base == DockerBase.CLOUD) {
+      from configurations.repositoryS3Plugin
+      from configurations.repositoryGcsPlugin
+      from configurations.repositoryAzurePlugin
+    }
+
     onlyIf { Architecture.current() == architecture }
   }
 }
@@ -286,9 +279,8 @@ void addUnpackDockerContextTask(Architecture architecture, DockerBase base) {
     }
 
     if (base == DockerBase.CLOUD) {
-      from configurations.repositoryS3Plugin
-      from configurations.repositoryGcsPlugin
-      from configurations.repositoryAzurePlugin
+      // These aren't copied in when building the Docker build context, because these are just snapshots.
+      // In release builds, the release-manager will make sure the proper binaries are available.
       from configurations.filebeat
       from configurations.metricbeat
     }

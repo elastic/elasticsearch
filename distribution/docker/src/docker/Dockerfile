@@ -55,7 +55,9 @@ RUN set -eux ; \\
 # Extract Elasticsearch artifact
 ################################################################################
 
-${build_args}
+ARG BASE_REGISTRY=nexus-docker-secure.levelup-nexus.svc.cluster.local:18082
+ARG BASE_IMAGE=redhat/ubi/ubi8
+ARG BASE_TAG=8.3
 
 FROM ${base_image} AS builder
 

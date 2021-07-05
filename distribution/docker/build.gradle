@@ -245,15 +245,8 @@ void addUnpackDockerContextTask(Architecture architecture, DockerBase base) {
         if (details.name.equals("Dockerfile")) {
           filter {
             if (it.matches('^RUN curl.*artifacts-no-kpi.*$')) {
-              String artifact = it.replaceFirst("^.*/", "")
-              String destination
-              if (it.contains("plugins")) {
-                artifact = artifact.replaceFirst('\\Q-$(arch)', '')
-                destination = artifact.replaceFirst("-${version}.zip\$", ".zip")
-              } else {
-                artifact = artifact.replaceFirst('\\Q$(arch)', architecture.classifier)
-                destination = 'elasticsearch.tar.gz'
-              }
+              String artifact = it.replaceFirst("^.*/", "").replaceFirst('\\Q$(arch)', architecture.classifier)
+              String destination = 'elasticsearch.tar.gz'
               return "COPY ${artifact} /opt/${destination}"
             }
 

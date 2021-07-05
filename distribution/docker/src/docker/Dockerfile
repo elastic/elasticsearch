@@ -258,12 +258,15 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     find . -type f -exec chmod o+r {} +
 
 <% if (docker_base == "cloud") {
+  def plugins = ['s3', 'gcs', 'azure']
   print "# Preinstall common plugins\n"
-  ['s3', 'gcs', 'azure'].each({
-    print "RUN curl --retry 10 -S -L --output /opt/repository-${it}.zip https://artifacts-no-kpi.elastic.co/downloads/elasticsearch-plugins/repository-${it}/repository-${it}-\$(arch)-${version}.zip\n"
+  plugins.each({
+    // Cloud builds are never performed by DockerHub, so we can skip straight to
+    // the local build syntax.
+    print "COPY /opt/repository-${it}-${version}.zip /opt/repository-${it}.zip\n"
   })
 
-  print "\nRUN bin/elasticsearch-plugin install --batch file:/opt/repository-s3.zip file:/opt/repository-gcs.zip file:/opt/repository-azure.zip\n"
+  print "\nRUN bin/elasticsearch-plugin install --batch " + plugins.collect({"file:/opt/repository-${it}.zip"}).join(" ")
 } %>
 
 <% if (docker_base == "ubi" || docker_base == "iron_bank") { %>

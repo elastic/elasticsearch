@@ -250,11 +250,6 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
           - is_false: "value_to_replace"
           - is_true: "value_not_to_replace"
           - is_false: "value_not_to_replace"
-          - match:
-            $body: |
-                / #id                               type                  create_time state
-                    ^ (dfa\\-outlier\\-detection\\-job \\s+ outlier_detection \\s+ [^\\s]+ \\s+  stopped \\n)+  \$/
-
 
         """.stripIndent()
         when:

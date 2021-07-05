@@ -170,7 +170,7 @@ public class BytesStreamOutput extends BytesStream {
         return bytes.ramBytesUsed();
     }
 
-    void ensureCapacity(long offset) {
+    protected void ensureCapacity(long offset) {
         if (offset > Integer.MAX_VALUE) {
             throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
         }

@@ -2,7 +2,7 @@ import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.standalone-rest-test'
 
 dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa')
@@ -56,4 +56,3 @@ tasks.register("followClusterRestartTest", StandaloneRestIntegTestTask) {
 }
 
 tasks.named("check").configure { dependsOn "followClusterRestartTest" }
-tasks.named("test").configure { enabled = false }

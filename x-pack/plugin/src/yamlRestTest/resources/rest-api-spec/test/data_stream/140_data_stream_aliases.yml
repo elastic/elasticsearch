@@ -1,8 +1,8 @@
 ---
 "Create data stream alias":
   - skip:
-      version: " - 7.99.99"
-      reason: "data streams alias not yet backported to the 7.x branch"
+      version: " - 7.13.99"
+      reason: "data streams aliases are available from 7.14.0"
       features: allowed_warnings
 
   - do:

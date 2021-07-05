@@ -1059,7 +1059,7 @@ public class MasterServiceTests extends ESTestCase {
             );
             mockAppender.addExpectation(expectation1);
 
-            while (relativeTimeInMillis - startTimeMillis <= warnThresholdMillis) {
+            while (relativeTimeInMillis - startTimeMillis < warnThresholdMillis) {
                 awaitNextTask.run();
                 mockAppender.assertAllExpectationsMatched();
             }
@@ -1081,7 +1081,7 @@ public class MasterServiceTests extends ESTestCase {
             );
             mockAppender.addExpectation(expectation2);
 
-            while (relativeTimeInMillis - startTimeMillis <= warnThresholdMillis * 2) {
+            while (relativeTimeInMillis - startTimeMillis < warnThresholdMillis * 2) {
                 awaitNextTask.run();
                 mockAppender.assertAllExpectationsMatched();
             }

@@ -23,6 +23,7 @@ setup:
   - do:
       snapshot.create:
         repository: test_repo_create_1
+        indices: test_index
         snapshot: test_snapshot
         wait_for_completion: true
 

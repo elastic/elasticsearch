@@ -436,7 +436,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                              * unfollow action, then we know that the unfollow action has already stopped the shard follow node task and
                              * there is no race condition with the unfollow action.
                              */
-                            if (isCancelled() || isCompleted()) {
+                            if (isCancelled() || isCompleted() || isLocallyAborted()) {
                                 return;
                             }
                             final Throwable cause = ExceptionsHelper.unwrapCause(e);

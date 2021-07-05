@@ -95,6 +95,10 @@ public class AllocatedPersistentTask extends CancellableTask {
         return state.get() == State.COMPLETED;
     }
 
+    protected final boolean isLocallyAborted() {
+        return state.get() == State.LOCAL_ABORTED;
+    }
+
     boolean markAsCancelled() {
         return state.compareAndSet(State.STARTED, State.PENDING_CANCEL);
     }
@@ -118,20 +122,44 @@ public class AllocatedPersistentTask extends CancellableTask {
      * reassigned to the same node unless separate measures have been taken to prevent
      * this. The task should complete any graceful shutdown actions before calling this
      * method.
+     * @throws IllegalStateException This exception will be thrown if the cluster contains
+     *                               nodes that are too old to understand the concept of
+     *                               locally aborting tasks. In this situation callers
+     *                               should revert to whatever the functionality was prior
+     *                               to local abort being possible. It is possible to check
+     *                               if local abort is possible before starting a sequence
+     *                               of steps that will end in a local abort by calling
+     *                               {@link PersistentTasksService#isLocalAbortSupported}.
      * @param localAbortReason Reason for the task being aborted on this node. This
      *                         will be recorded as the reason for unassignment of the
      *                         persistent task.
      */
     public void markAsLocallyAborted(String localAbortReason) {
+        if (persistentTasksService.isLocalAbortSupported() == false) {
+            throw new IllegalStateException("attempt to abort a persistent task locally in a cluster that does not support this");
+        }
         completeAndNotifyIfNeeded(null, Objects.requireNonNull(localAbortReason));
     }
 
     private void completeAndNotifyIfNeeded(@Nullable Exception failure, @Nullable String localAbortReason) {
         assert failure == null || localAbortReason == null
             : "completion notification has both exception " + failure + " and local abort reason " + localAbortReason;
-        final State prevState = state.getAndSet(State.COMPLETED);
-        if (prevState == State.COMPLETED) {
-            logger.warn("attempt to complete task [{}] with id [{}] in the [{}] state", getAction(), getPersistentTaskId(), prevState);
+        assert localAbortReason == null || persistentTasksService.isLocalAbortSupported()
+            : "local abort reason provided to inner implementation when it is not supported: " + localAbortReason;
+        final State desiredState = (localAbortReason == null) ? State.COMPLETED : State.LOCAL_ABORTED;
+        final State prevState = state.getAndUpdate(
+            currentState -> (currentState != State.COMPLETED && currentState != State.LOCAL_ABORTED) ? desiredState : currentState);
+        if (prevState == State.COMPLETED || prevState == State.LOCAL_ABORTED) {
+            if (prevState == desiredState) {
+                logger.warn("attempt to set state [{}] on task [{}] with id [{}] when it is already in that state",
+                    prevState, getAction(), getPersistentTaskId());
+            } else if (desiredState == State.COMPLETED) {
+                throw new IllegalStateException("attempt to " + (failure != null ? "fail" : "complete") + " task [" + getAction()
+                    + "] with id [" + getPersistentTaskId() + "] which has been locally aborted");
+            } else {
+                throw new IllegalStateException("attempt to locally abort task [" + getAction() + "] with id [" + getPersistentTaskId()
+                    + "] after it has been completed");
+            }
         } else {
             if (failure != null) {
                 logger.warn(() -> new ParameterizedMessage("task [{}] failed with an exception", getPersistentTaskId()), failure);
@@ -164,8 +192,9 @@ public class AllocatedPersistentTask extends CancellableTask {
     }
 
     public enum State {
-        STARTED,  // the task is currently running
+        STARTED,        // the task is currently running
         PENDING_CANCEL, // the task is cancelled on master, cancelling it locally
-        COMPLETED     // the task is done running and trying to notify caller
+        COMPLETED,      // the task is done running and trying to notify caller
+        LOCAL_ABORTED   // the task is aborted on the local node - master should reassign
     }
 }

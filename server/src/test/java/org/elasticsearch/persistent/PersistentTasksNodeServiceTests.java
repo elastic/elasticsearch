@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -92,6 +93,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
     public void testStartTask() {
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
+        when(persistentTasksService.isLocalAbortSupported()).thenReturn(randomBoolean());
         @SuppressWarnings("unchecked") PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
         when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
         when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
@@ -145,6 +147,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             // Make sure action wasn't called again
             assertThat(executor.executions.size(), equalTo(1));
             assertThat(executor.get(0).task.isCompleted(), is(false));
+            assertThat(executor.get(0).task.isLocallyAborted(), is(false));
 
             // Start another task on this node
             state = newClusterState;
@@ -154,13 +157,16 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             // Make sure action was called this time
             assertThat(executor.size(), equalTo(2));
             assertThat(executor.get(1).task.isCompleted(), is(false));
+            assertThat(executor.get(1).task.isLocallyAborted(), is(false));
 
             // Finish both tasks
             executor.get(0).task.markAsFailed(new RuntimeException());
             executor.get(1).task.markAsCompleted();
 
             assertThat(executor.get(0).task.isCompleted(), is(true));
+            assertThat(executor.get(0).task.isLocallyAborted(), is(false));
             assertThat(executor.get(1).task.isCompleted(), is(true));
+            assertThat(executor.get(1).task.isLocallyAborted(), is(false));
 
             String failedTaskId = executor.get(0).task.getPersistentTaskId();
             String finishedTaskId = executor.get(1).task.getPersistentTaskId();
@@ -191,6 +197,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
     public void testParamsStatusAndNodeTaskAreDelegated() throws Exception {
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
+        when(persistentTasksService.isLocalAbortSupported()).thenReturn(randomBoolean());
         @SuppressWarnings("unchecked") PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
         when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
         when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
@@ -241,6 +248,11 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                                               final Exception taskFailure, final String localAbortReason,
                                               final ActionListener<PersistentTask<?>> listener) {
                 fail("Shouldn't be called during Cluster State cancellation");
+            }
+
+            @Override
+            public boolean isLocalAbortSupported() {
+                return randomBoolean();
             }
         };
         @SuppressWarnings("unchecked") PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
@@ -321,10 +333,17 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             public void sendCompletionRequest(final String taskId, final long taskAllocationId,
                                               final Exception taskFailure, final String localAbortReason,
                                               final ActionListener<PersistentTask<?>> listener) {
+                assertThat(taskId, not(nullValue()));
+                assertThat(capturedTaskId.get(), nullValue());
                 capturedTaskId.set(taskId);
                 capturedListener.set(listener);
                 capturedLocalAbortReason.set(localAbortReason);
                 assertThat(taskFailure, nullValue());
+            }
+
+            @Override
+            public boolean isLocalAbortSupported() {
+                return true;
             }
         };
         @SuppressWarnings("unchecked") PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
@@ -367,6 +386,26 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         // Check the task is now removed from the local task manager
         assertThat(taskManager.getTasks().values(), empty());
+
+        // Check that races where some other event occurs after local abort are handled as expected
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                IllegalStateException e0 = expectThrows(IllegalStateException.class, runningTask::markAsCompleted);
+                assertThat(e0.getMessage(),
+                    equalTo("attempt to complete task [test] with id [" + persistentId + "] which has been locally aborted"));
+                break;
+            case 1:
+                IllegalStateException e1 = expectThrows(IllegalStateException.class,
+                    () -> runningTask.markAsFailed(new Exception("failure detected after local abort")));
+                assertThat(e1.getMessage(),
+                    equalTo("attempt to fail task [test] with id [" + persistentId + "] which has been locally aborted"));
+                break;
+            case 2:
+                runningTask.markAsLocallyAborted("second local abort");
+                break;
+        }
+
+        assertFalse(runningTask.markAsCancelled());
     }
 
     public void testRegisterTaskFails() throws InterruptedException {
@@ -388,6 +427,11 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 assertThat(localAbortReason, nullValue());
                 listener.onResponse(mock(PersistentTask.class));
                 latch.countDown();
+            }
+
+            @Override
+            public boolean isLocalAbortSupported() {
+                return randomBoolean();
             }
         };
 

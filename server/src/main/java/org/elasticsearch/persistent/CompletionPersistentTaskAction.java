@@ -79,6 +79,15 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (localAbortReason != null && out.getVersion().before(LOCAL_ABORT_AVAILABLE_VERSION)) {
+                // This case cannot be handled by simply not serializing the new field, as the
+                // old master node would then treat it as a signal that the task should NOT be
+                // reassigned to a different node, i.e. completely different semantics. We
+                // should never get here in reality, as this action is for internal use only
+                // (it has no REST layer) and the places where it's called defend against this
+                // situation.
+                throw new IOException("attempt to abort a persistent task locally in a cluster that contains a node that is too old");
+            }
             super.writeTo(out);
             out.writeString(taskId);
             out.writeLong(allocationId);

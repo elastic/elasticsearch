@@ -112,6 +112,9 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
      * @return timestamp aligned with date histogram interval
      */
     private static long alignTimestamp(long timestamp, TransformConfig transformConfig) {
+        if (Boolean.FALSE.equals(transformConfig.getSettings().getInterimResults()) == false) {
+            return timestamp;
+        }
         if (transformConfig.getPivotConfig() == null) {
             return timestamp;
         }

@@ -35,6 +35,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -264,6 +265,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
                 null // deprecated
             );
         return new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId))
+            .setSettings(new SettingsConfig.Builder().setInterimResults(false).build())
             .setPivotConfig(pivotConfigWithDateHistogramSource)
             .setSyncConfig(new TimeSyncConfig("@timestamp", delay))
             .build();

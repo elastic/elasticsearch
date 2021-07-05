@@ -25,20 +25,25 @@ public class SettingsConfig implements ToXContentObject {
     private static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
     private static final ParseField DOCS_PER_SECOND = new ParseField("docs_per_second");
     private static final ParseField DATES_AS_EPOCH_MILLIS = new ParseField("dates_as_epoch_millis");
+    private static final ParseField INTERIM_RESULTS = new ParseField("interim_results");
     private static final int DEFAULT_MAX_PAGE_SEARCH_SIZE = -1;
     private static final float DEFAULT_DOCS_PER_SECOND = -1F;
 
     // use an integer as we need to code 4 states: true, false, null (unchanged), default (defined server side)
     private static final int DEFAULT_DATES_AS_EPOCH_MILLIS = -1;
 
+    // use an integer as we need to code 4 states: true, false, null (unchanged), default (defined server side)
+    private static final int DEFAULT_INTERIM_RESULTS = -1;
+
     private final Integer maxPageSearchSize;
     private final Float docsPerSecond;
     private final Integer datesAsEpochMillis;
+    private final Integer interimResults;
 
     private static final ConstructingObjectParser<SettingsConfig, Void> PARSER = new ConstructingObjectParser<>(
         "settings_config",
         true,
-        args -> new SettingsConfig((Integer) args[0], (Float) args[1], (Integer) args[2])
+        args -> new SettingsConfig((Integer) args[0], (Float) args[1], (Integer) args[2], (Integer) args[3])
     );
 
     static {
@@ -51,16 +56,24 @@ public class SettingsConfig implements ToXContentObject {
             DATES_AS_EPOCH_MILLIS,
             ValueType.BOOLEAN_OR_NULL
         );
+        // this boolean requires 4 possible values: true, false, not_specified, default, therefore using a custom parser
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_INTERIM_RESULTS : p.booleanValue() ? 1 : 0,
+            INTERIM_RESULTS,
+            ValueType.BOOLEAN_OR_NULL
+        );
     }
 
     public static SettingsConfig fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond, Integer datesAsEpochMillis) {
+    SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond, Integer datesAsEpochMillis, Integer interimResults) {
         this.maxPageSearchSize = maxPageSearchSize;
         this.docsPerSecond = docsPerSecond;
         this.datesAsEpochMillis = datesAsEpochMillis;
+        this.interimResults = interimResults;
     }
 
     @Override
@@ -87,6 +100,13 @@ public class SettingsConfig implements ToXContentObject {
                 builder.field(DATES_AS_EPOCH_MILLIS.getPreferredName(), datesAsEpochMillis > 0 ? true : false);
             }
         }
+        if (interimResults != null) {
+            if (interimResults.equals(DEFAULT_INTERIM_RESULTS)) {
+                builder.field(INTERIM_RESULTS.getPreferredName(), (Boolean) null);
+            } else {
+                builder.field(INTERIM_RESULTS.getPreferredName(), interimResults > 0 ? true : false);
+            }
+        }
         builder.endObject();
         return builder;
     }
@@ -103,6 +123,10 @@ public class SettingsConfig implements ToXContentObject {
         return datesAsEpochMillis != null ? datesAsEpochMillis > 0 : null;
     }
 
+    public Boolean getInterimResults() {
+        return interimResults != null ? interimResults > 0 : null;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (other == this) {
@@ -115,12 +139,13 @@ public class SettingsConfig implements ToXContentObject {
         SettingsConfig that = (SettingsConfig) other;
         return Objects.equals(maxPageSearchSize, that.maxPageSearchSize)
             && Objects.equals(docsPerSecond, that.docsPerSecond)
-            && Objects.equals(datesAsEpochMillis, that.datesAsEpochMillis);
+            && Objects.equals(datesAsEpochMillis, that.datesAsEpochMillis)
+            && Objects.equals(interimResults, that.interimResults);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxPageSearchSize, docsPerSecond, datesAsEpochMillis);
+        return Objects.hash(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, interimResults);
     }
 
     public static Builder builder() {
@@ -131,6 +156,7 @@ public class SettingsConfig implements ToXContentObject {
         private Integer maxPageSearchSize;
         private Float docsPerSecond;
         private Integer datesAsEpochMillis;
+        private Integer interimResults;
 
         /**
          * Sets the paging maximum paging maxPageSearchSize that transform can use when
@@ -176,8 +202,24 @@ public class SettingsConfig implements ToXContentObject {
             return this;
         }
 
+        /**
+         * Whether to write the output of a date aggregation as millis since epoch or as formatted string (ISO format).
+         *
+         * Transforms created before 7.11 write dates as epoch_millis. The new default is ISO string.
+         * You can use this setter to configure the old style writing as epoch millis.
+         *
+         * An explicit `null` resets to default.
+         *
+         * @param interimResults true if dates should be written as epoch_millis.
+         * @return the {@link Builder} with datesAsEpochMilli set.
+         */
+        public Builder setInterimResults(Boolean interimResults) {
+            this.interimResults = interimResults == null ? DEFAULT_INTERIM_RESULTS : interimResults ? 1 : 0;
+            return this;
+        }
+
         public SettingsConfig build() {
-            return new SettingsConfig(maxPageSearchSize, docsPerSecond, datesAsEpochMillis);
+            return new SettingsConfig(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, interimResults);
         }
     }
 }

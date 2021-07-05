@@ -79,7 +79,7 @@ public class PersistentTasksService {
                                       final @Nullable Exception taskFailure,
                                       final @Nullable String localAbortReason,
                                       final ActionListener<PersistentTask<?>> listener) {
-        if (isLocalAbortSupported() == false) {
+        if (localAbortReason != null && isLocalAbortSupported() == false) {
             throw new IllegalStateException("attempt to abort a persistent task locally in a cluster that does not support this");
         }
         CompletionPersistentTaskAction.Request request =

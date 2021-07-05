@@ -147,16 +147,10 @@ tasks.named("yamlRestCompatTest").configure {
 
   //TODO: blacklist specific to REST API compatibility
   restTestBlacklist.addAll([
-//    'analytics/histogram/Ranges over histogram',
+    'license/30_enterprise_license/Installing enterprise license',
 
-//    'indices.freeze/10_basic/Basic',
-//    'indices.freeze/10_basic/Test index options',
-//    'indices.freeze/20_stats/Translog stats on frozen indices',
-//    'indices.freeze/30_usage/Usage stats on frozen indices',
-//    'license/30_enterprise_license/Installing enterprise license',
-
-//    'roles/11_idx_arrays/Test put role api using as array of index names',
-//    'roles/30_prohibited_role_query/Test use prohibited query inside role query',
+    // put role request with a term lookup (deprecated) and type.
+    'roles/30_prohibited_role_query/Test use prohibited query inside role query',
 //https://github.com/elastic/elasticsearch/pull/41227.
     'rollup/delete_job/Test basic delete_job',
     'rollup/delete_job/Test delete job twice',
@@ -165,17 +159,8 @@ tasks.named("yamlRestCompatTest").configure {
     'rollup/put_job/Test basic put_job',
     'rollup/put_job/Test put_job in non-rollup index',
     //https://github.com/elastic/elasticsearch/pull/41502
-    'rollup/start_job/Test start job twice',
-//    'security/authz/14_cat_indices/Test empty request while no-authorized index',
-//    'security/authz/14_cat_indices/Test empty request while single authorized index',
-//    'security/authz/14_cat_indices/Test explicit request while multiple authorized indices',
-//    'security/authz/14_cat_indices/Test explicit request while multiple opened/closed authorized indices',
-//    'security/authz/14_cat_indices/Test wildcard request with multiple authorized indices',
-//    'security/authz/50_data_streams/Test that requests not supporting data streams do not include data streams among authorized indices',
-//    'transform/transforms_cat_apis/Test cat transform stats hiding headers',
-//    'transform/transforms_cat_apis/Test cat transform stats with column selection',
-//    'transform/transforms_cat_apis/Test cat transform stats with continuous transform',
-//'privileges/40_get_user_privs/Test get_user_privileges for merged roles',  // temporary disabled till #70191 gets backported
+    'rollup/start_job/Test start job twice'
+
 
   ]+ v7compatiblityNotSupportedTests())
 

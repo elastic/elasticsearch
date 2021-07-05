@@ -796,6 +796,21 @@ You can also manually delete saved synchronous searches using the
 [[eql-circuit-breaker]]
 === EQL circuit breaker settings
 
+When a <<eql-sequences, sequence>> query is executed, the node handling the query,
+needs to keep some structures in memory which are needed by the algorithm which
+implements the sequence matching. When large amounts of data need to be processed,
+and/or a large amount of matched sequences is requested by the user (by setting the
+<<eql-search-api-params-size, size>> query param), the memory occupied by those
+structures could potentially exceed the available memory in the JVM. This would cause
+and `OutOfMemory` exception which would bring down the node.
+
+To prevent this from happening, a special <<circuit-breaker, circuit breaker>> is used,
+which limits the memory allocation during the execution of a <<eql-sequences, sequence>>
+query, so instead of an `OutOfMemory` exception, a `org.elasticsearch.common.breaker.CircuitBreakingException`
+is thrown, and a descriptive error message is returned to the user.
+
+This <<circuit-breaker, circuit breaker>> can be configured using the following settings:
+
 `breaker.eql_sequence.limit`::
 (<<cluster-update-settings,Dynamic>>) The limit for circuit breaker used to restrict
 the memory utilisation during the execution of an EQL sequence query. This value is

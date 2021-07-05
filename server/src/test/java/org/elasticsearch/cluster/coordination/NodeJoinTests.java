@@ -27,6 +27,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -114,8 +115,7 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     private void setupFakeMasterServiceAndCoordinator(long term, ClusterState initialState, NodeHealthService nodeHealthService) {
-        deterministicTaskQueue
-            = new DeterministicTaskQueue(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), random());
+        deterministicTaskQueue = new DeterministicTaskQueue();
         final ThreadPool fakeThreadPool = deterministicTaskQueue.getThreadPool();
         FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService("test_node","test",
             fakeThreadPool, deterministicTaskQueue::scheduleNow);

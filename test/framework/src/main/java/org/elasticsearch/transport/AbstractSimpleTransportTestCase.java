@@ -2711,7 +2711,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     private void closeConnectionChannel(Transport.Connection connection) {
         StubbableTransport.WrappedConnection wrappedConnection = (StubbableTransport.WrappedConnection) connection;
         TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) wrappedConnection.getConnection();
-        CloseableChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
+        CloseableChannel.closeChannelsBlocking(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())));
     }
 
     @SuppressForbidden(reason = "need local ephemeral port")

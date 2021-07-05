@@ -102,28 +102,15 @@ public abstract class NetworkUtils {
     @Deprecated
     // only public because of silly multicast
     public static void sortAddresses(List<InetAddress> list) {
-        Collections.sort(list, new Comparator<InetAddress>() {
-            @Override
-            public int compare(InetAddress left, InetAddress right) {
-                int cmp = Integer.compare(sortKey(left, PREFER_V6), sortKey(right, PREFER_V6));
-                if (cmp == 0) {
-                    cmp = new BytesRef(left.getAddress()).compareTo(new BytesRef(right.getAddress()));
-                }
-                return cmp;
-            }
-        });
+        list.sort(Comparator.comparingInt((InetAddress left) -> sortKey(left, PREFER_V6))
+                .thenComparing(left -> new BytesRef(left.getAddress())));
     }
 
     /** Return all interfaces (and subinterfaces) on the system */
     static List<NetworkInterface> getInterfaces() throws SocketException {
         List<NetworkInterface> all = new ArrayList<>();
         addAllInterfaces(all, Collections.list(NetworkInterface.getNetworkInterfaces()));
-        Collections.sort(all, new Comparator<NetworkInterface>() {
-            @Override
-            public int compare(NetworkInterface left, NetworkInterface right) {
-                return Integer.compare(left.getIndex(), right.getIndex());
-            }
-        });
+        all.sort(Comparator.comparingInt(NetworkInterface::getIndex));
         return all;
     }
 

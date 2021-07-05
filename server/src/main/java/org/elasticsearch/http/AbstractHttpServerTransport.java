@@ -30,6 +30,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
@@ -235,7 +236,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         synchronized (httpServerChannels) {
             if (httpServerChannels.isEmpty() == false) {
                 try {
-                    CloseableChannel.closeChannels(new ArrayList<>(httpServerChannels), true);
+                    CloseableChannel.closeChannelsBlocking(new ArrayList<>(httpServerChannels));
                 } catch (Exception e) {
                     logger.warn("exception while closing channels", e);
                 } finally {
@@ -245,7 +246,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }
 
         try {
-            CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
+            CloseableChannel.closeChannelsBlocking(new ArrayList<>(httpChannels));
         } catch (Exception e) {
             logger.warn("unexpected exception while closing http channels", e);
         }
@@ -299,28 +300,28 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     public void onException(HttpChannel channel, Exception e) {
         if (lifecycle.started() == false) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
-            CloseableChannel.closeChannel(channel);
+            Releasables.close(channel);
             return;
         }
         if (NetworkExceptionHelper.isCloseConnectionException(e)) {
             logger.trace(() -> new ParameterizedMessage(
                 "close connection exception caught while handling client http traffic, closing connection {}", channel), e);
-            CloseableChannel.closeChannel(channel);
+            Releasables.close(channel);
         } else if (NetworkExceptionHelper.isConnectException(e)) {
             logger.trace(() -> new ParameterizedMessage(
                 "connect exception caught while handling client http traffic, closing connection {}", channel), e);
-            CloseableChannel.closeChannel(channel);
+            Releasables.close(channel);
         } else if (e instanceof HttpReadTimeoutException) {
             logger.trace(() -> new ParameterizedMessage("http read timeout, closing connection {}", channel), e);
-            CloseableChannel.closeChannel(channel);
+            Releasables.close(channel);
         } else if (e instanceof CancelledKeyException) {
             logger.trace(() -> new ParameterizedMessage(
                 "cancelled key exception caught while handling client http traffic, closing connection {}", channel), e);
-            CloseableChannel.closeChannel(channel);
+            Releasables.close(channel);
         } else {
             logger.warn(() -> new ParameterizedMessage(
                 "caught exception while handling client http traffic, closing connection {}", channel), e);
-            CloseableChannel.closeChannel(channel);
+            Releasables.close(channel);
         }
     }
 
@@ -531,7 +532,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     private static ActionListener<Void> earlyResponseListener(HttpRequest request, HttpChannel httpChannel) {
         if (HttpUtils.shouldCloseConnection(request)) {
-            return ActionListener.wrap(() -> CloseableChannel.closeChannel(httpChannel));
+            return ActionListener.wrap(() -> Releasables.close(httpChannel));
         } else {
             return NO_OP;
         }

@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.AbstractRestChannel;
@@ -79,7 +78,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
         final ArrayList<Releasable> toClose = new ArrayList<>(3);
         if (HttpUtils.shouldCloseConnection(httpRequest)) {
-            toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
+            toClose.add(() -> Releasables.close(httpChannel));
         }
 
         boolean success = false;

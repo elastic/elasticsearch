@@ -27,8 +27,8 @@ import java.util.Arrays;
 import java.util.Locale;
 
 public class InetAddresses {
-    private static int IPV4_PART_COUNT = 4;
-    private static int IPV6_PART_COUNT = 8;
+    private static final int IPV4_PART_COUNT = 4;
+    private static final int IPV6_PART_COUNT = 8;
 
     public static boolean isInetAddress(String ipString) {
         return ipStringToBytes(ipString) != null;

@@ -189,12 +189,10 @@ public final class NetworkService {
         if ((host.startsWith("#") && host.endsWith("#")) || (host.startsWith("_") && host.endsWith("_"))) {
             final String interfaceSpec = host.substring(1, host.length() - 1);
             // next check any registered custom resolvers if any
-            if (customNameResolvers != null) {
-                for (CustomNameResolver customNameResolver : customNameResolvers) {
-                    InetAddress addresses[] = customNameResolver.resolveIfPossible(interfaceSpec);
-                    if (addresses != null) {
-                        return addresses;
-                    }
+            for (CustomNameResolver customNameResolver : customNameResolvers) {
+                InetAddress[] addresses = customNameResolver.resolveIfPossible(interfaceSpec);
+                if (addresses != null) {
+                    return addresses;
                 }
             }
             switch (interfaceSpec) {

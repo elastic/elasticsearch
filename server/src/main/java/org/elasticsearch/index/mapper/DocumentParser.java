@@ -262,6 +262,7 @@ final class DocumentParser {
         RootObjectMapper root;
         if (dynamicMappers.isEmpty() == false) {
             root = createDynamicUpdate(mappingLookup, dynamicMappers);
+            root.fixRedundantIncludes();
         } else {
             root = mappingLookup.getMapping().getRoot().copyAndReset();
         }

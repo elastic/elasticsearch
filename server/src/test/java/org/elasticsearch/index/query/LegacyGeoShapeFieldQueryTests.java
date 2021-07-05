@@ -12,11 +12,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 
 import java.io.IOException;
 
@@ -39,14 +39,13 @@ public class LegacyGeoShapeFieldQueryTests extends GeoShapeQueryBuilderTests {
 
     @Override
     protected GeoShapeQueryBuilder doCreateTestQueryBuilder(boolean indexedShape) {
-        ShapeType shapeType = ShapeType.randomType(random());
-        ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
+        Geometry geometry = GeometryTestUtils.randomGeometry(false);
         GeoShapeQueryBuilder builder;
         clearShapeFields();
         if (indexedShape == false) {
-            builder = new GeoShapeQueryBuilder(fieldName(), shape);
+            builder = new GeoShapeQueryBuilder(fieldName(), geometry);
         } else {
-            indexedShapeToReturn = shape;
+            indexedShapeToReturn = geometry;
             indexedShapeId = randomAlphaOfLengthBetween(3, 20);
             builder = new GeoShapeQueryBuilder(fieldName(), indexedShapeId);
             if (randomBoolean()) {
@@ -66,7 +65,7 @@ public class LegacyGeoShapeFieldQueryTests extends GeoShapeQueryBuilderTests {
             SpatialStrategy strategy = randomFrom(SpatialStrategy.values());
             // ShapeType.MULTILINESTRING + SpatialStrategy.TERM can lead to large queries and will slow down tests, so
             // we try to avoid that combination
-            while (shapeType == ShapeType.MULTILINESTRING && strategy == SpatialStrategy.TERM) {
+            while (geometry.type() == ShapeType.MULTILINESTRING && strategy == SpatialStrategy.TERM) {
                 strategy = randomFrom(SpatialStrategy.values());
             }
             builder.strategy(strategy);
@@ -82,7 +81,7 @@ public class LegacyGeoShapeFieldQueryTests extends GeoShapeQueryBuilderTests {
     }
 
     public void testInvalidRelation() throws IOException {
-        ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null);
+        Geometry shape = GeometryTestUtils.randomGeometry(false);
         GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
         builder.strategy(SpatialStrategy.TERM);
         expectThrows(IllegalArgumentException.class, () -> builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.WITHIN)));

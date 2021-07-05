@@ -132,11 +132,9 @@ def v7compatiblityNotSupportedTests = {
     'vectors/50_vector_stats/Usage stats on vector fields',
 
     // ML - not needing compatible api
-    // `Remove the ability to update datafeed's job_id`  #44752 not applicable
-    'ml/datafeeds_crud/Test update datafeed to point to different job',
-    'ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed',
-    'ml/datafeeds_crud/Test update datafeed to point to missing job'
-
+    // some are failing due to cat api being called with JSON accept header
+    'ml/*',
+    '_apis/Test cat trained models'
   ]
 }
 
@@ -156,29 +154,6 @@ tasks.named("yamlRestCompatTest").configure {
 //    'indices.freeze/20_stats/Translog stats on frozen indices',
 //    'indices.freeze/30_usage/Usage stats on frozen indices',
 //    'license/30_enterprise_license/Installing enterprise license',
-//    'ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header and column selection',
-//    'ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header',
-//    'ml/data_frame_analytics_cat_apis/Test cat data frame analytics single job with header',
-//    'ml/data_frame_analytics_cat_apis/Test cat data frame analytics single job',
-//    'ml/datafeed_cat_apis/Test cat datafeeds',
-
-
-//    'ml/job_cat_apis/Test cat anomaly detector jobs',
-//    'ml/jobs_crud/Test create job with delimited format',
-//    'ml/jobs_crud/Test update job',
-
-//    'ml/post_data/Test POST data job api, flush, close and verify DataCounts doc',
-//    'ml/post_data/Test flush with skip_time',
-//    'ml/set_upgrade_mode/Setting upgrade mode to disabled from enabled',
-//    'ml/set_upgrade_mode/Setting upgrade_mode to enabled',
-//    'ml/set_upgrade_mode/Test setting upgrade_mode to false when it is already false',
-//    'ml/trained_model_cat_apis/Test cat trained models',
-
-    // fixed by using cannonical in JsonDataToProcessWriter
-//    'ml/jobs_get_stats/Test get job stats after uploading data prompting the creation of some stats',
-//    'ml/jobs_get_stats/Test get job stats for closed job',
-//    'ml/jobs_get_stats/Test no exception on get job stats with missing index',
-
 
 //    'roles/11_idx_arrays/Test put role api using as array of index names',
 //    'roles/30_prohibited_role_query/Test use prohibited query inside role query',

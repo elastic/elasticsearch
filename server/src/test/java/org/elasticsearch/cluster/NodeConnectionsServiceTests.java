@@ -15,11 +15,9 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -27,6 +25,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -58,10 +58,8 @@ import java.util.function.Predicate;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING;
-import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NodeConnectionsServiceTests extends ESTestCase {
@@ -160,8 +158,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             settings.put(CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), reconnectIntervalMillis + "ms");
         }
 
-        final DeterministicTaskQueue deterministicTaskQueue
-            = new DeterministicTaskQueue(builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random());
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         MockTransport transport = new MockTransport(deterministicTaskQueue.getThreadPool());
         TestTransportService transportService = new TestTransportService(transport, deterministicTaskQueue.getThreadPool());
@@ -297,8 +294,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
     @TestLogging(reason="testing that DEBUG-level logging is reasonable", value="org.elasticsearch.cluster.NodeConnectionsService:DEBUG")
     public void testDebugLogging() throws IllegalAccessException {
-        final DeterministicTaskQueue deterministicTaskQueue
-            = new DeterministicTaskQueue(builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random());
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         MockTransport transport = new MockTransport(deterministicTaskQueue.getThreadPool());
         TestTransportService transportService = new TestTransportService(transport, deterministicTaskQueue.getThreadPool());

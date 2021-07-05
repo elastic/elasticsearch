@@ -1151,14 +1151,14 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(plan.output(), ((LocalRelation) optimized).executable().output());
     }
 
-    public void testSkipQueryForOnlyConstantAggregations() {
+    public void testSkipQueryForOnlyLiteralAggregations() {
         Aggregate plan = new Aggregate(EMPTY,
             new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false),
             emptyList(),
             singletonList(new Alias(EMPTY, "a", TRUE))
         );
 
-        LogicalPlan optimized = new Optimizer.SkipQueryForOnlyConstantAggregations().apply(plan);
+        LogicalPlan optimized = new Optimizer.SkipQueryForOnlyLiteralAggregations().apply(plan);
 
         optimized.forEachDown(LeafPlan.class, l -> {
             assertEquals(LocalRelation.class, l.getClass());
@@ -1174,7 +1174,7 @@ public class OptimizerTests extends ESTestCase {
                 new IsNull(EMPTY, getFieldAttribute("col"))),
             singletonList(new Alias(EMPTY, "a", TRUE)));
 
-        LogicalPlan optimized = new Optimizer.SkipQueryForOnlyConstantAggregations().apply(plan);
+        LogicalPlan optimized = new Optimizer.SkipQueryForOnlyLiteralAggregations().apply(plan);
 
         optimized.forEachDown(LeafPlan.class, l -> {
             assertEquals(EsRelation.class, l.getClass());

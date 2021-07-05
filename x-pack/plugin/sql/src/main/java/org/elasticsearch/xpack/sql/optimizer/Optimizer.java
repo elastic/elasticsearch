@@ -131,20 +131,16 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceReferenceAttributeWithSource()
                 );
 
-        Batch pushDownFilters = new Batch("Push down filters",
-                // must happen in a batch before ReplaceAggregationsOnLocalRelations
-                new PushDownAndCombineFilters());
-
         Batch operators = new Batch("Operator Optimization",
                 // combining
                 new CombineProjections(),
                 // folding
                 new ReplaceFoldableAttributes(),
                 new FoldNull(),
+                new ReplaceAggregationsInLocalRelations(),
                 new ConstantFolding(),
                 new SimplifyConditional(),
                 new SimplifyCase(),
-                new ReplaceAggregationsInLocalRelations(),
                 // boolean
                 new BooleanSimplification(),
                 new LiteralsOnTheRight(),
@@ -163,7 +159,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PruneOrderByNestedFields(),
                 new PruneCast(),
                 // order by alignment of the aggs
-                new SortAggregateOnOrderBy()
+                new SortAggregateOnOrderBy(),
+                // ReplaceAggregationsInLocalRelations, ConstantFolding and PruneFilters must all be applied before this:
+                new PushDownAndCombineFilters()
         );
 
         Batch aggregate = new Batch("Aggregation Rewrite",
@@ -179,7 +177,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         Batch local = new Batch("Skip Elasticsearch",
                 new SkipQueryOnLimitZero(),
-                new SkipQueryForOnlyConstantAggregations(),
+                new SkipQueryForOnlyLiteralAggregations(),
                 new PushProjectionsIntoLocalRelation(),
                 // must run after `PushProjectionsIntoLocalRelation` because it removes the the distinction between implicit
                 // and explicit groupings
@@ -190,7 +188,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 CleanAliases.INSTANCE,
                 new SetAsOptimized());
 
-        return Arrays.asList(substitutions, refs, pushDownFilters, operators, aggregate, local, label);
+        return Arrays.asList(substitutions, refs, operators, aggregate, local, label);
     }
 
     static class RewritePivot extends OptimizerRule<Pivot> {
@@ -852,22 +850,18 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(UnaryPlan plan) {
-            if (plan instanceof Aggregate || plan instanceof Filter) {
-                // This optimization is only correct if `plan` has a LocalRelation descendant that is not filtered.
-                // Because PushDownAndCombineFilters might push down filters to become descendants of `plan`, this optimization
-                // must never run before PushDownAndCombineFilters.
+            if (plan instanceof Aggregate || plan instanceof Filter || plan instanceof OrderBy) {
                 LocalRelation relation = unfilteredLocalRelation(plan.child());
                 if (relation != null) {
                     long count = (relation.executable() instanceof EmptyExecutable ? 0L : 1L);
 
                     return plan.transformExpressionsDown(AggregateFunction.class, aggregateFunction -> {
                         if (aggregateFunction instanceof Count) {
-                            return new Literal(Source.EMPTY, count, DataTypes.LONG);
+                            return Literal.of(aggregateFunction, count);
                         } else if (count == 0) {
-                            return new Literal(Source.EMPTY, null, aggregateFunction.dataType());
+                            return Literal.of(aggregateFunction, null);
                         } else {
-                            // note, most aggregation functions have already been substituted by something like
-                            // IIF(COUNT(1) == 0, literal, literal) in ReplaceAggregatesWithLiterals
+                            // note, most aggregation functions have already been substituted in ReplaceAggregatesWithLiterals
                             return aggregateFunction;
                         }
                     });
@@ -1192,11 +1186,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                 List<Object> foldedValues = null;
 
-                if(relation.executable() instanceof SingletonExecutable) {
-                    if(plan instanceof Project){
-                        foldedValues = extractConstants(((Project) plan).projections());
+                if (relation.executable() instanceof SingletonExecutable) {
+                    if (plan instanceof Project) {
+                        foldedValues = extractLiterals(((Project) plan).projections());
                     } else {
-                        foldedValues = extractConstants(((Aggregate)plan).aggregates());
+                        foldedValues = extractLiterals(((Aggregate) plan).aggregates());
                     }
                 } else if (relation.executable() instanceof EmptyExecutable) {
                     if (plan instanceof Aggregate) {
@@ -1204,7 +1198,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         if (agg.groupings().isEmpty()) {
                             // Implicit groupings on empty relations must produce a singleton result set with the aggregation results
                             // E.g. `SELECT COUNT(*) WHERE FALSE`
-                            foldedValues = extractConstants(agg.aggregates());
+                            foldedValues = extractLiterals(agg.aggregates());
                         } else {
                             // Explicit groupings on empty relations like `SELECT 'a' WHERE FALSE GROUP BY 1`
                             return new LocalRelation(plan.source(), new EmptyExecutable(plan.output()));
@@ -1221,7 +1215,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return plan;
         }
 
-        private List<Object> extractConstants(List<? extends NamedExpression> named) {
+        private List<Object> extractLiterals(List<? extends NamedExpression> named) {
             List<Object> values = new ArrayList<>();
             for (NamedExpression n : named) {
                 if (n instanceof Alias) {
@@ -1245,7 +1239,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     }
 
-    static class SkipQueryForOnlyConstantAggregations extends OptimizerRule<Aggregate> {
+    static class SkipQueryForOnlyLiteralAggregations extends OptimizerRule<Aggregate> {
 
         @Override
         protected LogicalPlan rule(Aggregate plan) {

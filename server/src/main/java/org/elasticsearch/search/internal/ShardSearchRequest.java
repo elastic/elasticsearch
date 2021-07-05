@@ -406,9 +406,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             if (differentiator != null) {
                 differentiator.accept(this, out);
             }
-            // copy it over since we don't want to share the thread-local bytes in #scratch
-            BytesReference bytesReference = out.copyBytes();
-            return new BytesArray(sha256().digest(bytesReference.array()));
+            return new BytesArray(sha256().digest(out.bytes().array()));
         } finally {
             out.reset();
         }

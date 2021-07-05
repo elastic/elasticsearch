@@ -53,16 +53,18 @@ public class NerProcessorTests extends ESTestCase {
         };
 
         List<String> classLabels = Arrays.stream(tags).map(NerProcessor.IobTag::toString).collect(Collectors.toList());
+        NlpTaskConfig config = NlpTaskConfig.builder().setClassificationLabels(classLabels).build();
 
-        ValidationException ve = expectThrows(ValidationException.class, () -> new NerProcessor(mock(BertTokenizer.class), classLabels));
+        ValidationException ve = expectThrows(ValidationException.class, () -> new NerProcessor(mock(BertTokenizer.class), config));
         assertThat(ve.getMessage(),
             containsString("the classification label [B_MISC] is duplicated in the list [I_MISC, B_MISC, B_MISC, O]"));
     }
 
     public void testValidate_NotAEntityLabel() {
         List<String> classLabels = List.of("foo", NerProcessor.IobTag.B_MISC.toString());
+        NlpTaskConfig config = NlpTaskConfig.builder().setClassificationLabels(classLabels).build();
 
-        ValidationException ve = expectThrows(ValidationException.class, () -> new NerProcessor(mock(BertTokenizer.class), classLabels));
+        ValidationException ve = expectThrows(ValidationException.class, () -> new NerProcessor(mock(BertTokenizer.class), config));
         assertThat(ve.getMessage(), containsString("classification label [foo] is not an entity I-O-B tag"));
         assertThat(ve.getMessage(),
             containsString("Valid entity I-O-B tags are [O, B_MISC, I_MISC, B_PER, I_PER, B_ORG, I_ORG, B_LOC, I_LOC]"));

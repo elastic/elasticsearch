@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
@@ -23,11 +24,15 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
     static final String ARG2 = "arg_2";
     static final String ARG3 = "arg_3";
 
+    public static final int DEFAULT_MAX_SEQUENCE_LENGTH = 512;
+
     private final BertTokenizer tokenizer;
     private BertTokenizer.TokenizationResult tokenization;
+    private final int maxSequenceLength;
 
-    public BertRequestBuilder(BertTokenizer tokenizer) {
+    public BertRequestBuilder(BertTokenizer tokenizer, NlpTaskConfig config) {
         this.tokenizer = tokenizer;
+        this.maxSequenceLength = config.getMaxSequenceLength() == null ? DEFAULT_MAX_SEQUENCE_LENGTH : config.getMaxSequenceLength();
     }
 
     public BertTokenizer.TokenizationResult getTokenization() {
@@ -37,6 +42,10 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
     @Override
     public BytesReference buildRequest(String input, String requestId) throws IOException {
         tokenization = tokenizer.tokenize(input);
+        if (tokenization.getTokenIds().length > maxSequenceLength) {
+            throw ExceptionsHelper.badRequestException(
+                "Input too large. The tokenized length exceeds the maximum sequence length [{}]", maxSequenceLength);
+        }
         return jsonRequest(tokenization.getTokenIds(), requestId);
     }
 

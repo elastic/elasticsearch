@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
@@ -65,10 +64,10 @@ public class NerProcessor implements NlpTask.Processor {
     private final BertRequestBuilder bertRequestBuilder;
     private final IobTag[] iobMap;
 
-    NerProcessor(BertTokenizer tokenizer, @Nullable List<String> classificationLabels) {
-        this.bertRequestBuilder = new BertRequestBuilder(tokenizer);
-        validate(classificationLabels);
-        iobMap = buildIobMap(classificationLabels);
+    NerProcessor(BertTokenizer tokenizer, NlpTaskConfig config) {
+        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config);
+        validate(config.getClassificationLabels());
+        iobMap = buildIobMap(config.getClassificationLabels());
     }
 
     /**

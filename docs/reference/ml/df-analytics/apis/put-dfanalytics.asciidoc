@@ -332,7 +332,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 //Begin regression
 `regression`:::
 (Required^*^, object)
-The configuration information necessary to perform {regression:}
+The configuration information necessary to perform {regression}:
 // {ml-docs}/ml-dfa-regression.html[{regression}].
 +
 TIP: Advanced parameters are for fine-tuning {reganalysis}. They are set

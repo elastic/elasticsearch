@@ -44,6 +44,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -195,6 +196,13 @@ public class ResetElasticPasswordToolTests extends CommandTestCase {
         assertThat(e.exitCode, equalTo(ExitCodes.USAGE));
         assertThat(e.getMessage(), equalTo("You can only run the tool in one of [auto] or [interactive] modes"));
         assertThat(terminal.getOutput(), is(emptyString()));
+    }
+
+    public void testAutoBatchSilent() throws Exception {
+        execute(randomFrom("--silent", "-s"), randomFrom("--batch", "-b"));
+        String output = terminal.getOutput();
+        assertThat(output, hasLength(21)); // password + new line char
+        assertThat(terminal.getErrorOutput(), is(emptyString()));
     }
 
     private URL changePasswordUrl(URL url) throws MalformedURLException, URISyntaxException {

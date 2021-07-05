@@ -98,7 +98,8 @@ public class ResetElasticPasswordTool extends BaseRunAsSuperuserCommand {
                     terminal.println("Password for the elastic user successfully reset.");
                 } else {
                     terminal.println("Password for the elastic user successfully reset.");
-                    terminal.println("New value: " + elasticPassword);
+                    terminal.print(Terminal.Verbosity.NORMAL,"New value: ");
+                    terminal.println(Terminal.Verbosity.SILENT, elasticPassword.toString());
                 }
             }
         } catch (Exception e) {

@@ -32,18 +32,23 @@ public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
     static final List<String> ALLOWED_SCOPES = List.of("node", "kibana");
 
     CreateEnrollmentTokenTool() {
-        this(environment -> new CommandLineHttpClient(environment),
+        this(
+            environment -> new CommandLineHttpClient(environment),
             environment -> KeyStoreWrapper.load(environment.configFile()),
-            environment -> new CreateEnrollmentToken(environment));
+            environment -> new CreateEnrollmentToken(environment)
+        );
     }
 
-    CreateEnrollmentTokenTool(Function<Environment, CommandLineHttpClient> clientFunction,
+    CreateEnrollmentTokenTool(
+        Function<Environment, CommandLineHttpClient> clientFunction,
         CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction,
-        CheckedFunction<Environment, CreateEnrollmentToken, Exception> createEnrollmentTokenFunction) {
+        CheckedFunction<Environment, CreateEnrollmentToken, Exception> createEnrollmentTokenFunction
+    ) {
         super(clientFunction, keyStoreFunction);
         this.createEnrollmentTokenFunction = createEnrollmentTokenFunction;
-        scope = parser.acceptsAll(List.of("scope", "s"),  "The scope of this enrollment token, can be either \"node\" or \"kibana\"")
-            .withRequiredArg().required();
+        scope = parser.acceptsAll(List.of("scope", "s"), "The scope of this enrollment token, can be either \"node\" or \"kibana\"")
+            .withRequiredArg()
+            .required();
     }
 
     public static void main(String[] args) throws Exception {
@@ -52,13 +57,15 @@ public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
 
     @Override
     protected void validate(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        if (XPackSettings.ENROLLMENT_ENABLED.get(env.settings()) == false){
-            throw new UserException(ExitCodes.CONFIG,
-                "[xpack.security.enrollment.enabled] must be set to `true` to create an enrollment token");
+        if (XPackSettings.ENROLLMENT_ENABLED.get(env.settings()) == false) {
+            throw new UserException(
+                ExitCodes.CONFIG,
+                "[xpack.security.enrollment.enabled] must be set to `true` to create an enrollment token"
+            );
         }
         final String tokenScope = scope.value(options);
         if (ALLOWED_SCOPES.contains(tokenScope) == false) {
-            terminal.errorPrintln("The scope of this enrollment token, can only be one of "+ ALLOWED_SCOPES);
+            terminal.errorPrintln("The scope of this enrollment token, can only be one of " + ALLOWED_SCOPES);
             throw new UserException(ExitCodes.USAGE, "Invalid scope");
         }
     }
@@ -75,7 +82,7 @@ public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
                 terminal.println(createEnrollmentTokenService.createKibanaEnrollmentToken(username, password));
             }
         } catch (Exception e) {
-            terminal.errorPrintln("Unable to create enrollment token for scope [" + tokenScope +"]");
+            terminal.errorPrintln("Unable to create enrollment token for scope [" + tokenScope + "]");
             throw new UserException(ExitCodes.CANT_CREATE, e.getMessage(), e.getCause());
         }
     }

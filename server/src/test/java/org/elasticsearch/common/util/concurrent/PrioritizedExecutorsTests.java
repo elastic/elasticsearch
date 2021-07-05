@@ -341,10 +341,10 @@ public class PrioritizedExecutorsTests extends ESTestCase {
 
         terminate(executor);
 
-        // queue was observed empty when the AwaitingJob started and before and after the last numbered Job
+        // queue was observed empty when the blocking job started and before and after the last numbered Job
         assertThat(emptyQueueCount.get(), equalTo(3));
 
-        // queue was observed nonempty after AwaitingJob and all but the last numbered Job
+        // queue was observed nonempty after the blocking job and all but the last numbered Job
         // NB it was also nonempty before each Job but the last, but this doesn't result in notifications
         assertThat(nonemptyQueueCount.get(), equalTo(jobCount));
     }

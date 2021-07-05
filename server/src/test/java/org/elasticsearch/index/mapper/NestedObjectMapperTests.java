@@ -930,8 +930,8 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.startObject("object").endObject()));
 
-        merge(mapperService, Strings.toString(doc.dynamicMappingsUpdate()));
-        merge(mapperService, Strings.toString(doc.dynamicMappingsUpdate()));
+        merge("_doc", mapperService, Strings.toString(doc.dynamicMappingsUpdate()));
+        merge("_doc", mapperService, Strings.toString(doc.dynamicMappingsUpdate()));
 
         assertThat(
             Strings.toString(mapperService.documentMapper().mapping()),

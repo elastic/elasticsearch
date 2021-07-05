@@ -1015,13 +1015,13 @@ public class MasterServiceTests extends ESTestCase {
                 await.run();
             };
 
-            final ClusterStateUpdateTask starvingTask = new ClusterStateUpdateTask(Priority.HIGH) {
+            final ClusterStateUpdateTask starvationCausingTask = new ClusterStateUpdateTask(Priority.HIGH) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     await.run();
                     relativeTimeInMillis += taskDurationMillis;
                     if (keepRunning.get()) {
-                        masterService.submitStateUpdateTask("starving task", this);
+                        masterService.submitStateUpdateTask("starvation-causing task", this);
                     }
                     await.run();
                     return currentState;
@@ -1032,7 +1032,7 @@ public class MasterServiceTests extends ESTestCase {
                     fail();
                 }
             };
-            masterService.submitStateUpdateTask("starving task", starvingTask);
+            masterService.submitStateUpdateTask("starvation-causing task", starvationCausingTask);
 
             final CountDownLatch starvedTaskExecuted = new CountDownLatch(1);
             masterService.submitStateUpdateTask("starved task", new ClusterStateUpdateTask(Priority.NORMAL) {

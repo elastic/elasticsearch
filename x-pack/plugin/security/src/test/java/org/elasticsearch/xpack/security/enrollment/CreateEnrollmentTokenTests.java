@@ -373,7 +373,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
 
         final List<String> invalid_addresses = Arrays.asList("nldfnbndflbnl");
         UnknownHostException ex = expectThrows(UnknownHostException.class, () -> getFilteredAddresses(invalid_addresses));
-        assertThat(ex.getMessage(), Matchers.containsString("nldfnbndflbnl:"));
+        assertThat(ex.getMessage(), Matchers.containsString("nldfnbndflbnl"));
     }
 
     private Map<String, String> getDecoded(String token) throws IOException {

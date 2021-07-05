@@ -93,10 +93,17 @@ public final class DocumentParser {
             throw new IllegalStateException("found leftover path elements: " + remainingPath);
         }
 
-        context.postParse();
-
-        return parsedDocument(source, context, createDynamicUpdate(mappingLookup,
-            context.getDynamicMappers(), context.getDynamicRuntimeFields()));
+        return new ParsedDocument(
+            context.version(),
+            context.seqID(),
+            context.sourceToParse().id(),
+            source.routing(),
+            context.reorderParentAndGetDocs(),
+            context.sourceToParse().source(),
+            context.sourceToParse().getXContentType(),
+            createDynamicUpdate(mappingLookup,
+                context.getDynamicMappers(), context.getDynamicRuntimeFields())
+        );
     }
 
     private static boolean containsDisabledObjectMapper(ObjectMapper objectMapper, String[] subfields) {
@@ -185,19 +192,6 @@ public final class DocumentParser {
         if (token != null) {
             throw new IllegalArgumentException("Malformed content, found extra data after parsing: " + token);
         }
-    }
-
-    private static ParsedDocument parsedDocument(SourceToParse source, InternalParseContext context, Mapping update) {
-        return new ParsedDocument(
-            context.version(),
-            context.seqID(),
-            context.sourceToParse().id(),
-            source.routing(),
-            context.docs(),
-            context.sourceToParse().source(),
-            context.sourceToParse().getXContentType(),
-            update
-        );
     }
 
     private static boolean isEmptyDoc(RootObjectMapper root, XContentParser parser) throws IOException {
@@ -975,6 +969,10 @@ public final class DocumentParser {
         }
     }
 
+    /**
+     * Internal version of {@link ParseContext} that is aware of implementation details like nested documents
+     * and how they are stored in the lucene index.
+     */
     private static class InternalParseContext extends ParseContext {
         private final ContentPath path = new ContentPath(0);
         private final XContentParser parser;
@@ -1038,35 +1036,27 @@ public final class DocumentParser {
             return documents.subList(1, documents.size());
         }
 
-        private List<LuceneDocument> docs() {
-            return this.documents;
-        }
-
-        void postParse() {
-            if (documents.size() > 1) {
-                docsReversed = true;
-                // We preserve the order of the children while ensuring that parents appear after them.
-                List<LuceneDocument> newDocs = reorderParent(documents);
-                documents.clear();
-                documents.addAll(newDocs);
-            }
-        }
-
         /**
          * Returns a copy of the provided {@link List} where parent documents appear
          * after their children.
          */
-        private static List<LuceneDocument> reorderParent(List<LuceneDocument> docs) {
-            List<LuceneDocument> newDocs = new ArrayList<>(docs.size());
-            LinkedList<LuceneDocument> parents = new LinkedList<>();
-            for (LuceneDocument doc : docs) {
-                while (parents.peek() != doc.getParent()){
-                    newDocs.add(parents.poll());
+        private List<LuceneDocument> reorderParentAndGetDocs() {
+            if (documents.size() > 1 && docsReversed == false) {
+                docsReversed = true;
+                // We preserve the order of the children while ensuring that parents appear after them.
+                List<LuceneDocument> newDocs = new ArrayList<>(documents.size());
+                LinkedList<LuceneDocument> parents = new LinkedList<>();
+                for (LuceneDocument doc : documents) {
+                    while (parents.peek() != doc.getParent()){
+                        newDocs.add(parents.poll());
+                    }
+                    parents.add(0, doc);
                 }
-                parents.add(0, doc);
+                newDocs.addAll(parents);
+                documents.clear();
+                documents.addAll(newDocs);
             }
-            newDocs.addAll(parents);
-            return newDocs;
+            return documents;
         }
     }
 }

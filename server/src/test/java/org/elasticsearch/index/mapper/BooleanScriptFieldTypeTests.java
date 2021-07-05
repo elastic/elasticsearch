@@ -310,35 +310,10 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             SourceToParse sourceToParse = new SourceToParse("test", "test", new BytesArray(source), XContentType.JSON);
             LuceneDocument doc = new LuceneDocument();
             doc.add(new StoredField("_source", new BytesRef(source)));
-            ParseContext ctx = new ParseContext(null, null, null, null, sourceToParse) {
-                @Override
-                public Iterable<LuceneDocument> nonRootDocuments() {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public ContentPath path() {
-                    throw new UnsupportedOperationException();
-                }
-
+            ParseContext ctx = new TestParseContext(null, null, null, null, sourceToParse) {
                 @Override
                 public XContentParser parser() {
                     return parser;
-                }
-
-                @Override
-                public LuceneDocument rootDoc() {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public LuceneDocument doc() {
-                    return doc;
-                }
-
-                @Override
-                protected void addDoc(LuceneDocument doc) {
-                    throw new UnsupportedOperationException();
                 }
             };
 

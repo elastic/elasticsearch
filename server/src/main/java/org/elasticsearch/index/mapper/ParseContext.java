@@ -24,10 +24,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+/**
+ * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
+ * the lucene data structures and mappings to be dynamically created as the outcome of parsing a document.
+ */
 public abstract class ParseContext {
 
+    /**
+     * Wraps a given context while allowing to override some of its behaviour by re-implementing some of the non final methods
+     */
     private static class FilterParseContext extends ParseContext {
-
         private final ParseContext in;
 
         private FilterParseContext(ParseContext in) {
@@ -90,7 +96,7 @@ public abstract class ParseContext {
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
 
-    protected ParseContext(ParseContext in) {
+    private ParseContext(ParseContext in) {
         this.mappingLookup = in.mappingLookup;
         this.indexSettings = in.indexSettings;
         this.indexAnalyzers = in.indexAnalyzers;

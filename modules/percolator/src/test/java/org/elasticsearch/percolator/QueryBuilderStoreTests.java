@@ -21,7 +21,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
@@ -29,6 +28,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TestParseContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.mock.orig.Mockito;
@@ -68,37 +68,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 for (int i = 0; i < queryBuilders.length; i++) {
                     queryBuilders[i] = new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(8));
                     LuceneDocument doc = new LuceneDocument();
-                    ParseContext parseContext = new ParseContext(null, null, null, null, null) {
-                        @Override
-                        public Iterable<LuceneDocument> nonRootDocuments() {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
-                        public ContentPath path() {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
-                        public XContentParser parser() {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
-                        public LuceneDocument rootDoc() {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
-                        public LuceneDocument doc() {
-                            return doc;
-                        }
-
-                        @Override
-                        protected void addDoc(LuceneDocument doc) {
-                            throw new UnsupportedOperationException();
-                        }
-                    };
+                    ParseContext parseContext = new TestParseContext();
                     PercolatorFieldMapper.createQueryBuilderField(version,
                         fieldMapper, queryBuilders[i], parseContext);
                     indexWriter.addDocument(doc);

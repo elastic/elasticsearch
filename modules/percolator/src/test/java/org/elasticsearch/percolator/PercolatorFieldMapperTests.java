@@ -44,21 +44,17 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TestParseContext;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -176,7 +172,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper documentMapper = mapperService.documentMapper();
         PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
-        ParseContext parseContext = new TestParseContext(documentMapper.mappers(), mapperService.getIndexSettings(), null);
+        ParseContext parseContext = new TestParseContext();
         fieldMapper.processQuery(bq.build(), parseContext);
         LuceneDocument document = parseContext.doc();
 
@@ -197,7 +193,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         bq.add(termQuery1, Occur.MUST);
         bq.add(termQuery2, Occur.MUST);
 
-        parseContext = new TestParseContext(documentMapper.mappers(), mapperService.getIndexSettings(), null);
+        parseContext = new TestParseContext();
         fieldMapper.processQuery(bq.build(), parseContext);
         document = parseContext.doc();
 
@@ -226,7 +222,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper documentMapper = mapperService.documentMapper();
         PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
-        ParseContext parseContext = new TestParseContext(documentMapper.mappers(), mapperService.getIndexSettings(), null);
+        ParseContext parseContext = new TestParseContext();
         fieldMapper.processQuery(bq.build(), parseContext);
         LuceneDocument document = parseContext.doc();
 
@@ -251,7 +247,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             .rangeQuery(15, 20, true, true, null, null, null, context);
         bq.add(rangeQuery2, Occur.MUST);
 
-        parseContext = new TestParseContext(documentMapper.mappers(), mapperService.getIndexSettings(), null);
+        parseContext = new TestParseContext();
         fieldMapper.processQuery(bq.build(), parseContext);
         document = parseContext.doc();
 
@@ -274,7 +270,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         TermRangeQuery query = new TermRangeQuery("field1", new BytesRef("a"), new BytesRef("z"), true, true);
         DocumentMapper documentMapper = mapperService.documentMapper();
         PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
-        ParseContext parseContext = new TestParseContext(documentMapper.mappers(), mapperService.getIndexSettings(), null);
+        ParseContext parseContext = new TestParseContext();
         fieldMapper.processQuery(query, parseContext);
         LuceneDocument document = parseContext.doc();
 
@@ -288,7 +284,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         PhraseQuery phraseQuery = new PhraseQuery("field", "term");
         DocumentMapper documentMapper = mapperService.documentMapper();
         PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
-        ParseContext parseContext = new TestParseContext(documentMapper.mappers(), mapperService.getIndexSettings(), null);
+        ParseContext parseContext = new TestParseContext();
         fieldMapper.processQuery(phraseQuery, parseContext);
         LuceneDocument document = parseContext.doc();
 
@@ -924,45 +920,6 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         @Override
         public String pluginScriptLang() {
             return Script.DEFAULT_SCRIPT_LANG;
-        }
-    }
-
-    private static class TestParseContext extends ParseContext {
-        private final ContentPath contentPath = new ContentPath(0);
-        private final LuceneDocument document = new LuceneDocument();
-
-        protected TestParseContext(MappingLookup mappingLookup, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers) {
-            super(mappingLookup, indexSettings, indexAnalyzers, null, null);
-        }
-
-        @Override
-        public Iterable<LuceneDocument> nonRootDocuments() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public ContentPath path() {
-            return contentPath;
-        }
-
-        @Override
-        public XContentParser parser() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public LuceneDocument rootDoc() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public LuceneDocument doc() {
-            return document;
-        }
-
-        @Override
-        protected void addDoc(LuceneDocument doc) {
-            throw new UnsupportedOperationException();
         }
     }
 }

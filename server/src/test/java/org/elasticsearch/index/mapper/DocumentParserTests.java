@@ -607,41 +607,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     // creates an object mapper, which is about 100x harder than it should be....
-    ObjectMapper createObjectMapper(MapperService mapperService, String name) {
-        DocumentMapper docMapper = mapperService.documentMapper();
-        ParseContext context = new ParseContext(docMapper.mappers(), mapperService.getIndexSettings(), null, null, null) {
-            private final ContentPath contentPath = new ContentPath(0);
-
-            @Override
-            public Iterable<LuceneDocument> nonRootDocuments() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public ContentPath path() {
-                return contentPath;
-            }
-
-            @Override
-            public XContentParser parser() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public LuceneDocument rootDoc() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public LuceneDocument doc() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            protected void addDoc(LuceneDocument doc) {
-                throw new UnsupportedOperationException();
-            }
-        };
+    private static ObjectMapper createObjectMapper(String name) {
+        ParseContext context = new TestParseContext();
         String[] nameParts = name.split("\\.");
         for (int i = 0; i < nameParts.length - 1; ++i) {
             context.path().add(nameParts[i]);
@@ -743,8 +710,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService();
         DocumentMapper docMapper = mapperService.documentMapper();
         List<Mapper> updates = new ArrayList<>();
-        updates.add(createObjectMapper(mapperService, "foo"));
-        updates.add(createObjectMapper(mapperService, "foo.bar"));
+        updates.add(createObjectMapper("foo"));
+        updates.add(createObjectMapper("foo.bar"));
         updates.add(new MockFieldMapper("foo.bar.baz"));
         updates.add(new MockFieldMapper("foo.field"));
         Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mappers(), updates, Collections.emptyList());

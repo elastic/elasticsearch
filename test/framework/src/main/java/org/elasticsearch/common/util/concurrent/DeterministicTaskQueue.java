@@ -6,14 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.cluster.coordination;
+package org.elasticsearch.common.util.concurrent;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -34,9 +36,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+
+/**
+ * Permits the testing of async processes by interleaving all the tasks on a single thread in a pseudo-random (deterministic) fashion,
+ * letting each task spawn future tasks, and simulating the passage of time. Tasks can be scheduled directly via {@link #scheduleNow} and
+ * {@link #scheduleAt}, or can be executed using the thread pool returned from {@link #getThreadPool}. The scheduling of tasks can be
+ * made more variable with {@link #setExecutionDelayVariabilityMillis} to simulate a system that is not running tasks in a timely fashion
+ * e.g. due to overload or network delays.
+ */
 public class DeterministicTaskQueue {
 
     private static final Logger logger = LogManager.getLogger(DeterministicTaskQueue.class);
+
+    public static final String NODE_ID_LOG_CONTEXT_KEY = "nodeId";
 
     private final Settings settings;
     private final List<Runnable> runnableTasks = new ArrayList<>();
@@ -50,6 +63,13 @@ public class DeterministicTaskQueue {
     public DeterministicTaskQueue(Settings settings, Random random) {
         this.settings = settings;
         this.random = random;
+    }
+
+    public DeterministicTaskQueue() {
+        this(
+            // the node name is required by the thread pool but is unused since the thread pool in question doesn't create any threads
+            Settings.builder().put(NODE_NAME_SETTING.getKey(), "deterministic-task-queue").build(),
+            ESTestCase.random());
     }
 
     public long getExecutionDelayVariabilityMillis() {
@@ -496,4 +516,26 @@ public class DeterministicTaskQueue {
                 '}';
         }
     }
+
+    public static String getNodeIdForLogContext(DiscoveryNode node) {
+        return "{" + node.getId() + "}{" + node.getEphemeralId() + "}";
+    }
+
+    public static Runnable onNodeLog(DiscoveryNode node, Runnable runnable) {
+        final String nodeId = getNodeIdForLogContext(node);
+        return new Runnable() {
+            @Override
+            public void run() {
+                try (CloseableThreadContext.Instance ignored = CloseableThreadContext.put(NODE_ID_LOG_CONTEXT_KEY, nodeId)) {
+                    runnable.run();
+                }
+            }
+
+            @Override
+            public String toString() {
+                return nodeId + ": " + runnable.toString();
+            }
+        };
+    }
+
 }

@@ -796,19 +796,19 @@ You can also manually delete saved synchronous searches using the
 [[eql-circuit-breaker]]
 === EQL circuit breaker settings
 
-`breaker.eql.limit`::
+`breaker.eql_sequence.limit`::
 (<<cluster-update-settings,Dynamic>>) The limit for circuit breaker used to restrict
 the memory utilisation during the execution of an EQL sequence query. This value is
 defined as a percentage of the JVM heap. Defaults to `50%`. If the
 <<parent-circuit-breaker,parent circuit breaker>> is set to a value less than `50%`,
 this setting uses that value as its default instead.
 
-`breaker.eql.overhead`::
+`breaker.eql_sequence.overhead`::
 (<<cluster-update-settings,Dynamic>>) A constant which all computed memory required
 for the execution of an EQL query is multiplied by to determine a final estimation.
 See <<circuit-breaker>>. Defaults to `1`.
 
-`breaker.eql.type`::
+`breaker.eql_sequence.type`::
 (<<static-cluster-setting,Static>>) The underlying type of the circuit breaker.
 There are two valid options: `noop` and `memory`. `noop` means the circuit
 breaker does nothing to prevent too much memory usage. `memory` means the

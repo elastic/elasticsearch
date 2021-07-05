@@ -9,87 +9,84 @@
 package org.elasticsearch.common.ssl;
 
 import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.X509ExtendedKeyManager;
+import javax.net.ssl.TrustManagerFactory;
 import java.nio.file.Path;
-import java.security.GeneralSecurityException;
 import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.UnrecoverableKeyException;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Enumeration;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * A {@link SslKeyConfig} that builds a Key Manager from a keystore file.
  */
-public class StoreKeyConfig implements SslKeyConfig {
-    private final Path path;
-    private final char[] storePassword;
+public class StoreKeyConfig extends SslKeystoreConfig {
+    private final String keystorePath;
     private final String type;
-    private final char[] keyPassword;
-    private final String algorithm;
 
     /**
      * @param path          The path to the keystore file
      * @param storePassword The password for the keystore
      * @param type          The {@link KeyStore#getType() type} of the keystore (typically "PKCS12" or "jks").
-     *                      See {@link KeyStoreUtil#inferKeyStoreType(Path)}.
+     *                      See {@link KeyStoreUtil#inferKeyStoreType}.
      * @param keyPassword   The password for the key(s) within the keystore
      *                      (see {@link javax.net.ssl.KeyManagerFactory#init(KeyStore, char[])}).
      * @param algorithm     The algorithm to use for the Key Manager (see {@link KeyManagerFactory#getAlgorithm()}).
+     * @param configBasePath The base path for configuration files (used for error handling)
      */
-    StoreKeyConfig(Path path, char[] storePassword, String type, char[] keyPassword, String algorithm) {
-        this.path = path;
-        this.storePassword = storePassword;
-        this.type = type;
-        this.keyPassword = keyPassword;
-        this.algorithm = algorithm;
+    public StoreKeyConfig(String path, char[] storePassword, String type, char[] keyPassword, String algorithm, Path configBasePath) {
+        super(storePassword, keyPassword, algorithm, configBasePath);
+        this.keystorePath = Objects.requireNonNull(path, "Keystore path cannot be null");
+        this.type = Objects.requireNonNull(type, "Keystore type cannot be null");
+    }
+
+    @Override
+    public SslTrustConfig asTrustConfig() {
+        final String trustStoreAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
+        return new StoreTrustConfig(keystorePath, getKeystorePassword(), type, trustStoreAlgorithm, false, getConfigBasePath());
     }
 
     @Override
     public Collection<Path> getDependentFiles() {
-        return Collections.singleton(path);
+        return List.of(resolvePath());
     }
 
     @Override
-    public X509ExtendedKeyManager createKeyManager() {
-        try {
-            final KeyStore keyStore = KeyStoreUtil.readKeyStore(path, type, storePassword);
-            checkKeyStore(keyStore);
-            return KeyStoreUtil.createKeyManager(keyStore, keyPassword, algorithm);
-        } catch (UnrecoverableKeyException e) {
-            String message = "failed to load a KeyManager for keystore [" + path.toAbsolutePath()
-                + "], this is usually caused by an incorrect key-password";
-            if (keyPassword.length == 0) {
-                message += " (no key-password was provided)";
-            } else if (Arrays.equals(storePassword, keyPassword)) {
-                message += " (we tried to access the key using the same password as the keystore)";
-            }
-            throw new SslConfigException(message, e);
-        } catch (GeneralSecurityException e) {
-            throw new SslConfigException("failed to load a KeyManager for keystore [" + path + "] of type [" + type + "]", e);
-        }
+    public String getKeystorePath() {
+        return keystorePath;
     }
 
-    /**
-     * Verifies that the keystore contains at least 1 private key entry.
-     */
-    private void checkKeyStore(KeyStore keyStore) throws KeyStoreException {
-        Enumeration<String> aliases = keyStore.aliases();
-        while (aliases.hasMoreElements()) {
-            String alias = aliases.nextElement();
-            if (keyStore.isKeyEntry(alias)) {
-                return;
-            }
-        }
-        final String message;
-        if (path != null) {
-            message = "the keystore [" + path + "] does not contain a private key entry";
-        } else {
-            message = "the configured PKCS#11 token does not contain a private key entry";
-        }
-        throw new SslConfigException(message);
+    @Override
+    public String getKeystoreType() {
+        return type;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        StoreKeyConfig that = (StoreKeyConfig) o;
+        return super.equals(that) &&
+            keystorePath.equals(that.keystorePath)
+            && type.equals(that.type);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(keystorePath, type);
+        result = 31 * result + super.hashCode();
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("StoreKeyConfig{");
+        sb.append("path=").append(keystorePath);
+        sb.append(", storePassword=").append(getKeystorePassword().length == 0 ? "<empty>" : "<non-empty>");
+        sb.append(", type=").append(type);
+        sb.append(", keyPassword=").append(hasKeyPassword() ? "<set>" : "<not-set>");
+        sb.append(", algorithm=").append(getKeystoreAlgorithm());
+        sb.append('}');
+        return sb.toString();
     }
 
 }

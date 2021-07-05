@@ -104,7 +104,7 @@ public class KeyStoreWrapper implements SecureSettings {
         "~!@#$%^&*-_=+?").toCharArray();
 
     /** The name of the keystore file to read and write. */
-    private static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
+    public static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
 
     /** The version of the metadata written before the keystore data. */
     static final int FORMAT_VERSION = 4;

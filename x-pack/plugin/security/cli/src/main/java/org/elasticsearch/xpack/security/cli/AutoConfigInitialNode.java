@@ -99,6 +99,18 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: Security already configured");
             return;
         }
+        final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
+        if (false == Files.isWritable(ymlPath)) {
+            terminal.println(Terminal.Verbosity.VERBOSE, String.format(Locale.ROOT, "Skipping security auto configuration because " +
+                    "the configuration file [%s] is not writable", ymlPath));
+            return;
+        }
+        Path keystorePath = env.configFile().resolve(KeyStoreWrapper.KEYSTORE_FILENAME);
+        if (Files.exists(keystorePath) && false == Files.isWritable(keystorePath)) {
+            terminal.println(Terminal.Verbosity.VERBOSE, String.format(Locale.ROOT, "Skipping security auto configuration because " +
+                    "the node keystore file [%s] is not writable", keystorePath));
+            return;
+        }
         if (env.settings().hasValue(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey())) {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because this node is explicitly configured to form a new cluster.");
@@ -228,8 +240,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             fullyWriteFile(httpTruststoreOutput, stream -> httpTruststore.store(stream, new char[0]));
         }
 
-        Path path = env.configFile().resolve("elasticsearch.yml");
-        try (BufferedWriter bw = Files.newBufferedWriter(path, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
+        try (BufferedWriter bw = Files.newBufferedWriter(ymlPath, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
             bw.newLine();
             bw.newLine();
             bw.write("###################################################################################");
@@ -238,11 +249,11 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             bw.newLine();
             bw.write("# have been automatically generated in order to configure Security.               #");
             bw.newLine();
-            bw.write("# These have been generated the first time that the new node was started without  #");
+            bw.write("# These have been generated the first time that the new node was started, on the  #");
             bw.newLine();
-            bw.write("# joining or enrolling to an existing cluster and only if Security had not been   #");
+            bw.write("# terminal, without joining or enrolling to an existing cluster and only if       #");
             bw.newLine();
-            bw.write("# explicitly configured beforehand.                                               #");
+            bw.write("# Security had not been explicitly configured beforehand.                         #");
             bw.newLine();
             bw.write(String.format(Locale.ROOT, "# %-79s #", ""));
             bw.newLine();
@@ -261,7 +272,6 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             }
 
             {
-                bw.newLine();
                 bw.write("xpack.security.transport.ssl.enabled: true");
                 bw.newLine();
                 bw.write("# All the nodes use the same key and certificate on the inter-node connection");

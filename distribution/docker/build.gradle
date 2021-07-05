@@ -1,4 +1,3 @@
-import org.apache.commons.lang.StringUtils
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.internal.DockerBase
 import org.elasticsearch.gradle.LoggedExec
@@ -17,10 +16,10 @@ apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.rest-resources'
 
-// Define a repository that allows Gradle to fetch a resource from GitHub. This
-// is only used to fetch the `tini` binary, when building the Iron Bank docker image
-// for testing purposes.
 repositories {
+  // Define a repository that allows Gradle to fetch a resource from GitHub. This
+  // is only used to fetch the `tini` binary, when building the Iron Bank docker image
+  // for testing purposes.
   ivy {
     url 'https://github.com/'
 
@@ -28,9 +27,19 @@ repositories {
       artifact '/[organisation]/[module]/releases/download/v[revision]/[ext]'
     }
 
-    // This is required in Gradle 6.0+ as metadata file (ivy.xml)
-    // is mandatory. Docs linked below this code section
     metadataSources { artifact() }
+    content {includeGroup 'krallin' }
+  }
+  // Cloud builds bundle some beats
+  ivy {
+    url 'https://snapshots-no-kpi.elastic.co/'
+
+    patternLayout {
+      artifact '/downloads/[organization]/[module]/[module]-[revision]-linux-[classifier].[ext]'
+    }
+
+    metadataSources { artifact() }
+    content {includeGroup 'beats' }
   }
 }
 
@@ -44,7 +53,11 @@ configurations {
   repositoryS3Plugin
   repositoryGcsPlugin
   repositoryAzurePlugin
+  filebeat
+  metricbeat
 }
+
+String beatsArch = Architecture.current() == Architecture.AARCH64 ? 'arm64' : 'x86_64'
 
 dependencies {
   aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar", configuration: 'default')
@@ -54,6 +67,8 @@ dependencies {
   repositoryS3Plugin project(path: ':plugins:repository-s3', configuration: 'zip')
   repositoryGcsPlugin project(path: ':plugins:repository-gcs', configuration: 'zip')
   repositoryAzurePlugin project(path: ':plugins:repository-azure', configuration: 'zip')
+  filebeat "beats:filebeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
+  metricbeat "beats:metricbeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
@@ -274,6 +289,8 @@ void addUnpackDockerContextTask(Architecture architecture, DockerBase base) {
       from configurations.repositoryS3Plugin
       from configurations.repositoryGcsPlugin
       from configurations.repositoryAzurePlugin
+      from configurations.filebeat
+      from configurations.metricbeat
     }
 
     expansions(architecture, base).findAll { it.key != 'build_date' }.each { k, v ->

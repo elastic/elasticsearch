@@ -257,17 +257,23 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     find . -xdev -perm -4000 -exec chmod ug-s {} + && \\
     find . -type f -exec chmod o+r {} +
 
-<% if (docker_base == "cloud") {
-  def plugins = ['s3', 'gcs', 'azure']
-  print "# Preinstall common plugins\n"
-  plugins.each({
-    // Cloud builds are never performed by DockerHub, so we can skip straight to
-    // the local build syntax.
-    print "COPY /opt/repository-${it}-${version}.zip /opt/repository-${it}.zip\n"
-  })
+<% if (docker_base == "cloud") { %>
+# Preinstall common plugins
+COPY repository-s3-${version}.zip repository-gcs-${version}.zip repository-azure-${version}.zip /opt/
+RUN bin/elasticsearch-plugin install --batch \\
+    file:/opt/repository-s3-${version}.zip \\
+    file:/opt/repository-gcs-${version}.zip \\
+    file:/opt/repository-azure-${version}.zip
 
-  print "\nRUN bin/elasticsearch-plugin install --batch " + plugins.collect({"file:/opt/repository-${it}.zip"}).join(" ")
-} %>
+# Fetch required Beats
+COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /opt
+RUN cd /opt && \\
+    tar xf filebeat-${version}.tar.gz && \\
+    tar xf metricbeat-${version}.tar.gz && \\
+    cp filebeat-${version}-linux-*/filebeat /opt && \\
+    cp metricbeat-${version}-linux-*/metricbeat /opt && \\
+    chmod 555 filebeat metricbeat
+<% } %>
 
 <% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
 
@@ -334,6 +340,10 @@ COPY --from=builder --chown=1000:0 /usr/share/elasticsearch /usr/share/elasticse
 
 <% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
+<% } %>
+
+<% if (docker_base == 'cloud') { %>
+COPY --from=builder --chown=0:0 /opt/filebeat /opt/metricbeat /opt/
 <% } %>
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH

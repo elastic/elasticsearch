@@ -600,8 +600,7 @@ GET /my-data-stream/_eql/search
 
 By default, EQL search requests are synchronous and wait for complete results
 before returning a response. However, complete results can take longer for
-searches across large data sets, <<data-tiers,cold>> or <<data-tiers,frozen>>
-data, or <<modules-cross-cluster-search,multiple clusters>>.
+searches across large data sets or <<data-tiers,frozen>> data.
 
 To avoid long waits, run an async EQL search. Set `wait_for_completion_timeout`
 to a duration you'd like to wait for synchronous results.

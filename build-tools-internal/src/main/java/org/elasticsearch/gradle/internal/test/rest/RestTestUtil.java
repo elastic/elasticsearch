@@ -8,14 +8,12 @@
 
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
-import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
+import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
@@ -23,7 +21,6 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Zip;
-import org.gradle.api.tasks.testing.Test;
 
 /**
  * Utility class to configure the necessary tasks and dependencies.
@@ -45,9 +42,9 @@ public class RestTestUtil {
     /**
      * Creates a task with the source set name of type {@link RestIntegTestTask}
      */
-    public static Provider<RestIntegTestTask> registerTask(Project project, SourceSet sourceSet) {
+    public static Provider<RestIntegTestTask> registerTestTask(Project project, SourceSet sourceSet) {
         // lazily create the test task
-        Provider<RestIntegTestTask> testProvider = project.getTasks().register(sourceSet.getName(), RestIntegTestTask.class, testTask -> {
+        return project.getTasks().register(sourceSet.getName(), RestIntegTestTask.class, testTask -> {
             testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
             testTask.setDescription("Runs the REST tests against an external cluster");
             project.getPlugins().withType(JavaPlugin.class, t ->
@@ -67,14 +64,12 @@ public class RestTestUtil {
                 }
             });
         });
-
-        return testProvider;
     }
 
     /**
      * Setup the dependencies needed for the REST tests.
      */
-    public static void setupDependencies(Project project, SourceSet sourceSet) {
+    public static void setupTestDependenciesDefaults(Project project, SourceSet sourceSet) {
         project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
     }
 

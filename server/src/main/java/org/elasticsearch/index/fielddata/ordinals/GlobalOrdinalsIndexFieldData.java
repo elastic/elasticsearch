@@ -11,6 +11,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.StaticCacheKeyDirectoryReaderWrapper;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
@@ -138,17 +139,19 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
      */
     public class Consumer implements IndexOrdinalsFieldData, Accountable {
         private final DirectoryReader source;
+        private final boolean cacheTermEnums;
         private TermsEnum[] lookups;
 
         Consumer(DirectoryReader source) {
             this.source = source;
+            this.cacheTermEnums = StaticCacheKeyDirectoryReaderWrapper.getStaticCacheKeyDirectoryReaderWrapper(source) == null;
         }
 
         /**
          * Lazy creation of the {@link TermsEnum} for each segment present in this reader
          */
         private TermsEnum[] getOrLoadTermsEnums() {
-            if (lookups == null) {
+            if (cacheTermEnums == false || lookups == null) {
                 lookups = new TermsEnum[segmentAfd.length];
                 for (int i = 0; i < lookups.length; i++) {
                     try {

@@ -128,4 +128,24 @@ public class StaticCacheKeyDirectoryReaderWrapper extends FilterDirectoryReader 
     protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
         throw new UnsupportedOperationException();
     }
+
+    /**
+     * Tries to unwrap the given reader until the first
+     * {@link StaticCacheKeyDirectoryReaderWrapper} instance is found or {@code null}
+     * if no instance is found.
+     */
+    public static StaticCacheKeyDirectoryReaderWrapper getStaticCacheKeyDirectoryReaderWrapper(DirectoryReader reader) {
+        if (reader instanceof FilterDirectoryReader) {
+            if (reader instanceof StaticCacheKeyDirectoryReaderWrapper) {
+                return (StaticCacheKeyDirectoryReaderWrapper) reader;
+            } else {
+                // We need to use FilterDirectoryReader#getDelegate and not FilterDirectoryReader#unwrap, because
+                // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
+                // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
+                // may be instance of StaticCacheKeyDirectoryReaderWrapper.
+                return getStaticCacheKeyDirectoryReaderWrapper(((FilterDirectoryReader) reader).getDelegate());
+            }
+        }
+        return null;
+    }
 }

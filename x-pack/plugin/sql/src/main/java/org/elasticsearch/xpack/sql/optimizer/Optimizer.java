@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
@@ -872,12 +873,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         private LocalRelation unfilteredLocalRelation(LogicalPlan plan) {
-            List<LogicalPlan> filterOrRelations = plan.collectFirstChildren(p -> p instanceof Filter || p instanceof LocalRelation);
+            List<LogicalPlan> filterOrLeaves = plan.collectFirstChildren(p -> p instanceof Filter || p instanceof LeafPlan);
 
-            if (filterOrRelations.size() == 1) {
-                LogicalPlan filterOrRelation = filterOrRelations.get(0);
-                if (filterOrRelation instanceof LocalRelation) {
-                    return (LocalRelation) filterOrRelation;
+            if (filterOrLeaves.size() == 1) {
+                LogicalPlan filterOrLeaf = filterOrLeaves.get(0);
+                if (filterOrLeaf instanceof LocalRelation) {
+                    return (LocalRelation) filterOrLeaf;
                 }
             }
             return null;
@@ -1179,11 +1180,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(UnaryPlan plan) {
-            if((plan instanceof Project || plan instanceof Aggregate)
-                && plan.child() instanceof LocalRelation) {
-
+            if ((plan instanceof Project || plan instanceof Aggregate) && plan.child() instanceof LocalRelation) {
                 LocalRelation relation = (LocalRelation) plan.child();
-
                 List<Object> foldedValues = null;
 
                 if (relation.executable() instanceof SingletonExecutable) {
@@ -1207,8 +1205,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 if (foldedValues != null) {
-                    return new LocalRelation(plan.source(),
-                        new SingletonExecutable(plan.output(), foldedValues.toArray()));
+                    return new LocalRelation(plan.source(), new SingletonExecutable(plan.output(), foldedValues.toArray()));
                 }
             }
 
@@ -1222,9 +1219,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     Alias a = (Alias) n;
                     if (a.child().foldable()) {
                         values.add(a.child().fold());
-                    }
-                    // not everything is foldable, bail out early
-                    else {
+                    } else {
+                        // not everything is foldable, bail out early
                         return null;
                     }
                 } else if (n.foldable()) {
@@ -1243,10 +1239,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(Aggregate plan) {
-            if (plan.groupings().isEmpty()
-                && plan.child() instanceof EsRelation
-                && plan.aggregates().stream().allMatch(this::foldable)) {
-
+            if (plan.groupings().isEmpty() && plan.child() instanceof EsRelation && plan.aggregates().stream().allMatch(this::foldable)) {
                 return plan.replaceChildrenSameSize(singletonList(new LocalRelation(plan.source(), new SingletonExecutable())));
             }
 
@@ -1254,7 +1247,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         private boolean foldable(Expression e) {
-            if(e instanceof Alias){
+            if (e instanceof Alias) {
                 return foldable(((Alias) e).child());
             } else {
                 return e.foldable();

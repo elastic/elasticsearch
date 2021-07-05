@@ -20,6 +20,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
 import org.elasticsearch.xpack.security.authc.file.FileUserRolesStore;
@@ -38,6 +41,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * A {@link KeyStoreAwareCommand} that can be extended fpr any CLI tool that needs to allow a local user with
@@ -57,9 +61,10 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
 
     public BaseRunAsSuperuserCommand(
         Function<Environment, CommandLineHttpClient> clientFunction,
-        CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction
+        CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction,
+        String description
     ) {
-        super("description");
+        super(description);
         this.clientFunction = clientFunction;
         this.keyStoreFunction = keyStoreFunction;
     }
@@ -175,17 +180,22 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     }
 
     private void ensureFileRealmEnabled(Settings settings) throws Exception {
-        Map<String, Settings> fileRealmSettings = settings.getGroups("xpack.security.authc.realms.file");
+        final Map<RealmConfig.RealmIdentifier, Settings> realms = RealmSettings.getRealmSettings(settings);
+        Map<RealmConfig.RealmIdentifier, Settings> fileRealmSettings = realms.entrySet().stream()
+            .filter(e -> e.getKey().getType().equals(FileRealmSettings.TYPE))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         if (fileRealmSettings.size() > 1) {
             throw new UserException(
                 ExitCodes.CONFIG,
                 "Multiple file realms are configured. "
                     + "[file] is an internal realm type and therefore there can only be one such realm configured"
             );
-        } else if (fileRealmSettings.size() == 1
-            && fileRealmSettings.entrySet().stream().anyMatch(s -> s.getValue().get("enabled").equals("false"))) {
-                throw new UserException(ExitCodes.CONFIG, "File realm must be enabled");
-            }
+        } else if (fileRealmSettings.size() == 1) {
+            final String fileRealmName = fileRealmSettings.entrySet().iterator().next().getKey().getName();
+            if (RealmSettings.ENABLED_SETTING.apply(FileRealmSettings.TYPE)
+                .getConcreteSettingForNamespace(fileRealmName)
+                .get(settings) == false) throw new UserException(ExitCodes.CONFIG, "File realm must be enabled");
+        }
         // Else it's either explicitly enabled, or not defined in the settings so it is implicitly enabled.
     }
 
@@ -226,10 +236,15 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
             if (clusterStatus.isEmpty()) {
                 throw new UserException(
                     ExitCodes.DATA_ERROR,
-                    "Failed to determine the health of the cluster. Cluster health API did not return a status value"
+                    "Failed to determine the health of the cluster. Cluster health API did not return a status value."
                 );
             } else if ("red".equalsIgnoreCase(clusterStatus)) {
-                throw new UserException(ExitCodes.UNAVAILABLE, "Cluster health is currently RED.");
+                terminal.errorPrintln("Failed to determine the health of the cluster. Cluster health is currently RED.");
+                terminal.errorPrintln("This means that some cluster data is unavailable and your cluster is not fully functional.");
+                terminal.errorPrintln("The cluster logs (https://www.elastic.co/guide/en/elasticsearch/reference/master/logging.html)" +
+                    "might contain information/indications for the underlying cause");
+                throw new UserException(ExitCodes.UNAVAILABLE,
+                    "Failed to determine the health of the cluster. Cluster health is currently RED.");
             }
             // else it is yellow or green so we can continue
         }

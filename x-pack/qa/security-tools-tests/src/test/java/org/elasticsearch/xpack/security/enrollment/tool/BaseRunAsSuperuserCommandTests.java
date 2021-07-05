@@ -56,6 +56,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.stringContainsInOrder;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -176,6 +177,11 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
         assertThat(e.exitCode, equalTo(ExitCodes.UNAVAILABLE));
         assertThat(e.getMessage(), containsString("RED"));
         assertThat(terminal.getOutput(), is(emptyString()));
+        String error = terminal.getErrorOutput();
+        assertThat(error, stringContainsInOrder("Failed to determine the health of the cluster. Cluster health is currently RED.",
+            "This means that some cluster data is unavailable and your cluster is not fully functional.",
+            "The cluster logs (https://www.elastic.co/guide/en/elasticsearch/reference/master/logging.html)" +
+                "might contain information/indications for the underlying cause"));
         assertNoUsers();
         assertNoUsersRoles();
     }
@@ -249,7 +255,7 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
             Function<Environment, CommandLineHttpClient> clientFunction,
             CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction
         ) {
-            super(clientFunction, keyStoreFunction);
+            super(clientFunction, keyStoreFunction, "dummy command");
         }
 
         @Override

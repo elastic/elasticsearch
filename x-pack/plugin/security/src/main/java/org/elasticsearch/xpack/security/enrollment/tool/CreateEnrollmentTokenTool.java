@@ -44,7 +44,7 @@ public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
         CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction,
         CheckedFunction<Environment, CreateEnrollmentToken, Exception> createEnrollmentTokenFunction
     ) {
-        super(clientFunction, keyStoreFunction);
+        super(clientFunction, keyStoreFunction, "Creates enrollment tokens for elasticsearch nodes and kibana instances");
         this.createEnrollmentTokenFunction = createEnrollmentTokenFunction;
         scope = parser.acceptsAll(List.of("scope", "s"), "The scope of this enrollment token, can be either \"node\" or \"kibana\"")
             .withRequiredArg()

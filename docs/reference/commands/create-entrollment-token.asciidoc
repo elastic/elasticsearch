@@ -12,8 +12,7 @@ The `elasticsearch-create-enrollment-token` command creates enrollment tokens fo
 [source,shell]
 ----
 bin/elasticsearch-create-enrollment-token
-[-b, --batch] [-h, --help] [-E <KeyValuePair>]
-[-s, --scope]
+[-h, --help] [-E <KeyValuePair>] [-s, --scope]
 ----
 
 [discrete]
@@ -23,7 +22,9 @@ This command allows users to create enrollment tokens that can be subsequently
 used to enroll new {es} nodes to an existing cluster or configure {kib} instances
 to communicate with an existing cluster that has security features enabled.
 It uses a temporary superuser in the <<file-realm, file realm>> that is automatically
-generated and then removed,in order to run the request to create enrollment tokens.
+generated and then removed, in order to run the request to create enrollment tokens.
+You cannot use this tool if the file realm has been disabled in your `elasticsearch.yml`
+file.
 
 This command uses an HTTP connection to connect to the cluster and run the user
 management requests. The command automatically attempts to establish the connection

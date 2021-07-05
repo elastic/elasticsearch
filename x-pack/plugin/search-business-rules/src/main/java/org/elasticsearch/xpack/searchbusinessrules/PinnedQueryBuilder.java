@@ -19,9 +19,9 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -72,7 +72,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     /**
      * A single item to be used for a {@link PinnedQueryBuilder}.
      */
-    public static final class Item implements ToXContentObject, NamedWriteable {
+    public static final class Item implements ToXContentObject, Writeable {
         public static final String NAME = "item";
 
         private static final ParseField INDEX_FIELD = new ParseField("_index");
@@ -127,11 +127,6 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         static {
             PARSER.declareString(constructorArg(), ID_FIELD);
             PARSER.declareString(optionalConstructorArg(), INDEX_FIELD);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
         }
 
         @Override
@@ -228,7 +223,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     public PinnedQueryBuilder(StreamInput in) throws IOException {
         super(in);
         ids = in.readOptionalStringList();
-        documents = in.readBoolean() ? in.readNamedWriteableList(Item.class) : null;
+        documents = in.readBoolean() ? in.readList(Item::new) : null;
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
     }
 
@@ -239,7 +234,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeNamedWriteableList(documents);
+            out.writeList(documents);
         }
         out.writeNamedWriteable(organicQuery);
     }

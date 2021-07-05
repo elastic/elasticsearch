@@ -7,12 +7,9 @@
 
 package org.elasticsearch.xpack.searchbusinessrules;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
@@ -22,13 +19,6 @@ public class SearchBusinessRules extends Plugin implements SearchPlugin {
     @Override
     public List<QuerySpec<?>> getQueries() {
         return singletonList(new QuerySpec<>(PinnedQueryBuilder.NAME, PinnedQueryBuilder::new, PinnedQueryBuilder::fromXContent));
-    }
-
-    @Override
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-        namedWriteables.add(new NamedWriteableRegistry.Entry(Item.class, Item.NAME, Item::new));
-        return namedWriteables;
     }
 
 }

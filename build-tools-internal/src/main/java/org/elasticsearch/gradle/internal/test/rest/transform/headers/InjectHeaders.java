@@ -17,6 +17,7 @@ import org.elasticsearch.gradle.internal.test.rest.transform.feature.FeatureInje
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
 
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -39,6 +40,10 @@ public class InjectHeaders extends FeatureInjector implements RestTestTransformB
     @Override
     public void transformTest(ObjectNode doNodeParent) {
         ObjectNode doNodeValue = (ObjectNode) doNodeParent.get(getKeyToFind());
+        if(isCatNode(doNodeValue)){
+            return;
+        }
+
         ObjectNode headersNode = (ObjectNode) doNodeValue.get("headers");
         if (headersNode == null) {
             headersNode = new ObjectNode(jsonNodeFactory);
@@ -47,6 +52,17 @@ public class InjectHeaders extends FeatureInjector implements RestTestTransformB
             headersNode.set(entry.getKey(), TextNode.valueOf(entry.getValue()));
         }
         doNodeValue.set("headers", headersNode);
+    }
+
+    private boolean isCatNode(ObjectNode doNodeValue) {
+        final Iterator<String> stringIterator = doNodeValue.fieldNames();
+        while (stringIterator.hasNext()) {
+            final String fieldName = stringIterator.next();
+            if(fieldName.startsWith("cat")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

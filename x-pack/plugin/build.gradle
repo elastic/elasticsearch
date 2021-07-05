@@ -133,7 +133,7 @@ def v7compatiblityNotSupportedTests = {
 
     // ML - not needing compatible api
     // some are failing due to cat api being called with JSON accept header
-    'ml/*',
+    'ml*/*/*',
     '_apis/Test cat trained models'
   ]
 }

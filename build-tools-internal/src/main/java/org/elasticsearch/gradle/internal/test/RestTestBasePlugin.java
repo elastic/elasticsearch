@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.internal.test;
 
+import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.elasticsearch.gradle.internal.FixtureStop;
 import org.elasticsearch.gradle.internal.InternalTestClustersPlugin;
@@ -17,16 +18,28 @@ import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.provider.ProviderFactory;
+import org.jetbrains.annotations.Nullable;
+
+import javax.inject.Inject;
 
 public class RestTestBasePlugin implements Plugin<Project> {
     private static final String TESTS_REST_CLUSTER = "tests.rest.cluster";
     private static final String TESTS_CLUSTER = "tests.cluster";
     private static final String TESTS_CLUSTER_NAME = "tests.clustername";
+    private ProviderFactory providerFactory;
+
+    @Inject
+    public RestTestBasePlugin(ProviderFactory providerFactory) {
+        this.providerFactory = providerFactory;
+    }
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply(InternalTestClustersPlugin.class);
+        project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
+        project.getPluginManager().apply(InternalTestClustersPlugin.class);
         project.getTasks().withType(RestIntegTestTask.class).configureEach(restIntegTestTask -> {
             @SuppressWarnings("unchecked")
             NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
@@ -36,8 +49,8 @@ public class RestTestBasePlugin implements Plugin<Project> {
             restIntegTestTask.useCluster(cluster);
             restIntegTestTask.include("**/*IT.class");
             restIntegTestTask.systemProperty("tests.rest.load_packaged", Boolean.FALSE.toString());
-            if (System.getProperty(TESTS_REST_CLUSTER) == null) {
-                if (System.getProperty(TESTS_CLUSTER) != null || System.getProperty(TESTS_CLUSTER_NAME) != null) {
+            if (systemProperty(TESTS_REST_CLUSTER) == null) {
+                if (systemProperty(TESTS_CLUSTER) != null || systemProperty(TESTS_CLUSTER_NAME) != null) {
                     throw new IllegalArgumentException(
                         String.format("%s, %s, and %s must all be null or non-null", TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME)
                     );
@@ -48,15 +61,22 @@ public class RestTestBasePlugin implements Plugin<Project> {
                 runnerNonInputProperties.systemProperty(TESTS_CLUSTER, () -> String.join(",", cluster.getAllTransportPortURI()));
                 runnerNonInputProperties.systemProperty(TESTS_CLUSTER_NAME, cluster::getName);
             } else {
-                if (System.getProperty(TESTS_CLUSTER) == null || System.getProperty(TESTS_CLUSTER_NAME) == null) {
+                if (systemProperty(TESTS_CLUSTER) == null || systemProperty(TESTS_CLUSTER_NAME) == null) {
                     throw new IllegalArgumentException(
                         String.format("%s, %s, and %s must all be null or non-null", TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME)
                     );
                 }
             }
         });
+
+        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(project.getTasks().withType(RestIntegTestTask.class)));
         project.getTasks()
             .withType(StandaloneRestIntegTestTask.class)
             .configureEach(t -> t.finalizedBy(project.getTasks().withType(FixtureStop.class)));
+    }
+
+    @Nullable
+    private String systemProperty(String propName) {
+        return providerFactory.systemProperty(propName).forUseAtConfigurationTime().getOrNull();
     }
 }

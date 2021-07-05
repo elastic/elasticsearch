@@ -1004,7 +1004,7 @@ public class MasterServiceTests extends ESTestCase {
                 @Override
                 public void run() {
                     try {
-                        cyclicBarrier.await(5, TimeUnit.SECONDS);
+                        cyclicBarrier.await(10, TimeUnit.SECONDS);
                     } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
                         throw new AssertionError("unexpected", e);
                     }
@@ -1096,7 +1096,7 @@ public class MasterServiceTests extends ESTestCase {
             // now stop the starvation and clean up
             keepRunning.set(false);
             awaitNextTask.run();
-            assertTrue(starvedTaskExecuted.await(5, TimeUnit.SECONDS));
+            assertTrue(starvedTaskExecuted.await(10, TimeUnit.SECONDS));
 
         } finally {
             Loggers.removeAppender(clusterLogger, mockAppender);

@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -52,8 +53,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
 
@@ -307,12 +306,42 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             List<Boolean> values = randomList(0, 2, ESTestCase::randomBoolean);
             String source = "{\"foo\": " + values + "}";
-            ParseContext ctx = mock(ParseContext.class);
-            when(ctx.parser()).thenReturn(createParser(JsonXContent.jsonXContent, source));
+            XContentParser parser = createParser(JsonXContent.jsonXContent, source);
+            SourceToParse sourceToParse = new SourceToParse("test", "test", new BytesArray(source), XContentType.JSON);
             LuceneDocument doc = new LuceneDocument();
-            when(ctx.doc()).thenReturn(doc);
-            when(ctx.sourceToParse()).thenReturn(new SourceToParse("test", "test", new BytesArray(source), XContentType.JSON));
             doc.add(new StoredField("_source", new BytesRef(source)));
+            ParseContext ctx = new ParseContext(null, null, null, null, sourceToParse) {
+                @Override
+                public Iterable<LuceneDocument> nonRootDocuments() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public ContentPath path() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public XContentParser parser() {
+                    return parser;
+                }
+
+                @Override
+                public LuceneDocument rootDoc() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public LuceneDocument doc() {
+                    return doc;
+                }
+
+                @Override
+                protected void addDoc(LuceneDocument doc) {
+                    throw new UnsupportedOperationException();
+                }
+            };
+
             ctx.parser().nextToken();
             ctx.parser().nextToken();
             ctx.parser().nextToken();

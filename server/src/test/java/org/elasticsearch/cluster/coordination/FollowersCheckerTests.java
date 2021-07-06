@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -75,7 +76,7 @@ public class FollowersCheckerTests extends ESTestCase {
         final DiscoveryNodes[] discoveryNodesHolder
             = new DiscoveryNodes[]{DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build()};
 
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final Set<DiscoveryNode> checkedNodes = new HashSet<>();
         final AtomicInteger checkCount = new AtomicInteger();
@@ -210,7 +211,7 @@ public class FollowersCheckerTests extends ESTestCase {
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).build();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final MockTransport mockTransport = new MockTransport() {
             @Override
@@ -273,7 +274,7 @@ public class FollowersCheckerTests extends ESTestCase {
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).put(testSettings).build();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final MockTransport mockTransport = new MockTransport() {
             @Override
@@ -384,7 +385,7 @@ public class FollowersCheckerTests extends ESTestCase {
         final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode follower = new DiscoveryNode("follower", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), follower.getName()).build();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final MockTransport mockTransport = new MockTransport() {
             @Override
@@ -438,7 +439,7 @@ public class FollowersCheckerTests extends ESTestCase {
         final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode follower = new DiscoveryNode("follower", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), follower.getName()).build();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final MockTransport mockTransport = new MockTransport() {
             @Override
@@ -565,8 +566,7 @@ public class FollowersCheckerTests extends ESTestCase {
         nodes.forEach(dn -> discoNodesBuilder.add(dn));
         DiscoveryNodes discoveryNodes = discoNodesBuilder.localNodeId(nodes.get(0).getId()).build();
         CapturingTransport capturingTransport = new CapturingTransport();
-        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), nodes.get(0).getName()).build();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         TransportService transportService = capturingTransport.createTransportService(Settings.EMPTY,
                 deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> nodes.get(0), null, emptySet());
         final FollowersChecker followersChecker = new FollowersChecker(Settings.EMPTY, transportService, fcr -> {

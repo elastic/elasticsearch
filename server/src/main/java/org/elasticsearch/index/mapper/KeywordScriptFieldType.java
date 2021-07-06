@@ -47,7 +47,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         new Builder<>(name, StringFieldScript.CONTEXT) {
             @Override
             RuntimeField newRuntimeField(StringFieldScript.Factory scriptFactory) {
-                return new KeywordScriptFieldType(name, scriptFactory, getScript(), meta(), this);
+                return runtimeField(name, this, scriptFactory, getScript(), meta());
             }
 
             @Override
@@ -61,18 +61,37 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
             }
         });
 
-    public KeywordScriptFieldType(String name) {
-        this(name, StringFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
+    private static RuntimeField runtimeField(
+        String name,
+        ToXContent toXContent,
+        StringFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta
+    ) {
+        return new LeafRuntimeField(name, new KeywordScriptFieldType(name, scriptFactory, script, meta), toXContent) {
+            @Override
+            public String typeName() {
+                return KeywordFieldMapper.CONTENT_TYPE;
+            }
+        };
     }
 
-    KeywordScriptFieldType(
+    public static RuntimeField sourceOnly(String name) {
+        return runtimeField(
+            name,
+            (builder, params) -> builder,
+            StringFieldScript.PARSE_FROM_SOURCE,
+            DEFAULT_SCRIPT,
+            Collections.emptyMap());
+    }
+
+    public KeywordScriptFieldType(
         String name,
         StringFieldScript.Factory scriptFactory,
         Script script,
-        Map<String, String> meta,
-        ToXContent toXContent
+        Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta, toXContent);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
     }
 
     @Override

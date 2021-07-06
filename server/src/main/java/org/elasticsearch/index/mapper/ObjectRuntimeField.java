@@ -58,7 +58,7 @@ public class ObjectRuntimeField implements RuntimeField {
             }
 
             @Override
-            protected RuntimeField createRuntimeField(Mapper.TypeParser.ParserContext parserContext,
+            protected RuntimeField createRuntimeField(MappingParserContext parserContext,
                                                       Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
                 if (parentScriptFactory != null) {
                     throw new IllegalArgumentException("Runtime field [" + name + "] of type [object] cannot hold another runtime " +

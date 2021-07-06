@@ -46,6 +46,7 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -88,6 +89,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -190,7 +192,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> making sure that snapshot no longer exists");
         expectThrows(
             SnapshotMissingException.class,
-            () -> clusterAdmin().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet().getSnapshots("test-repo")
+            () -> client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet()
         );
 
         logger.info("--> Go through a loop of creating and deleting a snapshot to trigger repository cleanup");
@@ -889,8 +891,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .setSnapshots("test-snap")
                 .setIgnoreUnavailable(true)
                 .get();
-            assertEquals(1, snapshotsStatusResponse.getSnapshots("test-repo").size());
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
+            assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
             assertTrue(snapshotInfo.state().toString(), snapshotInfo.state().completed());
         }, 60L, TimeUnit.SECONDS);
     }
@@ -943,8 +945,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .setSnapshots("test-snap")
                 .setIgnoreUnavailable(true)
                 .get();
-            assertEquals(1, snapshotsStatusResponse.getSnapshots("test-repo").size());
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
+            assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
             assertTrue(snapshotInfo.state().toString(), snapshotInfo.state().completed());
             assertThat(snapshotInfo.totalShards(), is(2));
             assertThat(snapshotInfo.shardFailures(), hasSize(2));
@@ -1219,6 +1221,45 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         internalCluster().startMasterOnlyNode();
         List<RepositoryMetadata> repositoryMetadata = client().admin().cluster().prepareGetRepositories("*").get().repositories();
         assertThat(repositoryMetadata, empty());
+    }
+
+    public void testConcurrentSnapshotAndRepoDelete() throws Exception {
+        internalCluster().startMasterOnlyNodes(1);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+
+        // create a few snapshots so deletes will run for a while
+        final int snapshotCount = randomIntBetween(10, 25);
+        final List<String> snapshotNames = createNSnapshots(repoName, snapshotCount);
+
+        // concurrently trigger repository and snapshot deletes
+        final List<ActionFuture<AcknowledgedResponse>> deleteFutures = new ArrayList<>(snapshotCount);
+        final ActionFuture<AcknowledgedResponse> deleteRepoFuture = clusterAdmin().prepareDeleteRepository(repoName).execute();
+        for (String snapshotName : snapshotNames) {
+            deleteFutures.add(clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).execute());
+        }
+
+        try {
+            assertAcked(deleteRepoFuture.actionGet());
+        } catch (Exception e) {
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "trying to modify or unregister repository [test-repo] that is currently used (snapshot deletion is in progress)"
+                )
+            );
+        }
+        for (ActionFuture<AcknowledgedResponse> deleteFuture : deleteFutures) {
+            try {
+                assertAcked(deleteFuture.actionGet());
+            } catch (RepositoryException e) {
+                assertThat(
+                    e.getMessage(),
+                    either(containsString("[test-repo] repository is not in started state")).or(containsString("[test-repo] missing"))
+                );
+            }
+        }
     }
 
     private long calculateTotalFilesSize(List<Path> files) {

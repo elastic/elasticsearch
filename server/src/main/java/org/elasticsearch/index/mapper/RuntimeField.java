@@ -87,10 +87,10 @@ public interface RuntimeField extends ToXContentFragment {
             return builder;
         }
 
-        protected abstract RuntimeField createRuntimeField(Mapper.TypeParser.ParserContext parserContext,
+        protected abstract RuntimeField createRuntimeField(MappingParserContext parserContext,
                                                            Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory);
 
-        public final void parse(String name, Mapper.TypeParser.ParserContext parserContext, Map<String, Object> fieldNode) {
+        public final void parse(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
             Map<String, Parameter<?>> paramsMap = new HashMap<>();
             for (Parameter<?> param : getParameters()) {
                 paramsMap.put(param.name, param);
@@ -113,7 +113,6 @@ public interface RuntimeField extends ToXContentFragment {
                 parameter.parse(name, parserContext, propNode);
                 iterator.remove();
             }
-            //TODO we should do something about boost too here
         }
     }
 
@@ -128,8 +127,9 @@ public interface RuntimeField extends ToXContentFragment {
             this.builderFunction = builderFunction;
         }
 
-        RuntimeField parse(String name, Map<String, Object> node,
-                           Mapper.TypeParser.ParserContext parserContext,
+        RuntimeField parse(String name,
+                           Map<String, Object> node,
+                           MappingParserContext parserContext,
                            Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory)
             throws MapperParsingException {
 
@@ -149,7 +149,7 @@ public interface RuntimeField extends ToXContentFragment {
      * @return the parsed runtime fields
      */
     static Map<String, RuntimeField> parseRuntimeFields(Map<String, Object> node,
-                                                        Mapper.TypeParser.ParserContext parserContext,
+                                                        MappingParserContext parserContext,
                                                         Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory,
                                                         boolean supportsRemoval) {
         Map<String, RuntimeField> runtimeFields = new HashMap<>();

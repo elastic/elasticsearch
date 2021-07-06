@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
@@ -608,16 +607,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     // creates an object mapper, which is about 100x harder than it should be....
-    ObjectMapper createObjectMapper(MapperService mapperService, String name) {
-        DocumentMapper docMapper = mapperService.documentMapper();
-        ParseContext context = new ParseContext.InternalParseContext(docMapper.mappers(), mapperService.getIndexSettings(), null,
-            null, null, null);
+    private static ObjectMapper createObjectMapper(String name) {
+        ContentPath path = new ContentPath(0);
         String[] nameParts = name.split("\\.");
         for (int i = 0; i < nameParts.length - 1; ++i) {
-            context.path().add(nameParts[i]);
+            path.add(nameParts[i]);
         }
-        Mapper.Builder builder = new ObjectMapper.Builder(nameParts[nameParts.length - 1], Version.CURRENT).enabled(true);
-        return (ObjectMapper)builder.build(context.path());
+        return new ObjectMapper.Builder(nameParts[nameParts.length - 1], Version.CURRENT).enabled(true).build(path);
     }
 
     public void testEmptyMappingUpdate() throws Exception {
@@ -713,8 +709,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService();
         DocumentMapper docMapper = mapperService.documentMapper();
         List<Mapper> updates = new ArrayList<>();
-        updates.add(createObjectMapper(mapperService, "foo"));
-        updates.add(createObjectMapper(mapperService, "foo.bar"));
+        updates.add(createObjectMapper("foo"));
+        updates.add(createObjectMapper("foo.bar"));
         updates.add(new MockFieldMapper("foo.bar.baz"));
         updates.add(new MockFieldMapper("foo.field"));
         Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mappers(), updates, Collections.emptyList());
@@ -1461,7 +1457,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Document doc = docMapper.parse(source(b -> {
+        LuceneDocument doc = docMapper.parse(source(b -> {
             b.startObject("name");
             {
                 b.field("first", "shay");
@@ -1481,7 +1477,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         // reparse it
         DocumentMapper builtDocMapper = createDocumentMapper(builtMapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
-        Document doc = builtDocMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        LuceneDocument doc = builtDocMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(builtDocMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(builtDocMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
@@ -1493,7 +1489,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat((String) docMapper.mapping().getMeta().get("param1"), equalTo("value1"));
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
-        Document doc = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        LuceneDocument doc = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
@@ -1502,7 +1498,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
         DocumentMapper docMapper = createDocumentMapper(mapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
-        Document doc = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        LuceneDocument doc = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }

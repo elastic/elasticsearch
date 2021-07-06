@@ -191,7 +191,7 @@ final class DynamicFieldsBuilder {
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType);
         if (dynamicTemplate.isRuntimeMapping()) {
-            Mapper.TypeParser.ParserContext parserContext = context.dynamicTemplateParserContext(dateFormatter);
+            MappingParserContext parserContext = context.dynamicTemplateParserContext(dateFormatter);
             RuntimeField.Parser parser = parserContext.runtimeFieldParser(mappingType);
             String fullName = context.path().pathAsText(name);
             if (parser == null) {
@@ -223,7 +223,7 @@ final class DynamicFieldsBuilder {
                                                Map<String, Object> mapping,
                                                DateFormatter dateFormatter,
                                                ParseContext context) {
-        Mapper.TypeParser.ParserContext parserContext = context.dynamicTemplateParserContext(dateFormatter);
+        MappingParserContext parserContext = context.dynamicTemplateParserContext(dateFormatter);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {
             throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + name + "]");
@@ -320,31 +320,31 @@ final class DynamicFieldsBuilder {
         @Override
         public void newDynamicStringField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            createDynamicField(new KeywordScriptFieldType(fullName), context);
+            createDynamicField(KeywordScriptFieldType.sourceOnly(fullName), context);
         }
 
         @Override
         public void newDynamicLongField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            createDynamicField(new LongScriptFieldType(fullName), context);
+            createDynamicField(LongScriptFieldType.sourceOnly(fullName), context);
         }
 
         @Override
         public void newDynamicDoubleField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            createDynamicField(new DoubleScriptFieldType(fullName), context);
+            createDynamicField(DoubleScriptFieldType.sourceOnly(fullName), context);
         }
 
         @Override
         public void newDynamicBooleanField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            createDynamicField(new BooleanScriptFieldType(fullName), context);
+            createDynamicField(BooleanScriptFieldType.sourceOnly(fullName), context);
         }
 
         @Override
         public void newDynamicDateField(ParseContext context, String name, DateFormatter dateFormatter) {
             String fullName = context.path().pathAsText(name);
-            createDynamicField(new DateScriptFieldType(fullName, dateFormatter), context);
+            createDynamicField(DateScriptFieldType.sourceOnly(fullName, dateFormatter), context);
         }
     }
 }

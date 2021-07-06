@@ -18,7 +18,6 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -42,7 +41,12 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         new Builder<>(name, GeoPointFieldScript.CONTEXT) {
             @Override
             RuntimeField newRuntimeField(GeoPointFieldScript.Factory scriptFactory) {
-                return new GeoPointScriptFieldType(name, scriptFactory, getScript(), meta(), this);
+                return new LeafRuntimeField(name, new GeoPointScriptFieldType(name, scriptFactory, getScript(), meta()), this) {
+                    @Override
+                    public String typeName() {
+                        return GeoPointFieldMapper.CONTENT_TYPE;
+                    }
+                };
             }
 
             @Override
@@ -61,10 +65,9 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         String name,
         GeoPointFieldScript.Factory scriptFactory,
         Script script,
-        Map<String, String> meta,
-        ToXContent toXContent
+        Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta, toXContent);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
     }
 
     @Override

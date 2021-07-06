@@ -92,7 +92,7 @@ public class MapXContentParser extends AbstractXContentParser {
 
     @Override
     public void allowDuplicateKeys(boolean allowDuplicateKeys) {
-        // noop
+        throw new UnsupportedOperationException("Allowing duplicate keys is not possible for maps");
     }
 
     @Override

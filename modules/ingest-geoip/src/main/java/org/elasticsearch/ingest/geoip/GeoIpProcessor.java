@@ -436,7 +436,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     return true;
                 }
                 GeoIpTaskState state = (GeoIpTaskState) task.getState();
-                return state.getDatabases().get(databaseFile).isValid(currentState.metadata().settings());
+                GeoIpTaskState.Metadata metadata = state.getDatabases().get(databaseFile);
+                // we never remove metadata from cluster state, if metadata is null we deal with built-in database, which is always valid
+                return metadata == null || metadata.isValid(currentState.metadata().settings());
             };
             return new GeoIpProcessor(processorTag, description, ipField, supplier, isValid, targetField, properties, ignoreMissing,
                 firstOnly);

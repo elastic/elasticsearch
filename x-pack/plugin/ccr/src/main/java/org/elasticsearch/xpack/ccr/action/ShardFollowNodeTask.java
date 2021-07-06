@@ -612,7 +612,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     protected boolean isStopped() {
-        return fatalException != null || isCancelled() || isCompleted() || isLocallyAborted();
+        return fatalException != null || isCancelled() || isCompleted();
     }
 
     public ShardId getFollowShardId() {

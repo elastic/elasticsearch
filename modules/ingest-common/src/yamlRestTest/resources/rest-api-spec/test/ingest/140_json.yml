@@ -87,7 +87,6 @@ teardown:
                 "json" : {
                   "field" : "json",
                   "add_to_root": true,
-                  "add_to_root_recursive_merge": true,
                   "allow_duplicate_keys": true
                 }
               }
@@ -101,17 +100,11 @@ teardown:
         id: 2
         pipeline: "2"
         body: {
-          json: "{\"foo\": {\"bar\": \"baz\"}, \"dupe\": 1, \"dupe\": 2}",
-          foo: {
-            bar: "override_me",
-            qux: "quux"
-          }
+          json: "{\"dupe\": 1, \"dupe\": 2}",
         }
 
   - do:
       get:
         index: test
         id: 2
-  - match: { _source.foo.bar: "baz" }
-  - match: { _source.foo.qux: "quux" }
   - match: { _source.dupe: 2 }

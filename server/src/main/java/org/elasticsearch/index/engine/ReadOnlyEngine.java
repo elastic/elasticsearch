@@ -249,7 +249,7 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public GetResult get(Get get, MappingLookup mappingLookup, DocumentParser documentParser,
                          Function<Searcher, Searcher> searcherWrapper) {
-        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper));
+        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
     }
 
     @Override

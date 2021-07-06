@@ -238,7 +238,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
   }
 }
 
-void addUnpackDockerContextTask(Architecture architecture, DockerBase base) {
+void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
   tasks.register(taskName("transform", architecture, base, "DockerContext"), Sync) {
     TaskProvider<Tar> buildContextTask = tasks.named(taskName("build", architecture, base, "DockerContext"))
     dependsOn(buildContextTask)
@@ -347,7 +347,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 for (final Architecture architecture : Architecture.values()) {
   for (final DockerBase base : DockerBase.values()) {
     addBuildDockerContextTask(architecture, base)
-    addUnpackDockerContextTask(architecture, base)
+    addTransformDockerContextTask(architecture, base)
     addBuildDockerImageTask(architecture, base)
   }
 }

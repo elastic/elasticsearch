@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -71,11 +72,11 @@ public final class DocumentParser {
      */
     public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws MapperParsingException {
         validateType(source, mappingLookup.getType());
-        final ParseContext.InternalParseContext context;
+        final InternalParseContext context;
         final XContentType xContentType = source.getXContentType();
         try (XContentParser parser = XContentHelper.createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
-            context = new ParseContext.InternalParseContext(
+            context = new InternalParseContext(
                 mappingLookup,
                 indexSettings,
                 indexAnalyzers,
@@ -94,10 +95,18 @@ public final class DocumentParser {
             throw new IllegalStateException("found leftover path elements: " + remainingPath);
         }
 
-        context.postParse();
-
-        return parsedDocument(source, context, createDynamicUpdate(mappingLookup,
-            context.getDynamicMappers(), context.getDynamicRuntimeFields()));
+        return new ParsedDocument(
+            context.version(),
+            context.seqID(),
+            context.sourceToParse().id(),
+            context.sourceToParse().type(),
+            source.routing(),
+            context.reorderParentAndGetDocs(),
+            context.sourceToParse().source(),
+            context.sourceToParse().getXContentType(),
+            createDynamicUpdate(mappingLookup,
+                context.getDynamicMappers(), context.getDynamicRuntimeFields())
+        );
     }
 
     private static boolean containsDisabledObjectMapper(ObjectMapper objectMapper, String[] subfields) {
@@ -211,20 +220,6 @@ public final class DocumentParser {
             }
         }
         return false;
-    }
-
-    private static ParsedDocument parsedDocument(SourceToParse source, ParseContext.InternalParseContext context, Mapping update) {
-        return new ParsedDocument(
-            context.version(),
-            context.seqID(),
-            context.sourceToParse().id(),
-            context.sourceToParse().type(),
-            source.routing(),
-            context.docs(),
-            context.sourceToParse().source(),
-            context.sourceToParse().getXContentType(),
-            update
-        );
     }
 
     private static MapperParsingException wrapInMapperParsingException(SourceToParse source, Exception e) {
@@ -986,6 +981,110 @@ public final class DocumentParser {
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
             super(name, fullPath, new Explicit<>(true, false), Nested.NO, Dynamic.RUNTIME, Collections.emptyMap(), Version.CURRENT);
+        }
+    }
+
+    /**
+     * Internal version of {@link ParseContext} that is aware of implementation details like nested documents
+     * and how they are stored in the lucene index.
+     */
+    private static class InternalParseContext extends ParseContext {
+        private final ContentPath path = new ContentPath(0);
+        private final XContentParser parser;
+        private final LuceneDocument document;
+        private final List<LuceneDocument> documents = new ArrayList<>();
+        private final long maxAllowedNumNestedDocs;
+        private long numNestedDocs;
+        private boolean docsReversed = false;
+
+        InternalParseContext(MappingLookup mappingLookup,
+                             IndexSettings indexSettings,
+                             IndexAnalyzers indexAnalyzers,
+                             Function<DateFormatter, MappingParserContext> parserContext,
+                             SourceToParse source,
+                             XContentParser parser) {
+            super(mappingLookup, indexSettings, indexAnalyzers, parserContext, source);
+            this.parser = parser;
+            this.document = new LuceneDocument();
+            this.documents.add(document);
+            this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();
+            this.numNestedDocs = 0L;
+        }
+
+        @Override
+        public ContentPath path() {
+            return this.path;
+        }
+
+        @Override
+        public XContentParser parser() {
+            return this.parser;
+        }
+
+        @Override
+        public LuceneDocument rootDoc() {
+            return documents.get(0);
+        }
+
+        @Override
+        public LuceneDocument doc() {
+            return this.document;
+        }
+
+        @Override
+        protected void addDoc(LuceneDocument doc) {
+            numNestedDocs ++;
+            if (numNestedDocs > maxAllowedNumNestedDocs) {
+                throw new MapperParsingException(
+                    "The number of nested documents has exceeded the allowed limit of [" + maxAllowedNumNestedDocs + "]."
+                        + " This limit can be set by changing the [" + MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey()
+                        + "] index level setting.");
+            }
+            this.documents.add(doc);
+        }
+
+        @Override
+        public List<LuceneDocument> docs() {
+            return this.documents;
+        }
+
+        @Override
+        public Iterable<LuceneDocument> nonRootDocuments() {
+            if (docsReversed) {
+                throw new IllegalStateException("documents are already reversed");
+            }
+            return documents.subList(1, documents.size());
+        }
+
+        /**
+         * Returns a copy of the provided {@link List} where parent documents appear
+         * after their children.
+         */
+        private List<LuceneDocument> reorderParentAndGetDocs() {
+            if (documents.size() > 1 && docsReversed == false) {
+                docsReversed = true;
+                if (indexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_5_0)) {
+                    /*
+                     * For indices created on or after {@link Version#V_6_5_0} we preserve the order
+                     * of the children while ensuring that parents appear after them.
+                     */
+                    List<LuceneDocument> newDocs = new ArrayList<>(documents.size());
+                    LinkedList<LuceneDocument> parents = new LinkedList<>();
+                    for (LuceneDocument doc : documents) {
+                        while (parents.peek() != doc.getParent()){
+                            newDocs.add(parents.poll());
+                        }
+                        parents.add(0, doc);
+                    }
+                    newDocs.addAll(parents);
+                    documents.clear();
+                    documents.addAll(newDocs);
+                } else {
+                    // reverse the order of docs for nested docs support, parent should be last
+                    Collections.reverse(documents);
+                }
+            }
+            return documents;
         }
     }
 }

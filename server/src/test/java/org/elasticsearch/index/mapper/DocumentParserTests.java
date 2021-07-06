@@ -607,16 +607,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     // creates an object mapper, which is about 100x harder than it should be....
-    ObjectMapper createObjectMapper(MapperService mapperService, String name) {
-        DocumentMapper docMapper = mapperService.documentMapper();
-        ParseContext context = new ParseContext.InternalParseContext(docMapper.mappers(), mapperService.getIndexSettings(), null,
-            null, null, null);
+    private static ObjectMapper createObjectMapper(String name) {
+        ContentPath path = new ContentPath(0);
         String[] nameParts = name.split("\\.");
         for (int i = 0; i < nameParts.length - 1; ++i) {
-            context.path().add(nameParts[i]);
+            path.add(nameParts[i]);
         }
-        Mapper.Builder builder = new ObjectMapper.Builder(nameParts[nameParts.length - 1], Version.CURRENT).enabled(true);
-        return (ObjectMapper)builder.build(context.path());
+        return new ObjectMapper.Builder(nameParts[nameParts.length - 1], Version.CURRENT).enabled(true).build(path);
     }
 
     public void testEmptyMappingUpdate() throws Exception {
@@ -712,8 +709,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService();
         DocumentMapper docMapper = mapperService.documentMapper();
         List<Mapper> updates = new ArrayList<>();
-        updates.add(createObjectMapper(mapperService, "foo"));
-        updates.add(createObjectMapper(mapperService, "foo.bar"));
+        updates.add(createObjectMapper("foo"));
+        updates.add(createObjectMapper("foo.bar"));
         updates.add(new MockFieldMapper("foo.bar.baz"));
         updates.add(new MockFieldMapper("foo.field"));
         Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mappers(), updates, Collections.emptyList());

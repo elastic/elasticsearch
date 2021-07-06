@@ -12,6 +12,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.SearchApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
@@ -75,6 +76,10 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                         invalidateApiKeyRequest.getUserName(), invalidateApiKeyRequest.getRealmName(),
                         invalidateApiKeyRequest.ownedByAuthenticatedUser()));
                 }
+            } else if (request instanceof SearchApiKeyRequest) {
+                final SearchApiKeyRequest searchApiKeyRequest = (SearchApiKeyRequest) request;
+                searchApiKeyRequest.setFilterForCurrentUser();
+                return true;
             }
             throw new IllegalArgumentException(
                 "manage own api key privilege only supports API key requests (not " + request.getClass().getName() + ")");

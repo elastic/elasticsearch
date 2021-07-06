@@ -40,7 +40,8 @@ public final class JsonProcessor extends AbstractProcessor {
     private final boolean allowDuplicateKeys;
     private final boolean addToRootRecursiveMerge;
 
-    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot, boolean addToRootRecursiveMerge, boolean allowDuplicateKeys) {
+    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot, boolean addToRootRecursiveMerge,
+                  boolean allowDuplicateKeys) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;

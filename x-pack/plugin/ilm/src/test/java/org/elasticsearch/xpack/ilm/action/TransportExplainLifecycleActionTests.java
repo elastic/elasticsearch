@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 
 import java.io.IOException;
-import java.util.List;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.ilm.action.TransportExplainLifecycleAction.getIndexLifecycleExplainResponse;

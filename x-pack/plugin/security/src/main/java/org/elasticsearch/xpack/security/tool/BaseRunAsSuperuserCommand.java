@@ -141,7 +141,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     /**
      * Removes temporary file realm user from users and roles file
      */
-    protected void cleanup(Terminal terminal, Environment env) throws Exception {
+    private void cleanup(Terminal terminal, Environment env) throws Exception {
         final Path passwordFile = FileUserPasswdStore.resolveFile(env);
         final Path rolesFile = FileUserRolesStore.resolveFile(env);
         FileAttributesChecker attributesChecker = new FileAttributesChecker(passwordFile, rolesFile);

@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.search.stats.FieldUsageStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -30,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,9 +59,9 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<Fi
                                                   List<FieldUsageShardResponse> fieldUsages,
                                                   List<DefaultShardOperationFailedException> shardFailures,
                                                   ClusterState clusterState) {
-        final Map<String, FieldUsageStats> combined = new HashMap<>();
+        final Map<String, List<FieldUsageShardResponse>> combined = new HashMap<>();
         for (FieldUsageShardResponse response : fieldUsages) {
-            combined.merge(response.routing.shardId().getIndexName(), response.stats, FieldUsageStats::add);
+            combined.computeIfAbsent(response.shardRouting.shardId().getIndexName(), i -> new ArrayList<>()).add(response);
         }
         return new FieldUsageStatsResponse(
             totalShards,
@@ -82,7 +82,8 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<Fi
         ActionListener.completeWith(listener, () -> {
             final ShardId shardId = shardRouting.shardId();
             final IndexShard shard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-            return new FieldUsageShardResponse(shardRouting, shard.fieldUsageStats(request.fields()));
+            return new FieldUsageShardResponse(shard.getShardUuid(), shardRouting,
+                shard.getShardCreationTime(), shard.fieldUsageStats(request.fields()));
         });
     }
 

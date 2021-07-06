@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -23,7 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class FieldUsageStats implements ToXContentFragment, Writeable {
+public class FieldUsageStats implements ToXContentObject, Writeable {
     public static final String ANY = "any";
     public static final String INVERTED_INDEX = "inverted_index";
     public static final String TERMS = "terms";
@@ -60,6 +61,7 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject("all_fields");
         total().toXContent(builder, params);
         builder.endObject();
@@ -74,6 +76,7 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
                 builder.endObject();
             }
         }
+        builder.endObject();
         builder.endObject();
         return builder;
     }

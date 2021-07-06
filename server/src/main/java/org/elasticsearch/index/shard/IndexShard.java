@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -195,7 +196,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Store store;
     private final InternalIndexingStats internalIndexingStats;
     private final ShardSearchStats searchStats = new ShardSearchStats();
-    private final ShardFieldUsageTracker fieldUsageTracker = new ShardFieldUsageTracker();
+    private final ShardFieldUsageTracker fieldUsageTracker;
+    private final String shardUuid = UUIDs.randomBase64UUID();
+    private final long shardCreationTime;
     private final ShardGetService getService;
     private final ShardIndexWarmerService shardWarmerService;
     private final ShardRequestCache requestCacheStats;
@@ -358,6 +361,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
                 this::getSafeCommitInfo,
                 pendingReplicationActions);
+        fieldUsageTracker = new ShardFieldUsageTracker();
+        shardCreationTime = threadPool.absoluteTimeInMillis();
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -449,6 +454,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /** Returns the primary term that is currently being used to assign to operations */
     public long getOperationPrimaryTerm() {
         return replicationTracker.getOperationPrimaryTerm();
+    }
+
+    /**
+     * Returns a unique UUID that identifies this IndexShard instance
+     */
+    public String getShardUuid() {
+        return shardUuid;
+    }
+
+    /**
+     * Returns the timestamp at which this IndexShard instance was created
+     */
+    public long getShardCreationTime() {
+        return shardCreationTime;
     }
 
     /**

@@ -12,6 +12,8 @@ setup:
         body:
           settings:
             routing.rebalance.enable: none
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
           mappings:
             properties:
               name:
@@ -66,8 +68,18 @@ setup:
   - do:
       indices.field_usage_stats: { index: testindex }
 
+  - is_true: testindex
+  - length: { testindex.shards: 1 }
+  - is_true: testindex.shards.0.tracking_id
+  - gt: { testindex.shards.0.tracking_started_at_millis: 0 }
+  - is_true: testindex.shards.0.routing
+  - is_true: testindex.shards.0.routing.state
+  - is_true: testindex.shards.0.routing.primary
+  - is_true: testindex.shards.0.routing.node
+  - is_true: testindex.shards.0.stats
+
   # all_fields
-  - set: { testindex.all_fields: stat }
+  - set: { testindex.shards.0.stats.all_fields: stat }
   - gt: { $stat.any: 0 }
   - gt: { $stat.inverted_index.terms: 0 }
   - gt: { $stat.inverted_index.postings: 0 }
@@ -83,7 +95,7 @@ setup:
   - match: { $stat.inverted_index.payloads: 0 }
 
   # name
-  - set: { testindex.fields.name: stat }
+  - set: { testindex.shards.0.stats.fields.name: stat }
   - gt: { $stat.any: 0 }
   - gt: { $stat.inverted_index.terms: 0 }
   - gt: { $stat.inverted_index.postings: 0 }
@@ -99,7 +111,7 @@ setup:
   - match: { $stat.inverted_index.payloads: 0 }
 
   # price
-  - set: { testindex.fields.price: stat }
+  - set: { testindex.shards.0.stats.fields.price: stat }
   - gt: { $stat.any: 0 }
   - match: { $stat.inverted_index.terms: 0 }
   - match: { $stat.inverted_index.postings: 0 }
@@ -115,7 +127,7 @@ setup:
   - match: { $stat.inverted_index.payloads: 0 }
 
   # day
-  - set: { testindex.fields.day: stat }
+  - set: { testindex.shards.0.stats.fields.day: stat }
   - gt: { $stat.any: 0 }
   - match: { $stat.inverted_index.terms: 0 }
   - match: { $stat.inverted_index.postings: 0 }
@@ -131,7 +143,7 @@ setup:
   - match: { $stat.inverted_index.payloads: 0 }
 
   # _source
-  - set: { testindex.fields._source: stat }
+  - set: { testindex.shards.0.stats.fields._source: stat }
   - gt: { $stat.any: 0 }
   - match: { $stat.inverted_index.terms: 0 }
   - match: { $stat.inverted_index.postings: 0 }
@@ -147,7 +159,7 @@ setup:
   - match: { $stat.inverted_index.payloads: 0 }
 
   # _id
-  - set: { testindex.fields._id: stat }
+  - set: { testindex.shards.0.stats.fields._id: stat }
   - gt: { $stat.any: 0 }
   - match: { $stat.inverted_index.terms: 0 }
   - match: { $stat.inverted_index.postings: 0 }
@@ -173,7 +185,7 @@ setup:
       indices.field_usage_stats: { index: testindex }
 
   # name
-  - set: { testindex.fields.name: stat }
+  - set: { testindex.shards.0.stats.fields.name: stat }
   - gt: { $stat.term_vectors: 0 }
 
   - do:
@@ -188,7 +200,7 @@ setup:
       indices.field_usage_stats: { index: testindex }
 
   # name
-  - set: { testindex.fields.name: stat }
+  - set: { testindex.shards.0.stats.fields.name: stat }
   - gt: { $stat.norms: 0 }
 
   - do:
@@ -201,5 +213,5 @@ setup:
       indices.field_usage_stats: { index: testindex }
 
   # name
-  - set: { testindex.fields.name: stat }
+  - set: { testindex.shards.0.stats.fields.name: stat }
   - gt: { $stat.inverted_index.offsets: 0 }

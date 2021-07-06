@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.stats;
 
+import org.elasticsearch.action.admin.indices.stats.FieldUsageShardResponse;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -21,6 +22,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -38,6 +40,11 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("search.aggs.rewrite_to_filter_by_filter", false)
             .build();
+    }
+
+    private FieldUsageStats aggregated(List<FieldUsageShardResponse> stats) {
+        assertFalse(stats.isEmpty());
+        return stats.stream().map(FieldUsageShardResponse::getStats).reduce(FieldUsageStats::add).get();
     }
 
     public void testFieldUsageStats() throws ExecutionException, InterruptedException {
@@ -58,7 +65,8 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
 
         ensureGreen("test");
 
-        FieldUsageStats stats = client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test");
+        FieldUsageStats stats =
+            aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
 
         assertFalse(stats.hasField("field"));
         assertFalse(stats.hasField("field.keyword"));
@@ -77,7 +85,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 30);
         assertAllSuccessful(searchResponse);
 
-        stats = client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test");
+        stats = aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
         logger.info("Stats after first query: {}", stats);
 
         assertTrue(stats.hasField("_id"));
@@ -110,7 +118,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
             .setPreference("fixed")
             .get();
 
-        stats = client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test");
+        stats = aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
         logger.info("Stats after second query: {}", stats);
 
         assertEquals(2L * numShards, stats.get("field").getTerms());
@@ -130,7 +138,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
             .setPreference("fixed")
             .get();
 
-        stats = client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test");
+        stats = aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
         logger.info("Stats after third query: {}", stats);
 
         assertTrue(stats.hasField("date_field"));

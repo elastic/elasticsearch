@@ -81,7 +81,8 @@ POST /my-index-000001/_search
 
 //////////////////////////
 
-The following request retrieves field usage information of index `my-index-000001`.
+The following request retrieves field usage information of index `my-index-000001`
+on the currently available shards.
 
 [source,console]
 --------------------------------------------------
@@ -100,45 +101,59 @@ The API returns the following response:
         "failed": 0
     },
     "my-index-000001": {
-        "all_fields": {
-            "any": "6",
-            "inverted_index": {
-                "terms" : 1,
-                "postings" : 1,
-                "proximity" : 1,
-                "positions" : 0,
-                "term_frequencies" : 1,
-                "offsets" : 0,
-                "payloads" : 0
-            },
-            "stored_fields" : 2,
-            "doc_values" : 1,
-            "points" : 0,
-            "norms" : 1,
-            "term_vectors" : 0
-        },
-        "fields": {
-            "_id": {
-                "any" : 1,
-                "inverted_index": {
-                    "terms" : 1,
-                    "postings" : 1,
-                    "proximity" : 1,
-                    "positions" : 0,
-                    "term_frequencies" : 1,
-                    "offsets" : 0,
-                    "payloads" : 0
+        "shards": [
+            {
+                "tracking_id": "MpOl0QlTQ4SYYhEe6KgJoQ",
+                "tracking_started_at_millis": 1625558985010,
+                "routing": {
+                    "state": "STARTED",
+                    "primary": true,
+                    "node": "gA6KeeVzQkGURFCUyV-e8Q",
+                    "relocating_node": null
                 },
-                "stored_fields" : 1,
-                "doc_values" : 0,
-                "points" : 0,
-                "norms" : 0,
-                "term_vectors" : 0
-            },
-            "_source": {...},
-            "context": {...},
-            "message.keyword": {...}
-        }
+                "stats" : {
+                    "all_fields": {
+                        "any": "6",
+                        "inverted_index": {
+                            "terms" : 1,
+                            "postings" : 1,
+                            "proximity" : 1,
+                            "positions" : 0,
+                            "term_frequencies" : 1,
+                            "offsets" : 0,
+                            "payloads" : 0
+                        },
+                        "stored_fields" : 2,
+                        "doc_values" : 1,
+                        "points" : 0,
+                        "norms" : 1,
+                        "term_vectors" : 0
+                    },
+                    "fields": {
+                        "_id": {
+                            "any" : 1,
+                            "inverted_index": {
+                                "terms" : 1,
+                                "postings" : 1,
+                                "proximity" : 1,
+                                "positions" : 0,
+                                "term_frequencies" : 1,
+                                "offsets" : 0,
+                                "payloads" : 0
+                            },
+                            "stored_fields" : 1,
+                            "doc_values" : 0,
+                            "points" : 0,
+                            "norms" : 0,
+                            "term_vectors" : 0
+                        },
+                        "_source": {...},
+                        "context": {...},
+                        "message.keyword": {...}
+                    }
+                }
+            }
+        ]
     }
 }
 --------------------------------------------------

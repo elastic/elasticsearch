@@ -444,7 +444,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     /** The maximum keyword length allowed for a dimension field */
-    private static final int DIMENSION_MAX_LENGTH = 1024;
+    private static final int DIMENSION_MAX_BYTES = 1024;
 
     private final boolean indexed;
     private final boolean hasDocValues;
@@ -520,12 +520,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
         }
 
-        if (dimension && value.length() > DIMENSION_MAX_LENGTH) {
-            throw new IllegalArgumentException(
-                "Dimension field [" + fieldType().name() + "] cannot be more than [" + DIMENSION_MAX_LENGTH + "] characters long."
-            );
-        }
-
         if (value.length() > ignoreAbove) {
             context.addIgnoredField(name());
             return;
@@ -538,6 +532,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
+        if (dimension && binaryValue.length > DIMENSION_MAX_BYTES) {
+            throw new IllegalArgumentException(
+                "Dimension field [" + fieldType().name() + "] cannot be more than [" + DIMENSION_MAX_BYTES + "] bytes long."
+            );
+        }
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
 

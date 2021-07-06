@@ -40,7 +40,7 @@ public class InjectHeaders extends FeatureInjector implements RestTestTransformB
     @Override
     public void transformTest(ObjectNode doNodeParent) {
         ObjectNode doNodeValue = (ObjectNode) doNodeParent.get(getKeyToFind());
-        if(isCatNode(doNodeValue)){
+        if(isCatOperation(doNodeValue)){
             return;
         }
 
@@ -54,11 +54,11 @@ public class InjectHeaders extends FeatureInjector implements RestTestTransformB
         doNodeValue.set("headers", headersNode);
     }
 
-    private boolean isCatNode(ObjectNode doNodeValue) {
-        final Iterator<String> stringIterator = doNodeValue.fieldNames();
-        while (stringIterator.hasNext()) {
-            final String fieldName = stringIterator.next();
-            if(fieldName.startsWith("cat.")) {
+    private boolean isCatOperation(ObjectNode doNodeValue) {
+        final Iterator<String> fieldNamesIterator = doNodeValue.fieldNames();
+        while (fieldNamesIterator.hasNext()) {
+            final String fieldName = fieldNamesIterator.next();
+            if (fieldName.startsWith("cat.")) {
                 return true;
             }
         }

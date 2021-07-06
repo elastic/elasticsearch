@@ -824,11 +824,13 @@ for the execution of an EQL query is multiplied by to determine a final estimati
 See <<circuit-breaker>>. Defaults to `1`.
 
 `breaker.eql_sequence.type`::
-(<<static-cluster-setting,Static>>) The underlying type of the circuit breaker.
-There are two valid options: `noop` and `memory`. `noop` means the circuit
-breaker does nothing to prevent too much memory usage. `memory` means the
-circuit breaker tracks the memory used by sequence queries and can potentially
-break and prevent `OutOfMemory` errors. The default value is `memory`.
+(<<static-cluster-setting,Static>>) Circuit breaker type. Valid values are:
+
+`memory` (Default):::
+The breaker limits memory usage for EQL sequence queries.
+
+`noop`:::
+Disables the breaker.
 
 include::syntax.asciidoc[]
 include::functions.asciidoc[]

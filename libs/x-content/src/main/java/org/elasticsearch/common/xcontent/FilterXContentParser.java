@@ -33,6 +33,11 @@ public abstract class FilterXContentParser implements XContentParser {
     }
 
     @Override
+    public void allowDuplicateKeys(boolean allowDuplicateKeys) {
+        in.allowDuplicateKeys(allowDuplicateKeys);
+    }
+
+    @Override
     public Token nextToken() throws IOException {
         return in.nextToken();
     }

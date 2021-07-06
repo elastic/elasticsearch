@@ -7,11 +7,8 @@
  */
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -123,27 +120,7 @@ public class CuckooFilter implements Writeable {
         this.rng = rng;
 
         this.fingerprintMask = (0x80000000 >> (bitsPerEntry - 1)) >>> (Integer.SIZE - bitsPerEntry);
-
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            final PackedInts.Reader reader = PackedInts.getReader(new DataInput() {
-                @Override
-                public byte readByte() throws IOException {
-                    return in.readByte();
-                }
-
-                @Override
-                public void readBytes(byte[] b, int offset, int len) throws IOException {
-                    in.readBytes(b, offset, len);
-                }
-            });
-            // This is probably slow but it should only happen if we have a mixed clusters (e.g during upgrade).
-            data = new PackedArray(numBuckets * entriesPerBucket, bitsPerEntry);
-            for (int i = 0; i < reader.size(); i++) {
-                data.set(i, reader.get(i));
-            }
-        } else {
-            data = new PackedArray(in);
-        }
+        this.data = new PackedArray(in);
     }
 
     @Override
@@ -153,26 +130,7 @@ public class CuckooFilter implements Writeable {
         out.writeVInt(entriesPerBucket);
         out.writeVInt(count);
         out.writeVInt(evictedFingerprint);
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            // This is probably slow but it should only happen if we have a mixed clusters (e.g during upgrade).
-            PackedInts.Mutable mutable = PackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
-            for (int i = 0; i < data.size(); i++) {
-                mutable.set(i, data.get(i));
-            }
-            mutable.save(new DataOutput() {
-                @Override
-                public void writeByte(byte b) throws IOException {
-                    out.writeByte(b);
-                }
-
-                @Override
-                public void writeBytes(byte[] b, int offset, int length) throws IOException {
-                    out.writeBytes(b, offset, length);
-                }
-            });
-        } else {
-            data.save(out);
-        }
+        this.data.save(out);
     }
 
     /**

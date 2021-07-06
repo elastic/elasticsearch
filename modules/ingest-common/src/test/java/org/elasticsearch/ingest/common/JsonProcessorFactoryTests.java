@@ -77,4 +77,16 @@ public class JsonProcessorFactoryTests extends ESTestCase {
             () -> FACTORY.create(null, randomAlphaOfLength(10), null, config));
         assertThat(exception.getMessage(), equalTo("[target_field] Cannot set a target field while also setting `add_to_root` to true"));
     }
+
+    public void testCreateWithTargetFieldAndRecursiveMerge() throws Exception {
+        String randomField = randomAlphaOfLength(10);
+        String randomTargetField = randomAlphaOfLength(5);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", randomField);
+        config.put("target_field", randomTargetField);
+        config.put("add_to_root_recursive_merge", true);
+        ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
+            () -> FACTORY.create(null, randomAlphaOfLength(10), null, config));
+        assertThat(exception.getMessage(), equalTo("[add_to_root_recursive_merge] Cannot set `add_to_root_recursive_merge` to true if `add_to_root` is false"));
+    }
 }

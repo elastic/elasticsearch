@@ -146,11 +146,12 @@ final class ProcessContext {
         }
 
         /**
-         * @param finish This argument overrides the member variable of the same name. Sometimes this method is called
-         *               immediately after a process is started, if it was requested to be killed before it started.
-         *               In this situation the persistent task has already been completed if that was desired.
+         * @param finishPersistentTask Sometimes this method is called immediately after a process is
+         *                             is started, if it was requested to be killed before it started.
+         *                             In this situation the persistent task has already been completed
+         *                             if that was desired.
          */
-        private void killConnectedProcess(boolean finish) {
+        private void killConnectedProcess(boolean finishPersistentTask) {
             assert autodetectCommunicator != null;
 
             String jobId = jobTask.getJobId();
@@ -164,7 +165,7 @@ final class ProcessContext {
                 }
             }
             try {
-                autodetectCommunicator.killProcess(awaitCompletion, finish, shouldFinalizeJob);
+                autodetectCommunicator.killProcess(awaitCompletion, finishPersistentTask, shouldFinalizeJob);
             } catch (IOException e) {
                 LOGGER.error("[{}] Failed to kill autodetect process for job", jobId);
             }

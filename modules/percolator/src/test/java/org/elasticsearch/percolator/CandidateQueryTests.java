@@ -76,12 +76,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TestParseContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -110,7 +110,6 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
 
     private Directory directory;
     private IndexWriter indexWriter;
-    private DocumentMapper documentMapper;
     private DirectoryReader directoryReader;
     private IndexService indexService;
     private MapperService mapperService;
@@ -147,7 +146,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 .startObject("ip_field").field("type", "ip").endObject()
                 .startObject("field").field("type", "keyword").endObject()
                 .endObject().endObject().endObject());
-        documentMapper = mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
 
         String queryField = "query_field";
         String percolatorMapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -1103,8 +1102,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     private void addQuery(Query query, List<LuceneDocument> docs) {
-        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(
-            documentMapper.mappers(), indexService.getIndexSettings(), indexService.getIndexAnalyzers(), null, null, null);
+        ParseContext parseContext = new TestParseContext();
         fieldMapper.processQuery(query, parseContext);
         LuceneDocument queryDocument = parseContext.doc();
         // Add to string representation of the query to make debugging easier:

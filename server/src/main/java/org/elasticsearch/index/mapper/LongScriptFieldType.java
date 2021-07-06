@@ -38,22 +38,41 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         new Builder<>(name, LongFieldScript.CONTEXT, LongFieldScript.PARSE_FROM_SOURCE) {
             @Override
             RuntimeField newRuntimeField(LongFieldScript.Factory scriptFactory) {
-                return new LongScriptFieldType(name, scriptFactory, getScript(), meta(), this);
+                return runtimeField(name, this, scriptFactory, getScript(), meta());
             }
         });
 
-    public LongScriptFieldType(String name) {
-        this(name, LongFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
+    private static RuntimeField runtimeField(
+        String name,
+        ToXContent toXContent,
+        LongFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta
+    ) {
+        return new LeafRuntimeField(name, new LongScriptFieldType(name, scriptFactory, script, meta), toXContent) {
+            @Override
+            public String typeName() {
+                return NumberType.LONG.typeName();
+            }
+        };
+    }
+
+    public static RuntimeField sourceOnly(String name) {
+        return runtimeField(
+            name,
+            (builder, params) -> builder,
+            LongFieldScript.PARSE_FROM_SOURCE,
+            DEFAULT_SCRIPT,
+            Collections.emptyMap());
     }
 
     public LongScriptFieldType(
         String name,
         LongFieldScript.Factory scriptFactory,
         Script script,
-        Map<String, String> meta,
-        ToXContent toXContent
+        Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta, toXContent);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
     }
 
     @Override

@@ -37,15 +37,12 @@ public final class JsonProcessor extends AbstractProcessor {
     private final String targetField;
     private final boolean addToRoot;
     private final boolean addToRootRecursiveMerge;
-    private final boolean allowDuplicateKeys;
 
-    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot, boolean addToRootRecursiveMerge,
-                  boolean allowDuplicateKeys) {
+    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot, boolean addToRootRecursiveMerge) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.addToRoot = addToRoot;
-        this.allowDuplicateKeys = allowDuplicateKeys;
         this.addToRootRecursiveMerge = addToRootRecursiveMerge;
     }
 
@@ -61,12 +58,11 @@ public final class JsonProcessor extends AbstractProcessor {
         return addToRoot;
     }
 
-    public static Object apply(Object fieldValue, boolean allowDuplicateKeys) {
+    public static Object apply(Object fieldValue) {
         BytesReference bytesRef = fieldValue == null ? new BytesArray("null") : new BytesArray(fieldValue.toString());
         try (InputStream stream = bytesRef.streamInput();
              XContentParser parser = JsonXContent.jsonXContent
                  .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
-            parser.allowDuplicateKeys(allowDuplicateKeys);
             XContentParser.Token token = parser.nextToken();
             Object value = null;
             if (token == XContentParser.Token.VALUE_NULL) {
@@ -90,8 +86,8 @@ public final class JsonProcessor extends AbstractProcessor {
         }
     }
 
-    public static void apply(Map<String, Object> ctx, String fieldName, boolean allowDuplicateKeys, boolean addToRootRecursiveMerge) {
-        Object value = apply(ctx.get(fieldName), allowDuplicateKeys);
+    public static void apply(Map<String, Object> ctx, String fieldName, boolean addToRootRecursiveMerge) {
+        Object value = apply(ctx.get(fieldName));
         if (value instanceof Map) {
             @SuppressWarnings("unchecked")
                 Map<String, Object> map = (Map<String, Object>) value;
@@ -125,9 +121,9 @@ public final class JsonProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
         if (addToRoot) {
-            apply(document.getSourceAndMetadata(), field, allowDuplicateKeys, addToRootRecursiveMerge);
+            apply(document.getSourceAndMetadata(), field, addToRootRecursiveMerge);
         } else {
-            document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class), allowDuplicateKeys));
+            document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class)));
         }
         return document;
     }
@@ -146,7 +142,6 @@ public final class JsonProcessor extends AbstractProcessor {
             boolean addToRoot = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "add_to_root", false);
             boolean addToRootRecursiveMerge = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config,
                 "add_to_root_recursive_merge", false);
-            boolean allowDuplicateKeys = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "allow_duplicate_keys", false);
 
             if (addToRoot && targetField != null) {
                 throw newConfigurationException(TYPE, processorTag, "target_field",
@@ -161,7 +156,7 @@ public final class JsonProcessor extends AbstractProcessor {
                 targetField = field;
             }
 
-            return new JsonProcessor(processorTag, description, field, targetField, addToRoot, addToRootRecursiveMerge, allowDuplicateKeys);
+            return new JsonProcessor(processorTag, description, field, targetField, addToRoot, addToRootRecursiveMerge);
         }
     }
 }

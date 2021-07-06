@@ -77,18 +77,17 @@ teardown:
   - is_false: _source.foo_null
 
 ---
-"Test JSON Processor duplicate keys":
+"Test JSON Processor add_to_root_recursive_merge":
   - do:
       ingest.put_pipeline:
-        id: "2"
+        id: "3"
         body: {
             "processors": [
               {
                 "json" : {
                   "field" : "json",
                   "add_to_root": true,
-                  "add_to_root_recursive_merge": true,
-                  "allow_duplicate_keys": true
+                  "add_to_root_recursive_merge": true
                 }
               }
             ]
@@ -98,10 +97,10 @@ teardown:
   - do:
       index:
         index: test
-        id: 2
-        pipeline: "2"
+        id: 3
+        pipeline: "3"
         body: {
-          json: "{\"foo\": {\"bar\": \"baz\"}, \"dupe\": 1, \"dupe\": 2}",
+          json: "{\"foo\": {\"bar\": \"baz\"} }",
           foo: {
             bar: "override_me",
             qux: "quux"
@@ -111,7 +110,6 @@ teardown:
   - do:
       get:
         index: test
-        id: 2
+        id: 3
   - match: { _source.foo.bar: "baz" }
   - match: { _source.foo.qux: "quux" }
-  - match: { _source.dupe: 2 }

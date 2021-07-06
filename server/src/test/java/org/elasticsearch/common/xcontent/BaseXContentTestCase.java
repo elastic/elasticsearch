@@ -1149,18 +1149,6 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         }
     }
 
-    public void testAllowsDuplicates() throws Exception {
-        XContentBuilder builder = builder()
-                .startObject()
-                    .field("key", 1)
-                    .field("key", 2)
-                .endObject();
-        try (XContentParser xParser = createParser(builder)) {
-            xParser.allowDuplicateKeys(true);
-            assertThat(xParser.map(), equalTo(Map.of("key", 2)));
-        }
-    }
-
     public void testNamedObject() throws IOException {
         Object test1 = new Object();
         Object test2 = new Object();

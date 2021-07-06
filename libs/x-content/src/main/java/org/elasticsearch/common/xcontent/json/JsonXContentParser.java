@@ -45,11 +45,6 @@ public class JsonXContentParser extends AbstractXContentParser {
     }
 
     @Override
-    public void allowDuplicateKeys(boolean allowDuplicateKeys) {
-        parser.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, allowDuplicateKeys == false);
-    }
-
-    @Override
     public Token nextToken() throws IOException {
         return convertToken(parser.nextToken());
     }

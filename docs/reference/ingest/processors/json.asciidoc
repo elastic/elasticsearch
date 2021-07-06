@@ -15,8 +15,6 @@ Converts a JSON string into a structured JSON object.
 | `target_field`               | no        | `field`  | The field that the converted structured object will be written into. Any existing content in this field will be overwritten.
 | `add_to_root`                | no        | false    | Flag that forces the serialized json to be merged into the top level of the document. `target_field` must not be set when this option is chosen.
 | `add_to_root_recursive_merge`| no        | false    | Flag that controls the merging strategy for `add_to_root`. When set to `false`, only the first level will be merged. When set to `true`, even nested objects will be merged. Only applicable if `add_to_root` is set to `true`.
-| `allow_duplicate_keys`       | no        | false    | When set to `true`, the JSON parser will not fail if the JSON contains duplicate keys.
-                                                        Instead, the latest value wins. Allowing duplicate keys also improves execution time.
 include::common-options.asciidoc[]
 |======
 

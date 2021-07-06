@@ -44,11 +44,6 @@ public class XContentSubParser implements XContentParser {
     }
 
     @Override
-    public void allowDuplicateKeys(boolean allowDuplicateKeys) {
-        parser.allowDuplicateKeys(allowDuplicateKeys);
-    }
-
-    @Override
     public Token nextToken() throws IOException {
         if (level > 0) {
             Token token = parser.nextToken();

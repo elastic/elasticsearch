@@ -230,7 +230,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     void runDownloader() {
-        if (isCancelled() || isCompleted() || isLocallyAborted()) {
+        if (isCancelled() || isCompleted()) {
             return;
         }
         try {
@@ -269,7 +269,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     @Override
     public GeoIpDownloaderStats getStatus() {
-        return isCancelled() || isCompleted() || isLocallyAborted() ? null : stats;
+        return isCancelled() || isCompleted() ? null : stats;
     }
 
     private void scheduleNextRun(TimeValue time) {

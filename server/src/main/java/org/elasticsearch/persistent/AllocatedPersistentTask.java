@@ -91,12 +91,12 @@ public class AllocatedPersistentTask extends CancellableTask {
         persistentTasksService.waitForPersistentTaskCondition(persistentTaskId, predicate, timeout, listener);
     }
 
+    /**
+     * For external purposes, locally aborted and completed are the same.
+     * @return Is this task completed on the current node?
+     */
     protected final boolean isCompleted() {
-        return state.get() == State.COMPLETED;
-    }
-
-    protected final boolean isLocallyAborted() {
-        return state.get() == State.LOCAL_ABORTED;
+        return state.get() == State.COMPLETED || state.get() == State.LOCAL_ABORTED;
     }
 
     boolean markAsCancelled() {
@@ -135,9 +135,7 @@ public class AllocatedPersistentTask extends CancellableTask {
      *                         persistent task.
      */
     public void markAsLocallyAborted(String localAbortReason) {
-        if (persistentTasksService.isLocalAbortSupported() == false) {
-            throw new IllegalStateException("attempt to abort a persistent task locally in a cluster that does not support this");
-        }
+        persistentTasksService.validateLocalAbortSupported();
         completeAndNotifyIfNeeded(null, Objects.requireNonNull(localAbortReason));
     }
 
@@ -150,15 +148,21 @@ public class AllocatedPersistentTask extends CancellableTask {
         final State prevState = state.getAndUpdate(
             currentState -> (currentState != State.COMPLETED && currentState != State.LOCAL_ABORTED) ? desiredState : currentState);
         if (prevState == State.COMPLETED || prevState == State.LOCAL_ABORTED) {
-            if (prevState == desiredState) {
-                logger.warn("attempt to set state [{}] on task [{}] with id [{}] when it is already in that state",
-                    prevState, getAction(), getPersistentTaskId());
-            } else if (desiredState == State.COMPLETED) {
-                throw new IllegalStateException("attempt to " + (failure != null ? "fail" : "complete") + " task [" + getAction()
-                    + "] with id [" + getPersistentTaskId() + "] which has been locally aborted");
+            // To preserve old behaviour completing a task twice is not an error.
+            // However, any combination of local abort with completion or failure
+            // is an error, as is issuing two local aborts for the same task.
+            if (desiredState == State.COMPLETED) {
+                if (prevState == State.COMPLETED) {
+                    logger.warn("attempt to complete task [{}] with id [{}] in the [{}] state",
+                        getAction(), getPersistentTaskId(), prevState);
+                } else {
+                    throw new IllegalStateException("attempt to " + (failure != null ? "fail" : "complete") + " task [" + getAction()
+                        + "] with id [" + getPersistentTaskId() + "] which has been locally aborted");
+                }
             } else {
-                throw new IllegalStateException("attempt to locally abort task [" + getAction() + "] with id [" + getPersistentTaskId()
-                    + "] after it has been completed");
+                throw new IllegalStateException("attempt to locally abort task [" + getAction()
+                    + "] with id [" + getPersistentTaskId() + "] which has already been "
+                    + (prevState == State.COMPLETED ? "completed" : "locally aborted"));
             }
         } else {
             if (failure != null) {

@@ -121,7 +121,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
 
             for (Long id : notVisitedTasks) {
                 AllocatedPersistentTask task = runningTasks.get(id);
-                if (task.isCompleted() || task.isLocallyAborted()) {
+                if (task.isCompleted()) {
                     // Result was sent to the caller and the caller acknowledged acceptance of the result
                     logger.trace("Found persistent task [{}] with id [{}], allocation id [{}] and status [{}] - removing",
                             task.getAction(), task.getPersistentTaskId(), task.getAllocationId(), task.getStatus());

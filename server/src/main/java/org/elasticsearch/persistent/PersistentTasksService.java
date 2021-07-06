@@ -9,6 +9,7 @@ package org.elasticsearch.persistent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -79,8 +80,8 @@ public class PersistentTasksService {
                                       final @Nullable Exception taskFailure,
                                       final @Nullable String localAbortReason,
                                       final ActionListener<PersistentTask<?>> listener) {
-        if (localAbortReason != null && isLocalAbortSupported() == false) {
-            throw new IllegalStateException("attempt to abort a persistent task locally in a cluster that does not support this");
+        if (localAbortReason != null) {
+            validateLocalAbortSupported();
         }
         CompletionPersistentTaskAction.Request request =
             new CompletionPersistentTaskAction.Request(taskId, taskAllocationId, taskFailure, localAbortReason);
@@ -132,6 +133,17 @@ public class PersistentTasksService {
      */
     public boolean isLocalAbortSupported() {
         return clusterService.state().nodes().getMinNodeVersion().onOrAfter(LOCAL_ABORT_AVAILABLE_VERSION);
+    }
+
+    /**
+     * Throw an exception if the cluster is not able locally abort persistent tasks.
+     */
+    public void validateLocalAbortSupported() {
+        Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
+        if (minNodeVersion.before(LOCAL_ABORT_AVAILABLE_VERSION)) {
+            throw new IllegalStateException("attempt to abort a persistent task locally in a cluster that does not support this: "
+                + "minimum node version [" + minNodeVersion + "], version required [" + LOCAL_ABORT_AVAILABLE_VERSION + "]");
+        }
     }
 
     /**

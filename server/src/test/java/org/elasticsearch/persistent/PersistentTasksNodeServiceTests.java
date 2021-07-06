@@ -93,7 +93,6 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
     public void testStartTask() {
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
-        when(persistentTasksService.isLocalAbortSupported()).thenReturn(randomBoolean());
         @SuppressWarnings("unchecked") PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
         when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
         when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
@@ -147,7 +146,6 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             // Make sure action wasn't called again
             assertThat(executor.executions.size(), equalTo(1));
             assertThat(executor.get(0).task.isCompleted(), is(false));
-            assertThat(executor.get(0).task.isLocallyAborted(), is(false));
 
             // Start another task on this node
             state = newClusterState;
@@ -157,16 +155,13 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             // Make sure action was called this time
             assertThat(executor.size(), equalTo(2));
             assertThat(executor.get(1).task.isCompleted(), is(false));
-            assertThat(executor.get(1).task.isLocallyAborted(), is(false));
 
             // Finish both tasks
             executor.get(0).task.markAsFailed(new RuntimeException());
             executor.get(1).task.markAsCompleted();
 
             assertThat(executor.get(0).task.isCompleted(), is(true));
-            assertThat(executor.get(0).task.isLocallyAborted(), is(false));
             assertThat(executor.get(1).task.isCompleted(), is(true));
-            assertThat(executor.get(1).task.isLocallyAborted(), is(false));
 
             String failedTaskId = executor.get(0).task.getPersistentTaskId();
             String finishedTaskId = executor.get(1).task.getPersistentTaskId();
@@ -197,7 +192,6 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
     public void testParamsStatusAndNodeTaskAreDelegated() throws Exception {
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
-        when(persistentTasksService.isLocalAbortSupported()).thenReturn(randomBoolean());
         @SuppressWarnings("unchecked") PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
         when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
         when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
@@ -248,6 +242,13 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                                               final Exception taskFailure, final String localAbortReason,
                                               final ActionListener<PersistentTask<?>> listener) {
                 fail("Shouldn't be called during Cluster State cancellation");
+            }
+
+            @Override
+            public void validateLocalAbortSupported() {
+                if (isLocalAbortSupported() == false) {
+                    fail("this test should not cover local abort");
+                }
             }
 
             @Override
@@ -342,6 +343,10 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             }
 
             @Override
+            public void validateLocalAbortSupported() {
+            }
+
+            @Override
             public boolean isLocalAbortSupported() {
                 return true;
             }
@@ -427,6 +432,13 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 assertThat(localAbortReason, nullValue());
                 listener.onResponse(mock(PersistentTask.class));
                 latch.countDown();
+            }
+
+            @Override
+            public void validateLocalAbortSupported() {
+                if (isLocalAbortSupported() == false) {
+                    fail("this test should not cover local abort");
+                }
             }
 
             @Override

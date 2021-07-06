@@ -86,7 +86,8 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
                 // should never get here in reality, as this action is for internal use only
                 // (it has no REST layer) and the places where it's called defend against this
                 // situation.
-                throw new IOException("attempt to abort a persistent task locally in a cluster that contains a node that is too old");
+                throw new IllegalArgumentException("attempt to abort a persistent task locally in a cluster that contains a node that is "
+                    + "too old: found node version [" + out.getVersion() + "], minimum required [" + LOCAL_ABORT_AVAILABLE_VERSION + "]");
             }
             super.writeTo(out);
             out.writeString(taskId);

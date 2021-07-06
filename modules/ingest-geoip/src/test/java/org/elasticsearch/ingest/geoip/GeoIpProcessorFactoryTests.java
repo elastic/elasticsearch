@@ -387,7 +387,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         GeoIpProcessor processor = factory.create(null, processorTag, null, config);
 
-        processor.execute(RandomDocumentPicks.randomIngestDocument(random(), Map.of("_field", "89.160.20.128")));
+        processor.execute(RandomDocumentPicks.randomIngestDocument(random(), org.elasticsearch.core.Map.of("_field", "89.160.20.128")));
     }
 
     public void testFallbackUsingDefaultDatabasesWhileIngesting() throws Exception {

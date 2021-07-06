@@ -70,7 +70,7 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) {
+    protected void parseCreateField(DocumentParserContext context) {
     }
 
     public static class Builder extends FieldMapper.Builder {

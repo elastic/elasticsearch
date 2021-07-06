@@ -46,6 +46,7 @@ public class RareTermsIT extends ESRestTestCase {
         return id;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74985")
     public void testSingleValuedString() throws Exception {
         IndexingIT.Nodes nodes = IndexingIT.buildNodeAndVersions(client());
         Version version = nodes.getBWCVersion();

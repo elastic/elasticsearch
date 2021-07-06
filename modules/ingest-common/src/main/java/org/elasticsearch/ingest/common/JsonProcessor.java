@@ -179,12 +179,14 @@ public final class JsonProcessor extends AbstractProcessor {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");
             boolean addToRoot = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "add_to_root", false);
-            String mergeStrategyString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "add_to_root_merge_strategy");
+            String mergeStrategyString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config,
+                "add_to_root_merge_strategy");
             boolean hasMergeStrategy = mergeStrategyString != null;
             if (mergeStrategyString == null) {
                 mergeStrategyString = MergeStrategy.REPLACE.name();
             }
-            MergeStrategy addToRootMergeStrategy = MergeStrategy.fromString(processorTag, "add_to_root_merge_strategy", mergeStrategyString);
+            MergeStrategy addToRootMergeStrategy = MergeStrategy.fromString(processorTag, "add_to_root_merge_strategy",
+                mergeStrategyString);
 
             if (addToRoot && targetField != null) {
                 throw newConfigurationException(TYPE, processorTag, "target_field",
@@ -199,7 +201,8 @@ public final class JsonProcessor extends AbstractProcessor {
                 targetField = field;
             }
 
-            return new JsonProcessor(processorTag, description, field, targetField, addToRoot, addToRootMergeStrategy.isAddToRootRecursiveMerge());
+            return new JsonProcessor(processorTag, description, field, targetField, addToRoot,
+                addToRootMergeStrategy.isAddToRootRecursiveMerge());
         }
     }
 }

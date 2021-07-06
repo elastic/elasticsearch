@@ -97,15 +97,10 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         Script script,
         Map<String, String> meta
     ) {
-        return new LeafRuntimeField(name, toXContent) {
+        return new LeafRuntimeField(name, new DateScriptFieldType(name, scriptFactory, dateFormatter, script, meta), toXContent) {
             @Override
             public String typeName() {
                 return DateFieldMapper.CONTENT_TYPE;
-            }
-
-            @Override
-            public MappedFieldType asMappedFieldType() {
-                return new DateScriptFieldType(name, scriptFactory, dateFormatter, script, meta);
             }
         };
     }

@@ -23,10 +23,12 @@ public abstract class LeafRuntimeField implements RuntimeField {
 
     protected final String name;
     protected final ToXContent toXContent;
+    protected final MappedFieldType mappedFieldType;
 
-    public LeafRuntimeField(String name, ToXContent toXContent) {
+    public LeafRuntimeField(String name, MappedFieldType mappedFieldType, ToXContent toXContent) {
         this.name = name;
         this.toXContent = toXContent;
+        this.mappedFieldType = mappedFieldType;
     }
 
     @Override
@@ -36,10 +38,8 @@ public abstract class LeafRuntimeField implements RuntimeField {
 
     @Override
     public final Collection<MappedFieldType> asMappedFieldTypes() {
-        return Collections.singleton(asMappedFieldType());
+        return Collections.singleton(mappedFieldType);
     }
-
-    protected abstract MappedFieldType asMappedFieldType();
 
     @Override
     public final void doXContentBody(XContentBuilder builder, Params params) throws IOException {

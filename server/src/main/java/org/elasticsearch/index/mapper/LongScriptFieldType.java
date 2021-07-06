@@ -49,15 +49,10 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         Script script,
         Map<String, String> meta
     ) {
-        return new LeafRuntimeField(name, toXContent) {
+        return new LeafRuntimeField(name, new LongScriptFieldType(name, scriptFactory, script, meta), toXContent) {
             @Override
             public String typeName() {
                 return NumberType.LONG.typeName();
-            }
-
-            @Override
-            public MappedFieldType asMappedFieldType() {
-                return new LongScriptFieldType(name, scriptFactory, script, meta);
             }
         };
     }

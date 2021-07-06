@@ -59,6 +59,7 @@ import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -66,6 +67,7 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
@@ -118,10 +120,28 @@ public class DockerTests extends PackagingTestCase {
      * Checks that no plugins are initially active.
      */
     public void test020PluginsListWithNoPlugins() {
+        assumeTrue("Only applies to non-Cloud images", distribution.packaging != Packaging.DOCKER_CLOUD);
+
         final Installation.Executables bin = installation.executables();
         final Result r = sh.run(bin.pluginTool + " list");
 
         assertThat("Expected no plugins to be listed", r.stdout, emptyString());
+    }
+
+    /**
+     * Checks that no plugins are initially active.
+     */
+    public void test021PluginsListWithPlugins() {
+        assumeTrue("Only applies to Cloud images", distribution.packaging == Packaging.DOCKER_CLOUD);
+
+        final Installation.Executables bin = installation.executables();
+        final List<String> plugins = sh.run(bin.pluginTool + " list").stdout.lines().collect(Collectors.toList());
+
+        assertThat(
+            "Expected standard plugins to be listed",
+            plugins,
+            equalTo(List.of("repository-azure", "repository-gcs", "repository-s3"))
+        );
     }
 
     /**

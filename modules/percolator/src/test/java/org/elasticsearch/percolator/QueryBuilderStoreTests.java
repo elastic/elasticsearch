@@ -25,9 +25,9 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.TestParseContext;
+import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.mock.orig.Mockito;
@@ -66,10 +66,10 @@ public class QueryBuilderStoreTests extends ESTestCase {
             try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
                 for (int i = 0; i < queryBuilders.length; i++) {
                     queryBuilders[i] = new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(8));
-                    ParseContext parseContext = new TestParseContext();
+                    DocumentParserContext documentParserContext = new TestDocumentParserContext();
                     PercolatorFieldMapper.createQueryBuilderField(version,
-                        fieldMapper, queryBuilders[i], parseContext);
-                    indexWriter.addDocument(parseContext.doc());
+                        fieldMapper, queryBuilders[i], documentParserContext);
+                    indexWriter.addDocument(documentParserContext.doc());
                 }
             }
 

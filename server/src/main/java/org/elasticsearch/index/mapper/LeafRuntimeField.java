@@ -19,7 +19,7 @@ import java.util.Collections;
  * RuntimeField base class for leaf fields that will only ever return
  * a single MappedFieldType from {@link RuntimeField#asMappedFieldTypes()}
  */
-public abstract class LeafRuntimeField implements RuntimeField {
+public final class LeafRuntimeField implements RuntimeField {
 
     protected final String name;
     protected final ToXContent toXContent;
@@ -37,12 +37,17 @@ public abstract class LeafRuntimeField implements RuntimeField {
     }
 
     @Override
-    public final Collection<MappedFieldType> asMappedFieldTypes() {
+    public String typeName() {
+        return mappedFieldType.typeName();
+    }
+
+    @Override
+    public Collection<MappedFieldType> asMappedFieldTypes() {
         return Collections.singleton(mappedFieldType);
     }
 
     @Override
-    public final void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         toXContent.toXContent(builder, params);
     }
 }

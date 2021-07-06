@@ -529,12 +529,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 protected void doRun() {
                     ProcessContext processContext = processByAllocation.get(jobTask.getAllocationId());
                     if (processContext == null) {
-                        logger.debug("Aborted opening job [{}] as it has been closed", job.getId());
+                        logger.debug("Aborted opening job [{}] as it has been closed or killed", job.getId());
                         return;
                     }
                     // We check again after the process state is locked to ensure no race conditions are hit.
                     if (processContext.getJobTask().isClosing()) {
-                        logger.debug("Aborted opening job [{}] as it is being closed", job.getId());
+                        logger.debug("Aborted opening job [{}] as it is being closed (before starting process)", job.getId());
                         jobTask.markAsCompleted();
                         return;
                     }
@@ -542,7 +542,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     try {
                         if (createProcessAndSetRunning(processContext, job, params, closeHandler)) {
                             if (processContext.getJobTask().isClosing()) {
-                                logger.debug("Aborted opening job [{}] as it is being closed", job.getId());
+                                logger.debug("Aborted opening job [{}] as it is being closed (after starting process)", job.getId());
                                 closeProcessAndTask(processContext, jobTask, "job is already closing");
                                 return;
                             }

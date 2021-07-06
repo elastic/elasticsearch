@@ -1158,7 +1158,7 @@ public class NumberFieldMapper extends FieldMapper {
      * Read the value at the current position of the parser.
      * @throws InputCoercionException if xcontent couldn't convert the value in the required type, for example, integer overflow
      * @throws JsonParseException if there was any error parsing the json
-     * @throws IllegalArgumentException if there was an error parsing the value
+     * @throws IllegalArgumentException if there was an error parsing the value from the json
      * @throws IOException if there was any other IO error
      */
     private static Number value(XContentParser parser, NumberType numberType, Number nullValue, boolean coerce)

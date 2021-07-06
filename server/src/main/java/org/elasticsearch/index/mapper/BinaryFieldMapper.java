@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteArrayDataOutput;
@@ -137,7 +138,7 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         if (stored == false && hasDocValues == false) {
             return;
         }
@@ -147,7 +148,7 @@ public class BinaryFieldMapper extends FieldMapper {
         indexValue(context, context.parser().binaryValue());
     }
 
-    public void indexValue(ParseContext context, byte[] value) {
+    public void indexValue(DocumentParserContext context, byte[] value) {
         if (value == null) {
             return;
         }

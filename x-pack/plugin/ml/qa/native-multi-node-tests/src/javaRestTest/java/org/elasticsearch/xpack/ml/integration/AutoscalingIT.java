@@ -46,7 +46,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
 
     // This test assumes that xpack.ml.max_machine_memory_percent is 30
     // and that xpack.ml.use_auto_machine_memory_percent is false
-    public void testMLAutoscalingCapacity() {
+    public void testMLAutoscalingCapacity() throws Exception {
         SortedMap<String, Settings> deciders = new TreeMap<>();
         deciders.put(MlAutoscalingDeciderService.NAME,
             Settings.builder().put(MlAutoscalingDeciderService.DOWN_SCALE_DELAY.getKey(), TimeValue.ZERO).build());
@@ -57,14 +57,15 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
 
-        assertMlCapacity(
+        assertBusy(() -> assertMlCapacity(
             client().execute(
                 GetAutoscalingCapacityAction.INSTANCE,
                 new GetAutoscalingCapacityAction.Request()
             ).actionGet(),
             "Requesting scale down as tier and/or node size could be smaller",
             0L,
-            0L);
+            0L)
+        );
 
         putJob("job1", 100);
         putJob("job2", 200);

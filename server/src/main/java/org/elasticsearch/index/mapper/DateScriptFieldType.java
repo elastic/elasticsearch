@@ -82,20 +82,42 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
                 String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
                 Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
                 DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
-                return new DateScriptFieldType(name, scriptFactory, dateTimeFormatter, getScript(), meta(), this);
+                return runtimeField(name, this, dateTimeFormatter, scriptFactory, getScript(), meta());
             }
         });
 
     private final DateFormatter dateTimeFormatter;
     private final DateMathParser dateMathParser;
 
-    public DateScriptFieldType(String name, DateFormatter dateTimeFormatter) {
-        this(name, DateFieldScript.PARSE_FROM_SOURCE, dateTimeFormatter, null, Collections.emptyMap(), (builder, params) -> {
-            if (DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern().equals(dateTimeFormatter.pattern()) == false) {
-                builder.field("format", dateTimeFormatter.pattern());
+    private static RuntimeField runtimeField(
+        String name,
+        ToXContent toXContent,
+        DateFormatter dateFormatter,
+        DateFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta
+    ) {
+        return new LeafRuntimeField(name, new DateScriptFieldType(name, scriptFactory, dateFormatter, script, meta), toXContent) {
+            @Override
+            public String typeName() {
+                return DateFieldMapper.CONTENT_TYPE;
             }
-            return builder;
-        });
+        };
+    }
+
+    public static RuntimeField sourceOnly(String name, DateFormatter dateTimeFormatter) {
+        return runtimeField(
+            name,
+            (builder, params) -> {
+                if (DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern().equals(dateTimeFormatter.pattern()) == false) {
+                    builder.field("format", dateTimeFormatter.pattern());
+                }
+                return builder;
+            },
+            dateTimeFormatter,
+            DateFieldScript.PARSE_FROM_SOURCE,
+            DEFAULT_SCRIPT,
+            Collections.emptyMap());
     }
 
     DateScriptFieldType(
@@ -103,11 +125,10 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         DateFieldScript.Factory scriptFactory,
         DateFormatter dateTimeFormatter,
         Script script,
-        Map<String, String> meta,
-        ToXContent toXContent
+        Map<String, String> meta
     ) {
         super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter),
-            script, meta, toXContent);
+            script, meta);
         this.dateTimeFormatter = dateTimeFormatter;
         this.dateMathParser = dateTimeFormatter.toDateMathParser();
     }

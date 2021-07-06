@@ -271,6 +271,6 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     }
 
     private static DoubleScriptFieldType build(Script script) {
-        return new DoubleScriptFieldType("test", factory(script), script, emptyMap(), (builder, params) -> builder);
+        return new DoubleScriptFieldType("test", factory(script), script, emptyMap());
     }
 }

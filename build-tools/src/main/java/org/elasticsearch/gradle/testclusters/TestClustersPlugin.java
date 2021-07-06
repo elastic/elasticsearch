@@ -28,8 +28,8 @@ import org.gradle.api.tasks.TaskState;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.process.ExecOperations;
 
-import javax.inject.Inject;
 import java.io.File;
+import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.util.GradleUtils.noop;
 
@@ -120,9 +120,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             );
         });
         project.getExtensions().add(EXTENSION_NAME, container);
-        container.stream()
-            .filter(cluster -> cluster.getName().equals("yamlRestTest") == false)
-            .forEach(cluster -> cluster.systemProperty("ingest.geoip.downloader.enabled.default", "false"));
+        container.all(TestClustersPlugin::disableGeoIpDownloader);
         return container;
     }
 
@@ -210,6 +208,12 @@ public class TestClustersPlugin implements Plugin<Project> {
                 @Override
                 public void beforeExecute(Task task) {}
             });
+        }
+    }
+
+    private static void disableGeoIpDownloader(ElasticsearchCluster cluster) {
+        if (cluster.getName().equals("yamlRestTest") == false) {
+            cluster.systemProperty("ingest.geoip.downloader.enabled.default", "false");
         }
     }
 }

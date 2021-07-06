@@ -158,7 +158,6 @@ tasks.named("yamlRestCompatTest").configure {
     'rollup/delete_job/Test delete running job',
     'rollup/get_jobs/Test basic get_jobs',
     'rollup/put_job/Test basic put_job',
-    'rollup/put_job/Test put_job in non-rollup index',
     //https://github.com/elastic/elasticsearch/pull/41502
     'rollup/start_job/Test start job twice',
     // a type field was added to cat.ml_trained_models #73660, this might need some work

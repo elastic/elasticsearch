@@ -314,7 +314,7 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         Range range;
         XContentParser parser = context.parser();
         final XContentParser.Token start = parser.currentToken();

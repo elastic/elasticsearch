@@ -593,7 +593,7 @@ public enum RangeType {
     }
 
     public abstract Field getRangeField(String name, RangeFieldMapper.Range range);
-    public List<IndexableField> createFields(ParseContext context, String name, RangeFieldMapper.Range range, boolean indexed,
+    public List<IndexableField> createFields(DocumentParserContext context, String name, RangeFieldMapper.Range range, boolean indexed,
                                              boolean docValued, boolean stored) {
         assert range != null : "range cannot be null when creating fields";
         List<IndexableField> fields = new ArrayList<>();

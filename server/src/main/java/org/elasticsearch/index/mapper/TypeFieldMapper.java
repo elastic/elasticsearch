@@ -156,7 +156,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) {
+    public void preParse(DocumentParserContext context) {
 
     }
 

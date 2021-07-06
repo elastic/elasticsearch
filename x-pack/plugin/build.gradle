@@ -131,10 +131,6 @@ def v7compatiblityNotSupportedTests = {
     // the test uses sparse vector - not supported
     'vectors/50_vector_stats/Usage stats on vector fields',
 
-    // ML - not needing compatible api
-    // some are failing due to cat api being called with JSON accept header
-    'ml*/*/*',
-    '_apis/Test cat trained models',
     // put role request with a term lookup (deprecated) and type. Requires validation in REST layer
     'roles/30_prohibited_role_query/Test use prohibited query inside role query',
   ]

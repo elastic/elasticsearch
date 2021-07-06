@@ -97,9 +97,7 @@ tasks.named("yamlRestCompatTest").configure {
     'indices.upgrade/10_basic/Upgrade indices ignore unavailable',
     'mlt/20_docs/Basic mlt query with docs',
     'mlt/30_unlike/Basic mlt query with unlike',
-    'search.aggregation/10_histogram/Deprecated _time order',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
-    'search.aggregation/20_terms/Deprecated _term order',
     'search.aggregation/20_terms/*profiler*', // The profiler results aren't backwards compatible.
     'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
     'search.aggregation/370_doc_count_field/Test filters agg with doc_count', // Uses profiler for assertions which is not backwards compatible

@@ -159,7 +159,6 @@ tasks.named("yamlRestCompatTest").configure {
     'rollup/put_job/Test put_job in non-rollup index',
     //https://github.com/elastic/elasticsearch/pull/41502
     'rollup/start_job/Test start job twice',
-    'transform/transforms_crud/Test put config with invalid pivot size', // disabled until backport of #74651 has finished
   ]+ v7compatiblityNotSupportedTests())
 
 

@@ -796,8 +796,8 @@ You can also manually delete saved synchronous searches using the
 [[eql-circuit-breaker]]
 === EQL circuit breaker settings
 
-When a <<eql-sequences, sequence>> query is executed, the node handling the query,
-needs to keep some structures in memory which are needed by the algorithm
+When a <<eql-sequences, sequence>> query is executed, the node handling the query
+needs to keep some structures in memory, which are needed by the algorithm
 implementing the sequence matching. When large amounts of data need to be processed,
 and/or a large amount of matched sequences is requested by the user (by setting the
 <<eql-search-api-params-size, size>> query param), the memory occupied by those
@@ -827,7 +827,7 @@ See <<circuit-breaker>>. Defaults to `1`.
 (<<static-cluster-setting,Static>>) The underlying type of the circuit breaker.
 There are two valid options: `noop` and `memory`. `noop` means the circuit
 breaker does nothing to prevent too much memory usage. `memory` means the
-circuit breaker tracks the memory used by trained models and can potentially
+circuit breaker tracks the memory used by sequence queries and can potentially
 break and prevent `OutOfMemory` errors. The default value is `memory`.
 
 include::syntax.asciidoc[]

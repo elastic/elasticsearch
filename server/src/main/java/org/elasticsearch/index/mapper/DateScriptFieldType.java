@@ -10,14 +10,15 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
+
 import org.apache.lucene.search.Query;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.DateScriptFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -97,12 +98,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         Script script,
         Map<String, String> meta
     ) {
-        return new LeafRuntimeField(name, new DateScriptFieldType(name, scriptFactory, dateFormatter, script, meta), toXContent) {
-            @Override
-            public String typeName() {
-                return DateFieldMapper.CONTENT_TYPE;
-            }
-        };
+        return new LeafRuntimeField(name, new DateScriptFieldType(name, scriptFactory, dateFormatter, script, meta), toXContent);
     }
 
     public static RuntimeField sourceOnly(String name, DateFormatter dateTimeFormatter) {

@@ -80,7 +80,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     protected abstract XContentType xcontentType();
 
-    protected XContentBuilder builder() throws IOException {
+    private XContentBuilder builder() throws IOException {
         return XContentBuilder.builder(xcontentType().xContent());
     }
 

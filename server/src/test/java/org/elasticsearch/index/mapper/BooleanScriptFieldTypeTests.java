@@ -308,14 +308,13 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             String source = "{\"foo\": " + values + "}";
             XContentParser parser = createParser(JsonXContent.jsonXContent, source);
             SourceToParse sourceToParse = new SourceToParse("test", "test", new BytesArray(source), XContentType.JSON);
-            LuceneDocument doc = new LuceneDocument();
-            doc.add(new StoredField("_source", new BytesRef(source)));
             ParseContext ctx = new TestParseContext(null, null, null, null, sourceToParse) {
                 @Override
                 public XContentParser parser() {
                     return parser;
                 }
             };
+            ctx.doc().add(new StoredField("_source", new BytesRef(source)));
 
             ctx.parser().nextToken();
             ctx.parser().nextToken();
@@ -323,7 +322,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             while (ctx.parser().nextToken() != Token.END_ARRAY) {
                 ootb.parse(ctx);
             }
-            iw.addDocument(doc);
+            iw.addDocument(ctx.doc());
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertSameCount(

@@ -359,6 +359,18 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             containsString("Dimension field [field] cannot be a multi-valued field"));
     }
 
+    public void testDimensionExtraLongKeyword() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true);
+        }));
+
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", randomAlphaOfLengthBetween(1025, 2048)))));
+        assertThat(e.getCause().getMessage(),
+            containsString("Dimension field [field] cannot be more than [1024] characters long."));
+    }
+
     public void testConfigureSimilarity() throws IOException {
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "keyword").field("similarity", "boolean"))

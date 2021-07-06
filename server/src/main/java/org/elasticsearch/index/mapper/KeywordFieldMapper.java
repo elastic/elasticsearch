@@ -443,6 +443,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
+    /** The maximum keyword length allowed for a dimension field */
+    private static final int DIMENSION_MAX_LENGTH = 1024;
+
     private final boolean indexed;
     private final boolean hasDocValues;
     private final String nullValue;
@@ -515,6 +518,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         // Check that a dimension field is single-valued and not an array
         if (dimension && context.doc().getByKey(fieldType().name()) != null) {
             throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
+        }
+
+        if (dimension && value.length() > DIMENSION_MAX_LENGTH) {
+            throw new IllegalArgumentException(
+                "Dimension field [" + fieldType().name() + "] cannot be more than [" + DIMENSION_MAX_LENGTH + "] characters long."
+            );
         }
 
         if (value.length() > ignoreAbove) {

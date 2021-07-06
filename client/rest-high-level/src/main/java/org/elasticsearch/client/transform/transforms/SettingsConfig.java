@@ -203,10 +203,7 @@ public class SettingsConfig implements ToXContentObject {
         }
 
         /**
-         * Whether to write the output of a date aggregation as millis since epoch or as formatted string (ISO format).
-         *
-         * Transforms created before 7.11 write dates as epoch_millis. The new default is ISO string.
-         * You can use this setter to configure the old style writing as epoch millis.
+         * Whether to write interim results in transform checkpoints.
          *
          * An explicit `null` resets to default.
          *

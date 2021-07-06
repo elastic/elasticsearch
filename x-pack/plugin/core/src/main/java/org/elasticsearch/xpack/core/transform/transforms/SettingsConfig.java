@@ -269,11 +269,11 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         }
 
         /**
-         * TODO: Comment
+         * Whether to write interim results in transform checkpoints.
          *
          * An explicit `null` resets to default.
          *
-         * @param interimResults true if TODO
+         * @param interimResults true if interim results should be written.
          * @return the {@link Builder} with interimResults set.
          */
         public Builder setInterimResults(Boolean interimResults) {

@@ -133,6 +133,12 @@ def v7compatiblityNotSupportedTests = {
 
     // put role request with a term lookup (deprecated) and type. Requires validation in REST layer
     'roles/30_prohibited_role_query/Test use prohibited query inside role query',
+    //removing undocumented functionality
+    'ml/jobs_crud/Test create job with delimited format',
+    // behaviour change #44752 - not allowing to update datafeed job_id
+    'ml/datafeeds_crud/Test update datafeed to point to missing job',
+    'ml/datafeeds_crud/Test update datafeed to point to different job',
+    'ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed',
   ]
 }
 
@@ -155,7 +161,9 @@ tasks.named("yamlRestCompatTest").configure {
     'rollup/put_job/Test put_job in non-rollup index',
     //https://github.com/elastic/elasticsearch/pull/41502
     'rollup/start_job/Test start job twice',
-  ]+ v7compatiblityNotSupportedTests())
+    // a type field was added to cat.ml_trained_models #73660, this might need some work
+    'ml/trained_model_cat_apis/Test cat trained models'
+    ]+ v7compatiblityNotSupportedTests())
 
 
   systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')

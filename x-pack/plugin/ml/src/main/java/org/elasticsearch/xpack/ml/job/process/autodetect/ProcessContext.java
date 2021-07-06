@@ -52,10 +52,14 @@ final class ProcessContext {
     }
 
     void killIt() {
+        // This method should only be called for a process that's known to be connected
+        if (autodetectCommunicator == null) {
+            throw new IllegalArgumentException("Unable to kill job as its communicator is not connected");
+        }
         if (latestKillRequest == null) {
             throw new IllegalArgumentException("Unable to kill job as previous request is not completed");
         }
-        latestKillRequest.kill();
+        latestKillRequest.killConnectedProcess(false);
     }
 
     ProcessStateName getState() {
@@ -128,10 +132,27 @@ final class ProcessContext {
         }
 
         void kill() {
-            if (autodetectCommunicator == null) {
+            if (autodetectCommunicator != null) {
+                killConnectedProcess(finish);
+            } else {
                 latestKillRequest = this;
-                return;
+                // Killing a connected process would also complete the persistent task if `finish` was true,
+                // so we should do the same here even though the process wasn't yet connected at the time of
+                // the kill
+                if (finish) {
+                    jobTask.markAsCompleted();
+                }
             }
+        }
+
+        /**
+         * @param finish This argument overrides the member variable of the same name. Sometimes this method is called
+         *               immediately after a process is started, if it was requested to be killed before it started,
+         *               and in this situation the persistent task has already been completed if this was desired.
+         */
+        private void killConnectedProcess(boolean finish) {
+            assert autodetectCommunicator != null;
+
             String jobId = jobTask.getJobId();
 
             if (silent == false) {

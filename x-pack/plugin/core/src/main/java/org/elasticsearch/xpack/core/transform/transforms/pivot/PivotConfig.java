@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
@@ -170,9 +171,13 @@ public class PivotConfig implements Writeable, ToXContentObject {
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
-        if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > 10_000)) {
+
+        if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > MultiBucketConsumerService.DEFAULT_MAX_BUCKETS)) {
             validationException = addValidationError(
-                "pivot.max_page_search_size [" + maxPageSearchSize + "] must be greater than 10 and less than 10,000",
+                "pivot.max_page_search_size ["
+                    + maxPageSearchSize
+                    + "] is out of range. The minimum value is 10 and the maximum is "
+                    + MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
                 validationException
             );
         }

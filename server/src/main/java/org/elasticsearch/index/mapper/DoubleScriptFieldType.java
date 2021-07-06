@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
@@ -49,12 +50,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         Script script,
         Map<String, String> meta
     ) {
-        return new LeafRuntimeField(name, new DoubleScriptFieldType(name, scriptFactory, script, meta), toXContent) {
-            @Override
-            public String typeName() {
-                return NumberType.DOUBLE.typeName();
-            }
-        };
+        return new LeafRuntimeField(name, new DoubleScriptFieldType(name, scriptFactory, script, meta), toXContent);
     }
 
     public static RuntimeField sourceOnly(String name) {

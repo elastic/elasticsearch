@@ -90,9 +90,9 @@ public class IpFieldMapper extends FieldMapper {
             addScriptValidation(script, indexed, hasDocValues);
             this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
                 .setValidator(v -> {
-                    if (v && indexed.getValue() == false && hasDocValues.getValue() == false) {
+                    if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
                         throw new IllegalArgumentException(
-                            "Field [dimension] requires one of [" + indexed.name + "] or [" + hasDocValues.name + "] to be true"
+                            "Field [dimension] requires that [" + indexed.name + "] and [" + hasDocValues.name + "] are true"
                         );
                     }
                 });
@@ -473,19 +473,6 @@ public class IpFieldMapper extends FieldMapper {
         indexValue(context, address);
     }
 
-    /**
-     * Adds a field to the current document ensuring that if the field is
-     * a dimension field, it will be added as single-value.
-     */
-    private void indexField(ParseContext context, Field field) {
-        if (dimension && context.doc().getByKey(fieldType().name()) == null) {
-            // Add dimension field with key so that we ensure it is single-valued
-            context.doc().addWithKey(fieldType().name(), field);
-        } else {
-            context.doc().add(field);
-        }
-    }
-
     private void indexValue(ParseContext context, InetAddress address) {
         // Check that a dimension field is single-valued and not an array
         if (dimension && context.doc().getByKey(fieldType().name()) != null) {
@@ -493,15 +480,23 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         if (indexed) {
-            indexField(context, new InetAddressPoint(fieldType().name(), address));
+            Field field = new InetAddressPoint(fieldType().name(), address);
+
+            if (dimension) {
+                // Add dimension field with key so that we ensure it is single-valued.
+                // Dimension fields are always indexed.
+                context.doc().addWithKey(fieldType().name(), field);
+            } else {
+                context.doc().add(field);
+            }
         }
         if (hasDocValues) {
-            indexField(context, new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
         } else if (stored || indexed) {
             context.addToFieldNames(fieldType().name());
         }
         if (stored) {
-            indexField(context, new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+            context.doc().add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
         }
     }
 

@@ -126,9 +126,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
                 .setValidator(v -> {
-                    if (v && indexed.getValue() == false && hasDocValues.getValue() == false) {
+                    if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
                         throw new IllegalArgumentException(
-                            "Field [dimension] requires one of [" + indexed.name + "] or [" + hasDocValues.name + "] to be true"
+                            "Field [dimension] requires that [" + indexed.name + "] and [" + hasDocValues.name + "] are true"
                         );
                     }
                     if (v && ignoreAbove.getValue() < ignoreAbove.getDefaultValue()) {
@@ -505,20 +505,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(parseContext, value));
     }
 
-    /**
-     * Adds a field to the current document ensuring that if the field is
-     * a dimension field, it will be added as single-value.
-     */
-    private void indexField(ParseContext context, Field field) {
-        if (dimension && context.doc().getByKey(fieldType().name()) == null) {
-            // Add dimension field with key so that we ensure it is single-valued
-            context.doc().addWithKey(fieldType().name(), field);
-        } else {
-            context.doc().add(field);
-        }
-    }
-
     private void indexValue(ParseContext context, String value) {
+
         if (value == null) {
             return;
         }
@@ -541,14 +529,23 @@ public final class KeywordFieldMapper extends FieldMapper {
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
-            indexField(context, new KeywordField(fieldType().name(), binaryValue, fieldType));
+            Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
+
+            if (dimension) {
+                // Add dimension field with key so that we ensure it is single-valued.
+                // Dimension fields are always indexed.
+                context.doc().addWithKey(fieldType().name(), field);
+            } else {
+                context.doc().add(field);
+            }
+
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());
             }
         }
 
         if (fieldType().hasDocValues()) {
-            indexField(context, new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         }
     }
 

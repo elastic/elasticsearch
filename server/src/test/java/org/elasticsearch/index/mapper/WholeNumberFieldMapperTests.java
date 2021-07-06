@@ -35,51 +35,43 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         assertDimension(false, NumberFieldMapper.NumberFieldType::isDimension);
     }
 
-    public void testDimensionAndIndexedOrDocvalues() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("dimension", true).field("index", false).field("doc_values", false);
-        })));
-        assertThat(e.getCause().getMessage(),
-            containsString("Field [dimension] requires one of [index] or [doc_values] to be true"));
+    public void testDimensionIndexedAndDocvalues() {
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true).field("index", false).field("doc_values", false);
+            })));
+            assertThat(e.getCause().getMessage(),
+                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true).field("index", true).field("doc_values", false);
+            })));
+            assertThat(e.getCause().getMessage(),
+                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true).field("index", false).field("doc_values", true);
+            })));
+            assertThat(e.getCause().getMessage(),
+                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+        }
     }
 
     public void testDimensionMultiValuedField() throws IOException {
-        {
-            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", true);
-            }));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true);
+        }));
 
-            Exception e = expectThrows(MapperParsingException.class,
-                () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber()))));
-            assertThat(e.getCause().getMessage(),
-                containsString("Dimension field [field] cannot be a multi-valued field"));
-        }
-        {
-            // Disable doc_values
-            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", true).field("doc_values",false);
-            }));
-
-            Exception e = expectThrows(MapperParsingException.class,
-                () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber()))));
-            assertThat(e.getCause().getMessage(),
-                containsString("Dimension field [field] cannot be a multi-valued field"));
-        }
-        {
-            // Disable indexed fields
-            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", true).field("index",false);
-            }));
-
-            Exception e = expectThrows(MapperParsingException.class,
-                () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber()))));
-            assertThat(e.getCause().getMessage(),
-                containsString("Dimension field [field] cannot be a multi-valued field"));
-        }
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber()))));
+        assertThat(e.getCause().getMessage(),
+            containsString("Dimension field [field] cannot be a multi-valued field"));
     }
 
     @Override

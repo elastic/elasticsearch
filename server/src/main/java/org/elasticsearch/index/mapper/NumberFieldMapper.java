@@ -118,10 +118,9 @@ public class NumberFieldMapper extends FieldMapper {
                     if (v && EnumSet.of(NumberType.INTEGER, NumberType.LONG, NumberType.BYTE, NumberType.SHORT).contains(type) == false) {
                         throw new IllegalArgumentException("Parameter [dimension] cannot be set to numeric type [" + type.name + "]");
                     }
-
-                    if (v && indexed.getValue() == false && hasDocValues.getValue() == false) {
+                    if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
                         throw new IllegalArgumentException(
-                            "Field [dimension] requires one of [" + indexed.name + "] or [" + hasDocValues.name + "] to be true"
+                            "Field [dimension] requires that [" + indexed.name + "] and [" + hasDocValues.name + "] are true"
                         );
                     }
                 });

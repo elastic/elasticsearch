@@ -320,31 +320,31 @@ final class DynamicFieldsBuilder {
         @Override
         public void newDynamicStringField(DocumentParserContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            createDynamicField(new KeywordScriptFieldType(fullName), context);
+            createDynamicField(KeywordScriptFieldType.sourceOnly(fullName), context);
         }
 
         @Override
         public void newDynamicLongField(DocumentParserContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            createDynamicField(new LongScriptFieldType(fullName), context);
+            createDynamicField(LongScriptFieldType.sourceOnly(fullName), context);
         }
 
         @Override
         public void newDynamicDoubleField(DocumentParserContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            createDynamicField(new DoubleScriptFieldType(fullName), context);
+            createDynamicField(DoubleScriptFieldType.sourceOnly(fullName), context);
         }
 
         @Override
         public void newDynamicBooleanField(DocumentParserContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            createDynamicField(new BooleanScriptFieldType(fullName), context);
+            createDynamicField(BooleanScriptFieldType.sourceOnly(fullName), context);
         }
 
         @Override
         public void newDynamicDateField(DocumentParserContext context, String name, DateFormatter dateFormatter) {
             String fullName = context.path().pathAsText(name);
-            createDynamicField(new DateScriptFieldType(fullName, dateFormatter), context);
+            createDynamicField(DateScriptFieldType.sourceOnly(fullName, dateFormatter), context);
         }
     }
 }

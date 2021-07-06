@@ -56,12 +56,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         Script script,
         Map<String, String> meta
     ) {
-        return new LeafRuntimeField(name, new KeywordScriptFieldType(name, scriptFactory, script, meta), toXContent) {
-            @Override
-            public String typeName() {
-                return KeywordFieldMapper.CONTENT_TYPE;
-            }
-        };
+        return new LeafRuntimeField(name, new KeywordScriptFieldType(name, scriptFactory, script, meta), toXContent);
     }
 
     public static RuntimeField sourceOnly(String name) {

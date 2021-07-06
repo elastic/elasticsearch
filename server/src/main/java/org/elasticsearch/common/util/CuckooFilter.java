@@ -124,7 +124,7 @@ public class CuckooFilter implements Writeable {
 
         this.fingerprintMask = (0x80000000 >> (bitsPerEntry - 1)) >>> (Integer.SIZE - bitsPerEntry);
 
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getVersion().before(Version.V_7_15_0)) {
             final PackedInts.Reader reader = PackedInts.getReader(new DataInput() {
                 @Override
                 public byte readByte() throws IOException {
@@ -153,7 +153,7 @@ public class CuckooFilter implements Writeable {
         out.writeVInt(entriesPerBucket);
         out.writeVInt(count);
         out.writeVInt(evictedFingerprint);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getVersion().before(Version.V_7_15_0)) {
             // This is probably slow but it should only happen if we have a mixed clusters (e.g during upgrade).
             PackedInts.Mutable mutable = PackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
             for (int i = 0; i < data.size(); i++) {

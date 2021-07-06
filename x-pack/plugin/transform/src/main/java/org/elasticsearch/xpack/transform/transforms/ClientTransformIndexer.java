@@ -456,6 +456,12 @@ class ClientTransformIndexer extends TransformIndexer {
         super.afterFinishOrFailure();
     }
 
+    @Override
+    protected void onStop() {
+        closePointInTime();
+        super.onStop();
+    }
+
     private void closePointInTime() {
         if (pit != null) {
             String oldPit = pit.getEncodedId();

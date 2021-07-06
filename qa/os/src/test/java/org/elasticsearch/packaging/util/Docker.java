@@ -401,11 +401,28 @@ public class Docker {
     }
 
     /**
-     * Checks that the specified path's permissions and ownership match those specified.
+     * Checks that the specified path's permissions match those specified, and that the file is
+     * owned by {@code elasticsearch:root}.
      * @param path the path to check
      * @param expectedPermissions the unix permissions that the path ought to have
      */
     public static void assertPermissionsAndOwnership(Path path, Set<PosixFilePermission> expectedPermissions) {
+        assertPermissionsAndOwnership(path, expectedPermissions, "elasticsearch", "root");
+    }
+
+    /**
+     * Checks that the specified path's permissions and ownership match those specified.
+     * @param path the path to check
+     * @param expectedPermissions the unix permissions that the path ought to have
+     * @param expectedOwner the expected username of the file
+     * @param expectedGroup the expected group name of the file
+     */
+    public static void assertPermissionsAndOwnership(
+        Path path,
+        Set<PosixFilePermission> expectedPermissions,
+        String expectedOwner,
+        String expectedGroup
+    ) {
         logger.debug("Checking permissions and ownership of [" + path + "]");
 
         final String[] components = dockerShell.run("stat -c \"%U %G %A\" " + path).stdout.split("\\s+");
@@ -419,8 +436,8 @@ public class Docker {
         Set<PosixFilePermission> actualPermissions = fromString(permissions.substring(1, 10));
 
         assertEquals("Permissions of " + path + " are wrong", expectedPermissions, actualPermissions);
-        assertThat("File owner of " + path + " is wrong", username, equalTo("elasticsearch"));
-        assertThat("File group of " + path + " is wrong", group, equalTo("root"));
+        assertThat("File owner of " + path + " is wrong", username, equalTo(expectedOwner));
+        assertThat("File group of " + path + " is wrong", group, equalTo(expectedGroup));
     }
 
     /**

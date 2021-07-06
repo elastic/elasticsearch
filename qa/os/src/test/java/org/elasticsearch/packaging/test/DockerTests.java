@@ -53,13 +53,13 @@ import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailu
 import static org.elasticsearch.packaging.util.Docker.verifyContainerInstallation;
 import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.DockerRun.builder;
+import static org.elasticsearch.packaging.util.FileMatcher.p555;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -67,7 +67,6 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
@@ -880,5 +879,17 @@ public class DockerTests extends PackagingTestCase {
         // if that is true for genuine Iron Bank builds.
         assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.label-schema.")));
         assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.opencontainers.")));
+    }
+
+    /**
+     * Check that the Cloud image contains the required Beats
+     */
+    public void test400CloudImageBundlesBeats() {
+        assumeTrue(distribution.packaging == Packaging.DOCKER_CLOUD);
+
+        final List<String> contents = sh.run("ls -1 --color=never /opt").stdout.lines().collect(Collectors.toList());
+        assertThat("Incorrect contents of /opt", contents, equalTo(List.of("filebeat", "metricbeat")));
+
+        contents.forEach(beat -> assertPermissionsAndOwnership(Path.of("/opt/" + beat), p555, "root", "root"));
     }
 }

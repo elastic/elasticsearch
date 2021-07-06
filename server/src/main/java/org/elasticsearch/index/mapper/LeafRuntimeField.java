@@ -20,12 +20,11 @@ import java.util.Collections;
  * a single MappedFieldType from {@link RuntimeField#asMappedFieldTypes()}
  */
 public final class LeafRuntimeField implements RuntimeField {
+    private final String name;
+    private final ToXContent toXContent;
+    private final AbstractScriptFieldType<?> mappedFieldType;
 
-    protected final String name;
-    protected final ToXContent toXContent;
-    protected final MappedFieldType mappedFieldType;
-
-    public LeafRuntimeField(String name, MappedFieldType mappedFieldType, ToXContent toXContent) {
+    public LeafRuntimeField(String name, AbstractScriptFieldType<?> mappedFieldType, ToXContent toXContent) {
         this.name = name;
         this.toXContent = toXContent;
         this.mappedFieldType = mappedFieldType;

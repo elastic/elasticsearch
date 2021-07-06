@@ -819,9 +819,8 @@ defined as a percentage of the JVM heap. Defaults to `50%`. If the
 this setting uses that value as its default instead.
 
 `breaker.eql_sequence.overhead`::
-(<<cluster-update-settings,Dynamic>>) A constant which all computed memory required
-for the execution of an EQL query is multiplied by to determine a final estimation.
-See <<circuit-breaker>>. Defaults to `1`.
+(<<cluster-update-settings,Dynamic>>) A constant that sequence query memory
+estimates are multiplied by to determine a final estimate. Defaults to `1`.
 
 `breaker.eql_sequence.type`::
 (<<static-cluster-setting,Static>>) Circuit breaker type. Valid values are:

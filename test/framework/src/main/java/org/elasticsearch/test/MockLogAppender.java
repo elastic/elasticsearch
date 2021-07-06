@@ -122,6 +122,28 @@ public class MockLogAppender extends AbstractAppender {
         }
     }
 
+    public static class EventuallySeenEventExpectation extends SeenEventExpectation {
+
+        private volatile boolean expectSeen = false;
+
+        public EventuallySeenEventExpectation(String name, String logger, Level level, String message) {
+            super(name, logger, level, message);
+        }
+
+        public void setExpectSeen() {
+            expectSeen = true;
+        }
+
+        @Override
+        public void assertMatched() {
+            if (expectSeen) {
+                super.assertMatched();
+            } else {
+                assertThat("expected not to see " + name + " yet but did", saw, equalTo(false));
+            }
+        }
+    }
+
     public static class ExceptionSeenEventExpectation extends SeenEventExpectation {
 
         private final Class<? extends Exception> clazz;

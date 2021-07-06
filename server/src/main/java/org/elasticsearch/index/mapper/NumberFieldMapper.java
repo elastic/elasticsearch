@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
+
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
@@ -1141,7 +1142,7 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;
@@ -1180,7 +1181,7 @@ public class NumberFieldMapper extends FieldMapper {
         indexValue(context, numericValue);
     }
 
-    private void indexValue(ParseContext context, Number numericValue) {
+    private void indexValue(DocumentParserContext context, Number numericValue) {
         List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
         if (dimension) {
             // Check that a dimension field is single-valued and not an array
@@ -1202,8 +1203,9 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
-        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(parseContext, value));
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
+        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
     }
 
     @Override

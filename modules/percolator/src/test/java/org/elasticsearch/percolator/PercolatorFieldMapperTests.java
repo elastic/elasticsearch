@@ -48,13 +48,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.TestParseContext;
+import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -172,9 +172,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper documentMapper = mapperService.documentMapper();
         PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
-        ParseContext parseContext = new TestParseContext();
-        fieldMapper.processQuery(bq.build(), parseContext);
-        LuceneDocument document = parseContext.doc();
+        DocumentParserContext documentParserContext = new TestDocumentParserContext();
+        fieldMapper.processQuery(bq.build(), documentParserContext);
+        LuceneDocument document = documentParserContext.doc();
 
         PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_COMPLETE));
@@ -193,9 +193,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         bq.add(termQuery1, Occur.MUST);
         bq.add(termQuery2, Occur.MUST);
 
-        parseContext = new TestParseContext();
-        fieldMapper.processQuery(bq.build(), parseContext);
-        document = parseContext.doc();
+        documentParserContext = new TestDocumentParserContext();
+        fieldMapper.processQuery(bq.build(), documentParserContext);
+        document = documentParserContext.doc();
 
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_COMPLETE));
         fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.queryTermsField.name())));
@@ -222,9 +222,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper documentMapper = mapperService.documentMapper();
         PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
-        ParseContext parseContext = new TestParseContext();
-        fieldMapper.processQuery(bq.build(), parseContext);
-        LuceneDocument document = parseContext.doc();
+        DocumentParserContext documentParserContext = new TestDocumentParserContext();
+        fieldMapper.processQuery(bq.build(), documentParserContext);
+        LuceneDocument document = documentParserContext.doc();
 
         PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
@@ -247,9 +247,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             .rangeQuery(15, 20, true, true, null, null, null, context);
         bq.add(rangeQuery2, Occur.MUST);
 
-        parseContext = new TestParseContext();
-        fieldMapper.processQuery(bq.build(), parseContext);
-        document = parseContext.doc();
+        documentParserContext = new TestDocumentParserContext();
+        fieldMapper.processQuery(bq.build(), documentParserContext);
+        document = documentParserContext.doc();
 
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
         fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.rangeField.name())));
@@ -270,9 +270,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         TermRangeQuery query = new TermRangeQuery("field1", new BytesRef("a"), new BytesRef("z"), true, true);
         DocumentMapper documentMapper = mapperService.documentMapper();
         PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
-        ParseContext parseContext = new TestParseContext();
-        fieldMapper.processQuery(query, parseContext);
-        LuceneDocument document = parseContext.doc();
+        DocumentParserContext documentParserContext = new TestDocumentParserContext();
+        fieldMapper.processQuery(query, documentParserContext);
+        LuceneDocument document = documentParserContext.doc();
 
         PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getFields().size(), equalTo(1));
@@ -284,9 +284,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         PhraseQuery phraseQuery = new PhraseQuery("field", "term");
         DocumentMapper documentMapper = mapperService.documentMapper();
         PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
-        ParseContext parseContext = new TestParseContext();
-        fieldMapper.processQuery(phraseQuery, parseContext);
-        LuceneDocument document = parseContext.doc();
+        DocumentParserContext documentParserContext = new TestDocumentParserContext();
+        fieldMapper.processQuery(phraseQuery, documentParserContext);
+        LuceneDocument document = documentParserContext.doc();
 
         PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getFields().size(), equalTo(3));

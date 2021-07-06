@@ -442,7 +442,7 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         Object addressAsObject = context.parser().textOrNull();
 
         if (addressAsObject == null) {
@@ -473,12 +473,11 @@ public class IpFieldMapper extends FieldMapper {
         indexValue(context, address);
     }
 
-    private void indexValue(ParseContext context, InetAddress address) {
+    private void indexValue(DocumentParserContext context, InetAddress address) {
         // Check that a dimension field is single-valued and not an array
         if (dimension && context.doc().getByKey(fieldType().name()) != null) {
             throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
         }
-
         if (indexed) {
             Field field = new InetAddressPoint(fieldType().name(), address);
 
@@ -501,8 +500,9 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
-        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(parseContext, value));
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
+        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
     }
 
     @Override

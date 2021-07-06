@@ -219,7 +219,10 @@ public final class MappingLookup {
     }
 
     private void checkDimensionFieldLimit(long limit) {
-        long dimensionFieldCount = fieldMappers.values().stream().filter(m -> ((FieldMapper) m).fieldType().isDimension()).count();
+        long dimensionFieldCount = fieldMappers.values()
+            .stream()
+            .filter(m -> m instanceof FieldMapper && ((FieldMapper) m).fieldType().isDimension())
+            .count();
         if (dimensionFieldCount > limit) {
             throw new IllegalArgumentException("Limit of total dimension fields [" + limit + "] has been exceeded");
         }

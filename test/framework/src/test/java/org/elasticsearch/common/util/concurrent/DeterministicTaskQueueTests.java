@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.cluster.coordination;
+package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -35,7 +35,7 @@ import static org.hamcrest.core.Is.is;
 public class DeterministicTaskQueueTests extends ESTestCase {
 
     public void testRunRandomTask() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final List<String> strings = new ArrayList<>(2);
 
         taskQueue.scheduleNow(() -> strings.add("foo"));
@@ -61,7 +61,8 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     private List<String> getResultsOfRunningRandomly(Random random) {
-        final DeterministicTaskQueue taskQueue = newTaskQueue(random);
+        final DeterministicTaskQueue taskQueue =
+            new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random);
         final List<String> strings = new ArrayList<>(4);
 
         taskQueue.scheduleNow(() -> strings.add("foo"));
@@ -80,7 +81,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testStartsAtTimeZero() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         assertThat(taskQueue.getCurrentTimeMillis(), is(0L));
     }
 
@@ -94,7 +95,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testDoesNotDeferTasksForImmediateExecution() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         advanceToRandomTime(taskQueue);
 
         final List<String> strings = new ArrayList<>(1);
@@ -109,7 +110,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testDoesNotDeferTasksScheduledInThePast() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         advanceToRandomTime(taskQueue);
 
         final List<String> strings = new ArrayList<>(1);
@@ -124,7 +125,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testDefersTasksWithPositiveDelays() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final List<String> strings = new ArrayList<>(1);
 
         final long executionTimeMillis = randomLongBetween(1, 100);
@@ -146,7 +147,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testKeepsFutureTasksDeferred() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final List<String> strings = new ArrayList<>(2);
 
         final long executionTimeMillis1 = randomLongBetween(1, 100);
@@ -179,7 +180,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testExecutesTasksInTimeOrder() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final List<String> strings = new ArrayList<>(3);
 
         final long executionTimeMillis1 = randomLongBetween(1, 100);
@@ -220,7 +221,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testRunInTimeOrder() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final List<String> strings = new ArrayList<>(2);
 
         final long executionTimeMillis1 = randomLongBetween(1, 100);
@@ -234,7 +235,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testThreadPoolEnqueuesTasks() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final List<String> strings = new ArrayList<>(2);
 
         final ThreadPool threadPool = taskQueue.getThreadPool();
@@ -253,7 +254,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testThreadPoolWrapsRunnable() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final AtomicBoolean called = new AtomicBoolean();
         final ThreadPool threadPool = taskQueue.getThreadPool(runnable -> () -> {
             assertFalse(called.get());
@@ -267,7 +268,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testThreadPoolSchedulesFutureTasks() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         advanceToRandomTime(taskQueue);
         final long startTime = taskQueue.getCurrentTimeMillis();
 
@@ -313,7 +314,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testDelayVariabilityAppliesToImmediateTasks() {
-        final DeterministicTaskQueue deterministicTaskQueue = newTaskQueue();
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         advanceToRandomTime(deterministicTaskQueue);
         final long variabilityMillis = randomLongBetween(100, 500);
         deterministicTaskQueue.setExecutionDelayVariabilityMillis(variabilityMillis);
@@ -329,7 +330,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testDelayVariabilityAppliesToFutureTasks() {
-        final DeterministicTaskQueue deterministicTaskQueue = newTaskQueue();
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         advanceToRandomTime(deterministicTaskQueue);
         final long nominalExecutionTime = randomLongBetween(0, 60000);
         final long variabilityMillis = randomLongBetween(1, 500);
@@ -347,7 +348,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testThreadPoolSchedulesPeriodicFutureTasks() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         advanceToRandomTime(taskQueue);
         final List<String> strings = new ArrayList<>(5);
 
@@ -377,7 +378,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testSameExecutor() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final ThreadPool threadPool = taskQueue.getThreadPool();
         final AtomicBoolean executed = new AtomicBoolean(false);
         final AtomicBoolean executedNested = new AtomicBoolean(false);
@@ -390,11 +391,4 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(executed.get(), is(true));
     }
 
-    static DeterministicTaskQueue newTaskQueue() {
-        return newTaskQueue(random());
-    }
-
-    private static DeterministicTaskQueue newTaskQueue(Random random) {
-        return new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random);
-    }
 }

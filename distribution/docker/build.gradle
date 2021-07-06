@@ -27,17 +27,17 @@ repositories {
       artifact '/[organisation]/[module]/releases/download/v[revision]/[module]-[classifier]'
     }
     metadataSources { artifact() }
-    content {includeGroup 'krallin' }
+    content { includeGroup 'krallin' }
   }
 
   // Cloud builds bundle some beats
   ivy {
-    url "https://${ VersionProperties.isElasticsearchSnapshot() ? 'snapshots' : 'artifacts' }-no-kpi.elastic.co/"
+    url "https://${VersionProperties.isElasticsearchSnapshot() ? 'snapshots' : 'artifacts'}-no-kpi.elastic.co/"
     patternLayout {
       artifact '/downloads/[organization]/[module]/[module]-[revision]-linux-[classifier].[ext]'
     }
     metadataSources { artifact() }
-    content {includeGroup 'beats' }
+    content { includeGroup 'beats' }
   }
 }
 
@@ -234,6 +234,8 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
       from configurations.repositoryS3Plugin
       from configurations.repositoryGcsPlugin
       from configurations.repositoryAzurePlugin
+      from configurations.filebeat
+      from configurations.metricbeat
     }
 
     onlyIf { Architecture.current() == architecture }
@@ -245,23 +247,14 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
     TaskProvider<Tar> buildContextTask = tasks.named(taskName("build", architecture, base, "DockerContext"))
     dependsOn(buildContextTask)
 
-    String version = VersionProperties.elasticsearch
-
     String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
-    String archiveName = "elasticsearch${base.suffix}-${version}-docker-build-context${arch}"
+    String archiveName = "elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
+    String distributionName = "elasticsearch-${VersionProperties.elasticsearch}-linux-${architecture.classifier}.tar.gz"
 
     from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
       eachFile { FileCopyDetails details ->
         if (details.name.equals("Dockerfile")) {
-          filter {
-            if (it.matches('^RUN curl.*artifacts-no-kpi.*$')) {
-              String artifact = it.replaceFirst("^.*/", "").replaceFirst('\\Q$(arch)', architecture.classifier)
-              String destination = 'elasticsearch.tar.gz'
-              return "COPY ${artifact} /opt/${destination}"
-            }
-
-            return it
-          }
+          filter { it.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /opt/elasticsearch.tar.gz") }
         }
       }
     }
@@ -275,16 +268,9 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
     }
 
     if (base == DockerBase.IRON_BANK) {
-      from(configurations.tini) {
+      from (configurations.tini) {
         rename { _ -> 'tini' }
       }
-    }
-
-    if (base == DockerBase.CLOUD) {
-      // These aren't copied in when building the Docker build context, because these are just snapshots.
-      // In release builds, the release-manager will make sure the proper binaries are available.
-      from configurations.filebeat
-      from configurations.metricbeat
     }
 
     expansions(architecture, base).findAll { it.key != 'build_date' }.each { k, v ->

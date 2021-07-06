@@ -338,7 +338,7 @@ public abstract class TransformTests extends GradleUnitTestCase {
     }
 
     protected boolean getHumanDebug() {
-        return true;
+        return false;
     }
 
     // only to help manually debug

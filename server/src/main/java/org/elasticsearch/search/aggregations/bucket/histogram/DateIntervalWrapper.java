@@ -116,24 +116,6 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         return 0;
     }
 
-    /** Set the interval on this builder, and return the builder so that calls can be chained.
-     *  If both {@link #interval()} and {@link #dateHistogramInterval()} are set, then the
-     *  {@link #dateHistogramInterval()} wins.
-     *
-     *  @deprecated use {@link DateHistogramAggregationBuilder#fixedInterval(DateHistogramInterval)}
-     *              or {@link DateHistogramAggregationBuilder#calendarInterval(DateHistogramInterval)} instead
-     *  @since 7.2.0
-     */
-    @Deprecated
-    public void interval(long interval) {
-        if (interval < 1) {
-            throw new IllegalArgumentException("[interval] must be 1 or greater for aggregation [date_histogram]");
-        }
-        setIntervalType(IntervalTypeEnum.LEGACY_INTERVAL);
-        DEPRECATION_LOGGER.deprecate(DeprecationCategory.AGGREGATIONS, "date-interval-setter", DEPRECATION_TEXT);
-        this.dateHistogramInterval = new DateHistogramInterval(interval + "ms");
-    }
-
     /** Get the current date interval that is set on this builder. */
     @Deprecated
     public DateHistogramInterval dateHistogramInterval() {

@@ -161,18 +161,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         }
     }
 
-    /** Get the current date interval that is set on this builder. */
-    @Deprecated
-    public DateHistogramInterval dateHistogramInterval() {
-       return dateHistogramInterval.dateHistogramInterval();
-    }
-
-    @Deprecated
-    public DateHistogramAggregationBuilder dateHistogramInterval(DateHistogramInterval interval) {
-        dateHistogramInterval.dateHistogramInterval(interval);
-        return this;
-    }
-
     /**
      * Sets the interval of the DateHistogram using calendar units (`1d`, `1w`, `1M`, etc).  These units
      * are calendar-aware, meaning they respect leap additions, variable days per month, etc.

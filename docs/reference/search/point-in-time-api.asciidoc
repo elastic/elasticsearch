@@ -189,6 +189,3 @@ For instance if the number of shards is equal to 2 and the user requested 4 slic
 IMPORTANT: The same point-in-time ID should be used for all slices. If different PIT IDs are used,
 then slices can overlap and miss documents. This is because the splitting criterion is based on
 Lucene document IDs, which are not stable across changes to the index.
-
-NOTE: By default the maximum number of slices allowed per search is limited to 1024.
-You can update the `index.max_slices_per_scroll` index setting to bypass this limit.

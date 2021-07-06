@@ -87,6 +87,7 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         config.put("add_to_root_recursive_merge", true);
         ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
             () -> FACTORY.create(null, randomAlphaOfLength(10), null, config));
-        assertThat(exception.getMessage(), equalTo("[add_to_root_recursive_merge] Cannot set `add_to_root_recursive_merge` to true if `add_to_root` is false"));
+        assertThat(exception.getMessage(),
+            equalTo("[add_to_root_recursive_merge] Cannot set `add_to_root_recursive_merge` to true if `add_to_root` is false"));
     }
 }

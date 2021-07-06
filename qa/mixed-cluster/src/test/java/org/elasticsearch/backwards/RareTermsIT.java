@@ -8,6 +8,7 @@
 
 package org.elasticsearch.backwards;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -26,7 +27,14 @@ public class RareTermsIT extends ESRestTestCase {
 
     private static final String index = "idx";
 
-    private int indexDocs(int numDocs, int id) throws Exception  {
+    private void setupMaxBuckets() throws Exception {
+        // increases the max bucket limit for this test
+        final Request request = new Request("PUT", "_cluster/settings");
+        request.setJsonEntity("{ \"transient\" : { \"search.max_buckets\" : 65356 } }");
+        assertOK(client().performRequest(request));
+    }
+
+    private int indexDocs(int numDocs, int id) throws Exception {
         final Request request = new Request("POST", "/_bulk");
         final StringBuilder builder = new StringBuilder();
         for (int i = 0; i < numDocs; ++i) {
@@ -39,11 +47,17 @@ public class RareTermsIT extends ESRestTestCase {
     }
 
     public void testSingleValuedString() throws Exception {
+        IndexingIT.Nodes nodes = IndexingIT.buildNodeAndVersions(client());
+        Version version = nodes.getBWCVersion();
+        // rare_terms was introduced in version 7.3.0
+        assumeTrue("Version too old", version.onOrAfter(Version.V_7_3_0));
+        // increase max buckets
+        setupMaxBuckets();
         final Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
         createIndex(index, settings.build());
-        // We want to trigger the usage oif cuckoo filters that happen only when there are
+        // We want to trigger the usage of cuckoo filters that happen only when there are
         // more than 10k distinct values in one shard.
         final int numDocs = randomIntBetween(12000, 17000);
         int id = 1;

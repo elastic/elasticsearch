@@ -1942,7 +1942,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             .add(new TermQuery(new Term("k", "b")), Occur.SHOULD)
             .add(new TermQuery(new Term("k", "c")), Occur.SHOULD)
             .build();
-        debugTestCase(builder, topLevel, buildIndex, 
+        debugTestCase(builder, topLevel, buildIndex,
             (StringTerms terms, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(
                     terms.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
@@ -2076,8 +2076,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             "dummy",
             scriptFactory,
             new Script("test"),
-            org.elasticsearch.core.Map.of(),
-            null
+            org.elasticsearch.core.Map.of()
         );
         debugTestCase(new TermsAggregationBuilder("t").field("dummy"), new MatchAllDocsQuery(), iw -> {
             for (int d = 0; d < totalDocs; d++) {

@@ -546,8 +546,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             "dummy",
             scriptFactory,
             new Script("test"),
-            org.elasticsearch.core.Map.of(),
-            null
+            org.elasticsearch.core.Map.of()
         );
         MappedFieldType numberFt = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
         debugTestCase(

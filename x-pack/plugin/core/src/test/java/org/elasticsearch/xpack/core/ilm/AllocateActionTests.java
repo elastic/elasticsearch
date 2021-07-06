@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -116,8 +117,11 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Map<String, String> map = new HashMap<>();
         int numIncludes = randomIntBetween(minEntries, maxEntries);
         for (int i = 0; i < numIncludes; i++) {
-            String attributeName = randomValueOtherThanMany(DiscoveryNodeRole.roleNames()::contains,
-                () -> randomAlphaOfLengthBetween(2, 20));
+            String attributeName =
+                randomValueOtherThanMany(DiscoveryNodeRole.BUILT_IN_ROLES.stream().map(DiscoveryNodeRole::roleName)
+                        .collect(Collectors.toList())::contains,
+                // use a high number of chars so we don't clash with the additional roles available - `ml` for eg
+                () -> randomAlphaOfLengthBetween(150, 300));
             map.put(attributeName, randomAlphaOfLengthBetween(2, 20));
         }
         return map;

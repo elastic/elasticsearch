@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,6 +24,7 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
     protected Client client;
     protected AdminClient adminClient;
     protected IndicesAdminClient indicesClient;
+    protected ClusterAdminClient clusterClient;
 
     public static ClusterState emptyClusterState() {
         return ClusterState.builder(ClusterName.DEFAULT).build();
@@ -33,9 +35,11 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
         client = Mockito.mock(Client.class);
         adminClient = Mockito.mock(AdminClient.class);
         indicesClient = Mockito.mock(IndicesAdminClient.class);
+        clusterClient = Mockito.mock(ClusterAdminClient.class);
 
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        Mockito.when(adminClient.cluster()).thenReturn(clusterClient);
     }
 
     protected static final int NUMBER_OF_TEST_RUNS = 20;

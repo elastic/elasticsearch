@@ -498,7 +498,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     private static DateScriptFieldType build(Script script, DateFormatter dateTimeFormatter) {
-        return new DateScriptFieldType("test", factory(script), dateTimeFormatter, script, emptyMap(), (builder, params) -> builder);
+        return new DateScriptFieldType("test", factory(script), dateTimeFormatter, script, emptyMap());
     }
 
     private static long randomDate() {

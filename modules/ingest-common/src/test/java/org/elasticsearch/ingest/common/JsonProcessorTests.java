@@ -32,7 +32,7 @@ public class JsonProcessorTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(3);
         String randomField = randomAlphaOfLength(3);
         String randomTargetField = randomAlphaOfLength(2);
-        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, randomField, randomTargetField, false, false);
+        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, randomField, randomTargetField, false, false, false);
         Map<String, Object> document = new HashMap<>();
 
         Map<String, Object> randomJsonMap = RandomDocumentPicks.randomSource(random());
@@ -47,7 +47,7 @@ public class JsonProcessorTests extends ESTestCase {
     }
 
     public void testInvalidValue() {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false, false);
         Map<String, Object> document = new HashMap<>();
         document.put("field", "blah blah");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -58,7 +58,7 @@ public class JsonProcessorTests extends ESTestCase {
     }
 
     public void testByteArray() {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false, false);
         Map<String, Object> document = new HashMap<>();
         document.put("field", new byte[] { 0, 1 });
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -73,7 +73,7 @@ public class JsonProcessorTests extends ESTestCase {
     }
 
     public void testNull() throws Exception {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false, false);
         Map<String, Object> document = new HashMap<>();
         document.put("field", null);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -82,7 +82,7 @@ public class JsonProcessorTests extends ESTestCase {
     }
 
     public void testBoolean() throws Exception {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false, false);
         Map<String, Object> document = new HashMap<>();
         boolean value = true;
         document.put("field", value);
@@ -92,7 +92,7 @@ public class JsonProcessorTests extends ESTestCase {
     }
 
     public void testInteger() throws Exception {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false, false);
         Map<String, Object> document = new HashMap<>();
         int value = 3;
         document.put("field", value);
@@ -102,7 +102,7 @@ public class JsonProcessorTests extends ESTestCase {
     }
 
     public void testDouble() throws Exception {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false, false);
         Map<String, Object> document = new HashMap<>();
         double value = 3.0;
         document.put("field", value);
@@ -112,7 +112,7 @@ public class JsonProcessorTests extends ESTestCase {
     }
 
     public void testString() throws Exception {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false, false);
         Map<String, Object> document = new HashMap<>();
         String value = "hello world";
         document.put("field", "\"" + value + "\"");
@@ -122,7 +122,7 @@ public class JsonProcessorTests extends ESTestCase {
     }
 
     public void testArray() throws Exception {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false, false);
         Map<String, Object> document = new HashMap<>();
         List<Boolean> value = Arrays.asList(true, true, false);
         document.put("field", value.toString());
@@ -132,7 +132,7 @@ public class JsonProcessorTests extends ESTestCase {
     }
 
     public void testFieldMissing() {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false, false);
         Map<String, Object> document = new HashMap<>();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
@@ -143,7 +143,7 @@ public class JsonProcessorTests extends ESTestCase {
     public void testAddToRoot() throws Exception {
         String processorTag = randomAlphaOfLength(3);
         String randomTargetField = randomAlphaOfLength(2);
-        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "a", randomTargetField, true, false);
+        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "a", randomTargetField, true, false, false);
         Map<String, Object> document = new HashMap<>();
 
         String json = "{\"a\": 1, \"b\": 2}";
@@ -159,9 +159,31 @@ public class JsonProcessorTests extends ESTestCase {
         assertEquals("see", sourceAndMetadata.get("c"));
     }
 
+    public void testDuplicateKeys() throws Exception {
+        String processorTag = randomAlphaOfLength(3);
+        JsonProcessor lenientJsonProcessor = new JsonProcessor(processorTag, null, "a", null, true, false, true);
+
+        Map<String, Object> document = new HashMap<>();
+        String json = "{\"a\": 1, \"a\": 2}";
+        document.put("a", json);
+        document.put("c", "see");
+
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        lenientJsonProcessor.execute(ingestDocument);
+
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        assertEquals(2, sourceAndMetadata.get("a"));
+        assertEquals("see", sourceAndMetadata.get("c"));
+
+        JsonProcessor strictJsonProcessor = new JsonProcessor(processorTag, null, "a", null, true, false, false);
+        Exception exception = expectThrows(IllegalArgumentException.class, () ->
+            strictJsonProcessor.execute(RandomDocumentPicks.randomIngestDocument(random(), document)));
+        assertThat(exception.getMessage(), containsString("Duplicate field 'a'"));
+    }
+
     public void testAddToRootRecursiveMerge() throws Exception {
         String processorTag = randomAlphaOfLength(3);
-        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "json", null, true, true);
+        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "json", null, true, true, false);
 
         Map<String, Object> document = new HashMap<>();
         String json = "{\"foo\": {\"bar\": \"baz\"}}";
@@ -180,7 +202,7 @@ public class JsonProcessorTests extends ESTestCase {
 
     public void testAddToRootNonRecursiveMerge() throws Exception {
         String processorTag = randomAlphaOfLength(3);
-        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "json", null, true, false);
+        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "json", null, true, false, false);
 
         Map<String, Object> document = new HashMap<>();
         String json = "{\"foo\": {\"bar\": \"baz\"}}";
@@ -198,7 +220,7 @@ public class JsonProcessorTests extends ESTestCase {
     }
 
     public void testAddBoolToRoot() {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", true, false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", true, false, false);
         Map<String, Object> document = new HashMap<>();
         document.put("field", true);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);

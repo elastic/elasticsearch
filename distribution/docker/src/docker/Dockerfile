@@ -228,9 +228,9 @@ WORKDIR /usr/share/elasticsearch
   Keep this command on one line - it is replaced with a `COPY` during local builds.
   It uses the `arch` command to fetch the correct distro for the build machine.
 */ %>
-RUN curl --retry 10 -S -L --output /opt/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
+RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
 
-RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
+RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1
 
 # The distribution includes a `config` directory, no need to create it
 COPY ${config_dir}/elasticsearch.yml config/
@@ -261,20 +261,17 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
 
 <% if (docker_base == "cloud") { %>
 # Preinstall common plugins
-COPY repository-s3-${version}.zip repository-gcs-${version}.zip repository-azure-${version}.zip /opt/
+COPY repository-s3-${version}.zip repository-gcs-${version}.zip repository-azure-${version}.zip /tmp/
 RUN bin/elasticsearch-plugin install --batch \\
-    file:/opt/repository-s3-${version}.zip \\
-    file:/opt/repository-gcs-${version}.zip \\
-    file:/opt/repository-azure-${version}.zip
+    file:/tmp/repository-s3-${version}.zip \\
+    file:/tmp/repository-gcs-${version}.zip \\
+    file:/tmp/repository-azure-${version}.zip
 
-# Fetch required Beats
-COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /opt
-RUN cd /opt && \\
-    tar xf filebeat-${version}.tar.gz && \\
-    tar xf metricbeat-${version}.tar.gz && \\
-    cp filebeat-${version}-linux-*/filebeat /opt && \\
-    cp metricbeat-${version}-linux-*/metricbeat /opt && \\
-    chmod 555 filebeat metricbeat
+# I tried to use `ADD` here, but I couldn't force it to do what I wanted
+COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
+RUN mkdir -p /opt/filebeat /opt/metricbeat && \\
+    tar xf /tmp/filebeat-${version}.tar.gz -C /opt/filebeat --strip-components=1 && \\
+    tar xf /tmp/metricbeat-${version}.tar.gz -C /opt/metricbeat --strip-components=1
 <% } %>
 
 <% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
@@ -345,7 +342,7 @@ COPY --from=builder --chown=0:0 /bin/tini /bin/tini
 <% } %>
 
 <% if (docker_base == 'cloud') { %>
-COPY --from=builder --chown=0:0 /opt/filebeat /opt/metricbeat /opt/
+COPY --from=builder --chown=0:0 /opt /opt
 <% } %>
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH

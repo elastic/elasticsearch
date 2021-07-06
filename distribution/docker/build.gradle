@@ -254,7 +254,7 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
     from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
       eachFile { FileCopyDetails details ->
         if (details.name.equals("Dockerfile")) {
-          filter { it.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /opt/elasticsearch.tar.gz") }
+          filter { it.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /tmp/elasticsearch.tar.gz") }
         }
       }
     }

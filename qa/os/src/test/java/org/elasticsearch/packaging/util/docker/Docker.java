@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.packaging.util;
+package org.elasticsearch.packaging.util.docker;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,7 +15,13 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.FileUtils;
+import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.ServerUtils;
+import org.elasticsearch.packaging.util.Shell;
 
+import java.io.FileNotFoundException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -29,7 +35,8 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
-import static org.elasticsearch.packaging.util.DockerRun.getImageName;
+import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
+import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.p555;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p664;
@@ -37,10 +44,11 @@ import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
+import static org.elasticsearch.packaging.util.docker.DockerFileMatcher.file;
+import static org.elasticsearch.packaging.util.docker.DockerRun.getImageName;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -60,7 +68,7 @@ public class Docker {
      * but that appeared to cause problems with repeatedly destroying and recreating containers with
      * the same name.
      */
-    private static String containerId = null;
+    static String containerId = null;
 
     /**
      * Checks whether the required Docker image exists. If not, the image is loaded from disk. No check is made
@@ -214,7 +222,7 @@ public class Docker {
 
                     // I'm not sure why we're already removing this container, but that's OK.
                     if (isErrorAcceptable == false) {
-                        throw new RuntimeException("Command was not successful: [" + command + "] result: " + result.toString());
+                        throw new RuntimeException("Command was not successful: [" + command + "] result: " + result);
                     }
                 }
             } finally {
@@ -235,60 +243,6 @@ public class Docker {
         final String script = "docker cp " + containerId + ":" + from + " " + to;
         logger.debug("Copying file from container with: " + script);
         sh.run(script);
-    }
-
-    /**
-     * Extends {@link Shell} so that executed commands happen in the currently running Docker container.
-     */
-    public static class DockerShell extends Shell {
-        @Override
-        protected String[] getScriptCommand(String script) {
-            assert containerId != null;
-
-            List<String> cmd = new ArrayList<>();
-            cmd.add("docker");
-            cmd.add("exec");
-            cmd.add("--user");
-            cmd.add("elasticsearch:root");
-            cmd.add("--tty");
-
-            env.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));
-
-            cmd.add(containerId);
-            cmd.add(script);
-
-            return super.getScriptCommand(String.join(" ", cmd));
-        }
-
-        /**
-         * Overrides {@link Shell#run(String)} to attempt to collect Docker container
-         * logs when a command fails to execute successfully.
-         * @param script the command to run
-         * @return the command's output
-         */
-        @Override
-        public Result run(String script) {
-            try {
-                return super.run(script);
-            } catch (ShellException e) {
-                try {
-                    final Shell.Result dockerLogs = getContainerLogs();
-                    logger.error(
-                        "Command [{}] failed.\n\nContainer stdout: [{}]\n\nContainer stderr: [{}]",
-                        script,
-                        dockerLogs.stdout,
-                        dockerLogs.stderr
-                    );
-                } catch (ShellException shellException) {
-                    logger.error(
-                        "Command [{}] failed.\n\nTried to dump container logs but that failed too: [{}]",
-                        script,
-                        shellException.getMessage()
-                    );
-                }
-                throw e;
-            }
-        }
     }
 
     /**
@@ -401,46 +355,6 @@ public class Docker {
     }
 
     /**
-     * Checks that the specified path's permissions match those specified, and that the file is
-     * owned by {@code elasticsearch:root}.
-     * @param path the path to check
-     * @param expectedPermissions the unix permissions that the path ought to have
-     */
-    public static void assertPermissionsAndOwnership(Path path, Set<PosixFilePermission> expectedPermissions) {
-        assertPermissionsAndOwnership(path, expectedPermissions, "elasticsearch", "root");
-    }
-
-    /**
-     * Checks that the specified path's permissions and ownership match those specified.
-     * @param path the path to check
-     * @param expectedPermissions the unix permissions that the path ought to have
-     * @param expectedOwner the expected username of the file
-     * @param expectedGroup the expected group name of the file
-     */
-    public static void assertPermissionsAndOwnership(
-        Path path,
-        Set<PosixFilePermission> expectedPermissions,
-        String expectedOwner,
-        String expectedGroup
-    ) {
-        logger.debug("Checking permissions and ownership of [" + path + "]");
-
-        final String[] components = dockerShell.run("stat -c \"%U %G %A\" " + path).stdout.split("\\s+");
-
-        final String username = components[0];
-        final String group = components[1];
-        final String permissions = components[2];
-
-        // The final substring() is because we don't check the directory bit, and we
-        // also don't want any SELinux security context indicator.
-        Set<PosixFilePermission> actualPermissions = fromString(permissions.substring(1, 10));
-
-        assertEquals("Permissions of " + path + " are wrong", expectedPermissions, actualPermissions);
-        assertThat("File owner of " + path + " is wrong", username, equalTo(expectedOwner));
-        assertThat("File group of " + path + " is wrong", group, equalTo(expectedGroup));
-    }
-
-    /**
      * Waits for up to 20 seconds for a path to exist in the container.
      * @param path the path to await
      */
@@ -475,12 +389,12 @@ public class Docker {
         final String homeDir = passwdResult.stdout.trim().split(":")[5];
         assertThat(homeDir, equalTo("/usr/share/elasticsearch"));
 
-        Stream.of(es.home, es.data, es.logs, es.config, es.plugins).forEach(dir -> assertPermissionsAndOwnership(dir, p775));
+        Stream.of(es.home, es.data, es.logs, es.config, es.plugins).forEach(dir -> assertThat(dir, file(Directory, p775)));
 
-        Stream.of(es.bin, es.bundledJdk, es.lib, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p555));
+        Stream.of(es.bin, es.bundledJdk, es.lib, es.modules).forEach(dir -> assertThat(dir, file(Directory, p555)));
 
         Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));
+            .forEach(configFile -> assertThat(es.config(configFile), file(File, p664)));
 
         assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
 
@@ -492,9 +406,9 @@ public class Docker {
             "elasticsearch-node",
             "elasticsearch-plugin",
             "elasticsearch-shard"
-        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p555));
+        ).forEach(executable -> assertThat(es.bin(executable), file(p555)));
 
-        Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
+        Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc").forEach(doc -> assertThat(es.home.resolve(doc), file(p644)));
 
         // nc is useful for checking network issues
         // zip/unzip are installed to help users who are working with certificates.
@@ -521,21 +435,21 @@ public class Docker {
             "x-pack-env",
             "x-pack-security-env",
             "x-pack-watcher-env"
-        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p555));
+        ).forEach(executable -> assertThat(es.bin(executable), file(p555)));
 
         // at this time we only install the current version of archive distributions, but if that changes we'll need to pass
         // the version through here
-        assertPermissionsAndOwnership(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), p555);
+        assertThat(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), file(p555));
 
         final String architecture = getArchitecture();
         Stream.of("autodetect", "categorize", "controller", "data_frame_analyzer", "normalize", "pytorch_inference")
             .forEach(executableName -> {
                 final Path executablePath = es.modules.resolve("x-pack-ml/platform/linux-" + architecture + "/bin/" + executableName);
-                assertPermissionsAndOwnership(executablePath, p555);
+                assertThat(executablePath, file(p555));
             });
 
         Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));
+            .forEach(configFile -> assertThat(es.config(configFile), file(p664)));
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {
@@ -649,4 +563,30 @@ public class Docker {
         }
         return architecture;
     }
+
+    public static PosixFileAttributes getAttributes(Path path) throws FileNotFoundException {
+        final Shell.Result result = dockerShell.runIgnoreExitCode("stat -c \"%U %G %A\" " + path);
+        if (result.isSuccess() == false) {
+            throw new FileNotFoundException(path + " does not exist");
+        }
+
+        final String[] components = result.stdout.split("\\s+");
+
+        final String permissions = components[2];
+        final String fileType = permissions.substring(0, 1);
+
+        // The final substring() is because we don't check the directory bit, and we
+        // also don't want any SELinux security context indicator.
+        Set<PosixFilePermission> posixPermissions = fromString(permissions.substring(1, 10));
+
+        final DockerFileAttributes attrs = new DockerFileAttributes();
+        attrs.owner = components[0];
+        attrs.group = components[1];
+        attrs.permissions = posixPermissions;
+        attrs.isDirectory = fileType.equals("d");
+        attrs.isSymbolicLink = fileType.equals("l");
+
+        return attrs;
+    }
+
 }

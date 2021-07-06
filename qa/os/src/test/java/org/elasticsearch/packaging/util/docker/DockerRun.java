@@ -6,7 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.packaging.util;
+package org.elasticsearch.packaging.util.docker;
+
+import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Platforms;
 
 import java.nio.file.Path;
 import java.util.ArrayList;

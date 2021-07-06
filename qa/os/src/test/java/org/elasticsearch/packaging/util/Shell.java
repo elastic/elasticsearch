@@ -36,7 +36,7 @@ public class Shell {
     public static final Result NO_OP = new Shell.Result(0, "", "");
     protected final Logger logger = LogManager.getLogger(getClass());
 
-    final Map<String, String> env = new HashMap<>();
+    protected final Map<String, String> env = new HashMap<>();
     String umask;
     Path workingDirectory;
 

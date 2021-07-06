@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.Functions;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.EliminatedAggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.SurrogateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
@@ -96,7 +98,15 @@ public final class OptimizerRules {
 
         @Override
         public Expression rule(Expression e) {
-            return e.foldable() ? Literal.of(e) : e;
+            if (e.foldable()) {
+                if (e.anyMatch(Functions::isAggregate)) {
+                    return new EliminatedAggregateFunction(e.source(), Literal.of(e));
+                } else {
+                    return Literal.of(e);
+                }
+            } else {
+                return e;
+            }
         }
     }
 
@@ -1452,7 +1462,9 @@ public final class OptimizerRules {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
-            Expression condition = filter.condition().transformUp(BinaryLogic.class, PruneFilters::foldBinaryLogic);
+            Expression condition = filter.condition()
+                .transformDown(EliminatedAggregateFunction.class, AggregateFunction::field)
+                .transformUp(BinaryLogic.class, PruneFilters::foldBinaryLogic);
 
             if (condition instanceof Literal) {
                 if (TRUE.equals(condition)) {

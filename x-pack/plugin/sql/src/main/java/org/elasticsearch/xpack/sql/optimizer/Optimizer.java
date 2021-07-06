@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.EliminatedAggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
@@ -161,7 +162,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PruneCast(),
                 // order by alignment of the aggs
                 new SortAggregateOnOrderBy(),
-                // ReplaceAggregationsInLocalRelations, ConstantFolding and PruneFilters must all be applied before this:
                 new PushDownAndCombineFilters()
         );
 
@@ -857,10 +857,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     long count = (relation.executable() instanceof EmptyExecutable ? 0L : 1L);
 
                     return plan.transformExpressionsDown(AggregateFunction.class, aggregateFunction -> {
-                        if (aggregateFunction instanceof Count) {
-                            return Literal.of(aggregateFunction, count);
+                        if (aggregateFunction instanceof EliminatedAggregateFunction) {
+                            return aggregateFunction;
+                        } else if (aggregateFunction instanceof Count) {
+                            return new EliminatedAggregateFunction(aggregateFunction.source(), Literal.of(aggregateFunction, count));
                         } else if (count == 0) {
-                            return Literal.of(aggregateFunction, null);
+                            return new EliminatedAggregateFunction(aggregateFunction.source(), Literal.of(aggregateFunction, null));
                         } else {
                             // note, most aggregation functions have already been substituted in ReplaceAggregatesWithLiterals
                             return aggregateFunction;

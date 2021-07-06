@@ -482,7 +482,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     private void injectPointInTimeIfNeeded(SearchRequest searchRequest, ActionListener<SearchRequest> listener) {
-        if (disablePit == true) {
+        if (disablePit) {
             listener.onResponse(searchRequest);
             return;
         }

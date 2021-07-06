@@ -74,6 +74,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -87,8 +88,10 @@ import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -651,6 +654,74 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
+    public void testIndexingDataCompression() throws Exception {
+        try (MockTransportService serviceC = buildService("TS_C", CURRENT_VERSION,  Settings.EMPTY)) {
+            String component = "cccccccccooooooooooooooommmmmmmmmmmppppppppppprrrrrrrreeeeeeeeeessssssssiiiiiiiiiibbbbbbbbllllllllleeeeee";
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < 30; ++i) {
+                builder.append(component);
+            }
+            String text = builder.toString();
+            TransportRequestHandler<StringMessageRequest> handler = (request, channel, task) -> {
+                assertThat(text, equalTo(request.message));
+                try {
+                    channel.sendResponse(new StringMessageResponse(""));
+                } catch (IOException e) {
+                    logger.error("Unexpected failure", e);
+                    fail(e.getMessage());
+                }
+            };
+            serviceA.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new, handler);
+            serviceC.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new, handler);
+
+            Settings settingsWithCompress = Settings.builder()
+                .put(TransportSettings.TRANSPORT_COMPRESS.getKey(), Compression.Enabled.INDEXING_DATA)
+                .put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(),
+                    randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4))
+                .build();
+            ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
+            serviceC.connectToNode(serviceA.getLocalDiscoNode(), connectionProfile);
+            serviceA.connectToNode(serviceC.getLocalDiscoNode(), connectionProfile);
+
+            TransportResponseHandler<StringMessageResponse> responseHandler = new TransportResponseHandler<StringMessageResponse>() {
+                @Override
+                public StringMessageResponse read(StreamInput in) throws IOException {
+                    return new StringMessageResponse(in);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.GENERIC;
+                }
+
+                @Override
+                public void handleResponse(StringMessageResponse response) {
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    logger.error("Unexpected failure", exp);
+                    fail("got exception instead of a response: " + exp.getMessage());
+                }
+            };
+
+            Future<StringMessageResponse> compressed = serviceC.submitRequest(serviceA.getLocalDiscoNode(), "internal:sayHello",
+                new StringMessageRequest(text, -1, true), responseHandler);
+            Future<StringMessageResponse> uncompressed = serviceA.submitRequest(serviceC.getLocalDiscoNode(), "internal:sayHello",
+                new StringMessageRequest(text, -1, false), responseHandler);
+
+            compressed.get();
+            uncompressed.get();
+            final long bytesLength;
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                new StringMessageRequest(text, -1).writeTo(output);
+                bytesLength = output.bytes().length();
+            }
+            assertThat(serviceA.transport().getStats().getRxSize().getBytes(), lessThan(bytesLength));
+            assertThat(serviceC.transport().getStats().getRxSize().getBytes(), greaterThan(bytesLength));
+        }
+    }
+
     public void testErrorMessage() {
         serviceA.registerRequestHandler("internal:sayHelloException", ThreadPool.Names.GENERIC, StringMessageRequest::new,
             (request, channel, task) -> {
@@ -1188,14 +1259,20 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public static class StringMessageRequest extends TransportRequest {
+    public static class StringMessageRequest extends TransportRequest implements RawIndexingDataTransportRequest {
 
         private String message;
         private long timeout;
+        private boolean isRawIndexingData = false;
 
         StringMessageRequest(String message, long timeout) {
+            this(message, timeout, false);
+        }
+
+        StringMessageRequest(String message, long timeout, boolean isRawIndexingData) {
             this.message = message;
             this.timeout = timeout;
+            this.isRawIndexingData = isRawIndexingData;
         }
 
         public StringMessageRequest(StreamInput in) throws IOException {
@@ -1210,6 +1287,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         public long timeout() {
             return timeout;
+        }
+
+        @Override
+        public boolean isRawIndexingData() {
+            return isRawIndexingData;
         }
 
         @Override

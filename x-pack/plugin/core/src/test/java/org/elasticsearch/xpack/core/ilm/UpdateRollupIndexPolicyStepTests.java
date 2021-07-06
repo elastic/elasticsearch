@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class UpdateRollupIndexPolicyStepTests extends AbstractStepMasterTimeoutTestCase<UpdateRollupIndexPolicyStep> {
+public class UpdateRollupIndexPolicyStepTests extends AbstractStepTestCase<UpdateRollupIndexPolicyStep> {
 
     @Override
     public UpdateRollupIndexPolicyStep createRandomInstance() {
@@ -66,8 +66,7 @@ public class UpdateRollupIndexPolicyStepTests extends AbstractStepMasterTimeoutT
             instance.getRollupPolicy());
     }
 
-    @Override
-    protected IndexMetadata getIndexMetadata() {
+    private static IndexMetadata getIndexMetadata() {
         Map<String, String> ilmCustom = Collections.singletonMap("rollup_index_name", "rollup-index");
         return IndexMetadata.builder(randomAlphaOfLength(10)).settings(
             settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "test-ilm-policy"))

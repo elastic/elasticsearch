@@ -41,8 +41,8 @@ import static org.hamcrest.Matchers.greaterThan;
 public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
 
     private final String index = "bulk-failure-retry";
-    private long now = System.currentTimeMillis();
-    private static long DAY = Duration.ofDays(1).toMillis();
+    private final long now = System.currentTimeMillis();
+    private static final long DAY = Duration.ofDays(1).toMillis();
     private final String jobId = "bulk-failure-retry-job";
     private final String resultsIndex = ".ml-anomalies-custom-bulk-failure-retry-job";
 
@@ -147,7 +147,6 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
 
     private Job.Builder createJob(String id, TimeValue bucketSpan, String function, String field, String summaryCountField) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         dataDescription.setTimeField("time");
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
 

@@ -23,10 +23,15 @@ HISTOGRAM(
 
 *Input*:
 
-<1> numeric expression (typically a field)
-<2> numeric interval
-<3> date/time expression (typically a field)
-<4> date/time <<sql-functions-datetime-interval, interval>>
+<1> numeric expression (typically a field). If this field contains only `null`
+values, the function returns `null`. Otherwise, the function ignores `null`
+values in this field.
+<2> numeric interval. If `null`, the function returns `null`.
+<3> date/time expression (typically a field). If this field contains only `null`
+values, the function returns `null`. Otherwise, the function ignores `null`
+values in this field.
+<4> date/time <<sql-functions-datetime-interval, interval>>. If `null`, the
+function returns `null`.
 
 *Output*: non-empty buckets or groups of the given expression divided according to the given interval
 
@@ -38,7 +43,7 @@ bucket_key = Math.floor(value / interval) * interval
 ----
 
 [NOTE]
-The histogram in SQL does *NOT* return empty buckets for missing intervals as the traditional <<search-aggregations-bucket-histogram-aggregation, histogram>> and  <<search-aggregations-bucket-datehistogram-aggregation, date histogram>>. Such behavior does not fit conceptually in SQL which treats all missing values as `NULL`; as such the histogram places all missing values in the `NULL` group.
+The histogram in SQL does *NOT* return empty buckets for missing intervals as the traditional <<search-aggregations-bucket-histogram-aggregation, histogram>> and  <<search-aggregations-bucket-datehistogram-aggregation, date histogram>>. Such behavior does not fit conceptually in SQL which treats all missing values as `null`; as such the histogram places all missing values in the `null` group.
 
 `Histogram` can be applied on either numeric fields:
 

@@ -22,6 +22,7 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
@@ -48,7 +49,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
         File heapdumpDir = new File(project.getBuildDir(), "heapdump");
 
         project.getTasks().withType(Test.class).configureEach(test -> {
-            File testOutputDir = new File(test.getReports().getJunitXml().getDestination(), "output");
+            File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
 
             ErrorReportingTestListener listener = new ErrorReportingTestListener(test.getTestLogging(), test.getLogger(), testOutputDir);
             test.getExtensions().add("errorReportingTestListener", listener);
@@ -187,17 +188,17 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
              *  compiled class output and dependency jars. This better emulates the runtime environment of consumers.
              */
             project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
-                // Remove output class files and any other dependencies from the test classpath, since the shadow JAR includes these
-                FileCollection mainRuntime = project.getExtensions()
-                    .getByType(SourceSetContainer.class)
-                    .getByName(SourceSet.MAIN_SOURCE_SET_NAME)
-                    .getRuntimeClasspath();
-                // Add any "shadow" dependencies. These are dependencies that are *not* bundled into the shadow JAR
-                Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME());
-                // Add the shadow JAR artifact itself
-                FileCollection shadowJar = project.files(project.getTasks().named("shadowJar"));
-
-                test.setClasspath(test.getClasspath().minus(mainRuntime).plus(shadowConfig).plus(shadowJar));
+                if (test.getName().equals(JavaPlugin.TEST_TASK_NAME)) {
+                    // Remove output class files and any other dependencies from the test classpath, since the shadow JAR includes these
+                    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+                    FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getRuntimeClasspath();
+                    // Add any "shadow" dependencies. These are dependencies that are *not* bundled into the shadow JAR
+                    Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME());
+                    // Add the shadow JAR artifact itself
+                    FileCollection shadowJar = project.files(project.getTasks().named("shadowJar"));
+                    FileCollection testRuntime = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();
+                    test.setClasspath(testRuntime.minus(mainRuntime).plus(shadowConfig).plus(shadowJar));
+                }
             });
         });
     }

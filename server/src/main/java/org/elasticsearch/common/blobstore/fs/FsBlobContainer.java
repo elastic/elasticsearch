@@ -18,9 +18,11 @@ import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.FileNotFoundException;
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -244,6 +246,49 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void writeBlob(String blobName,
+                          boolean failIfAlreadyExists,
+                          boolean atomic,
+                          CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        if (atomic) {
+            final String tempBlob = tempBlobName(blobName);
+            try {
+                writeToPath(tempBlob, true, writer);
+                moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
+            } catch (IOException ex) {
+                try {
+                    deleteBlobsIgnoringIfNotExists(Iterators.single(tempBlob));
+                } catch (IOException e) {
+                    ex.addSuppressed(e);
+                }
+                throw ex;
+            }
+        } else {
+            writeToPath(blobName, failIfAlreadyExists, writer);
+        }
+        IOUtils.fsync(path, true);
+    }
+
+    private void writeToPath(String blobName, boolean failIfAlreadyExists, CheckedConsumer<OutputStream, IOException> writer)
+            throws IOException {
+        final Path file = path.resolve(blobName);
+        try {
+            try (OutputStream out = new BlobOutputStream(file)) {
+                writer.accept(out);
+            }
+        } catch (FileAlreadyExistsException faee) {
+            if (failIfAlreadyExists) {
+                throw faee;
+            }
+            deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
+            try (OutputStream out = new BlobOutputStream(file)) {
+                writer.accept(out);
+            }
+        }
+        IOUtils.fsync(file, false);
+    }
+
+    @Override
     public void writeBlobAtomic(final String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         final String tempBlob = tempBlobName(blobName);
         final Path tempBlobPath = path.resolve(tempBlob);
@@ -305,5 +350,17 @@ public class FsBlobContainer extends AbstractBlobContainer {
      */
     public static boolean isTempBlobName(final String blobName) {
         return blobName.startsWith(TEMP_FILE_PREFIX);
+    }
+
+    private static class BlobOutputStream extends FilterOutputStream {
+
+        BlobOutputStream(Path file) throws IOException {
+            super(Files.newOutputStream(file, StandardOpenOption.CREATE_NEW));
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            out.write(b, off, len);
+        }
     }
 }

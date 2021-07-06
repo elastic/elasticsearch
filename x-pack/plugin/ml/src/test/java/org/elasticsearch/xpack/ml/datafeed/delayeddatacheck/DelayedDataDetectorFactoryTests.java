@@ -81,7 +81,6 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
 
     private Job createJob(TimeValue bucketSpan) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         dataDescription.setTimeField("time");
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
 

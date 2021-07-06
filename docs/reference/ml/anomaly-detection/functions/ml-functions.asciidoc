@@ -35,10 +35,10 @@ functions are strongly affected by empty buckets. For this reason, there are
 `non_null_sum` and `non_zero_count` functions, which are tolerant to sparse data.
 These functions effectively ignore empty buckets.
 
-* <<ml-count-functions>>
-* <<ml-geo-functions>>
-* <<ml-info-functions>>
-* <<ml-metric-functions>>
-* <<ml-rare-functions>>
-* <<ml-sum-functions>>
-* <<ml-time-functions>>
+* <<ml-count-functions,Count functions>>
+* <<ml-geo-functions,Geographic functions>>
+* <<ml-info-functions,Information content functions>>
+* <<ml-metric-functions,Metric functions>>
+* <<ml-rare-functions,Rare functions>>
+* <<ml-sum-functions,Sum functions>>
+* <<ml-time-functions,Time functions>>

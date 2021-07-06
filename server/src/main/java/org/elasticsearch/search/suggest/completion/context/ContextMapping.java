@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 
@@ -89,7 +90,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     /**
      * Retrieves a set of context from a <code>document</code> at index-time.
      */
-    protected abstract Set<String> parseContext(ParseContext.Document document);
+    protected abstract Set<String> parseContext(LuceneDocument document);
 
     /**
      * Prototype for the query context

@@ -26,7 +26,6 @@ import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TestParseContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -67,11 +66,10 @@ public class QueryBuilderStoreTests extends ESTestCase {
             try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
                 for (int i = 0; i < queryBuilders.length; i++) {
                     queryBuilders[i] = new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(8));
-                    LuceneDocument doc = new LuceneDocument();
                     ParseContext parseContext = new TestParseContext();
                     PercolatorFieldMapper.createQueryBuilderField(version,
                         fieldMapper, queryBuilders[i], parseContext);
-                    indexWriter.addDocument(doc);
+                    indexWriter.addDocument(parseContext.doc());
                 }
             }
 
@@ -99,5 +97,4 @@ public class QueryBuilderStoreTests extends ESTestCase {
             }
         }
     }
-
 }

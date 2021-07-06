@@ -608,13 +608,12 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     // creates an object mapper, which is about 100x harder than it should be....
     private static ObjectMapper createObjectMapper(String name) {
-        ParseContext context = new TestParseContext();
+        ContentPath path = new ContentPath(0);
         String[] nameParts = name.split("\\.");
         for (int i = 0; i < nameParts.length - 1; ++i) {
-            context.path().add(nameParts[i]);
+            path.add(nameParts[i]);
         }
-        Mapper.Builder builder = new ObjectMapper.Builder(nameParts[nameParts.length - 1], Version.CURRENT).enabled(true);
-        return (ObjectMapper)builder.build(context.path());
+        return new ObjectMapper.Builder(nameParts[nameParts.length - 1], Version.CURRENT).enabled(true).build(path);
     }
 
     public void testEmptyMappingUpdate() throws Exception {

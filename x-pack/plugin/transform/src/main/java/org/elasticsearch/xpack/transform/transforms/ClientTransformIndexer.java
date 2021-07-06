@@ -500,7 +500,7 @@ class ClientTransformIndexer extends TransformIndexer {
                 pit = new PointInTimeBuilder(response.getPointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE);
                 searchRequest.source().pointInTimeBuilder(pit);
                 pitCheckpoint = getNextCheckpoint().getCheckpoint();
-                logger.trace("[{}] using pit search context [{}]", getJobId(), pit);
+                logger.trace("[{}] using pit search context with id [{}]", getJobId(), pit.getEncodedId());
                 listener.onResponse(searchRequest);
             }, e -> {
                 Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);

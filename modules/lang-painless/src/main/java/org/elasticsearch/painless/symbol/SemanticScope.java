@@ -137,6 +137,7 @@ public abstract class SemanticScope {
         protected final SemanticScope parent;
         protected final Class<?> returnType;
         protected final Set<Variable> captures = new HashSet<>();
+        protected boolean usesInstanceMethod = false;
 
         protected LambdaScope(SemanticScope parent, Class<?> returnType) {
             super(parent.scriptScope, parent.usedVariables);
@@ -189,6 +190,19 @@ public abstract class SemanticScope {
 
         public Set<Variable> getCaptures() {
             return Collections.unmodifiableSet(captures);
+        }
+
+        @Override
+        public void setUsesInstanceMethod() {
+            if (usesInstanceMethod) {
+                return;
+            }
+            usesInstanceMethod = true;
+        }
+
+        @Override
+        public boolean usesInstanceMethod() {
+            return usesInstanceMethod;
         }
     }
 
@@ -339,6 +353,13 @@ public abstract class SemanticScope {
 
     public abstract boolean isVariableDefined(String name);
     public abstract Variable getVariable(Location location, String name);
+
+    // We only want to track instance method use inside of lambdas for "this" injection.  It's a noop for other scopes.
+    public void setUsesInstanceMethod() {}
+
+    public boolean usesInstanceMethod() {
+        return false;
+    }
 
     public Variable defineInternalVariable(Location location, Class<?> type, String name, boolean isReadOnly) {
         return defineVariable(location, type, "#" + name, isReadOnly);

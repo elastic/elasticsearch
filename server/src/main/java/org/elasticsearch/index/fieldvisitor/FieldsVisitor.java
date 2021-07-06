@@ -76,6 +76,10 @@ public class FieldsVisitor extends StoredFieldVisitor {
                 : Status.NO;
     }
 
+    public Set<String> getFieldNames() {
+        return requiredFields;
+    }
+
     public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup) {
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
             MappedFieldType fieldType = fieldTypeLookup.apply(entry.getKey());

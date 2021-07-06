@@ -534,9 +534,13 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
             // Due to weird rounding errors, it may be that a scale down result COULD cause a scale up
             // Ensuring the scaleDown here forces the scale down result to always be lower than the current capacity.
             // This is safe as we know that ALL jobs are assigned at the current capacity
-            .map(result -> new AutoscalingDeciderResult(
-                ensureScaleDown(result.requiredCapacity(), context.currentCapacity()), result.reason()
-            ));
+            .map(result -> {
+                AutoscalingCapacity capacity = ensureScaleDown(result.requiredCapacity(), context.currentCapacity());
+                if (capacity == null) {
+                    return null;
+                }
+                return new AutoscalingDeciderResult(capacity, result.reason());
+            });
 
         if (maybeScaleDown.isPresent()) {
             final AutoscalingDeciderResult scaleDownDecisionResult = maybeScaleDown.get();
@@ -599,6 +603,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     }
 
     static AutoscalingCapacity ensureScaleDown(AutoscalingCapacity scaleDownResult, AutoscalingCapacity currentCapacity) {
+        if (scaleDownResult == null || currentCapacity == null) {
+            return null;
+        }
         AutoscalingCapacity newCapacity = new AutoscalingCapacity(
             new AutoscalingCapacity.AutoscalingResources(
                 currentCapacity.total().storage(),

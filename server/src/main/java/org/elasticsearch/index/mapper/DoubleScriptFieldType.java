@@ -38,22 +38,41 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         new Builder<>(name, DoubleFieldScript.CONTEXT, DoubleFieldScript.PARSE_FROM_SOURCE) {
             @Override
             RuntimeField newRuntimeField(DoubleFieldScript.Factory scriptFactory) {
-                return new DoubleScriptFieldType(name, scriptFactory, getScript(), meta(), this);
+                return runtimeField(name, this, scriptFactory, getScript(), meta());
             }
         });
 
-    public DoubleScriptFieldType(String name) {
-        this(name, DoubleFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
+    private static RuntimeField runtimeField(
+        String name,
+        ToXContent toXContent,
+        DoubleFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta
+    ) {
+        return new LeafRuntimeField(name, new DoubleScriptFieldType(name, scriptFactory, script, meta), toXContent) {
+            @Override
+            public String typeName() {
+                return NumberType.DOUBLE.typeName();
+            }
+        };
+    }
+
+    public static RuntimeField sourceOnly(String name) {
+        return runtimeField(
+            name,
+            (builder, params) -> builder,
+            DoubleFieldScript.PARSE_FROM_SOURCE,
+            DEFAULT_SCRIPT,
+            Collections.emptyMap());
     }
 
     DoubleScriptFieldType(
         String name,
         DoubleFieldScript.Factory scriptFactory,
         Script script,
-        Map<String, String> meta,
-        ToXContent toXContent
+        Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta, toXContent);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
     }
 
     @Override

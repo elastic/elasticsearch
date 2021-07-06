@@ -13,14 +13,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -144,7 +143,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * @return true if the snapshotting commit can be clean up.
      */
     synchronized boolean releaseCommit(final IndexCommit snapshotCommit) {
-        final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).delegate;
+        final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).getIndexCommit();
         assert snapshottedCommits.containsKey(releasingCommit) : "Release non-snapshotted commit;" +
             "snapshotted commits [" + snapshottedCommits + "], releasing commit [" + releasingCommit + "]";
         final int refCount = snapshottedCommits.addTo(releasingCommit, -1); // release refCount
@@ -222,56 +221,14 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     /**
      * A wrapper of an index commit that prevents it from being deleted.
      */
-    private static class SnapshotIndexCommit extends IndexCommit {
-        private final IndexCommit delegate;
-
+    private static class SnapshotIndexCommit extends FilterIndexCommit {
         SnapshotIndexCommit(IndexCommit delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public String getSegmentsFileName() {
-            return delegate.getSegmentsFileName();
-        }
-
-        @Override
-        public Collection<String> getFileNames() throws IOException {
-            return delegate.getFileNames();
-        }
-
-        @Override
-        public Directory getDirectory() {
-            return delegate.getDirectory();
+            super(delegate);
         }
 
         @Override
         public void delete() {
             throw new UnsupportedOperationException("A snapshot commit does not support deletion");
-        }
-
-        @Override
-        public boolean isDeleted() {
-            return delegate.isDeleted();
-        }
-
-        @Override
-        public int getSegmentCount() {
-            return delegate.getSegmentCount();
-        }
-
-        @Override
-        public long getGeneration() {
-            return delegate.getGeneration();
-        }
-
-        @Override
-        public Map<String, String> getUserData() throws IOException {
-            return delegate.getUserData();
-        }
-
-        @Override
-        public String toString() {
-            return "SnapshotIndexCommit{" + delegate + "}";
         }
     }
 }

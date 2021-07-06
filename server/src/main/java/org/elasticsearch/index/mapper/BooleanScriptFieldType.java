@@ -37,22 +37,42 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         new Builder<>(name, BooleanFieldScript.CONTEXT, BooleanFieldScript.PARSE_FROM_SOURCE) {
             @Override
             RuntimeField newRuntimeField(BooleanFieldScript.Factory scriptFactory) {
-                return new BooleanScriptFieldType(name, scriptFactory, getScript(), meta(), this);
+                return runtimeField(name, this, scriptFactory, getScript(), meta());
             }
         });
 
-    public BooleanScriptFieldType(String name) {
-        this(name, BooleanFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
+    private static RuntimeField runtimeField(
+        String name,
+        ToXContent toXContent,
+        BooleanFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta
+    ) {
+        return new LeafRuntimeField(name, new BooleanScriptFieldType(name, scriptFactory, script, meta), toXContent) {
+            @Override
+            public String typeName() {
+                return BooleanFieldMapper.CONTENT_TYPE;
+            }
+        };
+    }
+
+    public static RuntimeField sourceOnly(String name) {
+        return runtimeField(
+            name,
+            (builder, params) -> builder,
+            BooleanFieldScript.PARSE_FROM_SOURCE,
+            DEFAULT_SCRIPT,
+            Collections.emptyMap()
+        );
     }
 
     BooleanScriptFieldType(
         String name,
         BooleanFieldScript.Factory scriptFactory,
         Script script,
-        Map<String, String> meta,
-        ToXContent toXContent
+        Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta, toXContent);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
     }
 
     @Override

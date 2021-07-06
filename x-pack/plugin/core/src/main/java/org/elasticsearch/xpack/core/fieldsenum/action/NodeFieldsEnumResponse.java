@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.termsenum.action;
+package org.elasticsearch.xpack.core.fieldsenum.action;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +19,7 @@ import java.util.List;
  *
  *
  */
-class NodeTermsEnumResponse extends TransportResponse {
+class NodeFieldsEnumResponse extends TransportResponse {
 
     private String error;
     private boolean complete;
@@ -27,7 +27,7 @@ class NodeTermsEnumResponse extends TransportResponse {
     private List<TermCount> terms;
     private String nodeId;
 
-    NodeTermsEnumResponse(StreamInput in) throws IOException {
+    NodeFieldsEnumResponse(StreamInput in) throws IOException {
         super(in);
         terms = in.readList(TermCount::new);
         error = in.readOptionalString();
@@ -35,7 +35,7 @@ class NodeTermsEnumResponse extends TransportResponse {
         nodeId = in.readString();
     }
 
-    NodeTermsEnumResponse(String nodeId, List<TermCount> terms, String error, boolean complete) {
+    NodeFieldsEnumResponse(String nodeId, List<TermCount> terms, String error, boolean complete) {
         this.nodeId = nodeId;
         this.terms = terms;
         this.error = error;

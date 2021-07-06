@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
+import org.elasticsearch.xpack.core.fieldsenum.action.FieldsEnumAction;
 import org.elasticsearch.xpack.core.frozen.FrozenIndicesFeatureSetUsage;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
@@ -405,7 +406,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // Text Structure
                 FindStructureAction.INSTANCE,
                 // Terms enum API
-                TermsEnumAction.INSTANCE
+                TermsEnumAction.INSTANCE,
+                // Fields enum API
+                FieldsEnumAction.INSTANCE
             )
         );
 

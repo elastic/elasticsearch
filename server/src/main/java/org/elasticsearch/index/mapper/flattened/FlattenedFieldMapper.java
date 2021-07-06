@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterLeafReader.FilterTerms;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -70,6 +71,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -351,7 +353,38 @@ public final class FlattenedFieldMapper extends FieldMapper {
             } else {
                 return new TranslatingTermsEnum(automaton.getTermsEnum(terms));
             }
-        }
+        }        
+        
+        public TermsEnum getFieldNames(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+            throws IOException {
+            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+            Terms terms = MultiTerms.getTerms(reader, name());
+            if (terms == null) {
+                // Field does not exist on this shard.
+                return null;
+            }
+
+            List<Automaton> automata = new ArrayList<>();
+            automata.add(Automata.makeAnyString());
+            if (caseInsensitive) {
+                automata.add(AutomatonQueries.toCaseInsensitiveString(string, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
+            } else {
+                automata.add(Automata.makeString(string));
+            }
+            automata.add(Automata.makeAnyString());
+            automata.add(Automata.makeString(FlattenedFieldParser.SEPARATOR));
+            automata.add(Automata.makeAnyString());
+            Automaton a =  Operations.concatenate(automata);
+
+            CompiledAutomaton automaton = new CompiledAutomaton(a);
+            if (searchAfter != null) {
+                BytesRef searchAfterWithFieldName = new BytesRef(key + FlattenedFieldParser.SEPARATOR + searchAfter);
+                TermsEnum seekedEnum = terms.intersect(automaton, searchAfterWithFieldName);
+                return new TranslatingTermsEnum(seekedEnum);
+            } else { 
+                return new TranslatingTermsEnum(automaton.getTermsEnum(terms));
+            }
+        }          
 
         @Override
         public BytesRef indexedValueForSearch(Object value) {
@@ -388,12 +421,18 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
     }
 
-    // Wraps a raw Lucene TermsEnum to strip values of fieldnames
+    // Wraps a raw Lucene TermsEnum to strip values of fieldnames or values
     static class TranslatingTermsEnum extends TermsEnum {
         TermsEnum delegate;
+        private boolean stripFields;
 
         TranslatingTermsEnum(TermsEnum delegate) {
+            this(delegate, true);
+        } 
+        
+        TranslatingTermsEnum(TermsEnum delegate, boolean stripFields) {
             this.delegate = delegate;
+            this.stripFields = stripFields;
         }
 
         @Override
@@ -401,7 +440,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
             // Strip the term of the fieldname value
             BytesRef result = delegate.next();
             if (result != null) {
-                result = FlattenedFieldParser.extractValue(result);
+                if (stripFields) {
+                    result = FlattenedFieldParser.extractValue(result);
+                } else {
+                    result = FlattenedFieldParser.extractKey(result);
+                }
             }
             return result;
         }
@@ -668,8 +711,147 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public MappedFieldType getChildFieldType(String childPath) {
             return new KeyedFlattenedFieldType(name(), childPath, this);
         }
-    }
+        
+        // Used by GetFields method - wraps a raw Lucene TermsEnum to support infix matching
+        // on full-path e.g. match `oo.bar` search on flattened object `foo` with indexed property `bar`
+        class TranslatingTermsEnumToFullPath extends TermsEnum {
+            TermsEnum delegate;
+            private String rootPrefix;
 
+            TranslatingTermsEnumToFullPath(TermsEnum delegate) {
+                this.delegate = delegate;
+                this.rootPrefix = name()+".";
+            }
+            
+            @Override
+            public BytesRef next() throws IOException {
+                // Strip the term of the fieldname value
+                BytesRef result = delegate.next();
+                if (result != null) {
+                    result = new BytesRef(rootPrefix + result.utf8ToString());
+                }
+                return result;
+            }
+
+            @Override
+            public BytesRef term() throws IOException {
+                BytesRef result = delegate.term();
+                if (result != null) {
+                    result = new BytesRef(rootPrefix + result.utf8ToString());
+                }
+                return result;
+            }
+
+            @Override
+            public int docFreq() throws IOException {
+                return delegate.docFreq();
+            }         
+
+            @Override
+            public AttributeSource attributes() {
+                return delegate.attributes();
+            }
+            
+            private BytesRef stripRootPrefix(BytesRef term) {
+                String termAsString = term.utf8ToString();
+                if(termAsString.startsWith(rootPrefix)) {
+                    String strippedString = termAsString.substring(rootPrefix.length());
+                    return new BytesRef(strippedString);
+                }
+                return term;
+            }
+
+            @Override
+            public boolean seekExact(BytesRef text) throws IOException {
+                return delegate.seekExact(stripRootPrefix(text));
+            }
+
+            @Override
+            public SeekStatus seekCeil(BytesRef text) throws IOException {
+                return delegate.seekCeil(stripRootPrefix(text));
+            }
+            //===============  All other TermsEnum methods not supported =================
+            
+            @Override
+            public void seekExact(long ord) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void seekExact(BytesRef term, TermState state) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long ord() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long totalTermFreq() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ImpactsEnum impacts(int flags) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public TermState termState() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+           
+        }
+
+               
+        
+        private class TranslatingTermsToFullPath extends FilterTerms {
+          public TranslatingTermsToFullPath(Terms in) {
+              super(in);
+          }
+          
+          @Override
+          public TermsEnum iterator() throws IOException {
+              return new TranslatingTermsEnumToFullPath(in.iterator());
+          }
+      }
+
+        @Override
+        public TermsEnum getMatchingFieldNames(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext)
+        throws IOException {
+            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+            Terms terms = MultiTerms.getTerms(reader, name()+ KEYED_FIELD_SUFFIX);
+            
+            if (terms == null) {
+                // Field does not exist on this shard.
+                return null;
+            }
+            // allow matching on full path (terms in the index and the path to this flattened object field)
+            terms = new TranslatingTermsToFullPath(terms);
+
+            List<Automaton> automata = new ArrayList<>();
+            automata.add(Automata.makeAnyString());
+            if (caseInsensitive) {
+                automata.add(AutomatonQueries.toCaseInsensitiveString(string, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
+                
+            } else {
+                automata.add(Automata.makeString(string));
+            }
+            automata.add(Automata.makeAnyString());
+            automata.add(Automata.makeString(FlattenedFieldParser.SEPARATOR));
+            automata.add(Automata.makeAnyString());
+            Automaton a = Operations.concatenate(automata);
+            CompiledAutomaton automaton = new CompiledAutomaton(a);
+            return new TranslatingTermsEnum(automaton.getTermsEnum(terms), false);
+        }            
+    }
+    
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
 

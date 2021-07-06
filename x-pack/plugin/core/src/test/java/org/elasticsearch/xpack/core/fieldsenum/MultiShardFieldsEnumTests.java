@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.termsenum;
+package org.elasticsearch.xpack.core.fieldsenum;
 
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
@@ -37,8 +37,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 
-public class MultiShardTermsEnumTests extends ESTestCase {
-
+public class MultiShardFieldsEnumTests extends ESTestCase {
+    
     public void testRandomIndexFusion() throws Exception {
         String fieldName = "foo";
         Map<String, Integer> globalTermCounts = new HashMap<>();
@@ -53,10 +53,10 @@ public class MultiShardTermsEnumTests extends ESTestCase {
                 Directory directory = new ByteBuffersDirectory();
                 IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(new MockAnalyzer(random())));
 
-                int numDocs = randomIntBetween(10, 200);
+                int numDocs = randomIntBetween(10,200);
                 for (int i = 0; i < numDocs; i++) {
                     Document document = new Document();
-                    String term = randomAlphaOfLengthBetween(1, 3).toLowerCase(Locale.ROOT);
+                    String term = randomAlphaOfLengthBetween(1,3).toLowerCase(Locale.ROOT);
                     document.add(new StringField(fieldName, term, Field.Store.YES));
                     writer.addDocument(document);
                     int count = 0;
@@ -107,7 +107,7 @@ public class MultiShardTermsEnumTests extends ESTestCase {
                         expecteds.put(termCount.getKey(), termCount.getValue());
                     }
                 }
-
+                
                 while (mte.next() != null) {
                     String teString = mte.term().utf8ToString();
                     long actual = mte.docFreq();

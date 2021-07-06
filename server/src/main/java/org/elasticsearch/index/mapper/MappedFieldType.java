@@ -562,4 +562,32 @@ public abstract class MappedFieldType {
                 + "]."
         );
     }
+    
+    /**
+     * This method is used to support auto-complete services and implementations
+     * are expected to find field names containing the provided string very quickly.
+     * If fields cannot look up matching names quickly they should return null.
+     * The returned TermEnum should implement next(), term() and doc_freq() methods
+     * but postings etc are not required.
+     * @param caseInsensitive if matches should be case insensitive
+     * @param string the partially complete word the user has typed (can be empty)
+     * @param queryShardContext the shard context
+     * @return null or an enumeration of matching terms 
+     * @throws IOException Errors accessing data
+     */
+    public TermsEnum getMatchingFieldNames(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext)
+        throws IOException {
+        SimpleTermCountEnum result = null;
+        if (caseInsensitive) {
+            if (name().contains(string)) {
+                result = new SimpleTermCountEnum(new TermCount(name(), 1));
+            }
+        } else {
+            if (name().toLowerCase().contains(string.toLowerCase())) {
+                result = new SimpleTermCountEnum(new TermCount(name(), 1));
+            }
+        }
+        return result;
+    }
+    
 }

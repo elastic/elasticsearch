@@ -802,7 +802,7 @@ implementing the sequence matching. When large amounts of data need to be proces
 and/or a large amount of matched sequences is requested by the user (by setting the
 <<eql-search-api-params-size, size>> query param), the memory occupied by those
 structures could potentially exceed the available memory of the JVM. This would cause
-and `OutOfMemory` exception which would bring down the node.
+an `OutOfMemory` exception which would bring down the node.
 
 To prevent this from happening, a special <<circuit-breaker, circuit breaker>> is used,
 which limits the memory allocation during the execution of a <<eql-sequences, sequence>>

@@ -152,7 +152,7 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         }
 
         /** Return the missing object value according to the reduced type of the comparator. */
-        public final Object missingObject(Object missingValue, boolean reversed) {
+        public Object missingObject(Object missingValue, boolean reversed) {
             if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
                 final boolean min = sortMissingFirst(missingValue) ^ reversed;
                 switch (reducedType()) {

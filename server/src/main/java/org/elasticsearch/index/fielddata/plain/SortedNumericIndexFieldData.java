@@ -87,23 +87,34 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    protected XFieldComparatorSource dateComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
+    protected XFieldComparatorSource dateComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested, NumericType targetNumericType) {
         if (numericType == NumericType.DATE_NANOSECONDS) {
             // converts date_nanos values to millisecond resolution
             return new LongValuesComparatorSource(this, missingValue,
-                sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toMilliSeconds));
+                sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toMilliSeconds), targetNumericType);
         }
-        return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+        return new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
     }
 
     @Override
-    protected XFieldComparatorSource dateNanosComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
+    protected XFieldComparatorSource dateNanosComparatorSource(
+        Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        NumericType targetNumericType
+    ) {
         if (numericType == NumericType.DATE) {
             // converts date values to nanosecond resolution
-            return new LongValuesComparatorSource(this, missingValue,
-                sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds));
+            return new LongValuesComparatorSource(
+                this,
+                missingValue,
+                sortMode,
+                nested,
+                dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds),
+                targetNumericType
+            );
         }
-        return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+        return new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
     }
 
     @Override

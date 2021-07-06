@@ -29,9 +29,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.function.LongUnaryOperator;
 
-import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.sortMissingFirst;
-import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.sortMissingLast;
-
 /**
  * Base class for numeric field data.
  */
@@ -86,13 +83,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         Nested nested,
         boolean reverse
     ) {
-        if (targetNumericType == NumericType.DATE_NANOSECONDS) {
-            // explicitly set missingValue if not set yet to prevent negative values that would cause invalid nanosecond range
-            if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
-                final boolean min = sortMissingFirst(missingValue) ^ reverse;
-                missingValue = min ? 0L : Long.MAX_VALUE;
-            }
-        }
         XFieldComparatorSource source = comparatorSource(targetNumericType, missingValue, sortMode, nested);
 
         /*
@@ -161,21 +151,38 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         case DOUBLE:
             return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
         case DATE:
-            return dateComparatorSource(missingValue, sortMode, nested);
+            return dateComparatorSource(missingValue, sortMode, nested, targetNumericType);
         case DATE_NANOSECONDS:
-            return dateNanosComparatorSource(missingValue, sortMode, nested);
+            return dateNanosComparatorSource(missingValue, sortMode, nested, targetNumericType);
         default:
             assert targetNumericType.isFloatingPoint() == false;
-            return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+            return new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
         }
     }
 
-    protected XFieldComparatorSource dateComparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
-        return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+    protected XFieldComparatorSource dateComparatorSource(
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        NumericType targetNumericType
+    ) {
+        return new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
     }
 
-    protected XFieldComparatorSource dateNanosComparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
-        return new LongValuesComparatorSource(this, missingValue, sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds));
+    protected XFieldComparatorSource dateNanosComparatorSource(
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        NumericType targetNumericType
+    ) {
+        return new LongValuesComparatorSource(
+            this,
+            missingValue,
+            sortMode,
+            nested,
+            dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds),
+            targetNumericType
+        );
     }
 
     /**

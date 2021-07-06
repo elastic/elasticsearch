@@ -206,8 +206,8 @@ public final class JsonProcessor extends AbstractProcessor {
                 targetField = field;
             }
 
-            return new JsonProcessor(processorTag, description, field, targetField, addToRoot, allowDuplicateKeys,
-                addToRootMergeStrategy.isAddToRootRecursiveMerge());
+            return new JsonProcessor(processorTag, description, field, targetField, addToRoot,
+                addToRootMergeStrategy.isAddToRootRecursiveMerge(), allowDuplicateKeys);
         }
     }
 }

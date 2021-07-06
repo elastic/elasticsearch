@@ -29,7 +29,7 @@ import java.util.List;
  */
 public class SetPriorityAction implements LifecycleAction {
     public static final String NAME = "set_priority";
-    private static final ParseField RECOVERY_PRIORITY_FIELD = new ParseField("priority");
+    public static final ParseField RECOVERY_PRIORITY_FIELD = new ParseField("priority");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SetPriorityAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
@@ -62,6 +62,10 @@ public class SetPriorityAction implements LifecycleAction {
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    public Integer getRecoveryPriority() {
+        return recoveryPriority;
     }
 
     @Override

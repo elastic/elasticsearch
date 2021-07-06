@@ -1,7 +1,7 @@
 ---
 - job:
-    name: "elastic+elasticsearch+%BRANCH%+pull-request/elastic+elasticsearch+%BRANCH%+pull-request+packaging-tests-windows"
-    display-name: "elastic / elasticsearch # %BRANCH% - pull request packaging-tests-windows"
+    name: "elastic+elasticsearch+pull-request+packaging-tests-windows"
+    display-name: "elastic / elasticsearch - pull request packaging-tests-windows"
     description: "Testing of Elasticsearch pull requests - packaging-tests-windows"
     # We use a hard-coded workspace directory here to avoid hitting windows path length limits
     child-workspace: "C:\\Users\\jenkins\\workspace\\pr-packaging-windows\\${BUILD_NUMBER}"
@@ -21,10 +21,8 @@
           github-hooks: true
           status-context: elasticsearch-ci/packaging-tests-windows
           cancel-builds-on-update: true
-          white-list-target-branches:
-            - %BRANCH%
-            - ^feat(ure)?/.*
-            - eql_multi_value_fields
+          black-list-target-branches:
+            - 6.8
           excluded-regions:
             - ^docs/.*
           white-list-labels:

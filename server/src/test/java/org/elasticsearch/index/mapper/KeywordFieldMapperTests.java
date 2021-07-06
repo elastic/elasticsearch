@@ -320,6 +320,15 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             containsString("Field [ignore_above] cannot be set in conjunction with field [dimension]"));
     }
 
+    public void testDimensionAndNormalizer() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true).field("normalizer", "my_normalizer");
+        })));
+        assertThat(e.getCause().getMessage(),
+            containsString("Field [normalizer] cannot be set in conjunction with field [dimension]"));
+    }
+
     public void testDimensionIndexedAndDocvalues() {
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {

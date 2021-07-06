@@ -76,7 +76,7 @@ RUN chmod 0755 /bin/tini
 ################################################################################
 FROM alpine:3.13 AS curl
 
-ENV VERSION 7.71.0
+ENV VERSION 7.77.0
 ENV TARBALL_URL https://curl.haxx.se/download/curl-\${VERSION}.tar.xz
 ENV TARBALL_PATH curl-\${VERSION}.tar.xz
 

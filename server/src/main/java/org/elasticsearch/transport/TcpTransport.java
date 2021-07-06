@@ -249,7 +249,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             boolean shouldCompress = compress == Compression.Enabled.TRUE ||
                 (compress == Compression.Enabled.INDEXING_DATA
                     && request instanceof RawIndexingDataTransportRequest
-                    && ((RawIndexingDataTransportRequest) request).shouldCompress());
+                    && ((RawIndexingDataTransportRequest) request).isRawIndexingData());
             outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), shouldCompress, false);
         }
 

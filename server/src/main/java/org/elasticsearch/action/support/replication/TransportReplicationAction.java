@@ -1191,9 +1191,9 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public boolean shouldCompress() {
+        public boolean isRawIndexingData() {
             if (request instanceof RawIndexingDataTransportRequest) {
-                return ((RawIndexingDataTransportRequest) request).shouldCompress();
+                return ((RawIndexingDataTransportRequest) request).isRawIndexingData();
             }
             return false;
         }

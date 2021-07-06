@@ -1220,16 +1220,16 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         private String message;
         private long timeout;
-        private boolean shouldCompressAsRawIndexingData = false;
+        private boolean isRawIndexingData = false;
 
         StringMessageRequest(String message, long timeout) {
             this(message, timeout, false);
         }
 
-        StringMessageRequest(String message, long timeout, boolean shouldCompressAsRawIndexingData) {
+        StringMessageRequest(String message, long timeout, boolean isRawIndexingData) {
             this.message = message;
             this.timeout = timeout;
-            this.shouldCompressAsRawIndexingData = shouldCompressAsRawIndexingData;
+            this.isRawIndexingData = isRawIndexingData;
         }
 
         public StringMessageRequest(StreamInput in) throws IOException {
@@ -1247,8 +1247,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         @Override
-        public boolean shouldCompress() {
-            return shouldCompressAsRawIndexingData;
+        public boolean isRawIndexingData() {
+            return isRawIndexingData;
         }
 
         @Override

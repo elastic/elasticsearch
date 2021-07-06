@@ -10,12 +10,12 @@ package org.elasticsearch.transport;
 
 /**
  * Requests that implement this interface will be compressed when {@link TransportSettings#TRANSPORT_COMPRESS}
- * is configured to {@link Compression.Enabled#INDEXING_DATA} and shouldCompress() returns true. This is
+ * is configured to {@link Compression.Enabled#INDEXING_DATA} and isRawIndexingData() returns true. This is
  * intended to be requests/responses primarily composed of raw source data.
  */
 public interface RawIndexingDataTransportRequest {
 
-    default boolean shouldCompress() {
+    default boolean isRawIndexingData() {
         return true;
     }
 }

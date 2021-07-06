@@ -77,7 +77,7 @@ teardown:
   - is_false: _source.foo_null
 
 ---
-"Test JSON Processor add_to_root_recursive_merge":
+"Test JSON Processor recursive merge strategy":
   - do:
       ingest.put_pipeline:
         id: "3"
@@ -87,7 +87,7 @@ teardown:
                 "json" : {
                   "field" : "json",
                   "add_to_root": true,
-                  "add_to_root_recursive_merge": true
+                  "add_to_root_merge_strategy": "recursive"
                 }
               }
             ]

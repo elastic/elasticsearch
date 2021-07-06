@@ -21,6 +21,7 @@ import org.elasticsearch.ingest.Processor;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -56,6 +57,10 @@ public final class JsonProcessor extends AbstractProcessor {
 
     boolean isAddToRoot() {
         return addToRoot;
+    }
+
+    public boolean isAddToRootRecursiveMerge() {
+        return addToRootRecursiveMerge;
     }
 
     public static Object apply(Object fieldValue) {
@@ -134,29 +139,67 @@ public final class JsonProcessor extends AbstractProcessor {
     }
 
     public static final class Factory implements Processor.Factory {
+
+        enum MergeStrategy {
+            REPLACE(false),
+            RECURSIVE(true);
+
+            private final boolean addToRootRecursiveMerge;
+
+            MergeStrategy(boolean addToRootRecursiveMerge) {
+                this.addToRootRecursiveMerge = addToRootRecursiveMerge;
+            }
+
+            public static MergeStrategy resolve(String name) {
+                return MergeStrategy.valueOf(name.toUpperCase(Locale.ROOT));
+            }
+
+            @Override
+            public String toString() {
+                return name().toLowerCase(Locale.ROOT);
+            }
+
+            public static MergeStrategy fromString(String processorTag, String propertyName, String mergeStrategy) {
+                try {
+                    return MergeStrategy.valueOf(mergeStrategy.toUpperCase(Locale.ROOT));
+                } catch(IllegalArgumentException e) {
+                    throw newConfigurationException(TYPE, processorTag, propertyName, "merge strategy [" + mergeStrategy +
+                        "] not supported, cannot convert field.");
+                }
+            }
+
+            public boolean isAddToRootRecursiveMerge() {
+                return addToRootRecursiveMerge;
+            }
+        }
+
         @Override
         public JsonProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                     String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");
             boolean addToRoot = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "add_to_root", false);
-            boolean addToRootRecursiveMerge = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config,
-                "add_to_root_recursive_merge", false);
+            String mergeStrategyString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "add_to_root_merge_strategy");
+            boolean hasMergeStrategy = mergeStrategyString != null;
+            if (mergeStrategyString == null) {
+                mergeStrategyString = MergeStrategy.REPLACE.name();
+            }
+            MergeStrategy addToRootMergeStrategy = MergeStrategy.fromString(processorTag, "add_to_root_merge_strategy", mergeStrategyString);
 
             if (addToRoot && targetField != null) {
                 throw newConfigurationException(TYPE, processorTag, "target_field",
                     "Cannot set a target field while also setting `add_to_root` to true");
             }
-            if (addToRoot == false && addToRootRecursiveMerge) {
-                throw newConfigurationException(TYPE, processorTag, "add_to_root_recursive_merge",
-                    "Cannot set `add_to_root_recursive_merge` to true if `add_to_root` is false");
+            if (addToRoot == false && hasMergeStrategy) {
+                throw newConfigurationException(TYPE, processorTag, "add_to_root_merge_strategy",
+                    "Cannot set `add_to_root_merge_strategy` if `add_to_root` is false");
             }
 
             if (targetField == null) {
                 targetField = field;
             }
 
-            return new JsonProcessor(processorTag, description, field, targetField, addToRoot, addToRootRecursiveMerge);
+            return new JsonProcessor(processorTag, description, field, targetField, addToRoot, addToRootMergeStrategy.isAddToRootRecursiveMerge());
         }
     }
 }

@@ -24,7 +24,7 @@
           },
           "deprecated":{
             "version":"7.14.0",
-            "description":"Frozen indices are deprecated because they provide no benefit given improvements in heap memory utilization. They will be removed in 8.0."
+            "description":"Frozen indices are deprecated because they provide no benefit given improvements in heap memory utilization. They will be removed in a future release."
           }
         }
       ]

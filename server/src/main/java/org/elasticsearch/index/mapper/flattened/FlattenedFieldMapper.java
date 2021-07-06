@@ -44,11 +44,11 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -254,7 +254,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
             return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
         }
-        
+
         @Override
         public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
             throws IOException {
@@ -270,7 +270,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(string));
             } else {
                 a = Operations.concatenate(a, Automata.makeString(string));
-                a = Operations.concatenate(a, Automata.makeAnyString());                
+                a = Operations.concatenate(a, Automata.makeAnyString());
             }
             a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
 
@@ -279,10 +279,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 BytesRef searchAfterWithFieldName = new BytesRef(key + FlattenedFieldParser.SEPARATOR + searchAfter);
                 TermsEnum seekedEnum = terms.intersect(automaton, searchAfterWithFieldName);
                 return new TranslatingTermsEnum(seekedEnum);
-            } else { 
+            } else {
                 return new TranslatingTermsEnum(automaton.getTermsEnum(terms));
             }
-        }        
+        }
 
         @Override
         public BytesRef indexedValueForSearch(Object value) {
@@ -312,8 +312,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return SourceValueFetcher.identity(rootName + "." + key, context, format);
         }
     }
-    
-    
+
+
     // Wraps a raw Lucene TermsEnum to strip values of fieldnames
     static class TranslatingTermsEnum extends TermsEnum {
         TermsEnum delegate;
@@ -321,7 +321,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         TranslatingTermsEnum(TermsEnum delegate) {
             this.delegate = delegate;
         }
-        
+
         @Override
         public BytesRef next() throws IOException {
             // Strip the term of the fieldname value
@@ -341,15 +341,15 @@ public final class FlattenedFieldMapper extends FieldMapper {
             }
             return result;
         }
-        
+
 
         @Override
         public int docFreq() throws IOException {
             return delegate.docFreq();
-        }         
+        }
 
         //===============  All other TermsEnum methods not supported =================
-        
+
         @Override
         public AttributeSource attributes() {
             throw new UnsupportedOperationException();
@@ -399,7 +399,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public TermState termState() throws IOException {
             throw new UnsupportedOperationException();
         }
-       
+
     }
 
     /**
@@ -590,7 +590,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
             return;
         }

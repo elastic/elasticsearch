@@ -592,7 +592,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         };
         final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
         Version.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
-        if (minNodeVersion.onOrAfter(Version.V_8_0_0)) {
+        if (minNodeVersion.onOrAfter(Version.V_7_15_0)) {
             os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
         }
         try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
@@ -617,7 +617,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         });
         final Version version = Version.readVersion(new InputStreamStreamInput(encodedIn));
         assert version.onOrBefore(Version.CURRENT) : version + " >= " + Version.CURRENT;
-        if (version.onOrAfter(Version.V_8_0_0)) {
+        if (version.onOrAfter(Version.V_7_15_0)) {
             encodedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(encodedIn);
         }
         try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), registry)) {

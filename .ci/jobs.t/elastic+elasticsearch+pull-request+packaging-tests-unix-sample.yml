@@ -1,7 +1,7 @@
 ---
 - job:
-    name: "elastic+elasticsearch+%BRANCH%+pull-request/elastic+elasticsearch+%BRANCH%+pull-request+packaging-tests-unix-sample"
-    display-name: "elastic / elasticsearch # %BRANCH% - pull request packaging-tests-unix-sample"
+    name: "elastic+elasticsearch+pull-request+packaging-tests-unix-sample"
+    display-name: "elastic / elasticsearch - pull request packaging-tests-unix-sample"
     description: "Testing of Elasticsearch pull requests - packaging-tests-unix-sample"
     project-type: matrix
     node: master
@@ -18,11 +18,9 @@
           trigger-phrase: '.*run\W+elasticsearch-ci/packaging-tests-unix-sample.*'
           github-hooks: true
           status-context: elasticsearch-ci/packaging-tests-unix-sample
-          cancel-builds-on-update:
-          white-list-target-branches:
-            - %BRANCH%
-            - ^feat(ure)?/.*
-            - eql_multi_value_fields
+          cancel-builds-on-update: true
+          black-list-target-branches:
+            - 6.8
           excluded-regions:
             - ^docs/.*
           black-list-labels:

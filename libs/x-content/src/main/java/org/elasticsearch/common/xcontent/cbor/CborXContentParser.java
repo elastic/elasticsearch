@@ -32,4 +32,9 @@ public class CborXContentParser extends JsonXContentParser {
     public XContentType contentType() {
         return XContentType.CBOR;
     }
+
+    @Override
+    public void allowDuplicateKeys(boolean allowDuplicateKeys) {
+        throw new UnsupportedOperationException("Allowing duplicate keys after the parser has been created is not possible for CBOR");
+    }
 }

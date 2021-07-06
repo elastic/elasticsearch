@@ -1921,7 +1921,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
 
             @Override
-            protected void parseCreateField(ParseContext context) throws IOException {
+            protected void parseCreateField(DocumentParserContext context) throws IOException {
                 if (context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
                     context.doc().add(new StringField(FIELD_NAME, context.parser().text(), Field.Store.YES));
                 } else {

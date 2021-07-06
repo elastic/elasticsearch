@@ -28,15 +28,14 @@ import java.util.function.Function;
  * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
  * the lucene data structures and mappings to be dynamically created as the outcome of parsing a document.
  */
-public abstract class ParseContext {
-
+public abstract class DocumentParserContext {
     /**
      * Wraps a given context while allowing to override some of its behaviour by re-implementing some of the non final methods
      */
-    private static class FilterParseContext extends ParseContext {
-        private final ParseContext in;
+    private static class Wrapper extends DocumentParserContext {
+        private final DocumentParserContext in;
 
-        private FilterParseContext(ParseContext in) {
+        private Wrapper(DocumentParserContext in) {
             super(in);
             this.in = in;
         }
@@ -96,7 +95,7 @@ public abstract class ParseContext {
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
 
-    private ParseContext(ParseContext in) {
+    private DocumentParserContext(DocumentParserContext in) {
         this.mappingLookup = in.mappingLookup;
         this.indexSettings = in.indexSettings;
         this.indexAnalyzers = in.indexAnalyzers;
@@ -112,11 +111,11 @@ public abstract class ParseContext {
         this.seqID = in.seqID;
     }
 
-    protected ParseContext(MappingLookup mappingLookup,
-                           IndexSettings indexSettings,
-                           IndexAnalyzers indexAnalyzers,
-                           Function<DateFormatter, MappingParserContext> parserContextFunction,
-                           SourceToParse source) {
+    protected DocumentParserContext(MappingLookup mappingLookup,
+                                    IndexSettings indexSettings,
+                                    IndexAnalyzers indexAnalyzers,
+                                    Function<DateFormatter, MappingParserContext> parserContextFunction,
+                                    SourceToParse source) {
         this.mappingLookup = mappingLookup;
         this.indexSettings = indexSettings;
         this.indexAnalyzers = indexAnalyzers;
@@ -257,8 +256,8 @@ public abstract class ParseContext {
     /**
      * Return a new context that will be within a copy-to operation.
      */
-    public final ParseContext createCopyToContext() {
-        return new FilterParseContext(this) {
+    public final DocumentParserContext createCopyToContext() {
+        return new Wrapper(this) {
             @Override
             public boolean isWithinCopyTo() {
                 return true;
@@ -273,8 +272,8 @@ public abstract class ParseContext {
     /**
      * Return a new context that will be within multi-fields.
      */
-    public final ParseContext createMultiFieldContext() {
-        return new FilterParseContext(this) {
+    public final DocumentParserContext createMultiFieldContext() {
+        return new Wrapper(this) {
             @Override
             public boolean isWithinMultiFields() {
                 return true;
@@ -289,7 +288,7 @@ public abstract class ParseContext {
     /**
      * Return a new context that will be used within a nested document.
      */
-    public final ParseContext createNestedContext(String fullPath) {
+    public final DocumentParserContext createNestedContext(String fullPath) {
         final LuceneDocument doc = new LuceneDocument(fullPath, doc());
         addDoc(doc);
         return switchDoc(doc);
@@ -298,8 +297,8 @@ public abstract class ParseContext {
     /**
      * Return a new context that has the provided document as the current document.
      */
-    public final ParseContext switchDoc(final LuceneDocument document) {
-        return new FilterParseContext(this) {
+    public final DocumentParserContext switchDoc(final LuceneDocument document) {
+        return new Wrapper(this) {
             @Override
             public LuceneDocument doc() {
                 return document;
@@ -310,8 +309,8 @@ public abstract class ParseContext {
     /**
      * Return a new context that will have the provided path.
      */
-    public final ParseContext overridePath(final ContentPath path) {
-        return new FilterParseContext(this) {
+    public final DocumentParserContext overridePath(final ContentPath path) {
+        return new Wrapper(this) {
             @Override
             public ContentPath path() {
                 return path;
@@ -324,8 +323,8 @@ public abstract class ParseContext {
      *             complex objects to multifields, so try and avoid using this method
      */
     @Deprecated
-    public final ParseContext switchParser(XContentParser parser) {
-        return new FilterParseContext(this) {
+    public final DocumentParserContext switchParser(XContentParser parser) {
+        return new Wrapper(this) {
             @Override
             public XContentParser parser() {
                 return parser;

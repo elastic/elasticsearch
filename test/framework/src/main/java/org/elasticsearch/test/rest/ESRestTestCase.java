@@ -399,8 +399,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                 request.addParameter("detailed", "true");
                 final Response response = adminClient.performRequest(request);
                 /*
-                 * Check to see if there are outstanding tasks; we exclude the list task itself, and any expected outstanding tasks using
-                 * the specified task filter.
+                 * Check to see if there are outstanding tasks; we exclude the list task itself, geoip downloader task,
+                 * and any expected outstanding tasks using the specified task filter.
                  */
                 if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                     try (BufferedReader responseReader = new BufferedReader(
@@ -410,7 +410,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                         final StringBuilder tasksListString = new StringBuilder();
                         while ((line = responseReader.readLine()) != null) {
                             final String taskName = line.split("\\s+")[0];
-                            if (taskName.startsWith(ListTasksAction.NAME) || taskFilter.test(taskName)) {
+                            if (taskName.startsWith(ListTasksAction.NAME) || taskFilter.test(taskName) ||
+                                taskName.contains("geoip-downloader")) {
                                 continue;
                             }
                             activeTasks++;

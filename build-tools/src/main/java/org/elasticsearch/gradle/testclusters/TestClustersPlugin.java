@@ -212,7 +212,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     }
 
     private static void disableGeoIpDownloader(ElasticsearchCluster cluster) {
-        if (cluster.getName().equals("yamlRestTest") == false) {
+        if (cluster.getName().matches("yaml.*Test") == false) {
             cluster.systemProperty("ingest.geoip.downloader.enabled.default", "false");
         }
     }

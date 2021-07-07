@@ -22,9 +22,9 @@ import java.util.Collections;
 public final class LeafRuntimeField implements RuntimeField {
     private final String name;
     private final ToXContent toXContent;
-    private final AbstractScriptFieldType<?> mappedFieldType;
+    private final MappedFieldType mappedFieldType;
 
-    public LeafRuntimeField(String name, AbstractScriptFieldType<?> mappedFieldType, ToXContent toXContent) {
+    public LeafRuntimeField(String name, MappedFieldType mappedFieldType, ToXContent toXContent) {
         this.name = name;
         this.toXContent = toXContent;
         this.mappedFieldType = mappedFieldType;

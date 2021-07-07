@@ -16,21 +16,21 @@ import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 
-public final class SearchApiKeyRequest extends ActionRequest {
+public final class QueryApiKeyRequest extends ActionRequest {
 
     @Nullable
     private final QueryBuilder queryBuilder;
     private boolean filterForCurrentUser;
 
-    public SearchApiKeyRequest() {
+    public QueryApiKeyRequest() {
         this((QueryBuilder) null);
     }
 
-    public SearchApiKeyRequest(QueryBuilder queryBuilder) {
+    public QueryApiKeyRequest(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;
     }
 
-    public SearchApiKeyRequest(StreamInput in) throws IOException {
+    public QueryApiKeyRequest(StreamInput in) throws IOException {
         super(in);
         queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
     }

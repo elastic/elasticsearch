@@ -14,28 +14,28 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.apikey.SearchApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.apikey.SearchApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.apikey.SearchApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.support.ApiKeyBoolQueryBuilder;
 
-public final class TransportSearchApiKeyAction extends HandledTransportAction<SearchApiKeyRequest, SearchApiKeyResponse> {
+public final class TransportQueryApiKeyAction extends HandledTransportAction<QueryApiKeyRequest, QueryApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportSearchApiKeyAction(TransportService transportService, ActionFilters actionFilters, ApiKeyService apiKeyService,
-                                       SecurityContext context) {
-        super(SearchApiKeyAction.NAME, transportService, actionFilters, SearchApiKeyRequest::new);
+    public TransportQueryApiKeyAction(TransportService transportService, ActionFilters actionFilters, ApiKeyService apiKeyService,
+                                      SecurityContext context) {
+        super(QueryApiKeyAction.NAME, transportService, actionFilters, QueryApiKeyRequest::new);
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
     }
 
     @Override
-    protected void doExecute(Task task, SearchApiKeyRequest request, ActionListener<SearchApiKeyResponse> listener) {
+    protected void doExecute(Task task, QueryApiKeyRequest request, ActionListener<QueryApiKeyResponse> listener) {
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
@@ -44,7 +44,7 @@ public final class TransportSearchApiKeyAction extends HandledTransportAction<Se
         final ApiKeyBoolQueryBuilder apiKeyBoolQueryBuilder =
             ApiKeyBoolQueryBuilder.build(request.getQueryBuilder(), request.isFilterForCurrentUser() ? authentication : null);
 
-        apiKeyService.searchApiKeys(apiKeyBoolQueryBuilder, listener);
+        apiKeyService.queryApiKeys(apiKeyBoolQueryBuilder, listener);
     }
 
 }

@@ -25,18 +25,18 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ApiKeySearchIT extends SecurityInBasicRestTestCase {
+public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
     private static final String API_KEY_ADMIN_AUTH_HEADER = "Basic YXBpX2tleV9hZG1pbjpzZWN1cml0eS10ZXN0LXBhc3N3b3Jk";
     private static final String API_KEY_USER_AUTH_HEADER = "Basic YXBpX2tleV91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
     private static final String TEST_USER_AUTH_HEADER = "Basic c2VjdXJpdHlfdGVzdF91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
 
-    public void testSearch() throws IOException {
+    public void testQuery() throws IOException {
         createApiKeys();
         createUser("someone");
 
         // Admin with manage_api_key can search for all keys
-        assertSearch(API_KEY_ADMIN_AUTH_HEADER,
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER,
             "{ \"query\": { \"wildcard\": {\"name\": \"*alert*\"} } }",
             apiKeys -> {
                 assertThat(apiKeys.size(), equalTo(2));
@@ -45,9 +45,9 @@ public class ApiKeySearchIT extends SecurityInBasicRestTestCase {
             });
 
         // An empty request body means search for all keys
-        assertSearch(API_KEY_ADMIN_AUTH_HEADER, "", apiKeys -> assertThat(apiKeys.size(), equalTo(6)));
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER, "", apiKeys -> assertThat(apiKeys.size(), equalTo(6)));
 
-        assertSearch(API_KEY_ADMIN_AUTH_HEADER,
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER,
             "{\"query\":{\"bool\":{\"must\":[" +
                 "{\"prefix\":{\"metadata.application\":\"fleet\"}},{\"term\":{\"metadata.environment.os\":\"Cat\"}}]}}}",
             apiKeys -> {
@@ -57,20 +57,20 @@ public class ApiKeySearchIT extends SecurityInBasicRestTestCase {
             }
         );
 
-        assertSearch(API_KEY_ADMIN_AUTH_HEADER,
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER,
             "{\"query\":{\"terms\":{\"metadata.tags\":[\"prod\",\"east\"]}}}",
             apiKeys -> {
                 assertThat(apiKeys.size(), equalTo(5));
             });
 
-        assertSearch(API_KEY_ADMIN_AUTH_HEADER,
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER,
             "{\"query\":{\"range\":{\"creation_time\":{\"lt\":\"now\"}}}}",
             apiKeys -> {
                 assertThat(apiKeys.size(), equalTo(6));
             });
 
         // Search for keys belong to an user
-        assertSearch(API_KEY_ADMIN_AUTH_HEADER,
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER,
             "{ \"query\": { \"term\": {\"owner_username\": \"api_key_user\"} } }",
             apiKeys -> {
                 assertThat(apiKeys.size(), equalTo(2));
@@ -79,14 +79,14 @@ public class ApiKeySearchIT extends SecurityInBasicRestTestCase {
             });
 
         // Search for keys belong to users from a realm
-        assertSearch(API_KEY_ADMIN_AUTH_HEADER,
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER,
             "{ \"query\": { \"term\": {\"owner_realm_name\": \"default_file\"} } }",
             apiKeys -> {
                 assertThat(apiKeys.size(), equalTo(6));
                 // search using explicit IDs
                 try {
 
-                    assertSearch(API_KEY_ADMIN_AUTH_HEADER,
+                    assertQuery(API_KEY_ADMIN_AUTH_HEADER,
                         "{ \"query\": { \"ids\": { \"values\": ["
                             + apiKeys.stream().map(m -> "\"" + m.get("id") + "\"").collect(Collectors.joining(",")) + "] } } }",
                         keys -> {
@@ -98,24 +98,24 @@ public class ApiKeySearchIT extends SecurityInBasicRestTestCase {
             });
 
         // Search for fields outside of the allowlist fails
-        assertSearchError(API_KEY_ADMIN_AUTH_HEADER, 400,
+        assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400,
             "{ \"query\": { \"prefix\": {\"api_key_hash\": \"{PBKDF2}10000$\"} } }");
 
         // Search for api keys won't return other entities
-        assertSearch(API_KEY_ADMIN_AUTH_HEADER,
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER,
             "{ \"query\": { \"term\": {\"name\": \"someone\"} } }",
             apiKeys -> {
                 assertThat(apiKeys, empty());
             });
 
         // User with manage_own_api_key will only see its own keys
-        assertSearch(API_KEY_USER_AUTH_HEADER, "", apiKeys -> {
+        assertQuery(API_KEY_USER_AUTH_HEADER, "", apiKeys -> {
             assertThat(apiKeys.size(), equalTo(2));
             assertThat(apiKeys.stream().map(m -> m.get("name")).collect(Collectors.toSet()),
                 equalTo(Set.of("my-ingest-key-1", "my-alert-key-2")));
         });
 
-        assertSearch(API_KEY_USER_AUTH_HEADER,
+        assertQuery(API_KEY_USER_AUTH_HEADER,
             "{ \"query\": { \"wildcard\": {\"name\": \"*alert*\"} } }",
             apiKeys -> {
                 assertThat(apiKeys.size(), equalTo(1));
@@ -123,12 +123,12 @@ public class ApiKeySearchIT extends SecurityInBasicRestTestCase {
             });
 
         // User without manage_api_key or manage_own_api_key gets 403 trying to search API keys
-        assertSearchError(TEST_USER_AUTH_HEADER, 403,
+        assertQueryError(TEST_USER_AUTH_HEADER, 403,
             "{ \"query\": { \"wildcard\": {\"name\": \"*alert*\"} } }");
     }
 
-    private void assertSearchError(String authHeader, int statusCode, String body) throws IOException {
-        final Request request = new Request("GET", "/_security/_search/api_key");
+    private void assertQueryError(String authHeader, int statusCode, String body) throws IOException {
+        final Request request = new Request("GET", "/_security/_query/api_key");
         request.setJsonEntity(body);
         request.setOptions(
             request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
@@ -136,9 +136,9 @@ public class ApiKeySearchIT extends SecurityInBasicRestTestCase {
         assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));
     }
 
-    private void assertSearch(String authHeader, String body,
-                              Consumer<List<Map<String, Object>>> apiKeysVerifier) throws IOException {
-        final Request request = new Request("GET", "/_security/_search/api_key");
+    private void assertQuery(String authHeader, String body,
+                             Consumer<List<Map<String, Object>>> apiKeysVerifier) throws IOException {
+        final Request request = new Request("GET", "/_security/_query/api_key");
         request.setJsonEntity(body);
         request.setOptions(
             request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));

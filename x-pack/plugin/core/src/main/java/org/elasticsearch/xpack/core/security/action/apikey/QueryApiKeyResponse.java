@@ -30,22 +30,22 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * Response for search API keys.<br>
  * The result contains information about the API keys that were found.
  */
-public final class SearchApiKeyResponse extends ActionResponse implements ToXContentObject, Writeable {
+public final class QueryApiKeyResponse extends ActionResponse implements ToXContentObject, Writeable {
 
     private final ApiKey[] foundApiKeysInfo;
 
-    public SearchApiKeyResponse(StreamInput in) throws IOException {
+    public QueryApiKeyResponse(StreamInput in) throws IOException {
         super(in);
         this.foundApiKeysInfo = in.readArray(ApiKey::new, ApiKey[]::new);
     }
 
-    public SearchApiKeyResponse(Collection<ApiKey> foundApiKeysInfo) {
+    public QueryApiKeyResponse(Collection<ApiKey> foundApiKeysInfo) {
         Objects.requireNonNull(foundApiKeysInfo, "found_api_keys_info must be provided");
         this.foundApiKeysInfo = foundApiKeysInfo.toArray(new ApiKey[0]);
     }
 
-    public static SearchApiKeyResponse emptyResponse() {
-        return new SearchApiKeyResponse(Collections.emptyList());
+    public static QueryApiKeyResponse emptyResponse() {
+        return new QueryApiKeyResponse(Collections.emptyList());
     }
 
     public ApiKey[] getApiKeyInfos() {
@@ -65,20 +65,22 @@ public final class SearchApiKeyResponse extends ActionResponse implements ToXCon
     }
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<SearchApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("search_api_key_response", args -> {
-        return (args[0] == null) ? SearchApiKeyResponse.emptyResponse() : new SearchApiKeyResponse((List<ApiKey>) args[0]);
-    });
+    static final ConstructingObjectParser<QueryApiKeyResponse, Void> PARSER =
+        new ConstructingObjectParser<>("query_api_key_response", args -> {
+            return (args[0] == null) ? QueryApiKeyResponse.emptyResponse() : new QueryApiKeyResponse((List<ApiKey>) args[0]);
+        });
+
     static {
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ApiKey.fromXContent(p), new ParseField("api_keys"));
     }
 
-    public static SearchApiKeyResponse fromXContent(XContentParser parser) throws IOException {
+    public static QueryApiKeyResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
     @Override
     public String toString() {
-        return "SearchApiKeyResponse [foundApiKeysInfo=" + foundApiKeysInfo + "]";
+        return "QueryApiKeyResponse [foundApiKeysInfo=" + foundApiKeysInfo + "]";
     }
 
 }

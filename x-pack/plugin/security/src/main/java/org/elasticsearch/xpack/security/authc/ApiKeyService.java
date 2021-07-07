@@ -85,7 +85,7 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.apikey.SearchApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -1125,14 +1125,14 @@ public class ApiKeyService {
             }, listener::onFailure));
     }
 
-    public void searchApiKeys(ApiKeyBoolQueryBuilder apiKeyBoolQueryBuilder, ActionListener<SearchApiKeyResponse> listener) {
+    public void queryApiKeys(ApiKeyBoolQueryBuilder apiKeyBoolQueryBuilder, ActionListener<QueryApiKeyResponse> listener) {
         ensureEnabled();
         final ActionListener<Collection<ApiKey>> wrappedListener = ActionListener.wrap(apiKeyInfos -> {
             if (apiKeyInfos.isEmpty()) {
                 logger.debug("No active api keys found for query [{}]", apiKeyBoolQueryBuilder);
-                listener.onResponse(SearchApiKeyResponse.emptyResponse());
+                listener.onResponse(QueryApiKeyResponse.emptyResponse());
             } else {
-                listener.onResponse(new SearchApiKeyResponse(apiKeyInfos));
+                listener.onResponse(new QueryApiKeyResponse(apiKeyInfos));
             }
         }, listener::onFailure);
 

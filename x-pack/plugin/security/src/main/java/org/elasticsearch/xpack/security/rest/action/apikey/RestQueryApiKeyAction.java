@@ -15,8 +15,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.security.action.apikey.SearchApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.apikey.SearchApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -30,11 +30,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * Rest action to search for API keys
  */
-public final class RestSearchApiKeyAction extends SecurityBaseRestHandler {
+public final class RestQueryApiKeyAction extends SecurityBaseRestHandler {
 
-    private static final ConstructingObjectParser<SearchApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "get_api_key_request",
-        a -> new SearchApiKeyRequest((QueryBuilder) a[0]));
+    private static final ConstructingObjectParser<QueryApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "query_api_key_request",
+        a -> new QueryApiKeyRequest((QueryBuilder) a[0]));
 
     static {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseInnerQueryBuilder(p), new ParseField("query"));
@@ -45,27 +45,27 @@ public final class RestSearchApiKeyAction extends SecurityBaseRestHandler {
      * @param licenseState the license state that will be used to determine if
      * security is licensed
      */
-    public RestSearchApiKeyAction(Settings settings, XPackLicenseState licenseState) {
+    public RestQueryApiKeyAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_security/_search/api_key"),
-            new Route(POST, "/_security/_search/api_key"));
+            new Route(GET, "/_security/_query/api_key"),
+            new Route(POST, "/_security/_query/api_key"));
     }
 
     @Override
     public String getName() {
-        return "xpack_security_search_api_key";
+        return "xpack_security_query_api_key";
     }
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final SearchApiKeyRequest searchApiKeyRequest =
-            request.hasContentOrSourceParam() ? PARSER.parse(request.contentOrSourceParamParser(), null) : new SearchApiKeyRequest();
+        final QueryApiKeyRequest queryApiKeyRequest =
+            request.hasContentOrSourceParam() ? PARSER.parse(request.contentOrSourceParamParser(), null) : new QueryApiKeyRequest();
 
-        return channel -> client.execute(SearchApiKeyAction.INSTANCE, searchApiKeyRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest, new RestToXContentListener<>(channel));
     }
 }

@@ -3,7 +3,12 @@
 
 Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
-coming::[6.8.17]
+[[bug-6.8.17]]
+[float]
+=== Bug fixes
+
+Features/Ingest::
+* Improve circular reference detection in grok processor {es-pull}74581[#74581]
 
 [[release-notes-6.8.16]]
 == {es} version 6.8.16

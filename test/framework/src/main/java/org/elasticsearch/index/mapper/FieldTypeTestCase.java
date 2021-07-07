@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -17,6 +18,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -49,7 +51,8 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         String field = fieldType.name();
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
-
+        when(searchExecutionContext.getGeoFormatter(any(String.class))).
+            thenAnswer(inv -> GeoFormatterFactory.getGeoFormatterEngine((String)inv.getArguments()[0]).getFormatter(null));
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, sourceValue));
@@ -60,7 +63,9 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         String field = fieldType.name();
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
-
+        when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
+        when(searchExecutionContext.getGeoFormatter(any(String.class))).
+            thenAnswer(inv -> GeoFormatterFactory.getGeoFormatterEngine((String)inv.getArguments()[0]).getFormatter(null));
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, null);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, List.of(values)));

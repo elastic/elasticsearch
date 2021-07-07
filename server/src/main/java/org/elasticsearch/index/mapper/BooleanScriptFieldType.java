@@ -11,11 +11,11 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
@@ -48,12 +48,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         Script script,
         Map<String, String> meta
     ) {
-        return new LeafRuntimeField(name, new BooleanScriptFieldType(name, scriptFactory, script, meta), toXContent) {
-            @Override
-            public String typeName() {
-                return BooleanFieldMapper.CONTENT_TYPE;
-            }
-        };
+        return new LeafRuntimeField(name, new BooleanScriptFieldType(name, scriptFactory, script, meta), toXContent);
     }
 
     public static RuntimeField sourceOnly(String name) {

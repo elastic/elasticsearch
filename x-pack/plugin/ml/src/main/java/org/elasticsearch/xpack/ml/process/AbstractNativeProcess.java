@@ -187,6 +187,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
                     processInStream().close();
                 }
             }
+            afterProcessInStreamClose();
             // wait for the process to exit by waiting for end-of-file on the named pipe connected
             // to the state processor - it may take a long time for all the model state to be
             // indexed
@@ -214,6 +215,14 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         } finally {
             deleteAssociatedFiles();
         }
+    }
+
+    /**
+     * Implementations can override this if they need to perform extra processing
+     * immediately after the native process's input stream is closed.
+     */
+    protected void afterProcessInStreamClose() {
+        // no-op by default
     }
 
     @Override

@@ -169,7 +169,6 @@ The command outputs a Base64-encoded string:
 ----
 VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==
 ----
-// NOTCONSOLE
 
 Use this string in a request to authenticate with your cluster:
 

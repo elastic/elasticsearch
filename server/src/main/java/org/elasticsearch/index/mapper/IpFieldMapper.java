@@ -18,11 +18,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -434,7 +434,7 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         Object addressAsObject = context.parser().textOrNull();
 
         if (addressAsObject == null) {
@@ -465,7 +465,7 @@ public class IpFieldMapper extends FieldMapper {
         indexValue(context, address);
     }
 
-    private void indexValue(ParseContext context, InetAddress address) {
+    private void indexValue(DocumentParserContext context, InetAddress address) {
         if (indexed) {
             context.doc().add(new InetAddressPoint(fieldType().name(), address));
         }
@@ -480,8 +480,9 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
-        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(parseContext, value));
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
+        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
     }
 
     @Override

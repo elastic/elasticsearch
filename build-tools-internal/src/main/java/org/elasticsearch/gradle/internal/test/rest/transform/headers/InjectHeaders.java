@@ -36,6 +36,7 @@ public class InjectHeaders extends FeatureInjector implements RestTestTransformB
     /**
      * @param headers The headers to inject
      * @param applyConditions a set of conditions that has to be satisfied in order to apply headers
+     *                        If the Set is empty then headers are always applied.
      */
     public InjectHeaders(Map<String, String> headers, Set<Function<ObjectNode, Boolean>> applyConditions) {
         this.headers = headers;

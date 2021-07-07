@@ -306,6 +306,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                         "it's reasonable to serve requests on the local network too");
                 bw.newLine();
                 bw.write(HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": [_local_, _site_]");
+                bw.newLine();
             }
         }
     }

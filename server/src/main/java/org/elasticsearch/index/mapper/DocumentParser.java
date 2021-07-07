@@ -70,11 +70,11 @@ public final class DocumentParser {
      * @throws MapperParsingException whenever there's a problem parsing the document
      */
     public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws MapperParsingException {
-        final InternalParseContext context;
+        final InternalDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
         try (XContentParser parser = XContentHelper.createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
-            context = new InternalParseContext(
+            context = new InternalDocumentParserContext(
                 mappingLookup,
                 indexSettings,
                 indexAnalyzers,
@@ -121,7 +121,7 @@ public final class DocumentParser {
     }
 
     private static void internalParseDocument(RootObjectMapper root, MetadataFieldMapper[] metadataFieldsMappers,
-                                              ParseContext context, XContentParser parser) throws IOException {
+                                              DocumentParserContext context, XContentParser parser) throws IOException {
 
         final boolean emptyDoc = isEmptyDoc(root, parser);
 
@@ -143,7 +143,7 @@ public final class DocumentParser {
         }
     }
 
-    private static void executeIndexTimeScripts(ParseContext context) {
+    private static void executeIndexTimeScripts(DocumentParserContext context) {
         List<FieldMapper> indexTimeScriptMappers = context.mappingLookup().indexTimeScriptMappers();
         if (indexTimeScriptMappers.isEmpty()) {
             return;
@@ -409,7 +409,7 @@ public final class DocumentParser {
         return parent.mappingUpdate(mapper);
     }
 
-    static void parseObjectOrNested(ParseContext context, ObjectMapper mapper) throws IOException {
+    static void parseObjectOrNested(DocumentParserContext context, ObjectMapper mapper) throws IOException {
         if (mapper.isEnabled() == false) {
             context.parser().skipChildren();
             return;
@@ -448,7 +448,7 @@ public final class DocumentParser {
         }
     }
 
-    private static void innerParseObject(ParseContext context, ObjectMapper mapper, XContentParser parser,
+    private static void innerParseObject(DocumentParserContext context, ObjectMapper mapper, XContentParser parser,
                                          String currentFieldName, XContentParser.Token token) throws IOException {
         assert token == XContentParser.Token.FIELD_NAME || token == XContentParser.Token.END_OBJECT;
         String[] paths = null;
@@ -476,7 +476,7 @@ public final class DocumentParser {
         }
     }
 
-    private static void nested(ParseContext context, ObjectMapper.Nested nested) {
+    private static void nested(DocumentParserContext context, ObjectMapper.Nested nested) {
         LuceneDocument nestedDoc = context.doc();
         LuceneDocument parentDoc = nestedDoc.getParent();
         Version indexVersion = context.indexSettings().getIndexVersionCreated();
@@ -501,7 +501,7 @@ public final class DocumentParser {
         }
     }
 
-    private static ParseContext nestedContext(ParseContext context, ObjectMapper mapper) {
+    private static DocumentParserContext nestedContext(DocumentParserContext context, ObjectMapper mapper) {
         context = context.createNestedContext(mapper.fullPath());
         LuceneDocument nestedDoc = context.doc();
         LuceneDocument parentDoc = nestedDoc.getParent();
@@ -526,7 +526,7 @@ public final class DocumentParser {
         return context;
     }
 
-    static void parseObjectOrField(ParseContext context, Mapper mapper) throws IOException {
+    static void parseObjectOrField(DocumentParserContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper) {
             parseObjectOrNested(context, (ObjectMapper) mapper);
         } else if (mapper instanceof FieldMapper) {
@@ -550,7 +550,7 @@ public final class DocumentParser {
         }
     }
 
-    private static void parseObject(final ParseContext context, ObjectMapper mapper, String currentFieldName,
+    private static void parseObject(final DocumentParserContext context, ObjectMapper mapper, String currentFieldName,
                                     String[] paths) throws IOException {
         assert currentFieldName != null;
         Mapper objectMapper = getMapper(context, mapper, currentFieldName, paths);
@@ -588,7 +588,7 @@ public final class DocumentParser {
         }
     }
 
-    private static void parseArray(ParseContext context, ObjectMapper parentMapper, String lastFieldName,
+    private static void parseArray(DocumentParserContext context, ObjectMapper parentMapper, String lastFieldName,
                                    String[] paths) throws IOException {
         String arrayFieldName = lastFieldName;
 
@@ -640,7 +640,7 @@ public final class DocumentParser {
         return mapper instanceof FieldMapper && ((FieldMapper) mapper).parsesArrayValue();
     }
 
-    private static void parseNonDynamicArray(ParseContext context, ObjectMapper mapper,
+    private static void parseNonDynamicArray(DocumentParserContext context, ObjectMapper mapper,
                                              final String lastFieldName, String arrayFieldName) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
@@ -662,7 +662,7 @@ public final class DocumentParser {
         }
     }
 
-    private static void parseValue(final ParseContext context, ObjectMapper parentMapper,
+    private static void parseValue(final DocumentParserContext context, ObjectMapper parentMapper,
                                    String currentFieldName, XContentParser.Token token, String[] paths) throws IOException {
         if (currentFieldName == null) {
             throw new MapperParsingException("object mapping [" + parentMapper.name() + "] trying to serialize a value with"
@@ -682,7 +682,7 @@ public final class DocumentParser {
         }
     }
 
-    private static void parseNullValue(ParseContext context, ObjectMapper parentMapper, String lastFieldName,
+    private static void parseNullValue(DocumentParserContext context, ObjectMapper parentMapper, String lastFieldName,
                                        String[] paths) throws IOException {
         // we can only handle null values if we have mappings for them
         Mapper mapper = getLeafMapper(context, parentMapper, lastFieldName, paths);
@@ -694,7 +694,7 @@ public final class DocumentParser {
         }
     }
 
-    private static void parseDynamicValue(final ParseContext context, ObjectMapper parentMapper,
+    private static void parseDynamicValue(final DocumentParserContext context, ObjectMapper parentMapper,
                                           String currentFieldName, XContentParser.Token token) throws IOException {
         ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
@@ -707,7 +707,7 @@ public final class DocumentParser {
     }
 
     /** Creates instances of the fields that the current field should be copied to */
-    private static void parseCopyFields(ParseContext context, List<String> copyToFields) throws IOException {
+    private static void parseCopyFields(DocumentParserContext context, List<String> copyToFields) throws IOException {
         context = context.createCopyToContext();
         for (String field : copyToFields) {
             // In case of a hierarchy of nested documents, we need to figure out
@@ -720,7 +720,7 @@ public final class DocumentParser {
                 }
             }
             assert targetDoc != null;
-            final ParseContext copyToContext;
+            final DocumentParserContext copyToContext;
             if (targetDoc == context.doc()) {
                 copyToContext = context;
             } else {
@@ -731,7 +731,7 @@ public final class DocumentParser {
     }
 
     /** Creates an copy of the current field with given field name and boost */
-    private static void parseCopy(String field, ParseContext context) throws IOException {
+    private static void parseCopy(String field, DocumentParserContext context) throws IOException {
         Mapper mapper = context.mappingLookup().getMapper(field);
         if (mapper != null) {
             if (mapper instanceof FieldMapper) {
@@ -757,8 +757,8 @@ public final class DocumentParser {
         }
     }
 
-    private static Tuple<Integer, ObjectMapper> getDynamicParentMapper(ParseContext context, final String[] paths,
-            ObjectMapper currentParent) {
+    private static Tuple<Integer, ObjectMapper> getDynamicParentMapper(DocumentParserContext context, final String[] paths,
+                                                                       ObjectMapper currentParent) {
         ObjectMapper mapper = currentParent == null ? context.root() : currentParent;
         int pathsAdded = 0;
         ObjectMapper parent = mapper;
@@ -807,7 +807,7 @@ public final class DocumentParser {
     }
 
     // find what the dynamic setting is given the current parse context and parent
-    private static ObjectMapper.Dynamic dynamicOrDefault(ObjectMapper parentMapper, ParseContext context) {
+    private static ObjectMapper.Dynamic dynamicOrDefault(ObjectMapper parentMapper, DocumentParserContext context) {
         ObjectMapper.Dynamic dynamic = parentMapper.dynamic();
         while (dynamic == null) {
             int lastDotNdx = parentMapper.name().lastIndexOf('.');
@@ -837,7 +837,7 @@ public final class DocumentParser {
     // returns null if no such child mapper exists - note that unlike getLeafMapper,
     // we do not check for shadowing runtime fields because they only apply to leaf
     // fields
-    private static Mapper getMapper(final ParseContext context,
+    private static Mapper getMapper(final DocumentParserContext context,
                                     ObjectMapper objectMapper,
                                     String fieldName,
                                     String[] subfields) {
@@ -867,7 +867,7 @@ public final class DocumentParser {
     // looks up a child mapper, taking into account field names that expand to objects
     // if no mapper is found, checks to see if a runtime field with the specified
     // field name exists and if so returns a no-op mapper to prevent indexing
-    private static Mapper getLeafMapper(final ParseContext context,
+    private static Mapper getLeafMapper(final DocumentParserContext context,
                                         ObjectMapper objectMapper,
                                         String fieldName,
                                         String[] subfields) {
@@ -909,7 +909,7 @@ public final class DocumentParser {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) throws IOException {
+        protected void parseCreateField(DocumentParserContext context) throws IOException {
             //field defined as runtime field, don't index anything
         }
 
@@ -971,10 +971,10 @@ public final class DocumentParser {
     }
 
     /**
-     * Internal version of {@link ParseContext} that is aware of implementation details like nested documents
+     * Internal version of {@link DocumentParserContext} that is aware of implementation details like nested documents
      * and how they are stored in the lucene index.
      */
-    private static class InternalParseContext extends ParseContext {
+    private static class InternalDocumentParserContext extends DocumentParserContext {
         private final ContentPath path = new ContentPath(0);
         private final XContentParser parser;
         private final LuceneDocument document;
@@ -983,12 +983,12 @@ public final class DocumentParser {
         private long numNestedDocs;
         private boolean docsReversed = false;
 
-        InternalParseContext(MappingLookup mappingLookup,
-                             IndexSettings indexSettings,
-                             IndexAnalyzers indexAnalyzers,
-                             Function<DateFormatter, MappingParserContext> parserContext,
-                             SourceToParse source,
-                             XContentParser parser) {
+        InternalDocumentParserContext(MappingLookup mappingLookup,
+                                      IndexSettings indexSettings,
+                                      IndexAnalyzers indexAnalyzers,
+                                      Function<DateFormatter, MappingParserContext> parserContext,
+                                      SourceToParse source,
+                                      XContentParser parser) {
             super(mappingLookup, indexSettings, indexAnalyzers, parserContext, source);
             this.parser = parser;
             this.document = new LuceneDocument();

@@ -364,12 +364,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         return null;
                     }
 
-                    NamedAnalyzer normalizer = normalizer();
-                    if (normalizer == null) {
-                        return keywordValue;
-                    }
-
-                    return normalizeValue(normalizer, name(), keywordValue);
+                    return normalizeValue(normalizer(), name(), keywordValue);
                 }
             };
         }
@@ -510,10 +505,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
-        NamedAnalyzer normalizer = fieldType().normalizer();
-        if (normalizer != null) {
-            value = normalizeValue(normalizer, name(), value);
-        }
+        value = normalizeValue(fieldType().normalizer(), name(), value);
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
@@ -532,6 +524,9 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) {
+        if (normalizer == Lucene.KEYWORD_ANALYZER) {
+            return value;
+        }
         try (TokenStream ts = normalizer.tokenStream(field, value)) {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();

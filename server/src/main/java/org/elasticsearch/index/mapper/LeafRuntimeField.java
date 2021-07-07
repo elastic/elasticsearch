@@ -16,8 +16,9 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * RuntimeField base class for leaf fields that will only ever return
- * a single MappedFieldType from {@link RuntimeField#asMappedFieldTypes()}
+ * RuntimeField base class for leaf fields that will only ever return a single {@link MappedFieldType}
+ * from {@link RuntimeField#asMappedFieldTypes()}. Can be a standalone runtime field, or part of an object runtime field,
+ * in which case the {@link #name()} method returns the field name and not the full path (note that it can contain dots anyways).
  */
 public final class LeafRuntimeField implements RuntimeField {
     private final String name;

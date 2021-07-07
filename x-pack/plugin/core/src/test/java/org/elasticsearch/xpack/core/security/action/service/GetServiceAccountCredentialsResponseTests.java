@@ -52,13 +52,13 @@ public class GetServiceAccountCredentialsResponseTests extends AbstractWireSeria
             case 0:
                 return new GetServiceAccountCredentialsResponse(randomValueOtherThan(instance.getPrincipal(),
                     () -> randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)),
-                    instance.getNodeName(), instance.getTokenInfos());
+                    instance.getNodeName(), instance.getIndexTokenInfos());
             case 1:
                 return new GetServiceAccountCredentialsResponse(instance.getPrincipal(),
                     randomValueOtherThan(instance.getNodeName(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    instance.getTokenInfos());
+                    instance.getIndexTokenInfos());
             default:
-                final ArrayList<TokenInfo> tokenInfos = new ArrayList<>(instance.getTokenInfos());
+                final ArrayList<TokenInfo> tokenInfos = new ArrayList<>(instance.getIndexTokenInfos());
                 switch (randomIntBetween(0, 2)) {
                     case 0:
                         if (false == tokenInfos.isEmpty()) {
@@ -87,7 +87,7 @@ public class GetServiceAccountCredentialsResponseTests extends AbstractWireSeria
 
     public void testEquals() {
         final GetServiceAccountCredentialsResponse response = createTestInstance();
-        final ArrayList<TokenInfo> tokenInfos = new ArrayList<>(response.getTokenInfos());
+        final ArrayList<TokenInfo> tokenInfos = new ArrayList<>(response.getIndexTokenInfos());
         Collections.shuffle(tokenInfos, random());
         assertThat(new GetServiceAccountCredentialsResponse(
             response.getPrincipal(), response.getNodeName(), tokenInfos.stream().collect(Collectors.toUnmodifiableList())),
@@ -96,7 +96,7 @@ public class GetServiceAccountCredentialsResponseTests extends AbstractWireSeria
 
     public void testToXContent() throws IOException {
         final GetServiceAccountCredentialsResponse response = createTestInstance();
-        final Map<String, TokenInfo> nameToTokenInfos = response.getTokenInfos().stream()
+        final Map<String, TokenInfo> nameToTokenInfos = response.getIndexTokenInfos().stream()
             .collect(Collectors.toMap(TokenInfo::getName, Function.identity()));
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -105,7 +105,7 @@ public class GetServiceAccountCredentialsResponseTests extends AbstractWireSeria
 
         assertThat(responseMap.get("service_account"), equalTo(response.getPrincipal()));
         assertThat(responseMap.get("node_name"), equalTo(response.getNodeName()));
-        assertThat(responseMap.get("count"), equalTo(response.getTokenInfos().size()));
+        assertThat(responseMap.get("count"), equalTo(response.getIndexTokenInfos().size()));
         @SuppressWarnings("unchecked")
         final Map<String, Object> tokens = (Map<String, Object>) responseMap.get("tokens");
         assertNotNull(tokens);

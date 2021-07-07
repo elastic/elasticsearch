@@ -51,7 +51,7 @@ public class GetServiceAccountCredentialsResponseTests
         assertThat(serverTestInstance.getNodeName(), equalTo(clientInstance.getNodeName()));
 
         assertThat(
-            serverTestInstance.getTokenInfos().stream()
+            serverTestInstance.getIndexTokenInfos().stream()
                 .map(tokenInfo -> new Tuple<>(tokenInfo.getName(), tokenInfo.getSource().name().toLowerCase(Locale.ROOT)))
                 .collect(Collectors.toSet()),
             equalTo(clientInstance.getServiceTokenInfos().stream()

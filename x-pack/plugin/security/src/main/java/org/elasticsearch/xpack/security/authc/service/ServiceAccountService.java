@@ -14,13 +14,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
 import java.util.Collection;
@@ -80,12 +78,6 @@ public class ServiceAccountService {
             logger.trace("Cannot parse possible service account token", e);
             return null;
         }
-    }
-
-    public void findTokensFor(ServiceAccountId accountId, String nodeName, ActionListener<GetServiceAccountCredentialsResponse> listener) {
-        serviceAccountTokenStore.findTokensFor(accountId, ActionListener.wrap(tokenInfos -> {
-            listener.onResponse(new GetServiceAccountCredentialsResponse(accountId.asPrincipal(), nodeName, tokenInfos));
-        }, listener::onFailure));
     }
 
     public void authenticateToken(ServiceAccountToken serviceAccountToken, String nodeName, ActionListener<Authentication> listener) {

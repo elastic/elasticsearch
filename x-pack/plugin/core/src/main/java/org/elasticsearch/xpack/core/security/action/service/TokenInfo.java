@@ -12,24 +12,34 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
-public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenInfo> {
+public class TokenInfo implements Writeable, ToXContentObject {
 
     private final String name;
     private final TokenSource source;
+    @Nullable
+    private final Collection<String> nodeNames;
 
     private TokenInfo(String name, TokenSource source) {
+        this(name, source, null);
+    }
+
+    private TokenInfo(String name, TokenSource source, Collection<String> nodeNames) {
         this.name = name;
         this.source = source;
+        this.nodeNames = nodeNames;
     }
 
     public TokenInfo(StreamInput in) throws IOException {
         this.name = in.readString();
         this.source = in.readEnum(TokenSource.class);
+        this.nodeNames = in.readOptionalStringList();
     }
 
     public String getName() {
@@ -59,29 +69,24 @@ public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenI
         return new TokenInfo(name, TokenSource.INDEX);
     }
 
-    public static TokenInfo fileToken(String name) {
-        return new TokenInfo(name, TokenSource.FILE);
+    public static TokenInfo fileToken(String name, Collection<String> nodeNames) {
+        return new TokenInfo(name, TokenSource.FILE, nodeNames);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.field(name, Map.of());
+        if (source == TokenSource.INDEX) {
+            return builder.field(name, Map.of());
+        } else {
+            return builder.field(name, Map.of("nodes", nodeNames));
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeEnum(source);
-    }
-
-    @Override
-    public int compareTo(TokenInfo o) {
-        final int score = source.compareTo(o.source);
-        if (score == 0) {
-            return name.compareTo(o.name);
-        } else {
-            return score;
-        }
+        out.writeOptionalStringCollection(nodeNames);
     }
 
     public enum TokenSource {

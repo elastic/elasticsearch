@@ -146,7 +146,6 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         }
     }
 
-    @Override
     public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
         final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
         if (false == frozenSecurityIndex.indexExists()) {

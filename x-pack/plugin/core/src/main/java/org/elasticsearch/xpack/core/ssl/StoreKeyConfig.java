@@ -74,12 +74,13 @@ public class StoreKeyConfig extends KeyConfig {
     }
 
     @Override
-    X509ExtendedKeyManager createKeyManager(@Nullable Environment environment, boolean ssl) {
+    X509ExtendedKeyManager createKeyManager(@Nullable Environment environment) {
         Path ksPath = keyStorePath == null ? null : CertParsingUtils.resolvePath(keyStorePath, environment);
         try {
             KeyStore ks = getStore(ksPath, keyStoreType, keyStorePassword);
+            // TBD: filte out only http.ssl.keystore
             ArrayList<String> aliases = Collections.list(ks.aliases());
-            if (this instanceof StoreKeyConfig && ssl) {
+            if (this instanceof StoreKeyConfig && aliases.size() > 1) {
                 for (String alias : aliases) {
                     Certificate certificate = ks.getCertificate(alias);
                     if (certificate instanceof X509Certificate) {

@@ -441,7 +441,7 @@ public class SSLService {
             logger.debug("using ssl settings [{}]", sslConfiguration);
         }
         X509ExtendedTrustManager trustManager = sslConfiguration.trustConfig().createTrustManager(env);
-        X509ExtendedKeyManager keyManager = sslConfiguration.keyConfig().createKeyManager(env, true);
+        X509ExtendedKeyManager keyManager = sslConfiguration.keyConfig().createKeyManager(env);
         return createSslContext(keyManager, trustManager, sslConfiguration);
     }
 
@@ -705,7 +705,7 @@ public class SSLService {
 
         private void reloadSslContext() {
             try {
-                X509ExtendedKeyManager loadedKeyManager = keyConfig.createKeyManager(env, false);
+                X509ExtendedKeyManager loadedKeyManager = keyConfig.createKeyManager(env);
                 X509ExtendedTrustManager loadedTrustManager = trustConfig.createTrustManager(env);
                 loadedTrustManager = wrapWithDiagnostics(loadedTrustManager, sslConfiguration);
 

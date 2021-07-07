@@ -42,12 +42,12 @@ public class StoreKeyConfigTests extends ESTestCase {
         final StoreKeyConfig keyConfig = new StoreKeyConfig(null, "PKCS12", keyStorePassword, keyStorePassword,
             KeyManagerFactory.getDefaultAlgorithm(), TrustManagerFactory.getDefaultAlgorithm());
         Exception e = expectThrows(IllegalArgumentException.class, () ->
-            keyConfig.createKeyManager(TestEnvironment.newEnvironment(settings), false));
+            keyConfig.createKeyManager(TestEnvironment.newEnvironment(settings)));
         assertThat(e.getMessage(), equalTo("keystore.path or truststore.path can only be empty when using a PKCS#11 token"));
         final StoreKeyConfig keyConfigPkcs11 = new StoreKeyConfig(null, "PKCS11", keyStorePassword, keyStorePassword,
             KeyManagerFactory.getDefaultAlgorithm(), TrustManagerFactory.getDefaultAlgorithm());
         ElasticsearchException ee = expectThrows(ElasticsearchException.class, () ->
-            keyConfigPkcs11.createKeyManager(TestEnvironment.newEnvironment(settings), false));
+            keyConfigPkcs11.createKeyManager(TestEnvironment.newEnvironment(settings)));
         assertThat(ee, throwableWithMessage(containsString("failed to initialize SSL KeyManager")));
         assertThat(ee.getCause().getMessage(), containsString("PKCS11 not found"));
     }
@@ -58,7 +58,7 @@ public class StoreKeyConfigTests extends ESTestCase {
         final SecureString keyStorePassword = new SecureString("testnode".toCharArray());
         final StoreKeyConfig keyConfig = new StoreKeyConfig(path, type, keyStorePassword, keyStorePassword,
                 KeyManagerFactory.getDefaultAlgorithm(), TrustManagerFactory.getDefaultAlgorithm());
-        final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager(TestEnvironment.newEnvironment(settings), false);
+        final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager(TestEnvironment.newEnvironment(settings));
         final PrivateKey key = keyManager.getPrivateKey("testnode_rsa");
         assertThat(key, notNullValue());
         assertThat(key.getAlgorithm(), equalTo("RSA"));

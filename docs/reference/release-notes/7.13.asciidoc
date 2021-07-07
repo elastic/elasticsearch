@@ -3,7 +3,47 @@
 
 Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
 
-coming::[7.13.3]
+[[bug-7.13.3]]
+[float]
+=== Bug fixes
+
+Autoscaling::
+* Autoscale frozen tier into existence {es-pull}73435[#73435] (issue: {es-issue}72771[#72771])
+* Avoid scaling empty tier unnecessarily {es-pull}74086[#74086]
+
+CompositeAggs::
+* Fix bug when formatting epoch dates {es-pull}73955[#73955] (issue: {es-issue}68963[#68963])
+
+EQL::
+* Remove "fields" section from sequence in-progress searches {es-pull}74824[#74824] (issue: {es-issue}74582[#74582])
+* Remove "yet" from unsupported pipe error message {es-pull}74850[#74850] (issue: {es-issue}70844[#70844])
+
+Features/Ingest::
+* Improve circular reference detection in grok processor {es-pull}74581[#74581]
+
+Network::
+* Increment request before serializing it in `OutboundHandler` {es-pull}74256[#74256] (issue: {es-issue}74253[#74253])
+
+Recovery::
+* Recycle buffers used for file-based recovery {es-pull}74117[#74117] (issue: {es-issue}65921[#65921])
+
+SQL::
+* Fix literal projection with condition {es-pull}74083[#74083] (issues: {es-issue}64567[#64567], {es-issue}74064[#74064])
+* Fix querying of indices without columns {es-pull}74312[#74312] (issue: {es-issue}53001[#53001])
+
+Search::
+* Disable query cache for `FunctionScoreQuery` and `ScriptScoreQuery` {es-pull}74060[#74060] (issue: {es-issue}73925[#73925])
+* Fix `CombinedFieldQuery` (Lucene 9999) {es-pull}74678[#74678]
+* Fix error in `FieldCapabilitiesResponse` serialization {es-pull}74504[#74504]
+* Use min version when storing async search response {es-pull}74642[#74642]
+
+Snapshot/Restore::
+* Correctly log exceptions that are thrown during cache prewarming {es-pull}74419[#74419]
+* Fix snapshots recording incorrect max segment counts {es-pull}74291[#74291] (issue: {es-issue}74249[#74249])
+* Shared cache's recovery range should be aligned with page size {es-pull}74439[#74439] (issue: {es-issue}74372[#74372])
+
+Transform::
+* Replace missing transform id with `_all` wildcard {es-pull}74130[#74130] (issue: {es-issue}74218[#74218])
 
 [[release-notes-7.13.2]]
 == {es} version 7.13.2

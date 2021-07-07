@@ -194,7 +194,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=search-q]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=request_cache]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
+`refresh`::
+(Optional, Boolean) If `true`, {es} refreshes all shards involved in the
+delete by query after the request completes. Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 

@@ -474,16 +474,14 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
-        // Check that a dimension field is single-valued and not an array
-        if (dimension && context.doc().getByKey(fieldType().name()) != null) {
-            throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
-        }
         if (indexed) {
             Field field = new InetAddressPoint(fieldType().name(), address);
-
             if (dimension) {
                 // Add dimension field with key so that we ensure it is single-valued.
                 // Dimension fields are always indexed.
+                if (context.doc().getByKey(fieldType().name()) != null) {
+                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
+                }
                 context.doc().addWithKey(fieldType().name(), field);
             } else {
                 context.doc().add(field);

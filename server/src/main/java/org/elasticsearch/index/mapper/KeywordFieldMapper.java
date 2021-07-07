@@ -509,11 +509,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
-        // Check that a dimension field is single-valued and not an array
-        if (dimension && context.doc().getByKey(fieldType().name()) != null) {
-            throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
-        }
-
         if (value.length() > ignoreAbove) {
             context.addIgnoredField(name());
             return;
@@ -533,8 +528,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
-
             if (dimension) {
+                // Check that a dimension field is single-valued and not an array
+                if (context.doc().getByKey(fieldType().name()) != null) {
+                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
+                }
                 // Add dimension field with key so that we ensure it is single-valued.
                 // Dimension fields are always indexed.
                 context.doc().addWithKey(fieldType().name(), field);

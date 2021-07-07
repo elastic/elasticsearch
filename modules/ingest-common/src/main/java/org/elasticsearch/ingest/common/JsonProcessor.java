@@ -37,16 +37,16 @@ public final class JsonProcessor extends AbstractProcessor {
     private final String field;
     private final String targetField;
     private final boolean addToRoot;
+    private final MergeStrategy addToRootMergeStrategy;
     private final boolean allowDuplicateKeys;
-    private final boolean addToRootRecursiveMerge;
 
-    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot, boolean addToRootRecursiveMerge,
+    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot, MergeStrategy addToRootMergeStrategy,
                   boolean allowDuplicateKeys) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.addToRoot = addToRoot;
-        this.addToRootRecursiveMerge = addToRootRecursiveMerge;
+        this.addToRootMergeStrategy = addToRootMergeStrategy;
         this.allowDuplicateKeys = allowDuplicateKeys;
     }
 
@@ -62,8 +62,8 @@ public final class JsonProcessor extends AbstractProcessor {
         return addToRoot;
     }
 
-    public boolean isAddToRootRecursiveMerge() {
-        return addToRootRecursiveMerge;
+    public MergeStrategy getAddToRootMergeStrategy() {
+        return addToRootMergeStrategy;
     }
 
     public static Object apply(Object fieldValue, boolean allowDuplicateKeys) {
@@ -95,12 +95,12 @@ public final class JsonProcessor extends AbstractProcessor {
         }
     }
 
-    public static void apply(Map<String, Object> ctx, String fieldName, boolean allowDuplicateKeys, boolean addToRootRecursiveMerge) {
+    public static void apply(Map<String, Object> ctx, String fieldName, boolean allowDuplicateKeys, MergeStrategy mergeStrategy) {
         Object value = apply(ctx.get(fieldName), allowDuplicateKeys);
         if (value instanceof Map) {
             @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>) value;
-            if (addToRootRecursiveMerge) {
+            Map<String, Object> map = (Map<String, Object>) value;
+            if (mergeStrategy == MergeStrategy.RECURSIVE) {
                 recursiveMerge(ctx, map);
             } else {
                 ctx.putAll(map);
@@ -110,14 +110,17 @@ public final class JsonProcessor extends AbstractProcessor {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public static void recursiveMerge(Map<String, Object> target, Map<String, Object> from) {
         for (String key : from.keySet()) {
             if (target.containsKey(key)) {
                 Object targetValue = target.get(key);
                 Object fromValue = from.get(key);
                 if (targetValue instanceof Map && fromValue instanceof Map) {
-                    recursiveMerge((Map<String, Object>) targetValue, (Map<String, Object>) fromValue);
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> targetMap = (Map<String, Object>) targetValue;
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> fromMap = (Map<String, Object>) fromValue;
+                    recursiveMerge(targetMap, fromMap);
                 } else {
                     target.put(key, fromValue);
                 }
@@ -130,7 +133,7 @@ public final class JsonProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
         if (addToRoot) {
-            apply(document.getSourceAndMetadata(), field, allowDuplicateKeys, addToRootRecursiveMerge);
+            apply(document.getSourceAndMetadata(), field, allowDuplicateKeys, addToRootMergeStrategy);
         } else {
             document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class), allowDuplicateKeys));
         }
@@ -142,40 +145,30 @@ public final class JsonProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static final class Factory implements Processor.Factory {
+    public enum MergeStrategy {
+        REPLACE,
+        RECURSIVE;
 
-        enum MergeStrategy {
-            REPLACE(false),
-            RECURSIVE(true);
+        public static MergeStrategy resolve(String name) {
+            return MergeStrategy.valueOf(name.toUpperCase(Locale.ROOT));
+        }
 
-            private final boolean addToRootRecursiveMerge;
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
 
-            MergeStrategy(boolean addToRootRecursiveMerge) {
-                this.addToRootRecursiveMerge = addToRootRecursiveMerge;
-            }
-
-            public static MergeStrategy resolve(String name) {
-                return MergeStrategy.valueOf(name.toUpperCase(Locale.ROOT));
-            }
-
-            @Override
-            public String toString() {
-                return name().toLowerCase(Locale.ROOT);
-            }
-
-            public static MergeStrategy fromString(String processorTag, String propertyName, String mergeStrategy) {
-                try {
-                    return MergeStrategy.valueOf(mergeStrategy.toUpperCase(Locale.ROOT));
-                } catch(IllegalArgumentException e) {
-                    throw newConfigurationException(TYPE, processorTag, propertyName, "merge strategy [" + mergeStrategy +
-                        "] not supported, cannot convert field.");
-                }
-            }
-
-            public boolean isAddToRootRecursiveMerge() {
-                return addToRootRecursiveMerge;
+        public static MergeStrategy fromString(String processorTag, String propertyName, String mergeStrategy) {
+            try {
+                return MergeStrategy.valueOf(mergeStrategy.toUpperCase(Locale.ROOT));
+            } catch(IllegalArgumentException e) {
+                throw newConfigurationException(TYPE, processorTag, propertyName, "merge strategy [" + mergeStrategy +
+                    "] not supported, cannot convert field.");
             }
         }
+    }
+
+    public static final class Factory implements Processor.Factory {
 
         @Override
         public JsonProcessor create(Map<String, Processor.Factory> registry, String processorTag,
@@ -206,8 +199,7 @@ public final class JsonProcessor extends AbstractProcessor {
                 targetField = field;
             }
 
-            return new JsonProcessor(processorTag, description, field, targetField, addToRoot,
-                addToRootMergeStrategy.isAddToRootRecursiveMerge(), allowDuplicateKeys);
+            return new JsonProcessor(processorTag, description, field, targetField, addToRoot, addToRootMergeStrategy, allowDuplicateKeys);
         }
     }
 }

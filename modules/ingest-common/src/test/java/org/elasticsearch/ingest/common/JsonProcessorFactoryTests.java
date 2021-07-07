@@ -79,13 +79,16 @@ public class JsonProcessorFactoryTests extends ESTestCase {
     }
 
     public void testReplaceMergeStrategy() throws Exception {
-        JsonProcessor jsonProcessor = getJsonProcessorWithMergeStrategy("replace", true);
-        assertThat(jsonProcessor.isAddToRootRecursiveMerge(), equalTo(false));
+        JsonProcessor jsonProcessor = getJsonProcessorWithMergeStrategy(null, true);
+        assertThat(jsonProcessor.getAddToRootMergeStrategy(), equalTo(JsonProcessor.MergeStrategy.REPLACE));
+
+        jsonProcessor = getJsonProcessorWithMergeStrategy("replace", true);
+        assertThat(jsonProcessor.getAddToRootMergeStrategy(), equalTo(JsonProcessor.MergeStrategy.REPLACE));
     }
 
     public void testRecursiveMergeStrategy() throws Exception {
         JsonProcessor jsonProcessor = getJsonProcessorWithMergeStrategy("recursive", true);
-        assertThat(jsonProcessor.isAddToRootRecursiveMerge(), equalTo(true));
+        assertThat(jsonProcessor.getAddToRootMergeStrategy(), equalTo(JsonProcessor.MergeStrategy.RECURSIVE));
     }
 
     public void testMergeStrategyWithoutAddToRoot() throws Exception {
@@ -107,7 +110,9 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", randomField);
         config.put("add_to_root", addToRoot);
-        config.put("add_to_root_merge_strategy", mergeStrategy);
+        if (mergeStrategy != null) {
+            config.put("add_to_root_merge_strategy", mergeStrategy);
+        }
         return FACTORY.create(null, randomAlphaOfLength(10), null, config);
     }
 }

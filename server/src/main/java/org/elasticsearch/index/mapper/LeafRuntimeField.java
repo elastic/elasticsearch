@@ -8,12 +8,12 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * RuntimeField base class for leaf fields that will only ever return
@@ -21,13 +21,14 @@ import java.util.Collections;
  */
 public final class LeafRuntimeField implements RuntimeField {
     private final String name;
-    private final ToXContent toXContent;
     private final MappedFieldType mappedFieldType;
+    private final List<FieldMapper.Parameter<?>> parameters;
 
-    public LeafRuntimeField(String name, MappedFieldType mappedFieldType, ToXContent toXContent) {
+    public LeafRuntimeField(String name, MappedFieldType mappedFieldType, List<FieldMapper.Parameter<?>> parameters) {
         this.name = name;
-        this.toXContent = toXContent;
         this.mappedFieldType = mappedFieldType;
+        this.parameters = parameters;
+        assert name.equals(mappedFieldType.name());
     }
 
     @Override
@@ -36,17 +37,19 @@ public final class LeafRuntimeField implements RuntimeField {
     }
 
     @Override
-    public String typeName() {
-        return mappedFieldType.typeName();
-    }
-
-    @Override
     public Collection<MappedFieldType> asMappedFieldTypes() {
         return Collections.singleton(mappedFieldType);
     }
 
     @Override
-    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        toXContent.toXContent(builder, params);
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(name);
+        builder.field("type", mappedFieldType.typeName());
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+        for (FieldMapper.Parameter<?> parameter : parameters) {
+            parameter.toXContent(builder, includeDefaults);
+        }
+        builder.endObject();
+        return builder;
     }
 }

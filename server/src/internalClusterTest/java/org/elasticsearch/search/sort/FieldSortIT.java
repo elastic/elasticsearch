@@ -869,10 +869,11 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortMissingDates() throws IOException {
-        for (String type : List.of("date", "date_nanos")) {
+        for (String type : new String[]{"date", "date_nanos"}) {
             String index = "test_" + type;
             assertAcked(
-                prepareCreate(index).setMapping(
+                prepareCreate(index).addMapping(
+                    "_doc",
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("_doc")
@@ -886,13 +887,13 @@ public class FieldSortIT extends ESIntegTestCase {
                 )
             );
             ensureGreen();
-            client().prepareIndex(index).setId("1").setSource("mydate", "2021-01-01").get();
-            client().prepareIndex(index).setId("2").setSource("mydate", "2021-02-01").get();
-            client().prepareIndex(index).setId("3").setSource("other_field", "value").get();
+            client().prepareIndex(index, "_doc").setId("1").setSource("mydate", "2021-01-01").get();
+            client().prepareIndex(index, "_doc").setId("2").setSource("mydate", "2021-02-01").get();
+            client().prepareIndex(index, "_doc").setId("3").setSource("other_field", "value").get();
 
             refresh();
 
-            for (boolean withFormat : List.of(true, false)) {
+            for (boolean withFormat : new boolean[] {true, false}) {
                 String format = null;
                 if (withFormat) {
                     format = type.equals("date") ? "strict_date_optional_time" : "strict_date_optional_time_nanos";
@@ -925,10 +926,11 @@ public class FieldSortIT extends ESIntegTestCase {
      * Sort across two indices with both "date" and "date_nanos" type using "numeric_type" set to "date_nanos"
      */
     public void testSortMissingDatesMixedTypes() throws IOException {
-        for (String type : List.of("date", "date_nanos")) {
+        for (String type : new String[] { "date", "date_nanos" }) {
             String index = "test_" + type;
             assertAcked(
-                prepareCreate(index).setMapping(
+                prepareCreate(index).addMapping(
+                    "_doc",
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("_doc")
@@ -945,15 +947,15 @@ public class FieldSortIT extends ESIntegTestCase {
         }
         ensureGreen();
 
-        client().prepareIndex("test_date").setId("1").setSource("mydate", "2021-01-01").get();
-        client().prepareIndex("test_date").setId("2").setSource("mydate", "2021-02-01").get();
-        client().prepareIndex("test_date").setId("3").setSource("other_field", 1).get();
-        client().prepareIndex("test_date_nanos").setId("4").setSource("mydate", "2021-03-01").get();
-        client().prepareIndex("test_date_nanos").setId("5").setSource("mydate", "2021-04-01").get();
-        client().prepareIndex("test_date_nanos").setId("6").setSource("other_field", 2).get();
+        client().prepareIndex("test_date", "_doc").setId("1").setSource("mydate", "2021-01-01").get();
+        client().prepareIndex("test_date", "_doc").setId("2").setSource("mydate", "2021-02-01").get();
+        client().prepareIndex("test_date", "_doc").setId("3").setSource("other_field", 1).get();
+        client().prepareIndex("test_date_nanos", "_doc").setId("4").setSource("mydate", "2021-03-01").get();
+        client().prepareIndex("test_date_nanos", "_doc").setId("5").setSource("mydate", "2021-04-01").get();
+        client().prepareIndex("test_date_nanos", "_doc").setId("6").setSource("other_field", 2).get();
         refresh();
 
-            for (boolean withFormat : List.of(true, false)) {
+            for (boolean withFormat : new boolean[] {true, false}) {
                 String format = null;
                 if (withFormat) {
                     format = "strict_date_optional_time_nanos";

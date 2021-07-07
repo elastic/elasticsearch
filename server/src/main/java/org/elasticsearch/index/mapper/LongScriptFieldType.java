@@ -56,7 +56,8 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         Script script,
         Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            script, scriptFactory.isResultDeterministic(), meta);
     }
 
     @Override
@@ -87,7 +88,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        checkQueryScriptContext(context);
         return new LongScriptFieldExistsQuery(script, leafFactory(context)::newInstance, name());
     }
 
@@ -101,7 +102,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         DateMathParser parser,
         SearchExecutionContext context
     ) {
-        checkAllowExpensiveQueries(context);
+        checkQueryScriptContext(context);
         return NumberType.longRangeQuery(
             lowerTerm,
             upperTerm,
@@ -116,7 +117,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         if (NumberType.hasDecimalPart(value)) {
             return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
         }
-        checkAllowExpensiveQueries(context);
+        checkQueryScriptContext(context);
         return new LongScriptFieldTermQuery(script, leafFactory(context)::newInstance, name(), NumberType.objectToLong(value, true));
     }
 
@@ -135,7 +136,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         if (terms.isEmpty()) {
             return Queries.newMatchNoDocsQuery("All values have a decimal part");
         }
-        checkAllowExpensiveQueries(context);
+        checkQueryScriptContext(context);
         return new LongScriptFieldTermsQuery(script, leafFactory(context)::newInstance, name(), terms);
     }
 }

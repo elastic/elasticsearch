@@ -66,6 +66,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -75,10 +76,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Test case that lets you easilly build {@link MapperService} based on some
@@ -516,25 +514,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {
-        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(searchExecutionContext.getFieldType(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
-        when(searchExecutionContext.isFieldMapped(anyString()))
-            .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
-        when(searchExecutionContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
-        when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
-        when(searchExecutionContext.getObjectMapper(anyString())).thenAnswer(
-            inv -> mapperService.mappingLookup().objectMappers().get(inv.getArguments()[0].toString()));
-        when(searchExecutionContext.getMatchingFieldNames(anyObject())).thenAnswer(
-            inv -> mapperService.mappingLookup().getMatchingFieldNames(inv.getArguments()[0].toString())
-        );
-        when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
-        when(searchExecutionContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
-            throw new UnsupportedOperationException("search lookup not available");
-        }));
-
-        SimilarityService similarityService = new SimilarityService(mapperService.getIndexSettings(), null, Map.of());
-        when(searchExecutionContext.getDefaultSimilarity()).thenReturn(similarityService.getDefaultSimilarity());
-
-        return searchExecutionContext;
+        final SimilarityService similarityService = new SimilarityService(mapperService.getIndexSettings(), null, Map.of());
+        return new SearchExecutionContext(0, 1, mapperService.getIndexSettings(), null, null, mapperService,
+            mapperService.mappingLookup(), similarityService, null, xContentRegistry(), writableRegistry(), null, null, () -> 0L, null, null, () -> true, null, Collections.emptyMap());
     }
 }

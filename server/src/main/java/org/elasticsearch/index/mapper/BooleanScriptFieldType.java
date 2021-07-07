@@ -57,7 +57,8 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         Script script,
         Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script,
+            scriptFactory.isResultDeterministic(), meta);
     }
 
     @Override
@@ -98,7 +99,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        checkQueryScriptContext(context);
         return new BooleanScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
@@ -169,13 +170,13 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
 
     @Override
     public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        checkQueryScriptContext(context);
         return new BooleanScriptFieldTermQuery(script, leafFactory(context.lookup()), name(), toBoolean(value, true));
     }
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        checkQueryScriptContext(context);
         return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), toBoolean(value, false));
     }
 
@@ -202,11 +203,11 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
                 // Either true or false
                 return existsQuery(context);
             }
-            checkAllowExpensiveQueries(context);
+            checkQueryScriptContext(context);
             return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), true);
         }
         if (falseAllowed) {
-            checkAllowExpensiveQueries(context);
+            checkQueryScriptContext(context);
             return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), false);
         }
         return new MatchNoDocsQuery("neither true nor false allowed");

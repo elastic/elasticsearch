@@ -52,7 +52,8 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         Script script,
         Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            script, scriptFactory.isResultDeterministic(), meta);
     }
 
     @Override
@@ -87,7 +88,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        checkQueryScriptContext(context);
         return new GeoPointScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 

@@ -86,9 +86,10 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
                             } else {
                                 collectBucket(sub, doc, bucketOrd);
                             }
-                            // We have added the document already. We should increment doc_count by count - 1
-                            // so that we have added it count times.
-                            incrementBucketDocCount(bucketOrd, count - 1);
+                            // We have added the document already and we have incremented bucket doc_count
+                            // by _doc_count times. To compensate for this, we should increment doc_count by
+                            // (count - _doc_count) so that we have added it count times.
+                            incrementBucketDocCount(bucketOrd, count - docCountProvider.getDocCount(doc));
                         }
                         previousKey = key;
                     }

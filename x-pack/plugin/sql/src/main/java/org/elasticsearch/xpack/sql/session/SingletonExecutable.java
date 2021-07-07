@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.util.Check;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -43,6 +44,6 @@ public class SingletonExecutable implements Executable {
 
     @Override
     public String toString() {
-        return NodeUtils.limitedToString(output) + "," + NodeUtils.limitedToString(List.of(values));
+        return NodeUtils.limitedToString(output) + "," + NodeUtils.limitedToString(Arrays.asList(values));
     }
 }

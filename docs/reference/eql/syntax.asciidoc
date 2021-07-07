@@ -836,13 +836,6 @@ sub-fields of a `nested` field. However, data streams and indices containing
 `nested` field mappings are otherwise supported.
 
 [discrete]
-[[eql-ccs-support]]
-==== {ccs-cap} is not supported
-
-EQL search APIs do not support <<modules-cross-cluster-search,{ccs}
-({ccs-init})>>.
-
-[discrete]
 [[eql-unsupported-syntax]]
 ==== Differences from Endgame EQL syntax
 

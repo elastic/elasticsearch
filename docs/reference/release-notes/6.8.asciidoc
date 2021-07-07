@@ -3,6 +3,19 @@
 
 Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
+[discrete]
+[[security-updates-6.8.17]]
+=== Security updates
+
+* An uncontrolled recursion vulnerability that could lead to a 
+denial of service attack was identified in the {es} Grok parser. 
+A user with the ability to submit arbitrary queries to {es} could create 
+a malicious Grok query that will crash the {es} node.
+All versions of {es} prior to 6.8.17 are affected by this flaw. 
+You must upgrade to {es} version 6.8.17 to obtain the fix.  
+https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22144[CVE-2021-22144]
+
+
 [[bug-6.8.17]]
 [float]
 === Bug fixes

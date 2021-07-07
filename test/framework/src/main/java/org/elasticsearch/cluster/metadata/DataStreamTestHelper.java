@@ -157,7 +157,7 @@ public final class DataStreamTestHelper {
             randomAlphaOfLength(5),
             dataStreams,
             randomBoolean() ? randomFrom(dataStreams) : null,
-            randomMap(1, 4, () -> new Tuple<>("term", Map.of("year", "2022"))));
+            randomBoolean() ? randomMap(1, 4, () -> new Tuple<>("term", Map.of("year", "2022"))) : null);
     }
 
     /**

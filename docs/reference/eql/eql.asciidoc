@@ -793,6 +793,60 @@ You can also manually delete saved synchronous searches using the
 <<delete-async-eql-search-api,delete async EQL search API>>.
 
 [discrete]
+[[run-eql-search-across-clusters]]
+=== Run an EQL search across clusters
+
+experimental::[]
+
+The EQL search API supports <<modules-cross-cluster-search,cross-cluster
+search>>. However, the local and <<modules-remote-clusters,remote clusters>>
+must use the same {es} version.
+
+The following <<cluster-update-settings,update cluster settings>> request
+adds two remote clusters: `cluster_one` and `cluster_two`.
+
+[source,console]
+----
+PUT /_cluster/settings
+{
+  "persistent": {
+    "cluster": {
+      "remote": {
+        "cluster_one": {
+          "seeds": [
+            "127.0.0.1:9300"
+          ]
+        },
+        "cluster_two": {
+          "seeds": [
+            "127.0.0.1:9301"
+          ]
+        }
+      }
+    }
+  }
+}
+----
+// TEST[setup:host]
+// TEST[s/127.0.0.1:930\d+/\${transport_host}/]
+
+To target a data stream or index on a remote cluster, use the
+`<cluster>:<target>` syntax.
+
+[source,console]
+----
+GET /cluster_one:my-data-stream,cluster_two:my-data-stream/_eql/search
+{
+  "query": """
+    process where process.name == "regsvr32.exe"
+  """
+}
+----
+// TEST[continued]
+// TEST[setup:sec_logs]
+// TEST[teardown:data_stream_cleanup]
+
+[discrete]
 [[eql-circuit-breaker]]
 === EQL circuit breaker settings
 

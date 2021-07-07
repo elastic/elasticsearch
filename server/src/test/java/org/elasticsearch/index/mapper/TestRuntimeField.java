@@ -35,22 +35,12 @@ public final class TestRuntimeField implements RuntimeField {
     }
 
     @Override
-    public String typeName() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public Collection<MappedFieldType> asMappedFieldTypes() {
         return subfields;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void doXContentBody(XContentBuilder builder, Params params) {
         throw new UnsupportedOperationException();
     }
 

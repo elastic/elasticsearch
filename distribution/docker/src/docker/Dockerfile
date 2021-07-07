@@ -402,14 +402,23 @@ RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
 COPY LICENSE /licenses/LICENSE.addendum
 <% } %>
 
-USER elasticsearch:root
+<% if (docker_base == "cloud") { %>
+ENTRYPOINT ["/bin/tini", "--"]
+CMD ["/app/elasticsearch.sh"]
+# Generate a stub command that will be overwritten at runtime
+RUN mkdir /app && \\
+    echo -e '#!/bin/sh\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
+    chmod 0555 /app/elasticsearch.sh
 
+<% } else { %>
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
 # calls the entrypoint we provide, while correctly forwarding signals.
 ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
-
 # Dummy overridable parameter parsed by entrypoint
 CMD ["eswrapper"]
+<% } %>
+
+USER elasticsearch:root
 
 <% if (docker_base == 'iron_bank') { %>
 HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -I -f --max-time 5 http://localhost:9200 || exit 1

@@ -186,7 +186,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     @Override
-    protected void index(ParseContext context, GeoPoint geometry) throws IOException {
+    protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
         if (fieldType().isSearchable()) {
             context.doc().add(new LatLonPoint(fieldType().name(), geometry.lat(), geometry.lon()));
         }
@@ -203,10 +203,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     @Override
-    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
         this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, point -> {
             try {
-                index(parseContext, point);
+                index(documentParserContext, point);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);  // only thrown by MultiFields which is always null
             }

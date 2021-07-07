@@ -113,7 +113,7 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceKeyInDo("rollup.stop_job", "xpack-rollup.stop_job")
   task.addAllowedWarningRegex(".*_xpack/rollup.* is deprecated.*")
 })
-def v7compatiblityNotSupportedTests = {
+def v7compatibilityNotSupportedTests = {
   return [
     // to support it, it would require to almost revert back the #48725 and complicate the code
     'vectors/10_dense_vector_basic/Deprecated function signature',
@@ -158,12 +158,11 @@ tasks.named("yamlRestCompatTest").configure {
     'rollup/delete_job/Test delete running job',
     'rollup/get_jobs/Test basic get_jobs',
     'rollup/put_job/Test basic put_job',
-    'rollup/put_job/Test put_job in non-rollup index',
     //https://github.com/elastic/elasticsearch/pull/41502
     'rollup/start_job/Test start job twice',
     // a type field was added to cat.ml_trained_models #73660, this might need some work
     'ml/trained_model_cat_apis/Test cat trained models'
-    ]+ v7compatiblityNotSupportedTests())
+    ] + v7compatibilityNotSupportedTests())
 
 
   systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')

@@ -318,6 +318,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         assertThat(taskManager.getTasks().values(), empty());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75004")
     public void testTaskLocalAbort() {
         AtomicReference<String> capturedTaskId = new AtomicReference<>();
         AtomicReference<ActionListener<PersistentTask<?>>> capturedListener = new AtomicReference<>();

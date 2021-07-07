@@ -47,7 +47,10 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(String name, StringFieldScript.Factory factory, Script script, Map<String, String> meta) {
+        AbstractScriptFieldType<?> createFieldType(String name,
+                                                   StringFieldScript.Factory factory,
+                                                   Script script,
+                                                   Map<String, String> meta) {
             return new KeywordScriptFieldType(name, factory, script, meta);
         }
     }

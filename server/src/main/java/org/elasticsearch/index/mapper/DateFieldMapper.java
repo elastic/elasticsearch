@@ -684,7 +684,7 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         String dateAsString = context.parser().textOrNull();
 
         long timestamp;
@@ -709,7 +709,7 @@ public final class DateFieldMapper extends FieldMapper {
         indexValue(context, timestamp);
     }
 
-    private void indexValue(ParseContext context, long timestamp) {
+    private void indexValue(DocumentParserContext context, long timestamp) {
         if (indexed) {
             context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }
@@ -724,8 +724,9 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
-        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, v -> indexValue(parseContext, v));
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
+        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, v -> indexValue(documentParserContext, v));
     }
 
     public boolean getIgnoreMalformed() {

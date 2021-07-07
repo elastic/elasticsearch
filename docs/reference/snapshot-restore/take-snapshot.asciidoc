@@ -64,6 +64,11 @@ You can also choose to include only specific backing indices in a snapshot.
 However, these backups do not include the associated data stream's
 metadata or its other backing indices.
 
+Snapshots can also include a data stream but exclude specific backing indices.
+When you restore the data stream, it will contain only backing indices present
+in the snapshot. If the stream's original write index is not in the snapshot,
+the most recent backing index from the snapshot becomes the stream's write index.
+
 [discrete]
 [[create-snapshot-process-details]]
 === Snapshot process details

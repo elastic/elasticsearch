@@ -249,7 +249,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) {
+    public void preParse(DocumentParserContext context) {
         context.doc().add(idField(context.sourceToParse().id()));
     }
 

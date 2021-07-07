@@ -263,7 +263,7 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         if (indexed == false && stored == false && hasDocValues == false) {
             return;
         }
@@ -280,7 +280,7 @@ public class BooleanFieldMapper extends FieldMapper {
         indexValue(context, value);
     }
 
-    private void indexValue(ParseContext context, Boolean value) {
+    private void indexValue(DocumentParserContext context, Boolean value) {
         if (value == null) {
             return;
         }
@@ -298,8 +298,9 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
-        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(parseContext, value));
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
+        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
     }
 
     @Override

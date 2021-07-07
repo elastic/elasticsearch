@@ -205,7 +205,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     }
 
     @Override
-    protected void index(ParseContext context, Geometry geometry) throws IOException {
+    protected void index(DocumentParserContext context, Geometry geometry) throws IOException {
         if (geometry == null) {
             return;
         }

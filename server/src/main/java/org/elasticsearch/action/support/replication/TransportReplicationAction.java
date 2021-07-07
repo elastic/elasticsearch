@@ -61,6 +61,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -1098,7 +1099,8 @@ public abstract class TransportReplicationAction<
     }
 
     /** a wrapper class to encapsulate a request when being sent to a specific allocation id **/
-    public static class ConcreteShardRequest<R extends TransportRequest> extends TransportRequest {
+    public static class ConcreteShardRequest<R extends TransportRequest> extends TransportRequest
+        implements RawIndexingDataTransportRequest {
 
         /** {@link AllocationId#getId()} of the shard this request is sent to **/
         private final String targetAllocationID;
@@ -1187,6 +1189,14 @@ public abstract class TransportReplicationAction<
 
         public long getPrimaryTerm() {
             return primaryTerm;
+        }
+
+        @Override
+        public boolean isRawIndexingData() {
+            if (request instanceof RawIndexingDataTransportRequest) {
+                return ((RawIndexingDataTransportRequest) request).isRawIndexingData();
+            }
+            return false;
         }
 
         @Override

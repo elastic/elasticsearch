@@ -67,7 +67,7 @@ public class EnrollmentIT  extends ESRestHighLevelClientTestCase {
         assertThat(nodeEnrollmentResponse.getTransportKey(), endsWith("1I-r8vOQ=="));
         assertThat(nodeEnrollmentResponse.getTransportCert(), endsWith("OpTdtgJo="));
         List<String> nodesAddresses = nodeEnrollmentResponse.getNodesAddresses();
-        assertThat(nodesAddresses.size(), equalTo(1));
+        assertThat(nodesAddresses.size(), equalTo(2));
     }
 
     public void testEnrollKibana() throws Exception {
@@ -75,7 +75,7 @@ public class EnrollmentIT  extends ESRestHighLevelClientTestCase {
             execute(highLevelClient().security()::enrollKibana, highLevelClient().security()::enrollKibanaAsync, RequestOptions.DEFAULT);
         assertThat(kibanaResponse, notNullValue());
         assertThat(kibanaResponse.getHttpCa()
-            , endsWith("OWFyeGNmcwovSDJReE1tSG1leXJRaWxYbXJPdk9PUDFTNGRrSTFXbFJLOFdaN3c9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"));
+            , endsWith("brcNC5xq6YE7C4_06nH7F6le4kE4Uo6c9fpkl4ehOxQxndNLn462tFF-8VBA8IftJ1PPWzqGxLsCTzM6p6w8sa-XhgNYglLfkRjirc="));
         assertNotNull(kibanaResponse.getPassword());
         assertThat(kibanaResponse.getPassword().toString().length(), equalTo(14));
     }

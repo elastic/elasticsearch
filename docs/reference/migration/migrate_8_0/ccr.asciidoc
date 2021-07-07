@@ -9,7 +9,7 @@
 
 // end::notable-breaking-changes[]
 
-.Remote system indices are not followed automatically if they match in auto-follow patterns.
+.Remote system indices are not followed automatically if they match an auto-follow pattern.
 [%collapsible]
 ====
 *Details* +

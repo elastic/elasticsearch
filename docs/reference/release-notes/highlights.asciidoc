@@ -23,17 +23,13 @@ Other versions:
 | {ref-bare}/7.1/release-highlights-7.1.0.html[7.1]
 | {ref-bare}/7.0/release-highlights-7.0.0.html[7.0]
 
-// Use the notable-highlights tag to mark entries that
-// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
-// end::notable-highlights[]
+[discrete]
+[[async-sql-search]]
+=== Async SQL search
 
-// Omit the notable highlights tag for entries that only need to appear in the ES ref:
-// [discrete]
-// === Heading
-//
-// Description.
+We've added support for async searches to {es-sql}. Searches across large data
+sets or frozen data can take longer to return synchronous results. Async SQL
+search lets you run these searches in the background instead. See
+{ref}/sql-async.html[Run an async SQL search].
+// end::notable-highlights[]

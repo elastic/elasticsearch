@@ -181,7 +181,7 @@ public class MappingLookupTests extends ESTestCase {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) {
+        protected void parseCreateField(DocumentParserContext context) {
         }
 
         @Override

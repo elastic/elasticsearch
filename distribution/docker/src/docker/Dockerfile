@@ -131,12 +131,12 @@ RUN echo "NETWORKING=yes" > /rootfs/etc/sysconfig/network && \\
 RUN ${package_manager} --installroot=/rootfs -y clean all && \\
     cd /rootfs && \\
     rm -rf \\
-        sbin/sln && \\
+        sbin/sln \\
         usr/{{lib,share}/locale,{lib,lib64}/gconv,bin/localedef,sbin/build-locale-archive} \\
         usr/share/{man,doc,info,gnome/help} \\
         usr/share/cracklib \\
         usr/share/i18n \\
-        var/cache/yum \\
+        var/cache/yum && \\
     mkdir -p --mode=0755 var/cache/yum
 
 # ldconfig

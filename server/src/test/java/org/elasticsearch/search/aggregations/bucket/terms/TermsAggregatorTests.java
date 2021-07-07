@@ -36,7 +36,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -45,6 +44,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordField;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -137,14 +138,13 @@ import static org.elasticsearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 public class TermsAggregatorTests extends AggregatorTestCase {
 
@@ -1165,7 +1165,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     public void testIpField() throws Exception {
         MappedFieldType fieldType
-            = new IpFieldMapper.IpFieldType("field", randomBoolean(), false, true, null, null, Collections.emptyMap());
+            = new IpFieldMapper.IpFieldType("field", randomBoolean(), false, true, null, null, Collections.emptyMap(), false);
         testCase(new TermsAggregationBuilder("_name").field("field"), new MatchAllDocsQuery(), iw -> {
             Document document = new Document();
             InetAddress point = InetAddresses.forString("192.168.100.42");
@@ -1928,25 +1928,47 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             .add(new TermQuery(new Term("k", "b")), Occur.SHOULD)
             .add(new TermQuery(new Term("k", "c")), Occur.SHOULD)
             .build();
-        testCase(builder, topLevel, buildIndex, (StringTerms terms) -> {
-            assertThat(terms.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(List.of("b", "c")));
-        }, kft);
-        withAggregator(builder, topLevel, buildIndex, (searcher, terms) -> {
-            Map<String, Object> info = new HashMap<>();
-            terms.collectDebugInfo(info::put);
-            assertThat(info, hasEntry("delegate", "FiltersAggregator.FilterByFilter"));
-        }, kft);
+        debugTestCase(builder, topLevel, buildIndex,
+            (StringTerms terms, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(terms.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(List.of("b", "c")));
+                assertThat(terms.getBuckets().stream().map(StringTerms.Bucket::getDocCount).collect(toList()), equalTo(List.of(1L, 1L)));
+                /*
+                 * The bug used to happen with the filter by filter aggregator
+                 * but at this point we don't use it here. We really *could*
+                 * because the top level query is a pure disjunction of
+                 * two terms that we're querying, but we don't have to code
+                 * to figure that out at this point.
+                 */
+
+                assertTrue(
+                    "impl " + impl,
+                    impl.equals(GlobalOrdinalsStringTermsAggregator.class)
+                        || impl.equals(GlobalOrdinalsStringTermsAggregator.LowCardinality.class)
+                );
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "k",
+                        matchesMap().extraOk()
+                            .entry("result_strategy", "terms")
+                            .entry("has_filter", false)
+                            .entry("segments_with_multi_valued_ords", 0)
+                            .entry("segments_with_single_valued_ords", greaterThan(0))
+                            .entry("collection_strategy", either(equalTo("remap using single bucket ords")).or(equalTo("dense")))
+                    )
+                );
+            },
+            kft);
     }
 
     /**
-     * If the top level query is a runtime field we should still use
-     * {@link StringTermsAggregatorFromFilters} because we expect it'll still
-     * be faster that the normal aggregator, even though running the script
-     * for the runtime field is quite a bit more expensive than a regular
-     * query. The thing is, we won't be executing the script more times than
-     * we would if it were just at the top level.
+     * If the top level query is a runtime field we use the standard aggregator
+     * because it's marginally faster. You'd expect it to be a *ton* faster but
+     * usually the terms drive the iteration and they are still fairly fast.
+     * But the union operation overhead that comes with combining the range with
+     * the top level query tends to slow us down more than the standard aggregator.
      */
-    public void testRuntimeFieldTopLevelQueryStillOptimized() throws IOException {
+    public void testRuntimeFieldTopLevelNotOptimized() throws IOException {
         long totalDocs = 500;
         SearchLookup lookup = new SearchLookup(s -> null, (ft, l) -> null);
         StringFieldScript.LeafFactory scriptFactory = ctx -> new StringFieldScript("dummy", Map.of(), lookup, ctx) {
@@ -1972,14 +1994,75 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 equalTo(List.of("more_stuff", "stuff", "other_stuff"))
             );
             assertThat(r.getBuckets().stream().map(StringTerms.Bucket::getDocCount).collect(toList()), equalTo(List.of(167L, 167L, 166L)));
-            assertThat(impl, equalTo(StringTermsAggregatorFromFilters.class));
-            Map<?, ?> topLevelDebug = (Map<?, ?>) debug.get("t");
-            Map<?, ?> delegateDebug = (Map<?, ?>) topLevelDebug.get("delegate_debug");
-            // We don't estimate the cost here so these shouldn't show up
-            assertThat(delegateDebug, not(hasKey("estimated_cost")));
-            assertThat(delegateDebug, not(hasKey("max_cost")));
-            assertThat((int) delegateDebug.get("segments_counted"), greaterThan(0));
+
+            assertTrue(
+                "impl " + impl,
+                impl.equals(GlobalOrdinalsStringTermsAggregator.class)
+                    || impl.equals(GlobalOrdinalsStringTermsAggregator.LowCardinality.class)
+            );
+            assertMap(
+                debug,
+                matchesMap().entry(
+                    "t",
+                    matchesMap().extraOk()
+                        .entry("result_strategy", "terms")
+                        .entry("has_filter", false)
+                        .entry("segments_with_multi_valued_ords", 0)
+                        .entry("segments_with_single_valued_ords", greaterThan(0))
+                        .entry("collection_strategy", either(equalTo("remap using single bucket ords")).or(equalTo("dense")))
+                )
+            );
         }, new KeywordFieldType("k", true, true, Collections.emptyMap()));
+    }
+
+    /**
+     * If the field we're collecting the terms for is a runtime field we can't
+     * perform any of the optimization because we can't make a list to query
+     * for. Even if we could running the queries would be slow.
+     */
+    public void testRuntimeFieldTermsNotOptimized() throws IOException {
+        long totalDocs = 500;
+        StringFieldScript.Factory scriptFactory = (fieldName, params, lookup) -> ctx -> new StringFieldScript(
+            fieldName,
+            Map.of(),
+            lookup,
+            ctx
+        ) {
+            @Override
+            public void execute() {
+                emit((String) getDoc().get("k").get(0));
+            }
+        };
+        BytesRef[] values = new BytesRef[] {
+            new BytesRef("stuff"), new BytesRef("more_stuff"), new BytesRef("other_stuff"),
+        };
+        MappedFieldType keywordFt = new KeywordFieldType("k", true, true, Collections.emptyMap());
+        MappedFieldType dummyFt = new KeywordScriptFieldType("dummy", scriptFactory, new Script("test"), Map.of());
+        debugTestCase(new TermsAggregationBuilder("t").field("dummy"), new MatchAllDocsQuery(), iw -> {
+            for (int d = 0; d < totalDocs; d++) {
+                BytesRef value = values[d % values.length];
+                iw.addDocument(
+                    List.of(new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE), new SortedSetDocValuesField("k", value))
+                );
+            }
+        }, (StringTerms r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+            assertThat(
+                r.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
+                equalTo(List.of("more_stuff", "stuff", "other_stuff"))
+            );
+            assertThat(r.getBuckets().stream().map(StringTerms.Bucket::getDocCount).collect(toList()), equalTo(List.of(167L, 167L, 166L)));
+
+            assertEquals(impl, MapStringTermsAggregator.class);
+            assertMap(
+                debug,
+                matchesMap().entry(
+                    "t",
+                    matchesMap().extraOk()
+                        .entry("result_strategy", "terms")
+                        .entry("collection_strategy", "from Field [dummy] of type [keyword]")
+                )
+            );
+        }, keywordFt, dummyFt);
     }
 
     private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();

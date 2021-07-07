@@ -20,10 +20,10 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.spatial.common.CartesianFormatterFactory;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
@@ -129,7 +129,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
     }
 
     @Override
-    protected void index(ParseContext context, CartesianPoint point) throws IOException {
+    protected void index(DocumentParserContext context, CartesianPoint point) throws IOException {
         if (fieldType().isSearchable()) {
             context.doc().add(new XYPointField(fieldType().name(), (float) point.getX(), (float) point.getY()));
         }

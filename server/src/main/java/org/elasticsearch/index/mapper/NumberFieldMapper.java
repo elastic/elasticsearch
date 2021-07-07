@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
+
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
@@ -51,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -81,6 +83,8 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).builder.script.get());
         private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<Boolean> dimension;
+
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -94,6 +98,7 @@ public class NumberFieldMapper extends FieldMapper {
         public static Builder docValuesOnly(String name, NumberType type) {
             Builder builder = new Builder(name, type, ScriptCompiler.NONE, false, false);
             builder.indexed.setValue(false);
+            builder.dimension.setValue(false);
             return builder;
         }
 
@@ -108,6 +113,13 @@ public class NumberFieldMapper extends FieldMapper {
                 = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
             this.nullValue = new Parameter<>("null_value", false, () -> null,
                 (n, c, o) -> o == null ? null : type.parse(o, false), m -> toType(m).nullValue).acceptsNull();
+
+            this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
+                .setValidator(v -> {
+                    if (v && EnumSet.of(NumberType.INTEGER, NumberType.LONG, NumberType.BYTE, NumberType.SHORT).contains(type) == false) {
+                        throw new IllegalArgumentException("Parameter [dimension] cannot be set to numeric type [" + type.name + "]");
+                    }
+                });
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);
@@ -130,9 +142,14 @@ public class NumberFieldMapper extends FieldMapper {
             return type.compile(name, script.get(), scriptCompiler);
         }
 
+        public Builder dimension(boolean dimension) {
+            this.dimension.setValue(dimension);
+            return this;
+        }
+
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, script, onScriptError, meta);
+            return List.of(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, script, onScriptError, meta, dimension);
         }
 
         @Override
@@ -944,25 +961,27 @@ public class NumberFieldMapper extends FieldMapper {
         private final boolean coerce;
         private final Number nullValue;
         private final FieldValues<Number> scriptValues;
+        private final boolean isDimension;
 
         public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean isStored,
                                boolean hasDocValues, boolean coerce, Number nullValue, Map<String, String> meta,
-                               FieldValues<Number> script) {
+                               FieldValues<Number> script, boolean isDimension) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;
             this.scriptValues = script;
+            this.isDimension = isDimension;
         }
 
         NumberFieldType(String name, Builder builder) {
             this(name, builder.type, builder.indexed.getValue(), builder.stored.getValue(), builder.hasDocValues.getValue(),
                 builder.coerce.getValue().value(), builder.nullValue.getValue(), builder.meta.getValue(),
-                builder.scriptValues());
+                builder.scriptValues(), builder.dimension.getValue());
         }
 
         public NumberFieldType(String name, NumberType type) {
-            this(name, type, true, false, true, true, null, Collections.emptyMap(), null);
+            this(name, type, true, false, true, true, null, Collections.emptyMap(), null, false);
         }
 
         @Override
@@ -1055,6 +1074,13 @@ public class NumberFieldMapper extends FieldMapper {
         public CollapseType collapseType() {
             return CollapseType.NUMERIC;
         }
+
+        /**
+         * @return true if field has been marked as a dimension field
+         */
+        public boolean isDimension() {
+            return isDimension;
+        }
     }
 
     private final Builder builder;
@@ -1069,6 +1095,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final FieldValues<Number> scriptValues;
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
+    private final boolean dimension;
 
     private NumberFieldMapper(
             String simpleName,
@@ -1087,6 +1114,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
         this.scriptValues = builder.scriptValues();
+        this.dimension = builder.dimension.getValue();
         this.builder = builder;
     }
 
@@ -1109,7 +1137,7 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;
@@ -1148,7 +1176,7 @@ public class NumberFieldMapper extends FieldMapper {
         indexValue(context, numericValue);
     }
 
-    private void indexValue(ParseContext context, Number numericValue) {
+    private void indexValue(DocumentParserContext context, Number numericValue) {
         context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue,
             indexed, hasDocValues, stored));
 
@@ -1158,12 +1186,14 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
-        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(parseContext, value));
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
+        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, builder.scriptCompiler, ignoreMalformedByDefault, coerceByDefault).init(this);
+        return new Builder(simpleName(), type, builder.scriptCompiler, ignoreMalformedByDefault, coerceByDefault)
+            .dimension(dimension).init(this);
     }
 }

@@ -82,34 +82,14 @@ Contains the script or search template, its parameters, and its language.
 
 `source`::
 (Required, string or object)
-Script or search template.
+For scripts, a string containing the script.
++
+For search templates, an object containing the search template. The object
+supports the same parameters as the <<search-search,search API>>'s request body.
+Also supports https://mustache.github.io/[Mustache] variables. See
+<<search-template>>.
 
 `params`::
 (Optional, object)
 Parameters for the script or search template.
 ====
-
-[[create-stored-script-api-example]]
-==== {api-examples-title}
-
-The following request stores a search template. Search templates must use a
-`lang` of `mustache`.
-
-[source,console]
-----
-PUT _scripts/my-search-template
-{
-  "script": {
-    "lang": "mustache",
-    "source": {
-      "from": "{{from}}{{^from}}0{{/from}}",
-      "size": "{{size}}{{^size}}10{{/size}}",
-      "query": {
-        "match": {
-          "content": "{{query_string}}"
-        }
-      }
-    }
-  }
-}
-----

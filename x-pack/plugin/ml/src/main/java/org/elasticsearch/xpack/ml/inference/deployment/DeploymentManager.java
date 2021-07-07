@@ -116,11 +116,12 @@ public class DeploymentManager {
 
                 NlpTaskConfig config = parseConfigDocLeniently(searchResponse.getHits().getAt(0));
                 NlpTask nlpTask = NlpTask.fromConfig(config);
-                processContext.nlpTask.set(nlpTask);
+                NlpTask.Processor processor = nlpTask.createProcessor();
+                processContext.nlpTaskProcessor.set(processor);
                 startAndLoad(task, processContext, modelLoadedListener);
             },
             e -> failTask(task,
-                String.format(Locale.ROOT, "[%s] search for task config failed with error [%s]", task.getModelId(), e))
+                String.format(Locale.ROOT, "[%s] creating NLP task from configuration failed with error [%s]", task.getModelId(), e))
         );
 
         SearchRequest searchRequest = taskConfigSearchRequest(taskConfigDocId, task.getIndex());
@@ -193,10 +194,10 @@ public class DeploymentManager {
             @Override
             protected void doRun() {
                 try {
-                    NlpTask.Processor processor = processContext.nlpTask.get().createProcessor();
+                    NlpTask.Processor processor = processContext.nlpTaskProcessor.get();
                     processor.validateInputs(input);
                     BytesReference request = processor.getRequestBuilder().buildRequest(input, requestId);
-                    logger.trace("Inference Request "+ request.utf8ToString());
+                    logger.trace(() -> "Inference Request "+ request.utf8ToString());
                     processContext.process.get().writeInferenceRequest(request);
 
                     waitForResult(processContext, requestId, timeout, processor.getResultProcessor(), listener);
@@ -262,7 +263,7 @@ public class DeploymentManager {
         private final String modelId;
         private final String index;
         private final SetOnce<NativePyTorchProcess> process = new SetOnce<>();
-        private final SetOnce<NlpTask> nlpTask = new SetOnce<>();
+        private final SetOnce<NlpTask.Processor> nlpTaskProcessor = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
 

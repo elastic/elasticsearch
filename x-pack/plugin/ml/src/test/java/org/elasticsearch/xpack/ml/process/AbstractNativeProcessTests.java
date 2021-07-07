@@ -99,6 +99,7 @@ public class AbstractNativeProcessTests extends ESTestCase {
     }
 
     public void testStart_DoNotDetectCrashWhenProcessIsBeingKilled() throws Exception {
+        when(cppLogHandler.getPid(any(Duration.class))).thenThrow(new TimeoutException());
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.start(executorService);
             process.kill(randomBoolean());

@@ -23,8 +23,6 @@ Other versions:
 | {ref-bare}/7.1/release-highlights-7.1.0.html[7.1]
 | {ref-bare}/7.0/release-highlights-7.0.0.html[7.0]
 
-// Use the notable-highlights tag to mark entries that
-// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
 [discrete]
 [[cross-cluster-eql-search]]
@@ -34,4 +32,11 @@ In 7.14, we added cross-cluster search support to EQL. Cross-cluster search lets
 you run a single EQL search across one or more remote clusters. See
 {ref}/eql.html#run-eql-search-across-clusters[Run an EQL search across
 clusters].
+[[async-sql-search]]
+=== Async SQL search
+
+We've added support for async searches to {es-sql}. Searches across large data
+sets or frozen data can take longer to return synchronous results. Async SQL
+search lets you run these searches in the background instead. See
+{ref}/sql-async.html[Run an async SQL search].
 // end::notable-highlights[]

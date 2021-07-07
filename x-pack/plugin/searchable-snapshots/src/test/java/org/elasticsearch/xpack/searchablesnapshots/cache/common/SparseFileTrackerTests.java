@@ -8,8 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -333,7 +332,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", fileContents.length);
         final Set<AtomicBoolean> listenersCalled = new HashSet<>();
 
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(Settings.EMPTY, random());
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         deterministicTaskQueue.setExecutionDelayVariabilityMillis(1000);
 

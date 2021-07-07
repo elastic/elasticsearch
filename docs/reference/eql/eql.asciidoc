@@ -845,6 +845,7 @@ GET /cluster_one:my-data-stream,cluster_two:my-data-stream/_eql/search
 // TEST[continued]
 // TEST[setup:sec_logs]
 // TEST[teardown:data_stream_cleanup]
+
 [[eql-circuit-breaker]]
 === EQL circuit breaker settings
 

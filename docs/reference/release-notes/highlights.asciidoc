@@ -33,6 +33,7 @@ you run a single EQL search across one or more remote clusters. See
 {ref}/eql.html#run-eql-search-across-clusters[Run an EQL search across
 clusters].
 
+[discrete]
 [[async-sql-search]]
 === Async SQL search
 

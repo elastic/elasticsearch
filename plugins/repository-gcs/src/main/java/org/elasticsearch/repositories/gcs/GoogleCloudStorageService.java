@@ -128,6 +128,8 @@ public class GoogleCloudStorageService {
             final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
             // requires java.lang.RuntimePermission "setFactory"
             // Pin the TLS trust certificates.
+            // We manually load the key store from jks instead of using GoogleUtils.getCertificateTrustStore() because that uses a .p12
+            // store format not compatible with FIPS mode.
             final KeyStore certTrustStore = SecurityUtils.getJavaKeyStore();
             try (InputStream keyStoreStream = GoogleUtils.class.getResourceAsStream("google.jks")) {
                 SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");

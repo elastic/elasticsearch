@@ -22,12 +22,12 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
@@ -593,7 +593,7 @@ public enum RangeType {
     }
 
     public abstract Field getRangeField(String name, RangeFieldMapper.Range range);
-    public List<IndexableField> createFields(ParseContext context, String name, RangeFieldMapper.Range range, boolean indexed,
+    public List<IndexableField> createFields(DocumentParserContext context, String name, RangeFieldMapper.Range range, boolean indexed,
                                              boolean docValued, boolean stored) {
         assert range != null : "range cannot be null when creating fields";
         List<IndexableField> fields = new ArrayList<>();

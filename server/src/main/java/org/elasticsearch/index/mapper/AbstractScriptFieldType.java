@@ -215,19 +215,22 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
         @Override
         protected final RuntimeField createRuntimeField(MappingParserContext parserContext,
+                                                        String parent,
                                                         Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
             if (script.get() == null) {
                 if (parentScriptFactory == null) {
-                    return createRuntimeField(getParseFromSourceFactory());
+                    return createRuntimeField(parent, getParseFromSourceFactory());
                 }
-                return createRuntimeField(getObjectSubfieldFactory(parentScriptFactory));
+                return createRuntimeField(parent, getObjectSubfieldFactory(parentScriptFactory));
             }
+            assert parent == null && parentScriptFactory == null;
             Factory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
-            return createRuntimeField(factory);
+            return createRuntimeField(null, factory);
         }
 
-        final RuntimeField createRuntimeField(Factory scriptFactory) {
-            AbstractScriptFieldType<?> fieldType = createFieldType(name, scriptFactory, getScript(), meta());
+        final RuntimeField createRuntimeField(String parent, Factory scriptFactory) {
+            String fullName = parent == null ? name : parent + "." + name;
+            AbstractScriptFieldType<?> fieldType = createFieldType(fullName, scriptFactory, getScript(), meta());
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
 

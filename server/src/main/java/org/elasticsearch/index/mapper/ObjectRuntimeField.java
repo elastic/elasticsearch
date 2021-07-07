@@ -41,8 +41,8 @@ public class ObjectRuntimeField implements RuntimeField {
                     throw new IllegalArgumentException("object runtime field [" + name + "] must declare a [script]");
                 }
             });
-            //TODO we call it fields2 for now because it clashes with multi_fields which are rejected for all runtime fields
-            private final FieldMapper.Parameter<Map<String, Object>> fields = new FieldMapper.Parameter<>("fields2",
+
+            private final FieldMapper.Parameter<Map<String, Object>> fields = new FieldMapper.Parameter<>("fields",
                 true, Collections::emptyMap, (f, p, o) -> parseFields(f, o), mappers -> {
                 throw new UnsupportedOperationException();
             });
@@ -57,16 +57,17 @@ public class ObjectRuntimeField implements RuntimeField {
 
             @Override
             protected RuntimeField createRuntimeField(MappingParserContext parserContext,
+                                                      String parent,
                                                       Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
-                if (parentScriptFactory != null) {
-                    throw new IllegalArgumentException("Runtime field [" + name + "] of type [object] cannot hold another runtime " +
-                        "field of type [object]");
+                if (parent != null) {
+                    throw new IllegalArgumentException(
+                        "Runtime field [" + name + "] of type [object] cannot be nested within field [" + parent + "]"
+                    );
                 }
+                assert parentScriptFactory == null : "parent is null, we can't be parsing subfields";
                 ObjectFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.get(), ObjectFieldScript.CONTEXT);
-                //TODO the sub-fields should be named after their full path, yet their toXContent should
-                // only print out their leaf field name (which may contain dots!)
                 Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(fields.getValue(),
-                    parserContext, searchLookup -> factory.newFactory(name, script.get().getParams(), searchLookup), false);
+                    parserContext, name, searchLookup -> factory.newFactory(name, script.get().getParams(), searchLookup), false);
                 return new ObjectRuntimeField(name, runtimeFields.values());
             }
         });
@@ -93,7 +94,7 @@ public class ObjectRuntimeField implements RuntimeField {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field("type", "object");
-        builder.startObject("fields2");
+        builder.startObject("fields");
         for (RuntimeField subfield : subfields) {
             subfield.toXContent(builder, params);
         }

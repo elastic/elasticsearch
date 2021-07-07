@@ -50,7 +50,8 @@ public abstract class ObjectFieldScript extends AbstractFieldScript {
     }
 
     protected final void emit(String field, Object value) {
-        List<Object> values = this.fieldValues.computeIfAbsent(field, s -> new ArrayList<>());
+        //fields will be emitted without the prefix, yet they will be looked up using their full name, hence we store the full name
+        List<Object> values = this.fieldValues.computeIfAbsent(fieldName + "." + field, s -> new ArrayList<>());
         values.add(value);
     }
 

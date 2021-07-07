@@ -56,6 +56,7 @@ public interface RuntimeField extends ToXContentFragment {
         }
 
         protected abstract RuntimeField createRuntimeField(MappingParserContext parserContext,
+                                                           String parent,
                                                            Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory);
 
         public final void parse(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
@@ -98,12 +99,13 @@ public interface RuntimeField extends ToXContentFragment {
         RuntimeField parse(String name,
                            Map<String, Object> node,
                            MappingParserContext parserContext,
+                           String parent,
                            Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory)
             throws MapperParsingException {
 
             RuntimeField.Builder builder = builderFunction.apply(name);
             builder.parse(name, parserContext, node);
-            return builder.createRuntimeField(parserContext, parentScriptFactory);
+            return builder.createRuntimeField(parserContext, parent, parentScriptFactory);
         }
     }
 
@@ -111,6 +113,7 @@ public interface RuntimeField extends ToXContentFragment {
      * Parse runtime fields from the provided map, using the provided parser context.
      * @param node the map that holds the runtime fields configuration
      * @param parserContext the parser context that holds info needed when parsing mappings
+     * @param parent the name of the parent field that the field being parsed is part of, if any
      * @param parentScriptFactory script factory of the parent field that the field being parsed is part of, if any
      * @param supportsRemoval whether a null value for a runtime field should be properly parsed and
      *                        translated to the removal of such runtime field
@@ -118,6 +121,7 @@ public interface RuntimeField extends ToXContentFragment {
      */
     static Map<String, RuntimeField> parseRuntimeFields(Map<String, Object> node,
                                                         MappingParserContext parserContext,
+                                                        String parent,
                                                         Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory,
                                                         boolean supportsRemoval) {
         Map<String, RuntimeField> runtimeFields = new HashMap<>();
@@ -147,7 +151,7 @@ public interface RuntimeField extends ToXContentFragment {
                     throw new MapperParsingException("No handler for type [" + type +
                         "] declared on runtime field [" + fieldName + "]");
                 }
-                runtimeFields.put(fieldName, typeParser.parse(fieldName, propNode, parserContext, parentScriptFactory));
+                runtimeFields.put(fieldName, typeParser.parse(fieldName, propNode, parserContext, parent, parentScriptFactory));
                 propNode.remove("type");
                 MappingParser.checkNoRemainingFields(fieldName, propNode);
                 iterator.remove();

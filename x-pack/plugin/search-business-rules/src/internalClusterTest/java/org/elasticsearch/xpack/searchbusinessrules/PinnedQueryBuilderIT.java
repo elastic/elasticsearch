@@ -58,12 +58,12 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         }
     }
 
-    public void testDocumentInsertionOrderRetained() {
+    public void testDocInsertionOrderRetained() {
         Item[] items = randomArray(10, Item[]::new, () -> new Item(randomAlphaOfLength(64), randomAlphaOfLength(256)));
         PinnedQueryBuilder pqb = new PinnedQueryBuilder(new MatchAllQueryBuilder(), items);
-        List<Item> addedDocuments = pqb.documents();
+        List<Item> addedDocs = pqb.docs();
         int pos = 0;
-        for (Item item : addedDocuments) {
+        for (Item item : addedDocs) {
             assertEquals(items[pos++], item);
         }
     }
@@ -102,11 +102,11 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             int numPromotions = randomIntBetween(0, totalDocs);
 
             LinkedHashSet<String> idPins = new LinkedHashSet<>();
-            LinkedHashSet<Item> documentPins = new LinkedHashSet<>();
+            LinkedHashSet<Item> docPins = new LinkedHashSet<>();
             for (int j = 0; j < numPromotions; j++) {
                 String id = Integer.toString(randomIntBetween(0, totalDocs));
                 idPins.add(id);
-                documentPins.add(new Item("test", id));
+                docPins.add(new Item("test", id));
             }
             QueryBuilder organicQuery = null;
             if (i % 5 == 0) {
@@ -117,7 +117,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             }
 
             assertPinnedPromotions(new PinnedQueryBuilder(organicQuery, idPins.toArray(new String[0])), idPins, i, numRelevantDocs);
-            assertPinnedPromotions(new PinnedQueryBuilder(organicQuery, documentPins.toArray(new Item[0])), idPins, i, numRelevantDocs);
+            assertPinnedPromotions(new PinnedQueryBuilder(organicQuery, docPins.toArray(new Item[0])), idPins, i, numRelevantDocs);
         }
 
     }
@@ -256,7 +256,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         assertThat(highlight.fragments()[0].toString(), equalTo("<em>the</em> <em>quick</em> <em>brown</em> fox"));
     }
 
-    public void testMultiIndexDocuments() throws Exception {
+    public void testMultiIndexDocs() throws Exception {
         assertAcked(prepareCreate("test1")
             .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
                 .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())

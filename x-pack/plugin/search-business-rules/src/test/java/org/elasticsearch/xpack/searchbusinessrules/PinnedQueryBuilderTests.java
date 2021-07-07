@@ -101,10 +101,10 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
 
     @Override
     protected void doAssertLuceneQuery(PinnedQueryBuilder queryBuilder, Query query, SearchExecutionContext searchContext) {
-        if (queryBuilder.ids().size() == 0 && queryBuilder.documents().size() == 0) {
+        if (queryBuilder.ids().size() == 0 && queryBuilder.docs().size() == 0) {
             assertThat(query, instanceOf(CappedScoreQuery.class));
         } else {
-            // Have IDs/documents and an organic query - uses DisMax
+            // Have IDs/docs and an organic query - uses DisMax
             assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         }
     }
@@ -176,7 +176,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         assertThat(queryBuilder.organicQuery(), instanceOf(TermQueryBuilder.class));
     }
 
-    public void testDocumentsFromJson() throws IOException {
+    public void testDocsFromJson() throws IOException {
         String query =
                 "{" +
                 "\"pinned\" : {" +
@@ -188,7 +188,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                 "      }" +
                 "    }" +
                 "  }, "+
-                "  \"documents\" : [{ \"_id\": \"1\" }, { \"_index\": \"three\", \"_id\": \"2\" }]," +
+                "  \"docs\" : [{ \"_id\": \"1\" }, { \"_index\": \"three\", \"_id\": \"2\" }]," +
                 "  \"boost\":1.0 "+
                 "}" +
               "}";
@@ -196,7 +196,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         PinnedQueryBuilder queryBuilder = (PinnedQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
 
-        assertEquals(query, 2, queryBuilder.documents().size());
+        assertEquals(query, 2, queryBuilder.docs().size());
         assertThat(queryBuilder.organicQuery(), instanceOf(TermQueryBuilder.class));
     }
 
@@ -219,7 +219,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         assertThat(rewritten, instanceOf(PinnedQueryBuilder.class));
     }
 
-    public void testDocumentsRewrite() throws IOException {
+    public void testDocsRewrite() throws IOException {
         PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("foo", 1), new Item(null, "1"));
         QueryBuilder rewritten = pinnedQueryBuilder.rewrite(createSearchExecutionContext());
         assertThat(rewritten, instanceOf(PinnedQueryBuilder.class));

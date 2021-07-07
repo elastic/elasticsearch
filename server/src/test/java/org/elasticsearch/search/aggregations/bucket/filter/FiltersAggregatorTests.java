@@ -460,7 +460,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                                 matchesList().item(
                                     matchesMap().entry("query", "*:*")
                                         .entry("specialized_for", "match_all")
-                                        .entry("results_from_metadata", 1)
+                                        .entry("results_from_metadata", greaterThanOrEqualTo(1))
                                 )
                             )
                     )

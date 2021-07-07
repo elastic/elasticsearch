@@ -32,7 +32,7 @@ sequenceParams
 
 sequence
     : SEQUENCE (by=joinKeys sequenceParams? | sequenceParams disallowed=joinKeys?)?
-      sequenceTerm sequenceTerm+
+      sequenceTerm+
       (UNTIL until=sequenceTerm)?
     ;
 
@@ -56,7 +56,7 @@ joinTerm
    ;
 
 sequenceTerm
-   : subquery (by=joinKeys)?
+   : subquery (by=joinKeys)? (REPEAT ASGN repeat=number)?
    ;
 
 subquery
@@ -174,6 +174,7 @@ OF: 'of';
 OR: 'or';
 REGEX: 'regex';
 REGEX_INSENSITIVE: 'regex~';
+REPEAT: 'repeat';
 SEQUENCE: 'sequence';
 TRUE: 'true';
 UNTIL: 'until';

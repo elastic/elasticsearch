@@ -151,9 +151,9 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         case DOUBLE:
             return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
         case DATE:
-            return dateComparatorSource(missingValue, sortMode, nested, targetNumericType);
+            return dateComparatorSource(missingValue, sortMode, nested);
         case DATE_NANOSECONDS:
-            return dateNanosComparatorSource(missingValue, sortMode, nested, targetNumericType);
+            return dateNanosComparatorSource(missingValue, sortMode, nested);
         default:
             assert targetNumericType.isFloatingPoint() == false;
             return new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
@@ -163,17 +163,15 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
     protected XFieldComparatorSource dateComparatorSource(
         @Nullable Object missingValue,
         MultiValueMode sortMode,
-        Nested nested,
-        NumericType targetNumericType
+        Nested nested
     ) {
-        return new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
+        return new LongValuesComparatorSource(this, missingValue, sortMode, nested, NumericType.DATE);
     }
 
     protected XFieldComparatorSource dateNanosComparatorSource(
         @Nullable Object missingValue,
         MultiValueMode sortMode,
-        Nested nested,
-        NumericType targetNumericType
+        Nested nested
     ) {
         return new LongValuesComparatorSource(
             this,
@@ -181,7 +179,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             sortMode,
             nested,
             dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds),
-            targetNumericType
+            NumericType.DATE_NANOSECONDS
         );
     }
 

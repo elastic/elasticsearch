@@ -16,6 +16,7 @@ import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.BitSet;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -138,7 +139,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             // special case to prevent negative values that would cause invalid nanosecond ranges
             if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
                 final boolean min = sortMissingFirst(missingValue) ^ reversed;
-                return min ? 0L : Long.MAX_VALUE;
+                return min ? 0L : DateUtils.MAX_NANOSECOND;
             }
         }
         return super.missingObject(missingValue, reversed);

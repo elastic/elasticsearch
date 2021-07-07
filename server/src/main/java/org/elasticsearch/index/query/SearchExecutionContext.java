@@ -27,6 +27,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -404,6 +405,29 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 return mappingLookup.indexAnalyzer(fieldName, unindexedFieldAnalyzer);
             }
         };
+    }
+
+    /**
+     * Return a function that formats a list of Geometries.
+     * @param format the provided format. It can be a simple name or contain an
+     *               extra parameter between parenthesis, e.g format or format(param)
+     */
+    public Function<List<Geometry>, List<Object>>  getGeoFormatter(String format) {
+        final String formatName;
+        final String param;
+        final int start = format.indexOf('(');
+        if (start == -1)  {
+            formatName = format;
+            param = null;
+        } else {
+            formatName = format.substring(0, start);
+            param = format.substring(start + 1, format.length() - 1);
+        }
+        Function<List<Geometry>, List<Object>> formatter = mapperService.getGeoFormatterEngine(formatName).getFormatter(param);
+        if (formatter == null) {
+            throw new IllegalArgumentException("Unrecognized geometry format [" + format + "].");
+        }
+        return formatter;
     }
 
     public ValuesSourceRegistry getValuesSourceRegistry() {

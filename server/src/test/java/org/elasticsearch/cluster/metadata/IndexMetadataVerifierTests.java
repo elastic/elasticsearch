@@ -84,7 +84,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
             Settings.EMPTY,
             xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-                MapperPlugin.NOOP_FIELD_FILTER), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                MapperPlugin.NOOP_FIELD_FILTER, Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             null
         );
     }

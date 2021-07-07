@@ -242,8 +242,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
-            return GeoFormatterFactory.getFormatter(format);
+        protected Function<List<Geometry>, List<Object>> getFormatter(SearchExecutionContext context, String format) {
+            return context.getGeoFormatter(format);
         }
 
         @Override
@@ -256,7 +256,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (scriptValues == null) {
                 return super.valueFetcher(context, format);
             }
-            final Function<List<Geometry>, List<Object>> formatter = getFormatter(format != null ? format : GeoFormatterFactory.GEOJSON);
+            final Function<List<Geometry>, List<Object>> formatter =
+                getFormatter(context, format != null ? format : GeoFormatterFactory.GEOJSON);
             return new ValueFetcher() {
                 LeafReaderContext ctx;
 

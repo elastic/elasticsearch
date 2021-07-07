@@ -9,6 +9,8 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -27,6 +29,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.plugins.GeoExtensionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -54,6 +57,13 @@ public class IndicesModuleTests extends ESTestCase {
         }
     }
 
+    private static class FakeGeoFormat implements GeoFormatterFactory.GeoFormatterEngine {
+        @Override
+        public Function<List<Geometry>, List<Object>> getFormatter(String param) {
+            return null;
+        }
+    }
+
     private static final MetadataFieldMapper.TypeParser PARSER = new MetadataFieldMapper.ConfigurableTypeParser(c -> null, c -> null);
 
     private final List<MapperPlugin> fakePlugins = Arrays.asList(new MapperPlugin() {
@@ -73,7 +83,7 @@ public class IndicesModuleTests extends ESTestCase {
             FieldNamesFieldMapper.NAME };
 
     public void testBuiltinMappers() {
-        IndicesModule module = new IndicesModule(Collections.emptyList());
+        IndicesModule module = new IndicesModule(Collections.emptyList(), Collections.emptyList());
         {
             Version version = VersionUtils.randomVersionBetween(random(),
                 Version.V_8_0_0, Version.CURRENT);
@@ -95,8 +105,8 @@ public class IndicesModuleTests extends ESTestCase {
     }
 
     public void testBuiltinWithPlugins() {
-        IndicesModule noPluginsModule = new IndicesModule(Collections.emptyList());
-        IndicesModule module = new IndicesModule(fakePlugins);
+        IndicesModule noPluginsModule = new IndicesModule(Collections.emptyList(), Collections.emptyList());
+        IndicesModule module = new IndicesModule(fakePlugins, Collections.emptyList());
         MapperRegistry registry = module.getMapperRegistry();
         assertThat(registry.getMapperParsers().size(), greaterThan(noPluginsModule.getMapperRegistry().getMapperParsers().size()));
         assertThat(registry.getMetadataMapperParsers(Version.CURRENT).size(),
@@ -128,7 +138,19 @@ public class IndicesModuleTests extends ESTestCase {
             }
         });
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(plugins));
+            () -> new IndicesModule(plugins, Collections.emptyList()));
+        assertThat(e.getMessage(), containsString("already registered"));
+    }
+
+    public void testDuplicateBuiltinGeoFormat() {
+        List<GeoExtensionPlugin> plugins = Arrays.asList(new GeoExtensionPlugin() {
+            @Override
+            public Map<String, GeoFormatterFactory.GeoFormatterEngine> getGeoFormatters() {
+                return Collections.singletonMap(GeoFormatterFactory.WKT, new FakeGeoFormat());
+            }
+        });
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new IndicesModule(Collections.emptyList(), plugins));
         assertThat(e.getMessage(), containsString("already registered"));
     }
 
@@ -141,7 +163,7 @@ public class IndicesModuleTests extends ESTestCase {
         };
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(plugins));
+            () -> new IndicesModule(plugins, Collections.emptyList()));
         assertThat(e.getMessage(), containsString("already registered"));
     }
 
@@ -153,7 +175,7 @@ public class IndicesModuleTests extends ESTestCase {
             }
         });
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(plugins));
+            () -> new IndicesModule(plugins, Collections.emptyList()));
         assertThat(e.getMessage(), containsString("already registered"));
     }
 
@@ -166,7 +188,7 @@ public class IndicesModuleTests extends ESTestCase {
         };
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(plugins));
+            () -> new IndicesModule(plugins, Collections.emptyList()));
         assertThat(e.getMessage(), containsString("already registered"));
     }
 
@@ -179,7 +201,7 @@ public class IndicesModuleTests extends ESTestCase {
         };
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(plugins));
+            () -> new IndicesModule(plugins, Collections.emptyList()));
         assertThat(e.getMessage(), containsString("already registered"));
     }
 
@@ -192,7 +214,7 @@ public class IndicesModuleTests extends ESTestCase {
         };
         List<MapperPlugin> plugins = Collections.singletonList(plugin);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(plugins));
+            () -> new IndicesModule(plugins, Collections.emptyList()));
         assertThat(e.getMessage(), containsString("already registered"));
     }
 
@@ -204,19 +226,19 @@ public class IndicesModuleTests extends ESTestCase {
             }
         });
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(plugins));
+            () -> new IndicesModule(plugins, Collections.emptyList()));
         assertThat(e.getMessage(), containsString("cannot contain metadata mapper [_field_names]"));
     }
 
     public void testFieldNamesIsLast() {
-        IndicesModule module = new IndicesModule(Collections.emptyList());
+        IndicesModule module = new IndicesModule(Collections.emptyList(), Collections.emptyList());
         Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         List<String> fieldNames = new ArrayList<>(module.getMapperRegistry().getMetadataMapperParsers(version).keySet());
         assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));
     }
 
     public void testFieldNamesIsLastWithPlugins() {
-        IndicesModule module = new IndicesModule(fakePlugins);
+        IndicesModule module = new IndicesModule(fakePlugins, Collections.emptyList());
         Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         List<String> fieldNames = new ArrayList<>(module.getMapperRegistry().getMetadataMapperParsers(version).keySet());
         assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));
@@ -249,7 +271,7 @@ public class IndicesModuleTests extends ESTestCase {
                 }
             });
 
-        IndicesModule indicesModule = new IndicesModule(mapperPlugins);
+        IndicesModule indicesModule = new IndicesModule(mapperPlugins, Collections.emptyList());
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         Function<String, Predicate<String>> fieldFilter = mapperRegistry.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
@@ -272,7 +294,7 @@ public class IndicesModuleTests extends ESTestCase {
         for (int i = 0; i < numPlugins; i++) {
             mapperPlugins.add(new MapperPlugin() {});
         }
-        IndicesModule indicesModule = new IndicesModule(mapperPlugins);
+        IndicesModule indicesModule = new IndicesModule(mapperPlugins, Collections.emptyList());
         Function<String, Predicate<String>> fieldFilter = indicesModule.getMapperRegistry().getFieldFilter();
         assertSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
     }
@@ -298,7 +320,7 @@ public class IndicesModuleTests extends ESTestCase {
                     }
                 });
 
-        IndicesModule indicesModule = new IndicesModule(mapperPlugins);
+        IndicesModule indicesModule = new IndicesModule(mapperPlugins, Collections.emptyList());
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         Function<String, Predicate<String>> fieldFilter = mapperRegistry.getFieldFilter();
         assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 7)));

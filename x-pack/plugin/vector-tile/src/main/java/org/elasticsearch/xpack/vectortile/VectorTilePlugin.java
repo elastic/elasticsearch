@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.GeoExtensionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -34,7 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class VectorTilePlugin extends Plugin implements ActionPlugin, MapperPlugin {
+public class VectorTilePlugin extends Plugin implements ActionPlugin, GeoExtensionPlugin {
 
     // to be overriden by tests
     protected XPackLicenseState getLicenseState() {
@@ -88,6 +88,7 @@ public class VectorTilePlugin extends Plugin implements ActionPlugin, MapperPlug
     @Override
     public Map<String, GeoFormatterFactory.GeoFormatterEngine> getGeoFormatters() {
         return Map.of("mvt", param -> {
+            // we expect either z/x/y or z/x/y@extent
             final String[] parts = param.split("@", 3);
             if (parts.length > 2) {
                 throw new IllegalArgumentException(

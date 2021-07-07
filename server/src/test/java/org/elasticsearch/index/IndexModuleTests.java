@@ -157,7 +157,7 @@ public class IndexModuleTests extends ESTestCase {
         scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         nodeEnvironment = new NodeEnvironment(settings, environment);
-        mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
+        mapperRegistry = new IndicesModule(Collections.emptyList(), Collections.emptyList()).getMapperRegistry();
         indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext());
     }
 

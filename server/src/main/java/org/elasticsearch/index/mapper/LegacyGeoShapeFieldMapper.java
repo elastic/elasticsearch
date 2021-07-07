@@ -18,7 +18,6 @@ import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -454,8 +453,8 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
-            return GeoFormatterFactory.getFormatter(format);
+        protected Function<List<Geometry>, List<Object>> getFormatter(SearchExecutionContext context, String format) {
+            return context.getGeoFormatter(format);
         }
 
         @Override

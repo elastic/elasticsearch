@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -135,6 +136,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public MappingParserContext parserContext() {
         return parserContextSupplier.get();
+    }
+
+    /**
+     * Return the GeoFormatterEngine for the given format.
+     */
+    public GeoFormatterFactory.GeoFormatterEngine getGeoFormatterEngine(String formatName) {
+        return mapperRegistry.getGeoFormatters().get(formatName);
     }
 
     /**

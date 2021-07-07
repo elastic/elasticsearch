@@ -107,7 +107,7 @@ public class CodecTests extends ESTestCase {
         SimilarityService similarityService = new SimilarityService(settings, null, Collections.emptyMap());
         IndexAnalyzers indexAnalyzers = createTestAnalysis(settings, nodeSettings).indexAnalyzers;
         MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            MapperPlugin.NOOP_FIELD_FILTER);
+            MapperPlugin.NOOP_FIELD_FILTER, Collections.emptyMap());
         MapperService service = new MapperService(settings, indexAnalyzers, xContentRegistry(), similarityService, mapperRegistry,
                 () -> null, () -> false, ScriptCompiler.NONE);
         return new CodecService(service, LogManager.getLogger("test"));

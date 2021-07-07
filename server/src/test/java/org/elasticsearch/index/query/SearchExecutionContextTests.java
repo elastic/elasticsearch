@@ -441,7 +441,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             emptyMap(),
             emptyMap()
         );
-        IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
+        IndicesModule indicesModule = new IndicesModule(Collections.emptyList(), Collections.emptyList());
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         Supplier<SearchExecutionContext> searchExecutionContextSupplier = () -> { throw new UnsupportedOperationException(); };
         MapperService mapperService = mock(MapperService.class);

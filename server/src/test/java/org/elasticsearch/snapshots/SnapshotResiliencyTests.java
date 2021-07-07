@@ -1737,7 +1737,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     settings,
                     IndexScopedSettings.BUILT_IN_INDEX_SETTINGS
                 );
-                final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
+                final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList(), Collections.emptyList())
+                    .getMapperRegistry();
                 indicesService = new IndicesService(
                     settings,
                     mock(PluginsService.class),

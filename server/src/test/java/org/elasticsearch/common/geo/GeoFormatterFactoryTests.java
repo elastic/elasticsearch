@@ -18,20 +18,22 @@ import org.hamcrest.Matchers;
 public class GeoFormatterFactoryTests extends ESTestCase {
 
    public void testSupportedFormats() {
-       assertThat(GeoFormatterFactory.getFormatter(GeoFormatterFactory.WKT), Matchers.notNullValue());
-       assertThat(GeoFormatterFactory.getFormatter(GeoFormatterFactory.GEOJSON), Matchers.notNullValue());
+       assertThat(GeoFormatterFactory.getGeoFormatterEngine(GeoFormatterFactory.WKT), Matchers.notNullValue());
+       assertThat(GeoFormatterFactory.getGeoFormatterEngine(GeoFormatterFactory.GEOJSON), Matchers.notNullValue());
    }
 
     public void testThrowErrorWhenPassingMeta() {
         {
             IllegalArgumentException ex =
-                expectThrows(IllegalArgumentException.class, () -> GeoFormatterFactory.getFormatter(GeoFormatterFactory.WKT + "(xx)"));
-            assertThat(ex.getMessage(), Matchers.equalTo("wkt format does not support extra parameters [xx]"));
+                expectThrows(IllegalArgumentException.class,
+                    () -> GeoFormatterFactory.getGeoFormatterEngine(GeoFormatterFactory.WKT).getFormatter("param"));
+            assertThat(ex.getMessage(), Matchers.equalTo("wkt format does not support extra parameters [param]"));
         }
         {
             IllegalArgumentException ex =
-                expectThrows(IllegalArgumentException.class, () -> GeoFormatterFactory.getFormatter(GeoFormatterFactory.GEOJSON + "(xx)"));
-            assertThat(ex.getMessage(), Matchers.equalTo("geojson format does not support extra parameters [xx]"));
+                expectThrows(IllegalArgumentException.class, () ->
+                    GeoFormatterFactory.getGeoFormatterEngine(GeoFormatterFactory.GEOJSON).getFormatter("param"));
+            assertThat(ex.getMessage(), Matchers.equalTo("geojson format does not support extra parameters [param]"));
         }
     }
 }

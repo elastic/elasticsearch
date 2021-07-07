@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.Collections;
@@ -27,11 +28,13 @@ public final class MapperRegistry {
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers7x;
     private final Function<String, Predicate<String>> fieldFilter;
+    private final Map<String, GeoFormatterFactory.GeoFormatterEngine> geoFormatters;
 
 
     public MapperRegistry(Map<String, Mapper.TypeParser> mapperParsers, Map<String, RuntimeField.Parser> runtimeFieldParsers,
                           Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
-                          Function<String, Predicate<String>> fieldFilter) {
+                          Function<String, Predicate<String>> fieldFilter,
+                          Map<String, GeoFormatterFactory.GeoFormatterEngine> geoFormatters) {
         this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
         this.runtimeFieldParsers = runtimeFieldParsers;
         this.metadataMapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(metadataMapperParsers));
@@ -39,6 +42,7 @@ public final class MapperRegistry {
         metadata7x.remove(NestedPathFieldMapper.NAME);
         this.metadataMapperParsers7x = metadata7x;
         this.fieldFilter = fieldFilter;
+        this.geoFormatters = geoFormatters;
     }
 
     /**
@@ -48,6 +52,15 @@ public final class MapperRegistry {
     public Map<String, Mapper.TypeParser> getMapperParsers() {
         return mapperParsers;
     }
+
+    /**
+     * Return a map of the GeoFormatterEngines that have been registered. The
+     * returned map uses the format name as a key.
+     */
+    public Map<String, GeoFormatterFactory.GeoFormatterEngine> getGeoFormatters() {
+        return geoFormatters;
+    }
+
 
     public Map<String, RuntimeField.Parser> getRuntimeFieldParsers() {
         return runtimeFieldParsers;

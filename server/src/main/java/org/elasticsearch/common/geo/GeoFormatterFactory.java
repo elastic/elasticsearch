@@ -53,32 +53,7 @@ public class GeoFormatterFactory {
         });
     }
 
-    /**
-     * Returns a formatter by name
-     */
-    public static Function<List<Geometry>, List<Object>> getFormatter(String name) {
-        final String formatName;
-        final String param;
-        final int start = name.indexOf('(');
-        if (start == -1)  {
-            formatName = name;
-            param = null;
-        } else {
-            formatName = name.substring(0, start);
-            param = name.substring(start + 1, name.length() - 1);
-        }
-        Function<List<Geometry>, List<Object>> format = FORMATTERS.get(formatName).getFormatter(param);
-        if (format == null) {
-            throw new IllegalArgumentException("Unrecognized geometry format [" + name + "].");
-        }
-        return format;
-    }
-
-    public static void add(Map<String, GeoFormatterEngine> formatters) {
-        for (Map.Entry<String, GeoFormatterEngine> entry : formatters.entrySet()) {
-            if (FORMATTERS.put(entry.getKey(), entry.getValue()) != null) {
-                throw new IllegalArgumentException("Geo formatter engine [" + entry.getKey() + "] is already registered");
-            }
-        }
+    public static GeoFormatterEngine getGeoFormatterEngine(String name) {
+        return FORMATTERS.get(name);
     }
 }

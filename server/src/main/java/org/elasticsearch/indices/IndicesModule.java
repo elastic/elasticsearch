@@ -52,6 +52,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.plugins.GeoExtensionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.index.mapper.BooleanScriptFieldType;
 import org.elasticsearch.index.mapper.DateScriptFieldType;
@@ -76,9 +77,9 @@ import java.util.function.Predicate;
 public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
-    public IndicesModule(List<MapperPlugin> mapperPlugins) {
+    public IndicesModule(List<MapperPlugin> mapperPlugins, List<GeoExtensionPlugin> geoPlugins) {
         this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getRuntimeFields(mapperPlugins),
-            getMetadataMappers(mapperPlugins), getFieldFilter(mapperPlugins));
+            getMetadataMappers(mapperPlugins), getFieldFilter(mapperPlugins), getGeoFormatters(geoPlugins));
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -132,7 +133,6 @@ public class IndicesModule extends AbstractModule {
         mappers.put(TextFieldMapper.CONTENT_TYPE, TextFieldMapper.PARSER);
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
-            GeoFormatterFactory.add(mapperPlugin.getGeoFormatters());
             for (Map.Entry<String, Mapper.TypeParser> entry : mapperPlugin.getMappers().entrySet()) {
                 if (mappers.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Mapper [" + entry.getKey() + "] is already registered");
@@ -140,6 +140,22 @@ public class IndicesModule extends AbstractModule {
             }
         }
         return Collections.unmodifiableMap(mappers);
+    }
+
+    public static Map<String, GeoFormatterFactory.GeoFormatterEngine> getGeoFormatters(List<GeoExtensionPlugin> geoPlugins) {
+        Map<String, GeoFormatterFactory.GeoFormatterEngine> formatters = new LinkedHashMap<>();
+        // built in formatters
+        formatters.put(GeoFormatterFactory.WKT, GeoFormatterFactory.getGeoFormatterEngine(GeoFormatterFactory.WKT));
+        formatters.put(GeoFormatterFactory.GEOJSON, GeoFormatterFactory.getGeoFormatterEngine(GeoFormatterFactory.GEOJSON));
+        // plugins
+        for (GeoExtensionPlugin geoPlugin : geoPlugins) {
+            for (Map.Entry<String, GeoFormatterFactory.GeoFormatterEngine> entry : geoPlugin.getGeoFormatters().entrySet()) {
+                if (formatters.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Geo formatter [" + entry.getKey() + "] is already registered");
+                }
+            }
+        }
+        return Collections.unmodifiableMap(formatters);
     }
 
     private static Map<String, RuntimeField.Parser> getRuntimeFields(List<MapperPlugin> mapperPlugins) {

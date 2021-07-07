@@ -34,7 +34,7 @@ public class MapperTestUtils {
                                                  Path tempDir,
                                                  Settings indexSettings,
                                                  String indexName) throws IOException {
-        IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
+        IndicesModule indicesModule = new IndicesModule(Collections.emptyList(), Collections.emptyList());
         return newMapperService(xContentRegistry, tempDir, indexSettings, indicesModule, indexName);
     }
 

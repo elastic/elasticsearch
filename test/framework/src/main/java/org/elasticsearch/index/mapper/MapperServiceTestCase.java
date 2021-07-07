@@ -48,6 +48,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.GeoExtensionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -179,7 +180,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                                                       BooleanSupplier idFieldDataEnabled) {
         IndexSettings indexSettings = createIndexSettings(version, settings);
         MapperRegistry mapperRegistry = new IndicesModule(
-            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
+            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList()),
+             getPlugins().stream().filter(p -> p instanceof GeoExtensionPlugin).map(p -> (GeoExtensionPlugin) p).collect(toList())
         ).getMapperRegistry();
 
 

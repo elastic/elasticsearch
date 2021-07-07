@@ -29,7 +29,7 @@ public final class LeafRuntimeField implements RuntimeField {
         this.name = name;
         this.mappedFieldType = mappedFieldType;
         this.parameters = parameters;
-        assert name.equals(mappedFieldType.name());
+        assert mappedFieldType.name().startsWith(name);
     }
 
     @Override

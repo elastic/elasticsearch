@@ -792,6 +792,45 @@ results by using <<get-async-eql-status-api,get async EQL status API>>.
 You can also manually delete saved synchronous searches using the
 <<delete-async-eql-search-api,delete async EQL search API>>.
 
+[discrete]
+[[eql-circuit-breaker]]
+=== EQL circuit breaker settings
+
+When a <<eql-sequences, sequence>> query is executed, the node handling the query
+needs to keep some structures in memory, which are needed by the algorithm
+implementing the sequence matching. When large amounts of data need to be processed,
+and/or a large amount of matched sequences is requested by the user (by setting the
+<<eql-search-api-params-size, size>> query param), the memory occupied by those
+structures could potentially exceed the available memory of the JVM. This would cause
+an `OutOfMemory` exception which would bring down the node.
+
+To prevent this from happening, a special <<circuit-breaker, circuit breaker>> is used,
+which limits the memory allocation during the execution of a <<eql-sequences, sequence>>
+query. When the breaker is triggered, an `org.elasticsearch.common.breaker.CircuitBreakingException`
+is thrown and a descriptive error message is returned to the user.
+
+This <<circuit-breaker, circuit breaker>> can be configured using the following settings:
+
+`breaker.eql_sequence.limit`::
+(<<cluster-update-settings,Dynamic>>) The limit for circuit breaker used to restrict
+the memory utilisation during the execution of an EQL sequence query. This value is
+defined as a percentage of the JVM heap. Defaults to `50%`. If the
+<<parent-circuit-breaker,parent circuit breaker>> is set to a value less than `50%`,
+this setting uses that value as its default instead.
+
+`breaker.eql_sequence.overhead`::
+(<<cluster-update-settings,Dynamic>>) A constant that sequence query memory
+estimates are multiplied by to determine a final estimate. Defaults to `1`.
+
+`breaker.eql_sequence.type`::
+(<<static-cluster-setting,Static>>) Circuit breaker type. Valid values are:
+
+`memory` (Default):::
+The breaker limits memory usage for EQL sequence queries.
+
+`noop`:::
+Disables the breaker.
+
 include::syntax.asciidoc[]
 include::functions.asciidoc[]
 include::pipes.asciidoc[]

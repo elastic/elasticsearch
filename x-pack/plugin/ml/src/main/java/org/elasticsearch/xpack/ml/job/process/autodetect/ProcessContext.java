@@ -28,7 +28,6 @@ final class ProcessContext {
     private final JobTask jobTask;
     private volatile AutodetectCommunicator autodetectCommunicator;
     private volatile ProcessState state;
-    private volatile KillBuilder latestKillRequest = null;
 
     ProcessContext(JobTask jobTask) {
         this.jobTask = jobTask;
@@ -45,21 +44,6 @@ final class ProcessContext {
 
     private void setAutodetectCommunicator(AutodetectCommunicator autodetectCommunicator) {
         this.autodetectCommunicator = autodetectCommunicator;
-    }
-
-    boolean shouldBeKilled() {
-        return latestKillRequest != null;
-    }
-
-    void killIt() {
-        // This method should only be called for a process that's known to be connected
-        if (autodetectCommunicator == null) {
-            throw new IllegalArgumentException("Unable to kill job as its communicator is not connected");
-        }
-        if (latestKillRequest == null) {
-            throw new IllegalArgumentException("Unable to kill job as previous request is not completed");
-        }
-        latestKillRequest.killConnectedProcess(false);
     }
 
     ProcessStateName getState() {
@@ -132,28 +116,15 @@ final class ProcessContext {
         }
 
         void kill() {
-            if (autodetectCommunicator != null) {
-                killConnectedProcess(finish);
-            } else {
-                latestKillRequest = this;
+            if (autodetectCommunicator == null) {
                 // Killing a connected process would also complete the persistent task if `finish` was true,
                 // so we should do the same here even though the process wasn't yet connected at the time of
                 // the kill
                 if (finish) {
                     jobTask.markAsCompleted();
                 }
+                return;
             }
-        }
-
-        /**
-         * @param finishPersistentTask Sometimes this method is called immediately after a process is
-         *                             is started, if it was requested to be killed before it started.
-         *                             In this situation the persistent task has already been completed
-         *                             if that was desired.
-         */
-        private void killConnectedProcess(boolean finishPersistentTask) {
-            assert autodetectCommunicator != null;
-
             String jobId = jobTask.getJobId();
 
             if (silent == false) {
@@ -165,7 +136,7 @@ final class ProcessContext {
                 }
             }
             try {
-                autodetectCommunicator.killProcess(awaitCompletion, finishPersistentTask, shouldFinalizeJob);
+                autodetectCommunicator.killProcess(awaitCompletion, finish, shouldFinalizeJob);
             } catch (IOException e) {
                 LOGGER.error("[{}] Failed to kill autodetect process for job", jobId);
             }

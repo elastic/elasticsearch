@@ -541,16 +541,15 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
                     try {
                         if (createProcessAndSetRunning(processContext, job, params, closeHandler)) {
+                            // This next check also covers the case of a process being killed while it was being started.
+                            // It relies on callers setting the closing flag on the job task before calling this method.
+                            // It also relies on the fact that at this stage of the process lifecycle kill and close are
+                            // basically identical, i.e. the process has done so little work that making it exit by closing
+                            // its input stream will not result in side effects.
                             if (processContext.getJobTask().isClosing()) {
-                                logger.debug("Aborted opening job [{}] as it is being closed (after starting process)", job.getId());
+                                logger.debug("Aborted opening job [{}] as it is being closed or killed (after starting process)",
+                                    job.getId());
                                 closeProcessAndTask(processContext, jobTask, "job is already closing");
-                                return;
-                            }
-                            // It is possible that a `kill` request came in before the communicator was set
-                            // This means that the kill was not handled appropriately and we continued down this execution path
-                            if (processContext.shouldBeKilled()) {
-                                logger.debug("Aborted opening job [{}] as it is being killed", job.getId());
-                                processContext.killIt();
                                 return;
                             }
                             processContext.getAutodetectCommunicator().restoreState(params.modelSnapshot());

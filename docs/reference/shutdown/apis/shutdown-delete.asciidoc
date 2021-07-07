@@ -1,61 +1,62 @@
-[[shutdown-api-delete-shutdown]]
-=== Unregister node for shutdown API
+[[delete-shutdown]]
+=== Delete shutdown API
 
-Signals that a node should no longer be prepared to shut down.
+Cancels shutdown preparations or clears a shutdown request 
+so a node can resume normal operations. 
 
-[[shutdown-api-delete-request]]
+[[delete-shutdown-api-request]]
 ==== {api-request-title}
 
 `DELETE _nodes/<node-id>/shutdown`
 
-[[shutdown-api-delete-prereqs]]
+[[delete-shutdown-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
-* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
-users can use this API.
+* If the <<operator-privileges,{operator-feature}>> is enabled,
+you must be an operator to use this API.
 
-[[shutdown-api-delete-desc]]
+[[delete-shutdown-api-desc]]
 ==== {api-description-title}
 
-Signals that the given node should no longer be prepared for shutdown and
-can resume operations as a normal node in the cluster.
+Enables a node to resume normal operations following a 
+<<put-shutdown, put shutdown>> request. 
+You must explicitly clear the shutdown request when a node rejoins the cluster, 
+regardless of the shutdown type. 
 
-NOTE: This API must be used if a node returns to the cluster after the node has
-been <<shutdown-api-put-shutdown, registered for shutdown>> - requests will not
-be automatically cleared for either `RESTART` or `REMOVE` request types.
 
-[[shutdown-api-delete-path-params]]
+[[delete-shutdown-api-path-params]]
 ==== {api-path-parms-title}
 
 `<node-id>`::
 (Optional, string)
-The ID of a node which is preparing to be shut down.
+The ID of a node that you prepared for shut down.
 
-[[shutdown-api-delete-params]]
+[[delete-shutdown-api-params]]
 ==== {api-query-parms-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-[[shutdown-api-delete-example]]
+[[delete-shutdown-api-example]]
+==== {api-examples-title}
 
-This API is only useful after a node has been registered for shutdown:
+Prepare a node to be restarted: 
 
 [source,console]
 --------------------------------------------------
 PUT /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 {
   "type": "restart",
-  "reason": "demonstrating how the node shutdown API works"
+  "reason": "Demonstrating how the node shutdown API works"
 }
 --------------------------------------------------
 // TEST[setup:node]
 // TEST[s/USpTGYaBSIKbgSUJR2Z9lg/\$node_name/]
 
-Once a node is in the process of preparing for shutdown, we can cancel the
-process by issuing a request like so:
+Cancel the shutdown preparations or clear the shutdown request
+after restarting: 
 
 [source,console]
 --------------------------------------------------
@@ -65,6 +66,7 @@ DELETE /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 // TEST[s/USpTGYaBSIKbgSUJR2Z9lg/\$node_name/]
 
 Which returns the following response:
+
 [source,console-result]
 --------------------------------------------------
 {

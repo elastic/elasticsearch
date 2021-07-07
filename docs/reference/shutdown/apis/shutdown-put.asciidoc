@@ -1,77 +1,76 @@
-[[shutdown-api-put-shutdown]]
-=== Register node for shutdown API
+[[put-shutdown]]
+=== Put shutdown API
 
-Indicates to the cluster that a node is going to be shut down, either
-temporarily for a restart or permanently for removal from the cluster.
+Prepares a node to be shut down. 
 
-NOTE: This API does not terminate the Elasticsearch process, it prepares a
-node so that it is safe to terminate the process. Terminating the Elasticsearch
-process after the node is ready to shut down as indicated by the
-<<shutdown-api-get-shutdown,Node shutdown status API>> is the responsibility
-of the cluster operator.
-
-[[shutdown-api-put-request]]
+[[put-shutdown-api-request]]
 ==== {api-request-title}
 
 `PUT _nodes/<node-id>/shutdown`
 
-[[shutdown-api-put-prereqs]]
+[[put-shutdown-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
-* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
-users can use this API.
+* If the <<operator-privileges,{operator-feature}>> is enabled, you must be an operator
+to use this API.
 
-[[shutdown-api-put-desc]]
+[[put-shutdown-api-desc]]
 ==== {api-description-title}
 
-Use the register node for shutdown API to indicate to the cluster that it
-should prepare for the given node to be shutdown. This process ensures that
-that the node can be safely shut down with minimal disruption to the cluster.
+Migrates ongoing tasks and index shards to other nodes as needed 
+to prepare a node to be restarted or shut down and removed from the cluster.
+This ensures that {es} can be stopped safely with minimal disruption to the cluster.
 
-Preparing the node for shutdown involves migrating ongoing tasks and,
-if necessary, index shards off of the given node onto another node.
+You must specify the type of shutdown: `restart` or `remove`. 
+If a node is already being prepared for shutdown, 
+you can use this API to change the shutdown type.
 
-This API can also be used to change the `type` of shutdown a node is being
-prepared for.
+IMPORTANT: This API does *NOT* terminate the {es} process. 
+Monitor the <<get-shutdown,node shutdown status>> to determine
+when it  is safe to stop {es}. 
 
-[[shutdown-api-put-path-params]]
+[[put-shutdown-api-path-params]]
 ==== {api-path-parms-title}
 
 `<node-id>`::
 (Required, string)
-The ID of the node that should be prepared for shutdown.
+The ID of the node you want to prepare for shutdown.
+If you specify a node that is offline,
+it will be prepared for shut down when it rejoins the cluster.
 
-IMPORTANT: This parameter is not validated against the nodes currently in
-the cluster, to allow registering a node which is not currently online for
-shutdown. Using an invalid node ID will not result in an error.
+IMPORTANT: This parameter is *NOT* validated against the cluster's active nodes. 
+This enables you to register a node for shut down while it is offline. 
+No error is thrown if you specify an invalid node ID.
 
-[[shutdown-api-put-params]]
+[[put-shutdown-api-params]]
 ==== {api-query-parms-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
-[[shutdown-api-put-request-body]]
+[[put-shutdown-api-request-body]]
 ==== {api-request-body-title}
 
 `type`::
 (Required, string)
-Valid shutdown types are `restart` and `remove`. The `restart` type indicates
-that the node will be shut down temporarily, so data will not be migrated
-off the node. The `remove` type indicates that the node
-will be permanently shut down and removed from the cluster, so data will
-be migrated off the node before it is marked as ready for shutdown.
+Valid values are `restart` and `remove`. 
+Use `restart` when you need to temporarily shut down a node to perform an upgrade, 
+make configuration changes, or perform other maintenance. 
+Because the node is expected to rejoin the cluster, data is not migrated off of the node.  
+Use `remove` when you need to permanently remove a node from the cluster. 
+The node is not marked ready for shutdown until data is migrated off of the node 
 
 `reason`::
 (Required, string)
-A human-readable reason that this node is shutting down. The value of this
-field does not change any behavior, it is simply for coordination among
-cluster administrators.
+A human-readable reason that the node is being shut down. 
+This field provides information for other cluster operators;
+it does not affect the shut down process.
 
-[[shutdown-api-put-example]]
+[[put-shutdown-api-example]]
+==== {api-examples-title}
 
 Register a node for shutdown:
 
@@ -80,7 +79,7 @@ Register a node for shutdown:
 PUT /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 {
   "type": "remove", <1>
-  "reason": "demonstrating how the node shutdown API works" <2>
+  "reason": "Demonstrating how the node shutdown API works"
 }
 --------------------------------------------------
 
@@ -93,5 +92,5 @@ PUT /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 --------------------------------------------------
 ////
 
-<1> The type of shutdown, either `restart` or `remove`.
-<2> The reason for the shutdown.
+<1> Prepares the node to be permanently removed. 
+Use `restart` for nodes that will rejoin the cluster.

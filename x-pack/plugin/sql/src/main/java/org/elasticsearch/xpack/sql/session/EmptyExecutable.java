@@ -53,6 +53,6 @@ public class EmptyExecutable implements SqlExecutable {
 
     @Override
     public String toString() {
-        return "Empty" + NodeUtils.limitedToString(output());
+        return NodeUtils.limitedToString(output());
     }
 }

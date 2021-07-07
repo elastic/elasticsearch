@@ -406,7 +406,10 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                     equalTo("attempt to fail task [test] with id [" + persistentId + "] which has been locally aborted"));
                 break;
             case 2:
-                runningTask.markAsLocallyAborted("second local abort");
+                IllegalStateException e2 = expectThrows(IllegalStateException.class,
+                    () -> runningTask.markAsLocallyAborted("second local abort"));
+                assertThat(e2.getMessage(),
+                    equalTo("attempt to locally abort task [test] with id [" + persistentId + "] which has already been locally aborted"));
                 break;
         }
 

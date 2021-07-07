@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -366,7 +367,13 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             // Verify that the task is STILL in internal cluster state, unassigned, with a reason indicating local abort
             PersistentTask<?> task = assertClusterStateHasTask(taskId);
             assertThat(task.getAssignment().getExecutorNode(), nullValue());
-            assertThat(task.getAssignment().getExplanation(), equalTo("Simulating local abort"));
+            // Although the assignment explanation is initially set to "Simulating local abort", because
+            // of the way we prevent reassignment to the same node in this test it may quickly change to
+            // "non cluster state condition prevents assignment" - either proves the unassignment worked
+            assertThat(task.getAssignment().getExplanation(),
+                either(equalTo("Simulating local abort"))
+                    .or(equalTo("non cluster state condition prevents assignment"))
+            );
         });
 
         // Allow it to be reassigned again

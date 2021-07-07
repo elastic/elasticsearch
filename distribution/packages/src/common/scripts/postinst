@@ -23,7 +23,7 @@ case "$1" in
     configure)
 
         # If $1=configure and $2 is set, this is an upgrade
-        if [ -n $2 ]; then
+        if [ -n "$2" ]; then
             IS_UPGRADE=true
         fi
         PACKAGE=deb

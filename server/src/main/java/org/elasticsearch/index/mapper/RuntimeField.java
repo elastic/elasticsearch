@@ -8,12 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -28,20 +25,6 @@ import java.util.stream.Collectors;
  */
 public interface RuntimeField extends ToXContentFragment {
 
-    @Override
-    default XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name());
-        builder.field("type", typeName());
-        doXContentBody(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    /**
-     * Prints out the parameters that subclasses expose
-     */
-    void doXContentBody(XContentBuilder builder, Params params) throws IOException;
-
     /**
      * Exposes the name of the runtime field
      * @return name of the field
@@ -49,18 +32,12 @@ public interface RuntimeField extends ToXContentFragment {
     String name();
 
     /**
-     * Exposes the type of the runtime field
-     * @return type of the field
-     */
-    String typeName();
-
-    /**
      * Exposes the {@link MappedFieldType}s backing this runtime field, used to execute queries, run aggs etc.
      * @return the {@link MappedFieldType}s backing this runtime field
      */
     Collection<MappedFieldType> asMappedFieldTypes();
 
-    abstract class Builder implements ToXContent {
+    abstract class Builder {
         final String name;
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -77,15 +54,6 @@ public interface RuntimeField extends ToXContentFragment {
         }
 
         protected abstract RuntimeField createRuntimeField(MappingParserContext parserContext);
-
-        @Override
-        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-            for (Parameter<?> parameter : getParameters()) {
-                parameter.toXContent(builder, includeDefaults);
-            }
-            return builder;
-        }
 
         public final void parse(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
             Map<String, Parameter<?>> paramsMap = new HashMap<>();

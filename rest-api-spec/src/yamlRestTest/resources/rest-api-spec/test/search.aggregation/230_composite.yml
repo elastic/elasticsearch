@@ -492,8 +492,8 @@ setup:
 ---
 "Composite aggregation with invalid format":
   - skip:
-      version: " - 7.99.99"
-      reason:  After key parse checking added in 7.14 (backport pending)
+      version: " - 7.13.99"
+      reason:  After key parse checking added in 7.14
 
   - do:
       catch: /created output it couldn't parse/
@@ -520,8 +520,8 @@ setup:
 ---
 "Composite aggregation with lossy format":
   - skip:
-      version: " - 7.99.99"
-      reason:  After key parse checking added in 7.14 (backport pending)
+      version: " - 7.13.99"
+      reason:  After key parse checking added in 7.14
 
   - do:
       catch: /created output it couldn't parse/

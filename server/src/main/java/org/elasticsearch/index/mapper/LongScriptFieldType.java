@@ -10,10 +10,10 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -28,32 +28,35 @@ import org.elasticsearch.search.runtime.LongScriptFieldTermsQuery;
 
 import java.time.ZoneId;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 
 public final class LongScriptFieldType extends AbstractScriptFieldType<LongFieldScript.LeafFactory> {
 
-    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, LongFieldScript.CONTEXT, LongFieldScript.PARSE_FROM_SOURCE) {
-            @Override
-            RuntimeField newRuntimeField(LongFieldScript.Factory scriptFactory) {
-                return new LongScriptFieldType(name, scriptFactory, getScript(), meta(), this);
-            }
-        });
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(Builder::new);
 
-    public LongScriptFieldType(String name) {
-        this(name, LongFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
+    private static class Builder extends AbstractScriptFieldType.Builder<LongFieldScript.Factory> {
+        Builder(String name) {
+            super(name, LongFieldScript.CONTEXT, LongFieldScript.PARSE_FROM_SOURCE);
+        }
+
+        @Override
+        AbstractScriptFieldType<?> createFieldType(String name, LongFieldScript.Factory factory, Script script, Map<String, String> meta) {
+            return new LongScriptFieldType(name, factory, script, meta);
+        }
     }
 
-    LongScriptFieldType(
+    public static RuntimeField sourceOnly(String name) {
+        return new Builder(name).createRuntimeField(LongFieldScript.PARSE_FROM_SOURCE);
+    }
+
+    public LongScriptFieldType(
         String name,
         LongFieldScript.Factory scriptFactory,
         Script script,
-        Map<String, String> meta,
-        ToXContent toXContent
+        Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta, toXContent);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
     }
 
     @Override

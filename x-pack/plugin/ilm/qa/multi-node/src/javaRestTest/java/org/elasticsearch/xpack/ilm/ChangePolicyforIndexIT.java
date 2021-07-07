@@ -14,8 +14,8 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -111,7 +111,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         XContentBuilder document = jsonBuilder().startObject();
         document.field("foo", "bar");
         document.endObject();
-        final Request request = new Request("POST", "/" + indexName + "/_doc/1");
+        final Request request = new Request("POST", "/" + indexName + "/_doc/1?refresh");
         request.setJsonEntity(Strings.toString(document));
         assertOK(client().performRequest(request));
 

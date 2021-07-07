@@ -44,7 +44,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         """
 
         when:
-        def result = gradleRunner("yamlRestCompatTest").build()
+        def result = gradleRunner("yamlRestCompatTest", '--stacktrace').build()
 
         then:
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE

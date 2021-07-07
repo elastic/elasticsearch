@@ -47,7 +47,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -643,21 +642,17 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                         "delegate_debug",
                         matchesMap().entry("average_docs_per_range", equalTo(RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2))
                             .entry("ranges", 1)
-                            .entry("delegate", "FiltersAggregator.FilterByFilter")
+                            .entry("delegate", "FilterByFilterAggregator")
                             .entry(
                                 "delegate_debug",
                                 matchesMap().entry("segments_with_deleted_docs", 0)
                                     .entry("segments_with_doc_count_field", 0)
-                                    .entry("max_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2)
-                                    .entry("estimated_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2)
-                                    .entry("estimate_cost_time", greaterThanOrEqualTo(0L)) // ~1,276,734 nanos is normal
                                     .entry("segments_counted", 0)
                                     .entry("segments_collected", greaterThan(0))
                                     .entry(
                                         "filters",
                                         matchesList().item(
-                                            matchesMap().entry("scorers_prepared_while_estimating_cost", greaterThan(0))
-                                                .entry("query", "DocValuesFieldExistsQuery [field=date]")
+                                            matchesMap().entry("query", "DocValuesFieldExistsQuery [field=date]")
                                                 .entry("specialized_for", "docvalues_field_exists")
                                                 .entry("results_from_metadata", 0)
                                         )

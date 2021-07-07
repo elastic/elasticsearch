@@ -3,7 +3,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 

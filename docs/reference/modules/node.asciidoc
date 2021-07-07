@@ -36,7 +36,18 @@ set `node.roles`, the node is assigned the following roles:
 [IMPORTANT]
 ====
 If you set `node.roles`, ensure you specify every node role your cluster needs.
-Some {stack} features require specific node roles:
+Every cluster requires the following node roles:
+
+* `master`
+* {blank}
++
+--
+`data_content` and `data_hot` +
+OR +
+`data`
+--
+
+Some {stack} features also require specific node roles:
 
 - {ccs-cap} and {ccr} require the `remote_cluster_client` role.
 - {stack-monitor-app} and ingest pipelines require the `ingest` role.
@@ -223,8 +234,9 @@ assign data nodes to specific tiers: `data_content`,`data_hot`, `data_warm`,
 `data_cold`, or `data_frozen`. A node can belong to multiple tiers, but a node
 that has one of the specialized data roles cannot have the generic `data` role.
 
+[role="xpack"]
 [[data-content-node]]
-==== [x-pack]#Content data node#
+==== Content data node
 
 Content data nodes accommodate user-created content. They enable operations like CRUD,
 search and aggregations.
@@ -235,8 +247,9 @@ To create a dedicated content node, set:
 node.roles: [ data_content ]
 ----
 
+[role="xpack"]
 [[data-hot-node]]
-==== [x-pack]#Hot data node#
+==== Hot data node
 
 Hot data nodes store time series data as it enters {es}. The hot tier must be fast for
 both reads and writes, and requires more hardware resources (such as SSD drives).
@@ -247,8 +260,9 @@ To create a dedicated hot node, set:
 node.roles: [ data_hot ]
 ----
 
+[role="xpack"]
 [[data-warm-node]]
-==== [x-pack]#Warm data node#
+==== Warm data node
 
 Warm data nodes store indices that are no longer being regularly updated, but are still being
 queried. Query volume is usually at a lower frequency than it was while the index was in the hot tier.
@@ -260,8 +274,9 @@ To create a dedicated warm node, set:
 node.roles: [ data_warm ]
 ----
 
+[role="xpack"]
 [[data-cold-node]]
-==== [x-pack]#Cold data node#
+==== Cold data node
 
 Cold data nodes store read-only indices that are accessed less frequently. This tier uses less performant hardware and may leverage searchable snapshot indices to minimize the resources required.
 
@@ -271,8 +286,9 @@ To create a dedicated cold node, set:
 node.roles: [ data_cold ]
 ----
 
+[role="xpack"]
 [[data-frozen-node]]
-==== [x-pack]#Frozen data node#
+==== Frozen data node
 
 The frozen tier stores <<partially-mounted,partially mounted indices>>
 exclusively. We recommend you use dedicated nodes in the frozen tier.

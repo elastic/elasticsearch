@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.ObjectFieldScript;
 import org.elasticsearch.script.Script;
@@ -27,7 +26,6 @@ import java.util.stream.Collectors;
  * A runtime field of type object. Defines a script at the top level, which emits multiple sub-fields.
  * The sub-fields are declared within the object in order to be made available to the field_caps and search API.
  */
-//TODO find a better name!?
 public class ObjectRuntimeField implements RuntimeField {
 
     public static final Parser PARSER = new Parser(name ->
@@ -69,32 +67,16 @@ public class ObjectRuntimeField implements RuntimeField {
                 // only print out their leaf field name (which may contain dots!)
                 Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(fields.getValue(),
                     parserContext, searchLookup -> factory.newFactory(name, script.get().getParams(), searchLookup), false);
-                return new ObjectRuntimeField(name, runtimeFields.values(), this);
+                return new ObjectRuntimeField(name, runtimeFields.values());
             }
         });
 
     private final String name;
-    private final Collection<MappedFieldType> subfields;
-    private final ToXContent toXContent;
+    private final Collection<RuntimeField> subfields;
 
-    ObjectRuntimeField(String name, Collection<RuntimeField> subfields, ToXContent toXContent) {
+    ObjectRuntimeField(String name, Collection<RuntimeField> subfields) {
         this.name = name;
-        this.subfields = subfields.stream().flatMap(runtimeField -> runtimeField.asMappedFieldTypes().stream())
-            .collect(Collectors.toList());
-        this.toXContent = (builder, params) -> {
-            toXContent.toXContent(builder, params);
-            builder.startObject("fields2");
-            for (RuntimeField runtimeField : subfields) {
-                runtimeField.toXContent(builder, params);
-            }
-            builder.endObject();
-            return builder;
-        };
-    }
-
-    @Override
-    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        toXContent.toXContent(builder, params);
+        this.subfields = subfields;
     }
 
     @Override
@@ -103,13 +85,20 @@ public class ObjectRuntimeField implements RuntimeField {
     }
 
     @Override
-    public String typeName() {
-        return "object";
+    public Collection<MappedFieldType> asMappedFieldTypes() {
+        return subfields.stream().flatMap(runtimeField -> runtimeField.asMappedFieldTypes().stream()).collect(Collectors.toList());
     }
 
     @Override
-    public Collection<MappedFieldType> asMappedFieldTypes() {
-        return subfields;
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(name);
+        builder.field("type", "object");
+        builder.startObject("fields2");
+        for (RuntimeField subfield : subfields) {
+            subfield.toXContent(builder, params);
+        }
+        builder.endObject();
+        return builder;
     }
 
     private static Map<String, Object> parseFields(String name, Object fieldsObject) {

@@ -16,13 +16,13 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import java.util.function.Function;
 
 /**
- * Simplified version of {@link ParseContext} to be used in tests.
+ * Simplified version of {@link DocumentParserContext} to be used in tests.
  * Every non final method throws {@link UnsupportedOperationException} and can be implemented as needed.
  * {@link #doc()} and {@link #path()} are defined and final, as their behaviour is standard and they
  * are both needed in almost every situation.
- * The methods defined final in {@link ParseContext} depend on the provided constructor arguments.
+ * The methods defined final in {@link DocumentParserContext} depend on the provided constructor arguments.
  */
-public class TestParseContext extends ParseContext {
+public class TestDocumentParserContext extends DocumentParserContext {
     private final LuceneDocument document = new LuceneDocument();
     private final ContentPath contentPath = new ContentPath(0);
 
@@ -30,7 +30,7 @@ public class TestParseContext extends ParseContext {
      * The shortest and easiest way to create a context, to be used when none of the constructor arguments are needed.
      * Use with caution as it can cause {@link NullPointerException}s down the line.
      */
-    public TestParseContext() {
+    public TestDocumentParserContext() {
         super(null, null, null, null, null);
     }
 
@@ -38,11 +38,11 @@ public class TestParseContext extends ParseContext {
      * More verbose way to create a context, to be used when one or more constructor arguments are needed as final methods
      * that depend on them are called while executing tests.
      */
-    public TestParseContext(MappingLookup mappingLookup,
-                            IndexSettings indexSettings,
-                            IndexAnalyzers indexAnalyzers,
-                            Function<DateFormatter, MappingParserContext> parserContextFunction,
-                            SourceToParse source) {
+    public TestDocumentParserContext(MappingLookup mappingLookup,
+                                     IndexSettings indexSettings,
+                                     IndexAnalyzers indexAnalyzers,
+                                     Function<DateFormatter, MappingParserContext> parserContextFunction,
+                                     SourceToParse source) {
         super(mappingLookup, indexSettings, indexAnalyzers, parserContextFunction, source);
     }
 

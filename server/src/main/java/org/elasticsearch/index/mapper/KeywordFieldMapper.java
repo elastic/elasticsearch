@@ -364,12 +364,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         return null;
                     }
 
-                    NamedAnalyzer normalizer = normalizer();
-                    if (normalizer == null) {
-                        return keywordValue;
-                    }
-
-                    return normalizeValue(normalizer, name(), keywordValue);
+                    return normalizeValue(normalizer(), name(), keywordValue);
                 }
             };
         }
@@ -481,7 +476,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         String value;
         XContentParser parser = context.parser();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
@@ -494,11 +489,12 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
-        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(parseContext, value));
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
+        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
     }
 
-    private void indexValue(ParseContext context, String value) {
+    private void indexValue(DocumentParserContext context, String value) {
 
         if (value == null) {
             return;
@@ -509,10 +505,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
-        NamedAnalyzer normalizer = fieldType().normalizer();
-        if (normalizer != null) {
-            value = normalizeValue(normalizer, name(), value);
-        }
+        value = normalizeValue(fieldType().normalizer(), name(), value);
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
@@ -531,6 +524,9 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) {
+        if (normalizer == Lucene.KEYWORD_ANALYZER) {
+            return value;
+        }
         try (TokenStream ts = normalizer.tokenStream(field, value)) {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();

@@ -35,7 +35,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -74,17 +73,6 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             "2015-11-13T16:14:34",
             "2016-03-04T17:09:50",
             "2017-12-12T22:55:46");
-
-    public void testMatchNoDocsDeprecatedInterval() throws IOException {
-        testSearchCase(new MatchNoDocsQuery(), DATASET,
-                aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE),
-                histogram -> {
-                    assertEquals(0, histogram.getBuckets().size());
-                    assertFalse(AggregationInspectionHelper.hasValue(histogram));
-                }, false
-        );
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
-    }
 
     public void testBooleanFieldDeprecated() throws IOException {
         final String fieldName = "bogusBoolean";

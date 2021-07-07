@@ -85,7 +85,7 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
     }
 
     @BeforeClass
-    public static void setupJimfs() throws IOException {
+    public static void setupJimfs() {
         String view = randomFrom("basic", "posix");
         Configuration conf = Configuration.unix().toBuilder().setAttributeViews(view).build();
         jimfs = Jimfs.newFileSystem(conf);
@@ -136,6 +136,10 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
 
     public void testSuccessfulCommand() throws Exception {
         execute();
+        assertThat(terminal.getOutput(), is(emptyString()));
+        assertThat(terminal.getErrorOutput(), is(emptyString()));
+        assertNoUsers();
+        assertNoUsersRoles();
     }
 
     public void testFailureWhenFileRealmIsDisabled() throws Exception {
@@ -182,6 +186,19 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
             "This means that some cluster data is unavailable and your cluster is not fully functional.",
             "The cluster logs (https://www.elastic.co/guide/en/elasticsearch/reference/master/logging.html)" +
                 "might contain information/indications for the underlying cause"));
+        assertNoUsers();
+        assertNoUsersRoles();
+    }
+
+    public void testUnhealthyClusterWithForce() throws Exception {
+        URL url = new URL(client.getDefaultURL());
+        HttpResponse healthResponse =
+            new HttpResponse(HttpURLConnection.HTTP_OK, Map.of("status", randomFrom("red")));
+        when(client.execute(anyString(), eq(clusterHealthUrl(url)), anyString(), any(SecureString.class), any(CheckedSupplier.class),
+            any(CheckedFunction.class))).thenReturn(healthResponse);
+        execute("-f");
+        assertThat(terminal.getOutput(), is(emptyString()));
+        assertThat(terminal.getErrorOutput(), is(emptyString()));
         assertNoUsers();
         assertNoUsersRoles();
     }

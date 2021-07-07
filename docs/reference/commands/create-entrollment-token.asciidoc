@@ -12,7 +12,7 @@ The `elasticsearch-create-enrollment-token` command creates enrollment tokens fo
 [source,shell]
 ----
 bin/elasticsearch-create-enrollment-token
-[-h, --help] [-E <KeyValuePair>] [-s, --scope]
+[-f, --force] [-h, --help] [-E <KeyValuePair>] [-s, --scope]
 ----
 
 [discrete]
@@ -39,6 +39,12 @@ option. For more information about debugging connection failures, see
 [discrete]
 [[create-enrollment-token-parameters]]
 === Parameters
+
+`-E <KeyValuePair>`:: Configures a standard {es} or {xpack} setting.
+
+`-f, --force`:: Forces the execution of the command against an unhealthy cluster. 
+
+`-h, --help`:: Shows help information.
 
 `-s, --scope`:: Specifies the scope of the generated token. Supported values are `node` and `kibana`.
 

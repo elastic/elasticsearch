@@ -16,7 +16,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-//TODO rename once we have found a better name, don't forget to rename the context too.
 //TODO expose this context to the painless execute API
 public abstract class ObjectFieldScript extends AbstractFieldScript {
     public static final ScriptContext<ObjectFieldScript.Factory> CONTEXT = newContext("object_field", Factory.class);

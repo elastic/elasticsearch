@@ -560,7 +560,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 };
             }
         };
-        return new TestRuntimeField(name, null, Collections.singleton(fieldType));
+        return new TestRuntimeField(name, Collections.singleton(fieldType));
     }
 
     private static List<String> collect(String field, SearchExecutionContext searchExecutionContext) throws IOException {

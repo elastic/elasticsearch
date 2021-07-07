@@ -574,8 +574,8 @@ sequence
   [process where true]
 '''
 expected_event_ids = [1, 2, 3,
-    2, 3, 4,
-    3, 4, 5]
+                      2, 3, 4,
+                      3, 4, 5]
 
 [[queries]]
 name = "sequenceConditionManyMany-Repeat"
@@ -585,8 +585,8 @@ sequence
   [process where true] repeat=2
 '''
 expected_event_ids = [1, 2, 3,
-    2, 3, 4,
-    3, 4, 5]
+                      2, 3, 4,
+                      3, 4, 5]
 
 [[queries]]
 name = "sequenceManyConditionMany"
@@ -597,7 +597,8 @@ sequence
   [process where true]
 '''
 expected_event_ids = [1, 2, 3,
-    2, 3, 4]
+                      2, 3, 4]
+
 [[queries]]
 name = "sequenceManyManyCondition"
 query = '''
@@ -627,9 +628,9 @@ sequence
   [process where true]
 '''
 expected_event_ids = [1, 2, 3, 4,
-    2, 3, 4, 5,
-    3, 4, 5, 6,
-    4, 5, 6, 7]
+                      2, 3, 4, 5,
+                      3, 4, 5, 6,
+                      4, 5, 6, 7]
 
 [[queries]]
 name = "sequenceThreeManyCondition1-Repeat"
@@ -639,9 +640,9 @@ sequence
   [process where true] repeat=3
 '''
 expected_event_ids = [1, 2, 3, 4,
-    2, 3, 4, 5,
-    3, 4, 5, 6,
-    4, 5, 6, 7]
+                      2, 3, 4, 5,
+                      3, 4, 5, 6,
+                      4, 5, 6, 7]
 
 [[queries]]
 name = "sequenceThreeManyCondition2"
@@ -653,8 +654,8 @@ sequence
   [process where true]
 '''
 expected_event_ids = [1, 2, 3, 4,
-    2, 3, 4, 5,
-    3, 4, 5, 6]
+                      2, 3, 4, 5,
+                      3, 4, 5, 6]
 
 [[queries]]
 name = "sequenceThreeManyCondition2-Repeat"
@@ -665,9 +666,8 @@ sequence
   [process where true] repeat=2
 '''
 expected_event_ids = [1, 2, 3, 4,
-    2, 3, 4, 5,
-    3, 4, 5, 6]
-
+                      2, 3, 4, 5,
+                      3, 4, 5, 6]
 
 [[queries]]
 name = "sequenceThreeManyCondition3"
@@ -679,7 +679,7 @@ sequence
   [process where true]
 '''
 expected_event_ids = [1, 2, 3, 4,
-    2, 3, 4, 5]
+                      2, 3, 4, 5]
 
 [[queries]]
 name = "sequenceThreeManyCondition3-Repeat"
@@ -690,7 +690,7 @@ sequence
   [process where true]
 '''
 expected_event_ids = [1, 2, 3, 4,
-    2, 3, 4, 5]
+                      2, 3, 4, 5]
 
 [[queries]]
 name = "sequenceThreeManyCondition4"
@@ -720,9 +720,9 @@ sequence
   [process where opcode == 1] by unique_ppid
 '''
 expected_event_ids = [48, 53,
-    53, 54,
-    54, 56,
-    97, 98]
+                      53, 54,
+                      54, 56,
+                      97, 98]
 
 [[queries]]
 name = "twoSequencesWithTwoKeys"
@@ -1007,8 +1007,8 @@ sequence
   [process where serial_event_id < 5]
 '''
 expected_event_ids = [1, 2,
-    2, 3,
-    3, 4]
+                      2, 3,
+                      3, 4]
 
 [[queries]]
 name = "doubleSameSequence-Repeat"
@@ -1017,8 +1017,8 @@ sequence
   [process where serial_event_id < 5] repeat=2
 '''
 expected_event_ids = [1, 2,
-    2, 3,
-    3, 4]
+                      2, 3,
+                      3, 4]
 
 
 [[queries]]

@@ -37,16 +37,16 @@ public final class JsonProcessor extends AbstractProcessor {
     private final String field;
     private final String targetField;
     private final boolean addToRoot;
-    private final MergeStrategy addToRootMergeStrategy;
+    private final ConflictStrategy addToRootConflictStrategy;
     private final boolean allowDuplicateKeys;
 
-    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot, MergeStrategy addToRootMergeStrategy,
+    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot, ConflictStrategy addToRootConflictStrategy,
                   boolean allowDuplicateKeys) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.addToRoot = addToRoot;
-        this.addToRootMergeStrategy = addToRootMergeStrategy;
+        this.addToRootConflictStrategy = addToRootConflictStrategy;
         this.allowDuplicateKeys = allowDuplicateKeys;
     }
 
@@ -62,8 +62,8 @@ public final class JsonProcessor extends AbstractProcessor {
         return addToRoot;
     }
 
-    public MergeStrategy getAddToRootMergeStrategy() {
-        return addToRootMergeStrategy;
+    public ConflictStrategy getAddToRootConflictStrategy() {
+        return addToRootConflictStrategy;
     }
 
     public static Object apply(Object fieldValue, boolean allowDuplicateKeys) {
@@ -95,12 +95,12 @@ public final class JsonProcessor extends AbstractProcessor {
         }
     }
 
-    public static void apply(Map<String, Object> ctx, String fieldName, boolean allowDuplicateKeys, MergeStrategy mergeStrategy) {
+    public static void apply(Map<String, Object> ctx, String fieldName, boolean allowDuplicateKeys, ConflictStrategy conflictStrategy) {
         Object value = apply(ctx.get(fieldName), allowDuplicateKeys);
         if (value instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) value;
-            if (mergeStrategy == MergeStrategy.RECURSIVE) {
+            if (conflictStrategy == ConflictStrategy.MERGE) {
                 recursiveMerge(ctx, map);
             } else {
                 ctx.putAll(map);
@@ -133,7 +133,7 @@ public final class JsonProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
         if (addToRoot) {
-            apply(document.getSourceAndMetadata(), field, allowDuplicateKeys, addToRootMergeStrategy);
+            apply(document.getSourceAndMetadata(), field, allowDuplicateKeys, addToRootConflictStrategy);
         } else {
             document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class), allowDuplicateKeys));
         }
@@ -145,26 +145,17 @@ public final class JsonProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public enum MergeStrategy {
+    public enum ConflictStrategy {
         REPLACE,
-        RECURSIVE;
-
-        public static MergeStrategy resolve(String name) {
-            return MergeStrategy.valueOf(name.toUpperCase(Locale.ROOT));
-        }
+        MERGE;
 
         @Override
         public String toString() {
             return name().toLowerCase(Locale.ROOT);
         }
 
-        public static MergeStrategy fromString(String processorTag, String propertyName, String mergeStrategy) {
-            try {
-                return MergeStrategy.valueOf(mergeStrategy.toUpperCase(Locale.ROOT));
-            } catch(IllegalArgumentException e) {
-                throw newConfigurationException(TYPE, processorTag, propertyName, "merge strategy [" + mergeStrategy +
-                    "] not supported, cannot convert field.");
-            }
+        public static ConflictStrategy fromString(String conflictStrategy) {
+            return ConflictStrategy.valueOf(conflictStrategy.toUpperCase(Locale.ROOT));
         }
     }
 
@@ -177,29 +168,34 @@ public final class JsonProcessor extends AbstractProcessor {
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");
             boolean addToRoot = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "add_to_root", false);
             boolean allowDuplicateKeys = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "allow_duplicate_keys", false);
-            String mergeStrategyString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config,
-                "add_to_root_merge_strategy");
-            boolean hasMergeStrategy = mergeStrategyString != null;
-            if (mergeStrategyString == null) {
-                mergeStrategyString = MergeStrategy.REPLACE.name();
+            String conflictStrategyString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config,
+                "add_to_root_conflict_strategy");
+            boolean hasConflictStrategy = conflictStrategyString != null;
+            if (conflictStrategyString == null) {
+                conflictStrategyString = ConflictStrategy.REPLACE.name();
             }
-            MergeStrategy addToRootMergeStrategy = MergeStrategy.fromString(processorTag, "add_to_root_merge_strategy",
-                mergeStrategyString);
+            ConflictStrategy addToRootConflictStrategy;
+            try {
+                addToRootConflictStrategy = ConflictStrategy.fromString(conflictStrategyString);
+            } catch (IllegalArgumentException e) {
+                throw newConfigurationException(TYPE, processorTag, "add_to_root_conflict_strategy", "conflict strategy [" + conflictStrategyString +
+                    "] not supported, cannot convert field.");
+            }
 
             if (addToRoot && targetField != null) {
                 throw newConfigurationException(TYPE, processorTag, "target_field",
                     "Cannot set a target field while also setting `add_to_root` to true");
             }
-            if (addToRoot == false && hasMergeStrategy) {
-                throw newConfigurationException(TYPE, processorTag, "add_to_root_merge_strategy",
-                    "Cannot set `add_to_root_merge_strategy` if `add_to_root` is false");
+            if (addToRoot == false && hasConflictStrategy) {
+                throw newConfigurationException(TYPE, processorTag, "add_to_root_conflict_strategy",
+                    "Cannot set `add_to_root_conflict_strategy` if `add_to_root` is false");
             }
 
             if (targetField == null) {
                 targetField = field;
             }
 
-            return new JsonProcessor(processorTag, description, field, targetField, addToRoot, addToRootMergeStrategy, allowDuplicateKeys);
+            return new JsonProcessor(processorTag, description, field, targetField, addToRoot, addToRootConflictStrategy, allowDuplicateKeys);
         }
     }
 }

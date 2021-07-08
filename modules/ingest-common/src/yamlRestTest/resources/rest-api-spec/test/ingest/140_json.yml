@@ -124,7 +124,7 @@ teardown:
                 "json" : {
                   "field" : "json",
                   "add_to_root": true,
-                  "add_to_root_merge_strategy": "recursive"
+                  "add_to_root_conflict_strategy": "merge"
                 }
               }
             ]

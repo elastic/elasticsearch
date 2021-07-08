@@ -22,8 +22,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.common.JsonProcessor.MergeStrategy.RECURSIVE;
-import static org.elasticsearch.ingest.common.JsonProcessor.MergeStrategy.REPLACE;
+import static org.elasticsearch.ingest.common.JsonProcessor.ConflictStrategy.MERGE;
+import static org.elasticsearch.ingest.common.JsonProcessor.ConflictStrategy.REPLACE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -185,7 +185,7 @@ public class JsonProcessorTests extends ESTestCase {
 
     public void testAddToRootRecursiveMerge() throws Exception {
         String processorTag = randomAlphaOfLength(3);
-        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "json", null, true, RECURSIVE, false);
+        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "json", null, true, MERGE, false);
 
         Map<String, Object> document = new HashMap<>();
         String json = "{\"foo\": {\"bar\": \"baz\"}}";

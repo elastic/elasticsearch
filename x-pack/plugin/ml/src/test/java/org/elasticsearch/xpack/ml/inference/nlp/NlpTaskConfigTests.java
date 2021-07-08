@@ -31,6 +31,10 @@ public class NlpTaskConfigTests extends AbstractXContentTestCase<NlpTaskConfig> 
             }
         }
 
+        if (randomBoolean()) {
+            builder.setMaxSequenceLength(randomIntBetween(1, 128));
+        }
+
         return builder.build();
     }
 

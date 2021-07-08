@@ -11,6 +11,7 @@
 * <<sql-rest-params>>
 * <<sql-runtime-fields>>
 * <<sql-rest-fields>>
+* <<sql-async>>
 
 [[sql-rest-overview]]
 === Overview
@@ -561,6 +562,170 @@ Frank Herbert  |Dune           |604            |1965-06-01T00:00:00.000Z|TUESDAY
 ----
 // TESTRESPONSE[non_json]
 
+[[sql-async]]
+=== Run an async SQL search
+
+By default, SQL searches are synchronous. They wait for complete results before
+returning a response. However, results can take longer for searches across large
+data sets or <<data-tiers,frozen data>>.
+
+To avoid long waits, run an async SQL search. Set `wait_for_completion_timeout`
+to a duration you’d like to wait for synchronous results.
+
+[source,console]
+----
+POST _sql?format=json
+{
+  "wait_for_completion_timeout": "2s",
+  "query": "SELECT * FROM library ORDER BY page_count DESC",
+  "fetch_size": 5
+}
+----
+// TEST[setup:library]
+// TEST[s/"wait_for_completion_timeout": "2s"/"wait_for_completion_timeout": "0"/]
+
+If the search doesn’t finish within this period, the search becomes async. The
+API returns:
+
+* An `id` for the search.
+* An `is_partial` value of `true`, indicating the search results are incomplete.
+* An `is_running` value of `true`, indicating the search is still running in the
+background.
+
+For CSV, TSV, and TXT responses, the API returns these values in the respective
+`Async-ID`, `Async-partial`, and `Async-running` HTTP headers instead.
+
+[source,console-result]
+----
+{
+  "id": "FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=",
+  "is_partial": true,
+  "is_running": true,
+  "rows": [ ]
+}
+----
+// TESTRESPONSE[s/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=/$body.id/]
+// TESTRESPONSE[s/"is_partial": true/"is_partial": $body.is_partial/]
+// TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
+
+To check the progress of an async search, use the search ID with the get async
+SQL search status API.
+
+[source,console]
+----
+GET _sql/async/status/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=
+----
+// TEST[skip: no access to search ID]
+
+If `is_running` and `is_partial` are `false`, the async search has finished with
+complete results.
+
+[source,console-result]
+----
+{
+  "id": "FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=",
+  "is_running": false,
+  "is_partial": false,
+  "expiration_time_in_millis": 1611690295000,
+  "completion_status": 200
+}
+----
+// TESTRESPONSE[s/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=/$body.id/]
+// TESTRESPONSE[s/"expiration_time_in_millis": 1611690295000/"expiration_time_in_millis": $body.expiration_time_in_millis/]
+
+To get the results, use the search ID with the get async SQL search API. If the
+search is still running, specify how long you’d like to wait using
+`wait_for_completion_timeout`. You can also specify the response `format`.
+
+[source,console]
+----
+GET _sql/async/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=?wait_for_completion_timeout=2s&format=json
+----
+// TEST[skip: no access to search ID]
+
+[discrete]
+[[sql-async-retention]]
+==== Change the search retention period
+
+By default, {es} stores async SQL searches for five days. After this period,
+{es} deletes the search and its results, even if the search is still running. To
+change this retention period, use the `keep_alive` parameter.
+
+[source,console]
+----
+POST _sql?format=json
+{
+  "keep_alive": "2d",
+  "wait_for_completion_timeout": "2s",
+  "query": "SELECT * FROM library ORDER BY page_count DESC",
+  "fetch_size": 5
+}
+----
+// TEST[setup:library]
+
+You can use the get async SQL search API's `keep_alive` parameter to later
+change the retention period. The new period starts after the request runs.
+
+[source,console]
+----
+GET _sql/async/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxOTI=?keep_alive=5d&wait_for_completion_timeout=2s&format=json
+----
+// TEST[skip: no access to search ID]
+
+Use the delete async SQL search API to delete an async search before the
+`keep_alive` period ends. If the search is still running, {es} cancels it.
+
+[source,console]
+----
+DELETE _sql/async/delete/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxOTI=
+----
+// TEST[skip: no access to search ID]
+
+[discrete]
+[[sql-store-searches]]
+==== Store synchronous SQL searches
+
+By default, {es} only stores async SQL searches. To save a synchronous search,
+specify `wait_for_completion_timeout` and set `keep_on_completion` to `true`.
+
+[source,console]
+----
+POST _sql?format=json
+{
+  "keep_on_completion": true,
+  "wait_for_completion_timeout": "2s",
+  "query": "SELECT * FROM library ORDER BY page_count DESC",
+  "fetch_size": 5
+}
+----
+// TEST[setup:library]
+
+If `is_partial` and `is_running` are `false`, the search was synchronous and
+returned complete results.
+
+[source,console-result]
+----
+{
+  "id": "Fnc5UllQdUVWU0NxRFNMbWxNYXplaFEaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQTo0NzA=",
+  "is_partial": false,
+  "is_running": false,
+  "rows": ...,
+  "columns": ...,
+  "cursor": ...
+}
+----
+// TESTRESPONSE[s/Fnc5UllQdUVWU0NxRFNMbWxNYXplaFEaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQTo0NzA=/$body.id/]
+// TESTRESPONSE[s/"rows": \.\.\./"rows": $body.rows/]
+// TESTRESPONSE[s/"columns": \.\.\./"columns": $body.columns/]
+// TESTRESPONSE[s/"cursor": \.\.\./"cursor": $body.cursor/]
+
+You can get the same results later using the search ID with the get async SQL
+search API.
+
+Saved synchronous searches are still subject to the `keep_alive` retention
+period. When this period ends, {es} deletes the search results. You can also
+delete saved searches using the delete async SQL search API.
+
 [[sql-rest-fields]]
 === Supported REST parameters
 
@@ -622,6 +787,32 @@ More information available https://docs.oracle.com/javase/8/docs/api/java/time/Z
 |none
 |Defines one or more <<runtime-search-request,runtime fields>> in the search
 request. These fields take precedence over mapped fields with the same name.
+
+|keep_alive
+|`5d`
+a|Period {es} stores the search and its results. Must be greater than `1m` (one
+minute).
+
+When this period end, {es} deletes the search and its results, even if the
+search is still running.
+
+If `keep_on_completion` is `false`, {es} only stores searches that don't finish
+within the `wait_for_completion_timeout`, regardless of this value.
+
+|keep_on_completion
+|`false`
+|If `true`, {es} stores the search and its results. If `false`, {es} stores the
+search and its results only if it doesn't finish before the
+`wait_for_completion_timeout`.
+
+|wait_for_completion_timeout
+|None
+a|Duration to wait for the search to finish. Defaults to no timeout, meaning the
+request waits for complete results.
+
+If you specify this parameter and the search finishes during the timeout, the
+request returns complete results. If the search doesn't finish during this
+period, the search becomes async. See <<sql-async>>.
 
 |===
 

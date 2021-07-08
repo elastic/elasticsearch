@@ -40,16 +40,27 @@ public class BertRequestBuilderTests extends ESTestCase {
         assertEquals(Arrays.asList(0, 1, 2, 3, 4), jsonDocAsMap.get("arg_3"));
     }
 
-    public void testInputTooLarge() {
+    public void testInputTooLarge() throws IOException {
         BertTokenizer tokenizer = BertTokenizer.builder(
             Arrays.asList("Elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN)).build();
 
-        NlpTaskConfig config = NlpTaskConfig.builder().setMaxSequenceLength(5).build();
+        {
+            NlpTaskConfig config = NlpTaskConfig.builder().setMaxSequenceLength(5).build();
 
-        BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer, config);
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> requestBuilder.buildRequest("Elasticsearch fun Elasticsearch fun Elasticsearch fun", "request1"));
+            BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer, config);
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> requestBuilder.buildRequest("Elasticsearch fun Elasticsearch fun Elasticsearch fun", "request1"));
 
-        assertThat(e.getMessage(), containsString("Input too large. The tokenized length exceeds the maximum sequence length [5]"));
+            assertThat(e.getMessage(),
+                containsString("Input too large. The tokenized input length [11] exceeds the maximum sequence length [5]"));
+        }
+        {
+            NlpTaskConfig config = NlpTaskConfig.builder().setMaxSequenceLength(5).build();
+
+            BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer, config);
+            // input will become 3 tokens + the Class and Separator token = 5 which is
+            // our max sequence length
+            requestBuilder.buildRequest("Elasticsearch fun", "request1");
+        }
     }
 }

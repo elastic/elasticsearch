@@ -44,7 +44,8 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
         tokenization = tokenizer.tokenize(input);
         if (tokenization.getTokenIds().length > maxSequenceLength) {
             throw ExceptionsHelper.badRequestException(
-                "Input too large. The tokenized length exceeds the maximum sequence length [{}]", maxSequenceLength);
+                "Input too large. The tokenized input length [{}] exceeds the maximum sequence length [{}]",
+                tokenization.getTokenIds().length, maxSequenceLength);
         }
         return jsonRequest(tokenization.getTokenIds(), requestId);
     }

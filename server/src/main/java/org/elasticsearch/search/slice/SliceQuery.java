@@ -50,19 +50,21 @@ public abstract class SliceQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (sameClassAs(o) == false) {
+            return false;
+        }
         SliceQuery that = (SliceQuery) o;
-        return id == that.id && max == that.max && Objects.equals(field, that.field);
+        return field.equals(that.field) && id == that.id && max == that.max;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, id, max);
+        return Objects.hash(classHash(), field, id, max);
     }
 
     @Override
     public String toString(String f) {
-        return getClass().getSimpleName() + "[field=" + field + ", id=" + getId() + ", max=" + getMax() + "]";
+        return getClass().getSimpleName() + "[field=" + field + ", id=" + id + ", max=" + max + "]";
     }
+
 }

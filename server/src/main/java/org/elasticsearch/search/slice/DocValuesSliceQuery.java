@@ -9,9 +9,8 @@
 package org.elasticsearch.search.slice;
 
 import com.carrotsearch.hppc.BitMixer;
-
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
@@ -31,12 +30,6 @@ import java.io.IOException;
  * If updates are accepted on the field you must ensure that the same reader is used for all `slice` queries.
  */
 public final class DocValuesSliceQuery extends SliceQuery {
-
-    /**
-     * @param field The name of the field
-     * @param id    The id of the slice
-     * @param max   The maximum number of slices
-     */
     public DocValuesSliceQuery(String field, int id, int max) {
         super(field, id, max);
     }
@@ -78,6 +71,7 @@ public final class DocValuesSliceQuery extends SliceQuery {
             public boolean isCacheable(LeafReaderContext ctx) {
                 return DocValues.isCacheable(ctx, getField());
             }
+
         };
     }
 }

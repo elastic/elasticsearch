@@ -49,6 +49,7 @@ public class RestUpgradeActionDeprecated extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        request.param("index");
         final UpgradeActionDeprecatedException exception = new UpgradeActionDeprecatedException(request);
         return channel -> channel.sendResponse(new BytesRestResponse(channel, exception));
     }

@@ -41,4 +41,4 @@ Basic test for upgrade indices:
   - match:
       status: 400
   - match:
-      error: "/Upgrade action (GET|POST) (_upgrade|test_index_upgrade) was removed, use _reindex API instead/"
+      error.reason: "/Upgrade.action.(GET|POST).(_upgrade|/test_index/_upgrade).was.removed,.use._reindex.API.instead/"

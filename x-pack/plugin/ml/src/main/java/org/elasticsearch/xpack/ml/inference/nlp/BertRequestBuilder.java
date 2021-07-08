@@ -24,15 +24,13 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
     static final String ARG2 = "arg_2";
     static final String ARG3 = "arg_3";
 
-    public static final int DEFAULT_MAX_SEQUENCE_LENGTH = 512;
-
     private final BertTokenizer tokenizer;
     private BertTokenizer.TokenizationResult tokenization;
     private final int maxSequenceLength;
 
     public BertRequestBuilder(BertTokenizer tokenizer, NlpTaskConfig config) {
         this.tokenizer = tokenizer;
-        this.maxSequenceLength = config.getMaxSequenceLength() == null ? DEFAULT_MAX_SEQUENCE_LENGTH : config.getMaxSequenceLength();
+        this.maxSequenceLength = config.getMaxSequenceLength();
     }
 
     public BertTokenizer.TokenizationResult getTokenization() {

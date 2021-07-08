@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
@@ -28,8 +27,6 @@ public class NlpTaskConfig implements ToXContentObject {
     public static final ParseField WITH_SPECIAL_TOKENS = new ParseField("with_special_tokens");
     public static final ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
     public static final ParseField MAX_SEQUENCE_LENGTH = new ParseField("max_sequence_length");
-
-
 
     private static final ObjectParser<NlpTaskConfig.Builder, Void> STRICT_PARSER = createParser(false);
     private static final ObjectParser<NlpTaskConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -56,6 +53,8 @@ public class NlpTaskConfig implements ToXContentObject {
         return model + "_task_config";
     }
 
+    public static final int DEFAULT_MAX_SEQUENCE_LENGTH = 512;
+
     private final TaskType taskType;
     private final List<String> vocabulary;
     private final boolean doLowerCase;
@@ -72,7 +71,7 @@ public class NlpTaskConfig implements ToXContentObject {
         this.doLowerCase = doLowerCase;
         this.withSpecialTokens = withSpecialTokens;
         this.classificationLabels = classificationLabels;
-        this.maxSequenceLength = maxSequenceLen;
+        this.maxSequenceLength = maxSequenceLen == null ? DEFAULT_MAX_SEQUENCE_LENGTH : maxSequenceLen;
     }
 
     public TaskType getTaskType() {
@@ -97,7 +96,6 @@ public class NlpTaskConfig implements ToXContentObject {
         return withSpecialTokens;
     }
 
-    @Nullable
     public Integer getMaxSequenceLength() {
         return maxSequenceLength;
     }
@@ -109,9 +107,7 @@ public class NlpTaskConfig implements ToXContentObject {
         builder.field(VOCAB.getPreferredName(), vocabulary);
         builder.field(LOWER_CASE.getPreferredName(), doLowerCase);
         builder.field(WITH_SPECIAL_TOKENS.getPreferredName(), withSpecialTokens);
-        if (maxSequenceLength != null) {
-            builder.field(MAX_SEQUENCE_LENGTH.getPreferredName(), maxSequenceLength);
-        }
+        builder.field(MAX_SEQUENCE_LENGTH.getPreferredName(), maxSequenceLength);
         if (classificationLabels != null && classificationLabels.isEmpty() == false) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
         }

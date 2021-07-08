@@ -173,7 +173,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         inner.put("qux", "quux");
         source.put("foo", inner);
         source.put("foo.bar", "baz2");
-        IngestDocument document = new IngestDocument(source, Map.of());
+        IngestDocument document = new IngestDocument(source, Collections.emptyMap());
         DotExpanderProcessor processor = new DotExpanderProcessor("_tag", null, null, "foo.bar", true);
         processor.execute(document);
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(2));
@@ -185,7 +185,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("foo.bar", "baz");
         source.put("qux.quux", "corge");
-        IngestDocument document = new IngestDocument(source, Map.of());
+        IngestDocument document = new IngestDocument(source, Collections.emptyMap());
         DotExpanderProcessor processor = new DotExpanderProcessor("_tag", null, null, "*");
         processor.execute(document);
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
@@ -197,7 +197,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         Map<String, Object> inner = new HashMap<>();
         inner.put("bar.baz", "qux");
         source.put("foo", inner);
-        document = new IngestDocument(source, Map.of());
+        document = new IngestDocument(source, Collections.emptyMap());
         processor = new DotExpanderProcessor("_tag", null, "foo", "*");
         processor.execute(document);
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
@@ -208,7 +208,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         inner = new HashMap<>();
         inner.put("bar.baz", "qux");
         source.put("foo", inner);
-        document = new IngestDocument(source, Map.of());
+        document = new IngestDocument(source, Collections.emptyMap());
         processor = new DotExpanderProcessor("_tag", null, null, "*");
         processor.execute(document);
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));

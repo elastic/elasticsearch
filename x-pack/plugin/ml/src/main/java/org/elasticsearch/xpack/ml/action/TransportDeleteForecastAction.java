@@ -47,6 +47,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -114,6 +115,14 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         SearchSourceBuilder source =
             new SearchSourceBuilder()
                 .size(MAX_FORECAST_TO_SEARCH)
+                // We only need the following 3 fields, there is no need fetching all of them
+                .fetchSource(
+                    new String[] {
+                        Job.ID.getPreferredName(),
+                        ForecastRequestStats.FORECAST_ID.getPreferredName(),
+                        ForecastRequestStats.STATUS.getPreferredName()
+                    },
+                    Strings.EMPTY_ARRAY)
                 .query(query);
         SearchRequest searchRequest =
             new SearchRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
@@ -124,7 +133,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
 
     static void validateForecastState(Collection<ForecastRequestStats> forecastsToDelete, JobState jobState, String jobId) {
         List<String> badStatusForecasts = forecastsToDelete.stream()
-            .filter((f) -> DELETABLE_STATUSES.contains(f.getStatus()) == false)
+            .filter(f -> DELETABLE_STATUSES.contains(f.getStatus()) == false)
             .map(ForecastRequestStats::getForecastId)
             .collect(Collectors.toList());
         if (badStatusForecasts.size() > 0 && JobState.OPENED.equals(jobState)) {

@@ -236,4 +236,10 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
         assertEquals("Found 1 problem\n" +
                 "line 1:15: first argument of [wildcard(pid, \"*.exe\")] must be [string], found value [pid] type [long]", msg);
     }
+
+    public void testSequenceWithTooLittleQueries() throws Exception {
+        String s = errorParsing("sequence [any where true]");
+        assertEquals("1:2: A sequence requires a minimum of 2 queries, found [1]", s);
+    }
+
 }

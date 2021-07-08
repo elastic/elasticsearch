@@ -270,7 +270,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             if (numberOfQueries > 256) {
                 throw new ParsingException(
                     source(sequenceTermCtx),
-                    "Sequence cannot contains more than 256 queries; found [{}]",
+                    "Sequence cannot contain more than 256 queries; found [{}]",
                     numberOfQueries
                 );
             }
@@ -281,7 +281,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         if (queries.size() < 2) {
-            throw new ParsingException(source, "A sequence requires a minimum of 2  queries, found [{}]", queries.size());
+            throw new ParsingException(source, "A sequence requires a minimum of 2 queries, found [{}]", queries.size());
         }
 
         // until is already parsed through sequenceTerm() above

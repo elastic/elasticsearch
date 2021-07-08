@@ -157,7 +157,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(ParseContext context) throws IOException {
+    public void postParse(DocumentParserContext context) throws IOException {
         if (enabled.value() == false) {
             return;
         }
@@ -167,7 +167,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static boolean noDocValues(String field, ParseContext context) {
+    private static boolean noDocValues(String field, DocumentParserContext context) {
         MappedFieldType ft = context.mappingLookup().getFieldType(field);
         return ft == null || ft.hasDocValues() == false;
     }

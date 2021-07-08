@@ -107,7 +107,7 @@ In that case, the value of the expanded field overrides the value of the nested 
 
 '''
 
-The field can also be set to a `*` to expand all dotted field names:
+The value of `field` can also be set to a `*` to expand all top-level dotted field names:
 
 [source,js]
 --------------------------------------------------

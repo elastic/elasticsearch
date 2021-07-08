@@ -1,63 +1,62 @@
-[[shutdown-api-get-shutdown]]
-=== Node shutdown status API
+[[get-shutdown]]
+=== Get shutdown API
 
-Retrieves the status of a node that's in the process of preparing for shutdown,
-indicating whether it is currently ready to shut down or not.
+Retrieves the status of a node that's being prepared for shutdown.
 
-[[shutdown-api-get-request]]
+[[get-shutdown-api-request]]
 ==== {api-request-title}
 
 `GET _nodes/shutdown`
 
 `GET _nodes/<node-id>/shutdown`
 
-[[shutdown-api-get-prereqs]]
+[[get-shutdown-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
-* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
-users can use this API.
+* If the <<operator-privileges,{operator-feature}>> is enabled, 
+you must be an operator to use this API.
 
-[[shutdown-api-get-desc]]
+[[get-shutdown-api-desc]]
 ==== {api-description-title}
 
-Retrieves the status of a node that's in the process of preparing to be shut
-down, indicating whether it is in progress, complete, or if it has stalled
-during the process. Detailed statuses of each portion of the shutdown are
-included as well.
+Indicates whether a node is ready to be shut down, or if shut down preparations
+are still in progress or have stalled. 
+Returns status information for each part of the shut down process. 
+Use to monitor the shut down process after calling <<put-shutdown, put shutdown>>.
 
-[[shutdown-api-get-path-params]]
+[[get-shutdown-api-path-params]]
 ==== {api-path-parms-title}
 
 `<node-id>`::
 (Optional, string)
-The ID of a node which is preparing to be shut down. If not provided,
-the statuses of all nodes registered for shutdown will be returned.
+The ID of a node that is being prepared for shutdown. 
+If no ID is specified, returns the status of all nodes being prepared for shutdown.
 
-[[shutdown-api-get-params]]
+[[get-shutdown-api-params]]
 ==== {api-query-parms-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-[[shutdown-api-get-example]]
+[[sget-shutdown-api-example]]
+==== {api-examples-title}
 
-This API is only useful after a node has been registered for shutdown:
+Prepare a node to be restarted: 
 
 [source,console]
 --------------------------------------------------
 PUT /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 {
   "type": "restart",
-  "reason": "demonstrating how the node shutdown API works"
+  "reason": "Demonstrating how the node shutdown API works"
 }
 --------------------------------------------------
 // TEST[setup:node]
 // TEST[s/USpTGYaBSIKbgSUJR2Z9lg/\$node_name/]
 
-Once a node is in the process of shutting down, we can retrieve its status
-with this API:
+Get the status of the shutdown preparations: 
 
 [source,console]
 --------------------------------------------------
@@ -66,7 +65,9 @@ GET /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 // TEST[continued]
 // TEST[s/USpTGYaBSIKbgSUJR2Z9lg/\$node_name/]
 
-Which returns the following response:
+The response shows information about the shutdown preparations, 
+including the status of shard migration, task migration, and plugin cleanup:
+
 [source,console-result]
 --------------------------------------------------
 {

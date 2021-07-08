@@ -377,9 +377,14 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         // Verify it starts again
         waitForTaskToStart();
 
-        // Verify that persistent task is in cluster state and that the local abort reason has been removed
-        PersistentTask<?> task = assertClusterStateHasTask(taskId);
-        assertThat(task.getAssignment().getExplanation(), not(equalTo("Simulating local abort")));
+        // Verify that persistent task is in cluster state and that the local abort reason has been removed.
+        // (Since waitForTaskToStart() waited for the local task to start, there might be a short period when
+        // the tasks API reports the local task but the cluster state update containing the new assignment
+        // reason has not been published, hence the busy wait here.)
+        assertBusy(() -> {
+            PersistentTask<?> task = assertClusterStateHasTask(taskId);
+            assertThat(task.getAssignment().getExplanation(), not(equalTo("Simulating local abort")));
+        });
 
         // Complete or cancel the running task
         TaskInfo taskInfo = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")

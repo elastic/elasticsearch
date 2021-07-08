@@ -189,4 +189,8 @@ public interface RuntimeField extends ToXContentFragment {
                     throw new IllegalArgumentException("Found two runtime fields with same name [" + t.name() + "]");
                 }));
     }
+
+    static <T> Function<FieldMapper, T> initializerNotSupported() {
+        return mapper -> { throw new UnsupportedOperationException(); };
+    }
 }

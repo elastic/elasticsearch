@@ -32,20 +32,22 @@ public class ObjectRuntimeField implements RuntimeField {
         new RuntimeField.Builder(name) {
             private final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
                 "script",
-                true,
+                false,
                 () -> null,
                 AbstractScriptFieldType.Builder::parseScript,
-                null
-            ).setSerializerCheck((id, ic, v) -> ic).setValidator(s -> {
+                RuntimeField.initializerNotSupported()
+            ).setValidator(s -> {
                 if (s == null) {
                     throw new IllegalArgumentException("object runtime field [" + name + "] must declare a [script]");
                 }
             });
 
-            private final FieldMapper.Parameter<Map<String, Object>> fields = new FieldMapper.Parameter<>("fields",
-                true, Collections::emptyMap, (f, p, o) -> parseFields(f, o), mappers -> {
-                throw new UnsupportedOperationException();
-            });
+            private final FieldMapper.Parameter<Map<String, Object>> fields = new FieldMapper.Parameter<>(
+                "fields",
+                false,
+                Collections::emptyMap,
+                (f, p, o) -> parseFields(f, o),
+                RuntimeField.initializerNotSupported());
 
             @Override
             protected List<FieldMapper.Parameter<?>> getParameters() {
@@ -68,15 +70,17 @@ public class ObjectRuntimeField implements RuntimeField {
                 ObjectFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.get(), ObjectFieldScript.CONTEXT);
                 Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(fields.getValue(),
                     parserContext, name, searchLookup -> factory.newFactory(name, script.get().getParams(), searchLookup), false);
-                return new ObjectRuntimeField(name, runtimeFields.values());
+                return new ObjectRuntimeField(name, getParameters(), runtimeFields.values());
             }
         });
 
     private final String name;
+    private final List<FieldMapper.Parameter<?>> parameters;
     private final Collection<RuntimeField> subfields;
 
-    ObjectRuntimeField(String name, Collection<RuntimeField> subfields) {
+    ObjectRuntimeField(String name, List<FieldMapper.Parameter<?>> parameters, Collection<RuntimeField> subfields) {
         this.name = name;
+        this.parameters = parameters;
         this.subfields = subfields;
     }
 
@@ -94,10 +98,15 @@ public class ObjectRuntimeField implements RuntimeField {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field("type", "object");
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+        for (FieldMapper.Parameter<?> parameter : parameters) {
+            parameter.toXContent(builder, includeDefaults);
+        }
         builder.startObject("fields");
         for (RuntimeField subfield : subfields) {
             subfield.toXContent(builder, params);
         }
+        builder.endObject();
         builder.endObject();
         return builder;
     }

@@ -201,7 +201,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             true,
             () -> null,
             Builder::parseScript,
-            initializerNotSupported()
+            RuntimeField.initializerNotSupported()
         ).setSerializerCheck((id, ic, v) -> ic);
 
         Builder(String name, ScriptContext<Factory> scriptContext) {
@@ -257,9 +257,5 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             }
             return script;
         }
-    }
-
-    static <T> Function<FieldMapper, T> initializerNotSupported() {
-        return mapper -> { throw new UnsupportedOperationException(); };
     }
 }

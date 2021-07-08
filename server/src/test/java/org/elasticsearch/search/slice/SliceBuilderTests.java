@@ -41,6 +41,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -364,5 +365,22 @@ public class SliceBuilderTests extends ESTestCase {
             new NamedWriteableRegistry(Collections.emptyList()),
             SliceBuilder::new, Version.V_6_3_0);
         assertEquals(sliceBuilder, copy63);
+    }
+
+    public void testSerializationBackcompatWithEmptyField() throws IOException {
+        SliceBuilder sliceBuilder = new SliceBuilder(1, 5);
+        assertNull(sliceBuilder.getField());
+
+        Version version1 = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_7_14_0);
+        SliceBuilder copy1 = copyWriteable(sliceBuilder,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            SliceBuilder::new, version1);
+        assertEquals(IdFieldMapper.NAME, copy1.getField());
+
+        Version version2 = VersionUtils.randomVersionBetween(random(), Version.V_7_15_0, Version.CURRENT);
+        SliceBuilder copy2 = copyWriteable(sliceBuilder,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            SliceBuilder::new, version2);
+        assertNull(copy2.getField());
     }
 }

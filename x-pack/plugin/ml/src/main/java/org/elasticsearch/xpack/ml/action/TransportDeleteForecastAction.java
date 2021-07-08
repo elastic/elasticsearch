@@ -105,17 +105,19 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
             e -> handleFailure(e, request, listener)
         );
 
-        SearchSourceBuilder source = new SearchSourceBuilder();
-
-        BoolQueryBuilder builder = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE));
+        BoolQueryBuilder query =
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE));
         QueryBuilderHelper
             .buildTokenFilterQuery(Forecast.FORECAST_ID.getPreferredName(), forecastIds)
-            .ifPresent(builder::filter);
-        source.query(builder);
-
-        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
-        searchRequest.source(source);
+            .ifPresent(query::filter);
+        SearchSourceBuilder source =
+            new SearchSourceBuilder()
+                .size(MAX_FORECAST_TO_SEARCH)
+                .query(query);
+        SearchRequest searchRequest =
+            new SearchRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+                .source(source);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, forecastStatsHandler);
     }
@@ -144,8 +146,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         }
 
         if (forecastsToDelete.isEmpty()) {
-            if (Strings.isAllOrWildcard(request.getForecastId()) &&
-                request.isAllowNoForecasts()) {
+            if (Strings.isAllOrWildcard(request.getForecastId()) && request.isAllowNoForecasts()) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
                 listener.onFailure(
@@ -222,23 +223,20 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
     }
 
     private DeleteByQueryRequest buildDeleteByQuery(String jobId, List<String> forecastsToDelete) {
-        DeleteByQueryRequest request = new DeleteByQueryRequest()
-            .setAbortOnVersionConflict(false) //since these documents are not updated, a conflict just means it was deleted previously
-            .setMaxDocs(MAX_FORECAST_TO_SEARCH)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
-
-        request.indices(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
-        BoolQueryBuilder innerBoolQuery = QueryBuilders.boolQuery();
-        innerBoolQuery
+        BoolQueryBuilder innerBoolQuery = QueryBuilders.boolQuery()
             .must(QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),
                 ForecastRequestStats.RESULT_TYPE_VALUE, Forecast.RESULT_TYPE_VALUE))
             .must(QueryBuilders.termsQuery(Forecast.FORECAST_ID.getPreferredName(),
                 forecastsToDelete));
-
         QueryBuilder query = QueryBuilders.boolQuery().filter(innerBoolQuery);
-        request.setQuery(query);
-        request.setRefresh(true);
-        return request;
+
+        // We want *all* of the docs to be deleted. Hence, we rely on the default value of max_docs.
+        return new DeleteByQueryRequest()
+            .setAbortOnVersionConflict(false) // since these documents are not updated, a conflict just means it was deleted previously
+            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+            .indices(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+            .setQuery(query)
+            .setRefresh(true);
     }
 
     private static void handleFailure(Exception e,
@@ -246,7 +244,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
                                       ActionListener<AcknowledgedResponse> listener) {
         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
             if (request.isAllowNoForecasts() && Strings.isAllOrWildcard(request.getForecastId())) {
-                listener.onResponse(AcknowledgedResponse.of(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
                 listener.onFailure(new ResourceNotFoundException(
                     Messages.getMessage(Messages.REST_NO_SUCH_FORECAST, request.getForecastId(), request.getJobId())

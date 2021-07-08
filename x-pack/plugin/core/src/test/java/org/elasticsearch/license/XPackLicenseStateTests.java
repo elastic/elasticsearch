@@ -86,6 +86,76 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(true));
     }
 
+    public void testSecurityStandard() {
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        licenseState.update(STANDARD, true, Long.MAX_VALUE, null);
+
+        assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
+    }
+
+    public void testSecurityStandardExpired() {
+        XPackLicenseState licenseState = new XPackLicenseState( () -> 0);
+        licenseState.update(STANDARD, false, Long.MAX_VALUE, null);
+
+        assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
+    }
+
+    public void testSecurityGold() {
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        licenseState.update(GOLD, true, Long.MAX_VALUE, null);
+
+        assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_STANDARD_REALMS), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
+    }
+
+    public void testSecurityGoldExpired() {
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        licenseState.update(GOLD, false, Long.MAX_VALUE, null);
+
+        assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_STANDARD_REALMS), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
+    }
+
+    public void testSecurityPlatinum() {
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        licenseState.update(PLATINUM, true, Long.MAX_VALUE, null);
+
+        assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
+    }
+
+    public void testSecurityPlatinumExpired() {
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        licenseState.update(PLATINUM, false, Long.MAX_VALUE, null);
+
+        assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
+    }
+
     public void testSecurityAckBasicToNotGoldOrStandard() {
         OperationMode toMode = randomFrom(OperationMode.values(), mode -> mode != GOLD && mode != STANDARD);
         assertAckMessages(XPackField.SECURITY, BASIC, toMode, 0);

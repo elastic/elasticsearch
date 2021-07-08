@@ -79,16 +79,19 @@ public class StoreKeyConfig extends KeyConfig {
         try {
             KeyStore ks = getStore(ksPath, keyStoreType, keyStorePassword);
             checkKeyStore(ks);
-            // TBD: filte out only http.ssl.keystore
-            ArrayList<String> aliases = Collections.list(ks.aliases());
+            // TBD: filter out only http.ssl.keystore
+            List<String> aliases = new ArrayList<>();
+            for (String s : Collections.list(ks.aliases())) {
+                if (ks.isKeyEntry(s)) {
+                    aliases.add(s);
+                }
+            }
             if (aliases.size() > 1) {
                 for (String alias : aliases) {
-                    if (ks.isKeyEntry(alias)) {
-                        Certificate certificate = ks.getCertificate(alias);
-                        if (certificate instanceof X509Certificate) {
-                            if (((X509Certificate) certificate).getBasicConstraints() != -1) {
-                                ks.deleteEntry(alias);
-                            }
+                    Certificate certificate = ks.getCertificate(alias);
+                    if (certificate instanceof X509Certificate) {
+                        if (((X509Certificate) certificate).getBasicConstraints() != -1) {
+                            ks.deleteEntry(alias);
                         }
                     }
                 }

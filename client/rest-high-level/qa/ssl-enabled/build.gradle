@@ -29,8 +29,9 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.api_key.enabled', 'true'
 
   extraConfigFile 'httpCa.p12', file('./src/javaRestTest/resources/httpCa.p12')
-  extraConfigFile 'transport.p12', file('./transport.p12')
+  extraConfigFile 'transport.p12', file('./src/javaRestTest/resources/transport.p12')
 
+  // TBD: sync these settings (which options are set) with the ones we will be generating in #74868
   setting 'xpack.security.http.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.enabled', 'true'
   setting 'xpack.security.http.ssl.keystore.path', 'httpCa.p12'

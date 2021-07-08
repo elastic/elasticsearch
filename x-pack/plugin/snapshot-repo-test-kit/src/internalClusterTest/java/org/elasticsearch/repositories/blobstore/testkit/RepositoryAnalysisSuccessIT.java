@@ -9,7 +9,6 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -17,12 +16,15 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -40,6 +42,7 @@ import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -324,6 +327,22 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         @Override
         public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
             writeBlob(blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
+        }
+
+        @Override
+        public void writeBlob(
+            String blobName,
+            boolean failIfAlreadyExists,
+            boolean atomic,
+            CheckedConsumer<OutputStream, IOException> writer
+        ) throws IOException {
+            final BytesStreamOutput out = new BytesStreamOutput();
+            writer.accept(out);
+            if (atomic) {
+                writeBlobAtomic(blobName, out.bytes(), failIfAlreadyExists);
+            } else {
+                writeBlob(blobName, out.bytes(), failIfAlreadyExists);
+            }
         }
 
         @Override

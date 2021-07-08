@@ -26,6 +26,7 @@ public final class TestProfiles {
         builder.setConnectTimeout(source.getConnectTimeout());
         builder.setHandshakeTimeout(source.getHandshakeTimeout());
         builder.setCompressionEnabled(source.getCompressionEnabled());
+        builder.setCompressionScheme(source.getCompressionScheme());
         builder.setPingInterval(source.getPingInterval());
         builder.addConnections(1,
             TransportRequestOptions.Type.BULK,

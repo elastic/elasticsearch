@@ -19,7 +19,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
@@ -29,6 +28,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -67,7 +67,6 @@ public class SecurityRestFilterTests extends ESTestCase {
     private SecondaryAuthenticator secondaryAuthenticator;
     private RestChannel channel;
     private SecurityRestFilter filter;
-    private XPackLicenseState licenseState;
     private RestHandler restHandler;
 
     @Before
@@ -135,6 +134,15 @@ public class SecurityRestFilterTests extends ESTestCase {
 
         assertThat(secondaryAuthRef.get(), notNullValue());
         assertThat(secondaryAuthRef.get().getAuthentication(), sameInstance(secondaryAuthentication));
+    }
+
+    public void testProcessWithSecurityDisabled() throws Exception {
+        Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+        filter = new SecurityRestFilter(settings, threadContext, authcService, secondaryAuthenticator, restHandler, false);
+        RestRequest request = mock(RestRequest.class);
+        filter.handleRequest(request, channel, null);
+        verify(restHandler).handleRequest(request, channel, null);
+        verifyZeroInteractions(channel, authcService);
     }
 
     public void testProcessAuthenticationFailedNoTrace() throws Exception {

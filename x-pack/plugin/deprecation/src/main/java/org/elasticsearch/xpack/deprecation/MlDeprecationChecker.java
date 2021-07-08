@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.PageParams;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -24,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 public class MlDeprecationChecker implements DeprecationChecker {
@@ -36,7 +36,7 @@ public class MlDeprecationChecker implements DeprecationChecker {
             return Optional.of(new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Datafeed [" + datafeedConfig.getId() + "] uses deprecated query options",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html#breaking_70_search_changes",
-                deprecations.toString()));
+                deprecations.toString(), null));
         }
     }
 
@@ -48,7 +48,7 @@ public class MlDeprecationChecker implements DeprecationChecker {
             return Optional.of(new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Datafeed [" + datafeedConfig.getId() + "] uses deprecated aggregation options",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
-                    "#breaking_70_aggregations_changes", deprecations.toString()));
+                    "#breaking_70_aggregations_changes", deprecations.toString(), null));
         }
     }
 
@@ -76,8 +76,8 @@ public class MlDeprecationChecker implements DeprecationChecker {
                     modelSnapshot.getJobId()
                 ),
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/ml-upgrade-job-model-snapshot.html",
-                details.toString()
-               )
+                details.toString(),
+                Map.of("job_id", modelSnapshot.getJobId(), "snapshot_id", modelSnapshot.getSnapshotId()))
             );
         }
         return Optional.empty();

@@ -20,8 +20,10 @@ import java.util.Map;
 /**
  * Restore snapshot request builder
  */
-public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<RestoreSnapshotRequest,
-        RestoreSnapshotResponse, RestoreSnapshotRequestBuilder> {
+public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<
+    RestoreSnapshotRequest,
+    RestoreSnapshotResponse,
+    RestoreSnapshotRequestBuilder> {
 
     /**
      * Constructs new restore snapshot request builder
@@ -36,7 +38,6 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
     public RestoreSnapshotRequestBuilder(ElasticsearchClient client, RestoreSnapshotAction action, String repository, String name) {
         super(client, action, new RestoreSnapshotRequest(repository, name));
     }
-
 
     /**
      * Sets snapshot name
@@ -86,7 +87,6 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
         request.indicesOptions(indicesOptions);
         return this;
     }
-
 
     /**
      * Sets rename pattern that should be applied to restored indices.
@@ -206,7 +206,6 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
         request.indexSettings(source);
         return this;
     }
-
 
     /**
      * Sets the list of index settings and index settings groups that shouldn't be restored from snapshot

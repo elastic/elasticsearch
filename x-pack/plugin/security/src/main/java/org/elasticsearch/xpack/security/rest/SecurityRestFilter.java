@@ -11,10 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -65,8 +63,13 @@ public class SecurityRestFilter implements RestHandler {
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        if (XPackSettings.SECURITY_ENABLED.get(settings) && request.method() != Method.OPTIONS) {
+        if (request.method() == Method.OPTIONS) {
             // CORS - allow for preflight unauthenticated OPTIONS request
+            restHandler.handleRequest(request, channel, client);
+            return;
+        }
+
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             if (extractClientCertificate) {
                 HttpChannel httpChannel = request.getHttpChannel();
                 SSLEngineUtils.extractClientCertificates(logger, threadContext, httpChannel);
@@ -91,11 +94,6 @@ public class SecurityRestFilter implements RestHandler {
                         e -> handleException("Secondary authentication", request, channel, e)));
                 }, e -> handleException("Authentication", request, channel, e)));
         } else {
-            if (request.method() != Method.OPTIONS) {
-                HeaderWarning.addWarning("Elasticsearch built-in security features are not enabled. Without authentication, your cluster " +
-                    "could be accessible to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major +
-                    "." + Version.CURRENT.minor + "/security-minimal-setup.html to enable security.");
-            }
             restHandler.handleRequest(request, channel, client);
         }
     }

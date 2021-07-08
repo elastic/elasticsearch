@@ -9,33 +9,36 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
-import java.io.IOException;
 import java.util.Locale;
 
 public enum TaskType {
 
-    TOKEN_CLASSIFICATION {
-        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
-            return new NerProcessor(tokenizer);
+    NER {
+        @Override
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer, NlpTaskConfig config) {
+            return new NerProcessor(tokenizer, config);
         }
     },
     SENTIMENT_ANALYSIS {
-        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
-            return new SentimentAnalysisProcessor(tokenizer);
+        @Override
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer, NlpTaskConfig config) {
+            return new SentimentAnalysisProcessor(tokenizer, config);
         }
     },
     FILL_MASK {
-        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
-            return new FillMaskProcessor(tokenizer);
+        @Override
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer, NlpTaskConfig config) {
+            return new FillMaskProcessor(tokenizer, config);
         }
     },
     BERT_PASS_THROUGH {
-        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
-            return new PassThroughProcessor(tokenizer);
+        @Override
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer, NlpTaskConfig config) {
+            return new PassThroughProcessor(tokenizer, config);
         }
     };
 
-    public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
+    public NlpTask.Processor createProcessor(BertTokenizer tokenizer, NlpTaskConfig config) {
         throw new UnsupportedOperationException("json request must be specialised for task type [" + this.name() + "]");
     }
 

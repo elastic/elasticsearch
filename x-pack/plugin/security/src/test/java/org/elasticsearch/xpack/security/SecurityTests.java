@@ -6,7 +6,13 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -16,10 +22,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -29,11 +37,17 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -49,6 +63,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -61,6 +76,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -73,6 +89,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -478,5 +496,100 @@ public class SecurityTests extends ESTestCase {
             .build();
         Security.validateForFips(settings);
         // no exception thrown
+    }
+
+    public void testLicenseUpdateFailureHandlerUpdate() throws Exception {
+        Settings settings = Settings.builder().
+            put("xpack.security.authc.api_key.enabled", "true").
+            build();
+        Collection<Object> components = createComponentsWithSecurityNotExplicitlyEnabled(settings);
+        AuthenticationService service = findComponent(AuthenticationService.class, components);
+        assertNotNull(service);
+        RestRequest request = new FakeRestRequest();
+        final AtomicBoolean completed = new AtomicBoolean(false);
+        service.authenticate(request, ActionListener.wrap(result -> {
+            assertTrue(completed.compareAndSet(false, true));
+        }, this::logAndFail));
+        assertTrue(completed.compareAndSet(true, false));
+        threadContext.stashContext();
+        licenseState.update(
+            randomFrom(License.OperationMode.GOLD, License.OperationMode.ENTERPRISE, License.OperationMode.PLATINUM),
+            true, Long.MAX_VALUE, null);
+        service.authenticate(request, ActionListener.wrap(result -> {
+            assertTrue(completed.compareAndSet(false, true));
+        }, this::VerifyBasicAuthenticationHeader));
+        if(completed.get()){
+            fail("authentication succeeded but it shouldn't");
+        }
+    }
+
+    public void testSecurityPluginInstallsRestHandlerWrapperEvenIfSecurityIsDisabled() throws IllegalAccessException {
+        Settings settings = Settings.builder()
+            .put("xpack.security.enabled", false)
+            .put("path.home", createTempDir())
+            .build();
+        SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+
+        try {
+            UsageService usageService = new UsageService();
+            Security security = new Security(settings, null);
+            assertTrue(security.getRestHandlerWrapper(threadPool.getThreadContext()) != null);
+
+        } finally {
+            threadPool.shutdown();
+        }
+
+    }
+
+    public void testSecurityRestHandlerWrapperCanBeInstalled() throws IllegalAccessException {
+        final Logger amLogger = LogManager.getLogger(ActionModule.class);
+        Loggers.setLevel(amLogger, Level.DEBUG);
+        final MockLogAppender appender = new MockLogAppender();
+        Loggers.addAppender(amLogger, appender);
+        appender.start();
+
+        Settings settings = Settings.builder()
+            .put("xpack.security.enabled", false)
+            .put("path.home", createTempDir())
+            .build();
+        SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+
+        try {
+            UsageService usageService = new UsageService();
+            Security security = new Security(settings, null);
+
+            // Verify Security rest wrapper is about to be installed
+            // We will throw later if another wrapper is already installed
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "Security rest wrapper", ActionModule.class.getName(), Level.DEBUG,
+                "Using REST wrapper from plugin org.elasticsearch.xpack.security.Security"
+            ));
+
+            ActionModule actionModule = new ActionModule(settingsModule.getSettings(),
+                TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
+                threadPool, Arrays.asList(security), null, null, usageService, null);
+            actionModule.initRestHandlers(null);
+
+            appender.assertAllExpectationsMatched();
+        } finally {
+            threadPool.shutdown();
+            appender.stop();
+            Loggers.removeAppender(amLogger, appender);
+        }
+    }
+
+    private void logAndFail(Exception e) {
+        logger.error("unexpected exception", e);
+        fail("unexpected exception " + e.getMessage());
+    }
+
+    private void VerifyBasicAuthenticationHeader(Exception e) {
+        assertThat(e, instanceOf(ElasticsearchSecurityException.class));
+        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), notNullValue());
+        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"),
+            hasItem("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
     }
 }

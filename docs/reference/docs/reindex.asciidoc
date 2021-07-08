@@ -221,9 +221,11 @@ Reindex supports <<slice-scroll>> to parallelize the reindexing process.
 This parallelization can improve efficiency and provide a convenient way to
 break the request down into smaller parts.
 
+// tag::remote-reindex-slicing[]
 NOTE: Reindexing from remote clusters does not support
-<<docs-reindex-manual-slice, manual>> or
-<<docs-reindex-automatic-slice, automatic slicing>>.
+<<docs-reindex-manual-slice, manual>> or <<docs-reindex-automatic-slice,
+automatic slicing>>.
+// end::remote-reindex-slicing[]
 
 [[docs-reindex-manual-slice]]
 ====== Manual slicing
@@ -464,7 +466,9 @@ POST _reindex
 [[docs-reindex-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+`refresh`::
+(Optional, Boolean) If `true`, the request refreshes affected shards to make
+this operation visible to search. Defaults to `false`.
 
 `timeout`::
 +
@@ -1014,9 +1018,7 @@ example, you cannot reindex from a 7.x cluster into a 6.x cluster.
 To enable queries sent to older versions of Elasticsearch the `query` parameter
 is sent directly to the remote host without validation or modification.
 
-NOTE: Reindexing from remote clusters does not support
-<<docs-reindex-manual-slice, manual>> or
-<<docs-reindex-automatic-slice, automatic slicing>>.
+include::{es-ref-dir}/docs/reindex.asciidoc[tag=remote-reindex-slicing]
 
 Reindexing from a remote server uses an on-heap buffer that defaults to a
 maximum size of 100mb. If the remote index includes very large documents you'll

@@ -105,8 +105,8 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         TimeValue interval = null;
         boolean withInterval = randomBoolean();
         if (withInterval) {
-            builder.field("interval", "1s");
-            interval = TimeValue.timeValueSeconds(1);
+            interval = TimeValue.parseTimeValue(randomTimeValue(1, 100, "s", "m", "h"), "interval");
+            builder.field("interval", interval.getStringRep());
         }
 
         boolean isInline = randomBoolean();

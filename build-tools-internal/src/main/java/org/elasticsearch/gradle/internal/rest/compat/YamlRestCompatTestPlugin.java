@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal.rest.compat;
 
-import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
+import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
@@ -37,7 +37,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.Map;
 
-import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupDependencies;
+import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupTestDependenciesDefaults;
 
 /**
  * Apply this plugin to run the YAML based REST tests from a prior major version against this version's cluster.
@@ -59,7 +59,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         final Path compatSpecsDir = compatRestResourcesDir.resolve("yamlSpecs");
         final Path compatTestsDir = compatRestResourcesDir.resolve("yamlTests");
 
-        project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
+        project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(TestClustersPlugin.class);
         project.getPluginManager().apply(RestTestBasePlugin.class);
         project.getPluginManager().apply(RestResourcesPlugin.class);
@@ -162,7 +162,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             .flatMap(CopyRestTestsTask::getOutputResourceDir);
 
         // setup the yamlRestTest task
-        Provider<RestIntegTestTask> yamlRestCompatTestTask = RestTestUtil.registerTask(project, yamlCompatTestSourceSet);
+        Provider<RestIntegTestTask> yamlRestCompatTestTask = RestTestUtil.registerTestTask(project, yamlCompatTestSourceSet);
         project.getTasks().withType(RestIntegTestTask.class).named(SOURCE_SET_NAME).configure(testTask -> {
             // Use test runner and classpath from "normal" yaml source set
             testTask.setTestClassesDirs(
@@ -180,8 +180,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             testTask.onlyIf(t -> isEnabled(project));
         });
 
-        // setup the dependencies
-        setupDependencies(project, yamlCompatTestSourceSet);
+        setupTestDependenciesDefaults(project, yamlCompatTestSourceSet);
 
         // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, yamlCompatTestSourceSet);

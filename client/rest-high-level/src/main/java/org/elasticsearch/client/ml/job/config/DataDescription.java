@@ -9,10 +9,8 @@ package org.elasticsearch.client.ml.job.config;
 
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -31,12 +29,7 @@ public class DataDescription implements ToXContentObject {
      * Enum of the acceptable data formats.
      */
     public enum DataFormat {
-        XCONTENT,
-
-        /**
-         * This is deprecated
-         */
-        DELIMITED;
+        XCONTENT;
 
         /**
          * Case-insensitive from string method.
@@ -56,11 +49,8 @@ public class DataDescription implements ToXContentObject {
     }
 
     private static final ParseField DATA_DESCRIPTION_FIELD = new ParseField("data_description");
-    private static final ParseField FORMAT_FIELD = new ParseField("format");
     private static final ParseField TIME_FIELD_NAME_FIELD = new ParseField("time_field");
     private static final ParseField TIME_FORMAT_FIELD = new ParseField("time_format");
-    private static final ParseField FIELD_DELIMITER_FIELD = new ParseField("field_delimiter");
-    private static final ParseField QUOTE_CHARACTER_FIELD = new ParseField("quote_character");
 
     /**
      * Special time format string for epoch times (seconds)
@@ -77,70 +67,39 @@ public class DataDescription implements ToXContentObject {
      */
     public static final String DEFAULT_TIME_FIELD = "time";
 
-    /**
-     * The default field delimiter expected by the native autodetect
-     * program.
-     */
-    public static final char DEFAULT_DELIMITER = '\t';
-
-    /**
-     * The default quote character used to escape text in
-     * delimited data formats
-     */
-    public static final char DEFAULT_QUOTE_CHAR = '"';
-
-    private final DataFormat dataFormat;
     private final String timeFieldName;
     private final String timeFormat;
-    private final Character fieldDelimiter;
-    private final Character quoteCharacter;
 
     public static final ObjectParser<Builder, Void> PARSER =
         new ObjectParser<>(DATA_DESCRIPTION_FIELD.getPreferredName(), true, Builder::new);
 
     static {
-        PARSER.declareString(Builder::setFormat, FORMAT_FIELD);
         PARSER.declareString(Builder::setTimeField, TIME_FIELD_NAME_FIELD);
         PARSER.declareString(Builder::setTimeFormat, TIME_FORMAT_FIELD);
-        PARSER.declareField(Builder::setFieldDelimiter, DataDescription::extractChar, FIELD_DELIMITER_FIELD, ValueType.STRING);
-        PARSER.declareField(Builder::setQuoteCharacter, DataDescription::extractChar, QUOTE_CHARACTER_FIELD, ValueType.STRING);
     }
 
-    public DataDescription(DataFormat dataFormat, String timeFieldName, String timeFormat, Character fieldDelimiter,
-                           Character quoteCharacter) {
-        this.dataFormat = dataFormat;
+    public DataDescription(String timeFieldName, String timeFormat) {
         this.timeFieldName = timeFieldName;
         this.timeFormat = timeFormat;
-        this.fieldDelimiter = fieldDelimiter;
-        this.quoteCharacter = quoteCharacter;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (dataFormat != DataFormat.XCONTENT) {
-            builder.field(FORMAT_FIELD.getPreferredName(), dataFormat);
-        }
         builder.field(TIME_FIELD_NAME_FIELD.getPreferredName(), timeFieldName);
         builder.field(TIME_FORMAT_FIELD.getPreferredName(), timeFormat);
-        if (fieldDelimiter != null) {
-            builder.field(FIELD_DELIMITER_FIELD.getPreferredName(), String.valueOf(fieldDelimiter));
-        }
-        if (quoteCharacter != null) {
-            builder.field(QUOTE_CHARACTER_FIELD.getPreferredName(), String.valueOf(quoteCharacter));
-        }
         builder.endObject();
         return builder;
     }
 
     /**
      * The format of the data to be processed.
-     * Defaults to {@link DataDescription.DataFormat#XCONTENT}
+     * Always {@link DataDescription.DataFormat#XCONTENT}
      *
      * @return The data format
      */
     public DataFormat getFormat() {
-        return dataFormat;
+        return DataFormat.XCONTENT;
     }
 
     /**
@@ -165,39 +124,6 @@ public class DataDescription implements ToXContentObject {
     }
 
     /**
-     * If the data is in a delimited format with a header e.g. csv or tsv
-     * this is the delimiter character used. This is only applicable if
-     * {@linkplain #getFormat()} is {@link DataDescription.DataFormat#DELIMITED}.
-     * The default value for delimited format is {@value #DEFAULT_DELIMITER}.
-     *
-     * @return A char
-     */
-    public Character getFieldDelimiter() {
-        return fieldDelimiter;
-    }
-
-    /**
-     * The quote character used in delimited formats.
-     * The default value for delimited format is {@value #DEFAULT_QUOTE_CHAR}.
-     *
-     * @return The delimited format quote character
-     */
-    public Character getQuoteCharacter() {
-        return quoteCharacter;
-    }
-
-    private static Character extractChar(XContentParser parser) throws IOException {
-        if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            String charStr = parser.text();
-            if (charStr.length() != 1) {
-                throw new IllegalArgumentException("String must be a single character, found [" + charStr + "]");
-            }
-            return charStr.charAt(0);
-        }
-        throw new IllegalArgumentException("Unsupported token [" + parser.currentToken() + "]");
-    }
-
-    /**
      * Overridden equality test
      */
     @Override
@@ -212,33 +138,21 @@ public class DataDescription implements ToXContentObject {
 
         DataDescription that = (DataDescription) other;
 
-        return this.dataFormat == that.dataFormat &&
-                Objects.equals(this.quoteCharacter, that.quoteCharacter) &&
-                Objects.equals(this.timeFieldName, that.timeFieldName) &&
-                Objects.equals(this.timeFormat, that.timeFormat) &&
-                Objects.equals(this.fieldDelimiter, that.fieldDelimiter);
+        return Objects.equals(this.timeFieldName, that.timeFieldName) && Objects.equals(this.timeFormat, that.timeFormat);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(dataFormat, quoteCharacter, timeFieldName, timeFormat, fieldDelimiter);
+        return Objects.hash(timeFieldName, timeFormat);
     }
 
     public static class Builder {
 
-        private DataFormat dataFormat = DataFormat.XCONTENT;
         private String timeFieldName = DEFAULT_TIME_FIELD;
         private String timeFormat = EPOCH_MS;
-        private Character fieldDelimiter;
-        private Character quoteCharacter;
 
         public Builder setFormat(DataFormat format) {
-            dataFormat = Objects.requireNonNull(format);
-            return this;
-        }
-
-        private Builder setFormat(String format) {
-            setFormat(DataFormat.forString(format));
+            Objects.requireNonNull(format);
             return this;
         }
 
@@ -252,26 +166,8 @@ public class DataDescription implements ToXContentObject {
             return this;
         }
 
-        public Builder setFieldDelimiter(Character delimiter) {
-            fieldDelimiter = delimiter;
-            return this;
-        }
-
-        public Builder setQuoteCharacter(Character value) {
-            quoteCharacter = value;
-            return this;
-        }
-
         public DataDescription build() {
-            if (dataFormat == DataFormat.DELIMITED) {
-                if (fieldDelimiter == null) {
-                    fieldDelimiter = DEFAULT_DELIMITER;
-                }
-                if (quoteCharacter == null) {
-                    quoteCharacter = DEFAULT_QUOTE_CHAR;
-                }
-            }
-            return new DataDescription(dataFormat, timeFieldName, timeFormat, fieldDelimiter, quoteCharacter);
+            return new DataDescription(timeFieldName, timeFormat);
         }
     }
 }

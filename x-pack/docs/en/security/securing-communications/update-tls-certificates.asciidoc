@@ -1,12 +1,12 @@
 [[update-node-certs]]
 == Updating node security certificates
 You need to update your TLS certificates if your current node certificates might
-expire soon, you're adding new nodes to your secured cluster, or security
+expire soon, you're adding new nodes to your secured cluster, or a security
 breach has broken the trust of your certificate chain. In these instances where
 <<update-node-certs-same,your CA and key remains the same>>, you can sign new
 certificates using the original Certificate Authority (CA) that you used to sign your existing certificates.
 
-If you have to trust a new CA, you need to
+If you have to trust a new CA from your organization, or you need to generate a new CA yourself, you need to use this new CA to sign the new node certificates and instruct your nodes to trust the new CA. 
 <<update-node-certs-different,generate a new CA certificate and key>> for each
 node that is signed by the new CA certificate and instruct your nodes to trust
 this certificate chain.
@@ -15,18 +15,18 @@ Depending on which certificates are expiring, you might need to update the
 certificates for the transport layer, the HTTP layer, or both. 
 
 Regardless of the scenario, {es} monitors the SSL resources for updates
-on a five-second interval, which is the default. You can just copy the new
+on a five-second interval by default. You can just copy the new
 certificate and key files (or keystore) into the {es} configuration directory
 and your nodes will detect the changes and reload the keys and certificates. 
 
 Because {es} doesn't reload the `elasticsearch.yml` configuration,
-you must use *the same file names* so that {es} refreshes the security
+you must use *the same file names* so that {es} refreshes the
 certificates and keys.
 
 If you need to update the `elasticsearch.yml` configuration or change
 passwords for keys or keystores that are stored in the
 <<secure-settings,secure settings>>, then you must complete a
-<<use-rolling-restarts,rolling restart>>. {es} will not reload changes for
+<<use-rolling-restarts,rolling restart>>. {es} will not automatically reload changes for
 passwords stored in the secure settings. 
 
 [[use-rolling-restarts]]
@@ -47,14 +47,14 @@ it unable to recover from a network outage or node restart.
 ****
 
 [[update-node-certs-same]]
-=== Update security certificates with the same CA
+=== Update certificates with the same CA
 ++++
 <titleabbrev>With the same CA</titleabbrev>
 ++++
 
 This procedure assumes that the you have access to the CA certificate and key
 that was originally generated (or otherwise held by your organization) and used
-to sign the certificate that is currently in use. It also assumes that the
+to sign the node certificates currently in use. It also assumes that the
 clients connecting to {es} on the HTTP layer are configured to trust the CA
 certificate.
 
@@ -233,7 +233,7 @@ this certificate when they connect to {es}.
 
 NOTE: If your organization has its own CA, you'll need to 
 <<certutil-csr,generate Certificate Signing Requests (CSRs)>>. CSRs contain
-information that your CA uses to generate and sign a security certificate
+information that your CA uses to generate and sign a certificate
 instead of using self-signed certificates that the `elasticsearch-certutil` tool
 generates.
 
@@ -315,8 +315,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 --
 
 . If necessary, rename the `http.p12` file to match the name of your existing
-certificate for HTTP client communications. This keystore contains both a
-certificate and key.
+certificate for HTTP client communications.
 
 . [[start-rolling-restart-http,step 5]]On the current node in your cluster where you're updating the keystore,
 start a <<restart-cluster-rolling,rolling restart>>.
@@ -364,9 +363,7 @@ steps for a <<restart-cluster-rolling,rolling restart>>.
 ++++
 <titleabbrev>With a different CA</titleabbrev>
 ++++
-If you have to trust a new CA, generate a new CA certificate and key for each
-node that is signed by the new CA certificate and instruct your nodes to trust
-this certificate chain.
+If you have to trust a new CA from your organization, or you need to generate a new CA yourself, use this new CA to sign the new node certificates and instruct your nodes to trust the new CA. 
 
 [[node-certs-different-transport]]
 ==== Generate a new certificate for the transport layer
@@ -378,8 +375,8 @@ NOTE: The following examples use PKCS#12 files, but the same steps apply to JKS
 keystores.
 
 . Open the `ES_PATH_CONF/elasticsearch.yml` file and check the names of the
-security certificates that are currently in use. You'll use the same names
-for your new certificates.
+keystores that are currently in use. You'll use the same names
+for your new keystores.
 +
 In this example, the keystore and truststore are using different files.
 Your configuration might use the same file for both the keystore and the 
@@ -587,7 +584,7 @@ keytool -delete -noprompt -alias <old-ca>  -keystore config/elastic-stack-ca.p12
 [%collapsible%open]
 .Command parameters
 ====
-   `-alias`:: Name of the old CA certificate that you want to remove from your
+   `-alias`:: Name of the keystore alias for the old CA certificate that you want to remove from your
    truststore.
 ====
 

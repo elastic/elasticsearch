@@ -134,6 +134,19 @@ public final class VersionsAndSeqNoResolver {
         return null;
     }
 
+    public static DocIdAndVersion loadDocIdAndVersionUncached(IndexReader reader, Term term, boolean loadSeqNo) throws IOException {
+        List<LeafReaderContext> leaves = reader.leaves();
+        for (int i = leaves.size() - 1; i >= 0; i--) {
+            final LeafReaderContext leaf = leaves.get(i);
+            PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), term.field(), false);
+            DocIdAndVersion result = lookup.lookupVersion(term.bytes(), loadSeqNo, leaf);
+            if (result != null) {
+                return result;
+            }
+        }
+        return null;
+    }
+
     /**
      * Loads the internal docId and sequence number of the latest copy for a given uid from the provided reader.
      * The result is either null or the live and latest version of the given uid.

@@ -45,7 +45,7 @@ public class GetSnapshotsRequestTests extends ESTestCase {
         }
         {
             final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").verbose(false)
-                .after(new GetSnapshotsRequest.After("foo", "bar"));
+                .after(new GetSnapshotsRequest.After("foo", "repo", "bar"));
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use after with verbose=false"));
         }

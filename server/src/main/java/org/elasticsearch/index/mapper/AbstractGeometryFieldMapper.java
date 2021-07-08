@@ -138,7 +138,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
@@ -147,10 +147,10 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
      * @param context   the ParseContext holding the document
      * @param geometry  the parsed geometry object
      */
-    protected abstract void index(ParseContext context, T geometry) throws IOException;
+    protected abstract void index(DocumentParserContext context, T geometry) throws IOException;
 
     @Override
-    public final void parse(ParseContext context) throws IOException {
+    public final void parse(DocumentParserContext context) throws IOException {
         if (hasScript) {
             throw new MapperParsingException("failed to parse field [" + fieldType().name() + "] of type + " + contentType() + "]",
                 new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter"));

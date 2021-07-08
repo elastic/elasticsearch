@@ -1138,42 +1138,39 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        XContentParser parser = context.parser();
-        Object value;
-        Number numericValue = null;
-        if (parser.currentToken() == Token.VALUE_NULL) {
-            value = null;
-        } else if (coerce.value()
-                && parser.currentToken() == Token.VALUE_STRING
-                && parser.textLength() == 0) {
-            value = null;
-        } else {
-            try {
-                numericValue = fieldType().type.parse(parser, coerce.value());
-            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
-                if (ignoreMalformed.value() && parser.currentToken().isValue()) {
-                    context.addIgnoredField(mappedFieldType.name());
-                    return;
-                } else {
-                    throw e;
-                }
+        Number value;
+        try {
+            value = value(context.parser(), type, nullValue, coerce.value());
+        } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
+            if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
+                context.addIgnoredField(mappedFieldType.name());
+                return;
+            } else {
+                throw e;
             }
-            value = numericValue;
         }
-
-        if (value == null) {
-            value = nullValue;
+        if (value != null) {
+            indexValue(context, value);
         }
+    }
 
-        if (value == null) {
-            return;
+    /**
+     * Read the value at the current position of the parser.
+     * @throws InputCoercionException if xcontent couldn't convert the value in the required type, for example, integer overflow
+     * @throws JsonParseException if there was any error parsing the json
+     * @throws IllegalArgumentException if there was an error parsing the value from the json
+     * @throws IOException if there was any other IO error
+     */
+    private static Number value(XContentParser parser, NumberType numberType, Number nullValue, boolean coerce)
+        throws InputCoercionException, JsonParseException, IllegalArgumentException, IOException {
+
+        if (parser.currentToken() == Token.VALUE_NULL) {
+            return nullValue;
         }
-
-        if (numericValue == null) {
-            numericValue = fieldType().type.parse(value, coerce.value());
+        if (coerce && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
+            return nullValue;
         }
-
-        indexValue(context, numericValue);
+        return numberType.parse(parser, coerce);
     }
 
     private void indexValue(DocumentParserContext context, Number numericValue) {

@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -361,7 +362,13 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             // Verify that the task is STILL in internal cluster state, unassigned, with a reason indicating local abort
             PersistentTask<?> task = assertClusterStateHasTask(taskId);
             assertThat(task.getAssignment().getExecutorNode(), nullValue());
-            assertThat(task.getAssignment().getExplanation(), equalTo("Simulating local abort"));
+            // Although the assignment explanation is initially set to "Simulating local abort", because
+            // of the way we prevent reassignment to the same node in this test it may quickly change to
+            // "non cluster state condition prevents assignment" - either proves the unassignment worked
+            assertThat(task.getAssignment().getExplanation(),
+                either(equalTo("Simulating local abort"))
+                    .or(equalTo("non cluster state condition prevents assignment"))
+            );
         });
 
         // Allow it to be reassigned again
@@ -370,9 +377,14 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         // Verify it starts again
         waitForTaskToStart();
 
-        // Verify that persistent task is in cluster state and that the local abort reason has been removed
-        PersistentTask<?> task = assertClusterStateHasTask(taskId);
-        assertThat(task.getAssignment().getExplanation(), not(equalTo("Simulating local abort")));
+        // Verify that persistent task is in cluster state and that the local abort reason has been removed.
+        // (Since waitForTaskToStart() waited for the local task to start, there might be a short period when
+        // the tasks API reports the local task but the cluster state update containing the new assignment
+        // reason has not been published, hence the busy wait here.)
+        assertBusy(() -> {
+            PersistentTask<?> task = assertClusterStateHasTask(taskId);
+            assertThat(task.getAssignment().getExplanation(), not(equalTo("Simulating local abort")));
+        });
 
         // Complete or cancel the running task
         TaskInfo taskInfo = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")

@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
@@ -96,6 +97,7 @@ public class NlpTaskConfig implements ToXContentObject {
         return withSpecialTokens;
     }
 
+    @Nullable
     public Integer getMaxSequenceLength() {
         return maxSequenceLength;
     }

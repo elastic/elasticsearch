@@ -501,6 +501,12 @@ public class SearchModule {
 
     private void registerPipelineAggregations(List<SearchPlugin> plugins) {
         registerPipelineAggregation(new PipelineAggregationSpec(
+            PercentileRanksBucketPipelineAggregationBuilder.NAME,
+            PercentileRanksBucketPipelineAggregationBuilder::new,
+            PercentileRanksBucketPipelineAggregator::new,
+            PercentileRanksBucketPipelineAggregationBuilder.PARSER)
+            .addResultReader(InternalPercentileRanksBucket::new));
+        registerPipelineAggregation(new PipelineAggregationSpec(
                 DerivativePipelineAggregationBuilder.NAME,
                 DerivativePipelineAggregationBuilder::new,
                 DerivativePipelineAggregationBuilder::parse)

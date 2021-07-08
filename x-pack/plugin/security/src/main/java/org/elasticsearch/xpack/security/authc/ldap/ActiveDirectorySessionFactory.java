@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings.buildDnFromDomain;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.attributesToSearchFor;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.createFilter;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.search;
@@ -175,14 +176,6 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         } catch (LDAPException e) {
             listener.onFailure(e);
         }
-    }
-
-    /**
-     * @param domain active directory domain name
-     * @return LDAP DN, distinguished name, of the root of the domain
-     */
-    static String buildDnFromDomain(String domain) {
-        return "DC=" + domain.replace(".", ",DC=");
     }
 
     static String getBindDN(RealmConfig config) {

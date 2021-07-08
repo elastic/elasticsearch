@@ -832,6 +832,18 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
         }
     }
 
+    private String convertIntToOrdinal(int i) {
+        String[] suffixes = new String[] { "th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th" };
+        switch (i % 100) {
+            case 11:
+            case 12:
+            case 13:
+                return i + "th";
+            default:
+                return i + suffixes[i % 10];
+        }
+    }
+
     private void replaceCallWithConstant(
         InvokeCallMemberNode irInvokeCallMemberNode,
         Consumer<ExpressionNode> scope,
@@ -846,8 +858,8 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                 throw irInvokeCallMemberNode.getLocation()
                     .createError(
                         new IllegalArgumentException(
-                            "The [" + javaMethod.getName() + "] method is sad because it needs constant arguments to work properly. " +
-                                "Please provide a constant to the [" + (i + 1) + "] argument"
+                            "The [" + javaMethod.getName() + "] method needs constant arguments to work properly. " +
+                                "Please provide a constant to the [" + convertIntToOrdinal(i + 1) + "] argument"
                         )
                     );
             }

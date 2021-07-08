@@ -211,8 +211,8 @@ public class BindingsTests extends ScriptTestCase {
             IllegalArgumentException.class,
             () -> scriptEngine.compile(null, "def a = 2; classMul(2, a)", BindingsTestScript.CONTEXT, Collections.emptyMap())
         );
-        assertThat(e.getMessage(), equalTo("The [classMul] method is sad because it needs constant arguments to work properly. " +
-            "Please provide a constant to the [2] argument"));
+        assertThat(e.getMessage(), equalTo("The [classMul] method needs constant arguments to work properly. " +
+            "Please provide a constant to the second argument"));
     }
 
     public void testClassMethodCompileTimeOnlyThrows() {
@@ -241,8 +241,8 @@ public class BindingsTests extends ScriptTestCase {
             IllegalArgumentException.class,
             () -> scriptEngine.compile(null, "def a = 2; instanceMul(a, 2)", BindingsTestScript.CONTEXT, Collections.emptyMap())
         );
-        assertThat(e.getMessage(), equalTo("The [instanceMul] method is sad because it needs constant arguments to work properly. " +
-            "Please provide a constant to the [1] argument"));
+        assertThat(e.getMessage(), equalTo("The [instanceMul] method needs constant arguments to work properly. " +
+            "Please provide a constant to the first argument"));
     }
 
     public void testCompileTimeOnlyParameterFoldedToConstant() {

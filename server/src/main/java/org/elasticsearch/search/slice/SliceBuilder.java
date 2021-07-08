@@ -12,7 +12,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,9 +19,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -60,8 +61,9 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         PARSER.declareInt(SliceBuilder::setMax, MAX_FIELD);
     }
 
-    /** Name of field to slice against (_uid by default) */
-    private String field = IdFieldMapper.NAME;
+    /** Name of field to slice against. If null, a default slicing strategy is used. */
+    @Nullable
+    private String field;
     /** The id of the slice */
     private int id = -1;
     /** Max number of slices */
@@ -69,13 +71,20 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
     private SliceBuilder() {}
 
+    /**
+     * Build a slice using the default strategy.
+     *
+     * @param id The id of the slice
+     * @param max The maximum number of slices
+     */
     public SliceBuilder(int id, int max) {
-        this(IdFieldMapper.NAME, id, max);
+        this(null, id, max);
     }
 
     /**
+     * Build a slice on a particular field.
      *
-     * @param field The name of the field
+     * @param field The name of the field to slice against
      * @param id The id of the slice
      * @param max The maximum number of slices
      */
@@ -86,37 +95,45 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     }
 
     public SliceBuilder(StreamInput in) throws IOException {
-        String field = in.readString();
+        if (in.getVersion().before(Version.V_7_15_0)) {
+            field = in.readString();
+        } else {
+            field = in.readOptionalString();
+        }
+
         if ("_uid".equals(field) && in.getVersion().before(Version.V_6_3_0)) {
             // This is safe because _id and _uid are handled the same way in #toFilter
             field = IdFieldMapper.NAME;
         }
-        this.field = field;
+
         this.id = in.readVInt();
         this.max = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (IdFieldMapper.NAME.equals(field) && out.getVersion().before(Version.V_6_3_0)) {
-            out.writeString("_uid");
+        // Before 8.0.0 we always defaulted to _id when the field wasn't provided
+        if (out.getVersion().before(Version.V_7_15_0)) {
+            String sliceField = field != null ? field : IdFieldMapper.NAME;
+            if (IdFieldMapper.NAME.equals(field) && out.getVersion().before(Version.V_6_3_0)) {
+                out.writeString("_uid");
+            } else {
+                out.writeString(sliceField);
+            }
         } else {
-            out.writeString(field);
+            out.writeOptionalString(field);
         }
         out.writeVInt(id);
         out.writeVInt(max);
     }
 
     private SliceBuilder setField(String field) {
-        if (Strings.isEmpty(field)) {
-            throw new IllegalArgumentException("field name is null or empty");
-        }
         this.field = field;
         return this;
     }
 
     /**
-     * The name of the field to slice against
+     * The name of the field to slice against. If null, a default slicing strategy is used.
      */
     public String getField() {
         return this.field;
@@ -167,7 +184,9 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     }
 
     void innerToXContent(XContentBuilder builder) throws IOException {
-        builder.field(FIELD_FIELD.getPreferredName(), field);
+        if (field != null) {
+            builder.field(FIELD_FIELD.getPreferredName(), field);
+        }
         builder.field(ID_FIELD.getPreferredName(), id);
         builder.field(MAX_FIELD.getPreferredName(), max);
     }
@@ -178,14 +197,11 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     }
 
     @Override
-    public boolean equals(Object other) {
-        if ((other instanceof SliceBuilder) == false) {
-            return false;
-        }
-
-        SliceBuilder o = (SliceBuilder) other;
-        return ((field == null && o.field == null) || field.equals(o.field))
-            && id == o.id && o.max == max;
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SliceBuilder that = (SliceBuilder) o;
+        return id == that.id && max == that.max && Objects.equals(field, that.field);
     }
 
     @Override
@@ -198,40 +214,13 @@ public class SliceBuilder implements Writeable, ToXContentObject {
      *
      * @param context Additional information needed to build the query
      */
-    @SuppressWarnings("rawtypes")
     public Query toFilter(ShardSearchRequest request, SearchExecutionContext context) {
-        final MappedFieldType type = context.getFieldType(field);
-        if (type == null) {
-            throw new IllegalArgumentException("field " + field + " not found");
-        }
-
         int shardIndex = request.shardRequestIndex() != -1 ? request.shardRequestIndex() : request.shardId().id();
         int numShards = request.shardRequestIndex() != -1 ? request.numberOfShards() : context.getIndexSettings().getNumberOfShards();
-        String field = this.field;
-        boolean useTermQuery = false;
-        if ("_uid".equals(field)) {
-            // on new indices, the _id acts as a _uid
-            field = IdFieldMapper.NAME;
-            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-                throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
-            }
-            DEPRECATION_LOG.deprecate(DeprecationCategory.API, "slice_on_uid",
-                "Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
-            useTermQuery = true;
-        } else if (IdFieldMapper.NAME.equals(field)) {
-            useTermQuery = true;
-        } else if (type.hasDocValues() == false) {
-            throw new IllegalArgumentException("cannot load numeric doc values on " + field);
-        } else {
-            IndexFieldData ifm = context.getForField(type);
-            if (ifm instanceof IndexNumericFieldData == false) {
-                throw new IllegalArgumentException("cannot load numeric doc values on " + field);
-            }
-        }
+        boolean isScroll = request.scroll() != null;
 
         if (numShards == 1) {
-            return useTermQuery ? new TermsSliceQuery(field, id, max) :
-                new DocValuesSliceQuery(field, id, max);
+            return createSliceQuery(id, max, context, isScroll);
         }
         if (max >= numShards) {
             // the number of slices is greater than the number of shards
@@ -256,10 +245,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             }
             // get the new slice id for this shard
             int shardSlice = id / numShards;
-
-            return useTermQuery ?
-                new TermsSliceQuery(field, shardSlice, numSlicesInShard) :
-                new DocValuesSliceQuery(field, shardSlice, numSlicesInShard);
+            return createSliceQuery(shardSlice, numSlicesInShard, context, isScroll);
         }
         // the number of shards is greater than the number of slices
 
@@ -270,6 +256,44 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             return new MatchNoDocsQuery("this shard is not part of the slice");
         }
         return new MatchAllDocsQuery();
+    }
+
+    private Query createSliceQuery(int id, int max, SearchExecutionContext context, boolean isScroll) {
+        if (field == null) {
+            return isScroll
+                ? new TermsSliceQuery(IdFieldMapper.NAME, id, max)
+                : new DocIdSliceQuery(id, max);
+        } else if (IdFieldMapper.NAME.equals(field)) {
+            if (isScroll == false) {
+                throw new IllegalArgumentException("cannot slice on [_id] when using [point-in-time]");
+            }
+            return new TermsSliceQuery(IdFieldMapper.NAME, id, max);
+        } else if ("_uid".equals(field)) {
+            if (isScroll == false) {
+                throw new IllegalArgumentException("cannot slice on [_uid] when using [point-in-time]");
+            }
+            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
+                throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
+            }
+            DEPRECATION_LOG.deprecate(DeprecationCategory.API, "slice_on_uid",
+                "Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
+            // on new indices, the _id acts as a _uid
+            return new TermsSliceQuery(IdFieldMapper.NAME, id, max);
+        } else {
+            MappedFieldType type = context.getFieldType(field);
+            if (type == null) {
+                throw new IllegalArgumentException("field " + field + " not found");
+            }
+            if (type.hasDocValues() == false) {
+                throw new IllegalArgumentException("cannot load numeric doc values on " + field);
+            } else {
+                IndexFieldData<?> ifm = context.getForField(type);
+                if (ifm instanceof IndexNumericFieldData == false) {
+                    throw new IllegalArgumentException("cannot load numeric doc values on " + field);
+                }
+                return new DocValuesSliceQuery(field, id, max);
+            }
+        }
     }
 
     @Override

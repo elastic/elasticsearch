@@ -213,7 +213,7 @@ final class DefaultSearchContext extends SearchContext {
             }
         }
 
-        if (sliceBuilder != null) {
+        if (sliceBuilder != null && scrollContext() != null) {
             int sliceLimit = indexService.getIndexSettings().getMaxSlicesPerScroll();
             int numSlices = sliceBuilder.getMax();
             if (numSlices > sliceLimit) {

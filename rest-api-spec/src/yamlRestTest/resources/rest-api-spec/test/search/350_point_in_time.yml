@@ -134,6 +134,39 @@ setup:
           id: "$point_in_time_id"
 
 ---
+"point-in-time with slicing":
+  - skip:
+      version: " - 7.99.99"
+      reason: "support for slicing is not yet backported"
+  - do:
+      open_point_in_time:
+        index: test
+        keep_alive: 5m
+  - set: {id: point_in_time_id}
+
+  - do:
+      search:
+        body:
+          slice:
+            id: 0
+            max: 2
+          size: 1
+          query:
+            match:
+              foo: bar
+          sort: [{ age: desc }, { id: desc }]
+          pit:
+            id: "$point_in_time_id"
+
+  - match: {hits.total.value: 2 }
+  - length: {hits.hits: 1 }
+
+  - do:
+      close_point_in_time:
+        body:
+          id: "$point_in_time_id"
+
+---
 "wildcard":
   - skip:
       version: " - 7.9.99"

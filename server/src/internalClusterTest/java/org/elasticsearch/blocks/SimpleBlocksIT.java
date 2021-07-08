@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -352,14 +354,16 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         }
     }
 
+    @TestLogging(
+        reason = "https://github.com/elastic/elasticsearch/issues/74345",
+        value = "org.elasticsearch.action.admin.indices.readonly:DEBUG,org.elasticsearch.cluster.metadata:DEBUG"
+    )
     public void testAddBlockWhileIndexingDocuments() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
 
         final APIBlock block = randomAddableBlock();
-
         int nbDocs = 0;
-
         try {
             try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), 1000)) {
                 indexer.setFailureAssertion(t -> {
@@ -371,11 +375,11 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                 });
 
                 waitForDocs(randomIntBetween(10, 50), indexer);
-                assertAcked(client().admin().indices().prepareAddBlock(block, indexName));
+                final AddIndexBlockResponse response = client().admin().indices().prepareAddBlock(block, indexName).get();
+                assertTrue("Add Index Block request was not acknowledged: " + response, response.isAcknowledged());
                 indexer.stopAndAwaitStopped();
                 nbDocs += indexer.totalIndexedDocs();
             }
-
             assertIndexHasBlock(block, indexName);
         } finally {
             disableIndexBlock(indexName, block);

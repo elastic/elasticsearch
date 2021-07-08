@@ -34,7 +34,8 @@ public class SnapshotDeletionsInProgressTests extends ESTestCase {
             String json = Strings.toString(builder);
             assertThat(json,
                 equalTo("{\"snapshot_deletions\":[{\"repository\":\"repo\",\"snapshots\":[]," +
-                    "\"start_time\":\"1993-05-06T13:17:47.638Z\",\"start_time_millis\":736694267638,\"repository_state_id\":0}]}"));
+                    "\"start_time\":\"1993-05-06T13:17:47.638Z\",\"start_time_millis\":736694267638,\"repository_state_id\":0," +
+                        "\"state\":\"STARTED\"}]}"));
         }
     }
 }

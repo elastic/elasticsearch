@@ -318,7 +318,6 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         assertThat(taskManager.getTasks().values(), empty());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75004")
     public void testTaskLocalAbort() {
         AtomicReference<String> capturedTaskId = new AtomicReference<>();
         AtomicReference<ActionListener<PersistentTask<?>>> capturedListener = new AtomicReference<>();
@@ -407,7 +406,10 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                     equalTo("attempt to fail task [test] with id [" + persistentId + "] which has been locally aborted"));
                 break;
             case 2:
-                runningTask.markAsLocallyAborted("second local abort");
+                IllegalStateException e2 = expectThrows(IllegalStateException.class,
+                    () -> runningTask.markAsLocallyAborted("second local abort"));
+                assertThat(e2.getMessage(),
+                    equalTo("attempt to locally abort task [test] with id [" + persistentId + "] which has already been locally aborted"));
                 break;
         }
 

@@ -46,11 +46,8 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
     private static final Logger logger = LogManager.getLogger(SetSingleNodeAllocateStep.class);
     public static final String NAME = "set-single-node-allocation";
 
-    private Integer numberOfShards;
-
-    public SetSingleNodeAllocateStep(StepKey key, StepKey nextStepKey, Client client, Integer numberOfShards) {
+    public SetSingleNodeAllocateStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
-        this.numberOfShards = numberOfShards;
     }
 
     @Override
@@ -58,25 +55,9 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
         return true;
     }
 
-    public Integer getNumberOfShards() {
-        return numberOfShards;
-    }
-
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState clusterState,
                               ClusterStateObserver observer, ActionListener<Boolean> listener) {
-        String indexName = indexMetadata.getIndex().getName();
-        if (numberOfShards != null) {
-            int sourceNumberOfShards = indexMetadata.getNumberOfShards();
-            int factor = sourceNumberOfShards / numberOfShards;
-            if (factor * numberOfShards < sourceNumberOfShards) {
-                logger.debug("the number of shards [" + sourceNumberOfShards + "] of the source index [" + indexName +
-                    "] must be a multiple of [" + numberOfShards + "]");
-                listener.onFailure(new IllegalArgumentException("the number of shards [" + sourceNumberOfShards +
-                    "] of the source index [" + indexName + "] must be a multiple of [" + numberOfShards + "]"));
-                return;
-            }
-        }
         // These allocation deciders were chosen because these are the conditions that can prevent
         // allocation long-term, and that we can inspect in advance. Most other allocation deciders
         // will either only delay relocation (e.g. ThrottlingAllocationDecider), or don't work very
@@ -92,6 +73,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState, null,
                 null, System.nanoTime());
         List<String> validNodeIds = new ArrayList<>();
+        String indexName = indexMetadata.getIndex().getName();
         final Map<ShardId, List<ShardRouting>> routingsByShardId = clusterState.getRoutingTable()
             .allShards(indexName)
             .stream()

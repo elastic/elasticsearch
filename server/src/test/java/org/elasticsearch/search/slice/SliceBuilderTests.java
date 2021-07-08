@@ -352,7 +352,7 @@ public class SliceBuilderTests extends ESTestCase {
     }
 
     public void testSerializationBackcompat() throws IOException {
-        SliceBuilder sliceBuilder = new SliceBuilder(1, 5);
+        SliceBuilder sliceBuilder = new SliceBuilder(IdFieldMapper.NAME, 1, 5);
         assertEquals(IdFieldMapper.NAME, sliceBuilder.getField());
 
         SliceBuilder copy62 = copyWriteable(sliceBuilder,

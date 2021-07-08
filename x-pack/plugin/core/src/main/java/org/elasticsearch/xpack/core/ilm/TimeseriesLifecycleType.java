@@ -424,7 +424,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
                             error = builder.toString();
                     }
                     error = error + " before the " + phaseName + " phase (min_age: " + phase.getMinimumAge() +
-                        "). You should change the phase timing so that the phases will execute in the order of hot, warm then cold.";
+                        "). You should change the phase timing so that the phases will execute in the order of hot, warm, then cold.";
 
                     errors.add(error);
                 }

@@ -41,6 +41,7 @@ import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.List;
@@ -82,89 +83,100 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        // Silently skipping security auto configuration because node restarted.
+        // It is an error if filesystem operations fail, and cannot be determined if the node starts up for the first time or not.
         if (Files.isDirectory(env.dataFile()) && Files.list(env.dataFile()).findAny().isPresent()) {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because it appears that the node is not starting up for the first time.");
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "The node might already be part of a cluster and this auto setup utility is designed to configure Security for new " +
                             "clusters only.");
-            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: node restarted");
             return;
         }
-        if (env.settings().hasValue(XPackSettings.SECURITY_ENABLED.getKey())) {
-            // do not try to validate, correct or fill in any incomplete security configuration,
-            // but instead rely on the regular node startup to do this validation
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because it appears that security is already configured.");
-            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: Security already configured");
-            return;
+        // When detecting existing yml configuration that is incompatible with auto-configuration, auto-configuration is SILENTLY skipped
+        // This assumes the user knows what she's doing .
+        {
+            // Silently skipping security auto configuration, because Security is already configured.
+            if (env.settings().hasValue(XPackSettings.SECURITY_ENABLED.getKey())) {
+                // do not try to validate, correct or fill in any incomplete security configuration,
+                // instead rely on the regular node startup to do this validation
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                        "Skipping security auto configuration because it appears that security is already configured.");
+                return;
+            }
+            // Silently skipping security auto configuration if enrollment is disabled.
+            // But tolerate enrollment explicitly enabled, as it could be useful to enable it by a command line option
+            // only the first time that the node is started.
+            if (env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey()) && false ==
+                    XPackSettings.ENROLLMENT_ENABLED.get(env.settings())) {
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                        "Skipping security auto configuration because enrollment is explicitly disabled.");
+                return;
+            }
+            // Silently skipping security auto configuration because the node is configured for cluster formation, and auto-configuration
+            // relies on the node forming a cluster by itself.
+            if (env.settings().hasValue(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey())) {
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                        "Skipping security auto configuration because this node is explicitly configured to form a new cluster.");
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                        "The node cannot be auto configured to participate in forming a new multi-node secure cluster.");
+                return;
+            }
+            // Silently skipping security auto configuration because node cannot become master.
+            final List<DiscoveryNodeRole> nodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(env.settings());
+            boolean canBecomeMaster = nodeRoles.contains(DiscoveryNodeRole.MASTER_ROLE) &&
+                    false == nodeRoles.contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
+            if (false == canBecomeMaster) {
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                        "Skipping security auto configuration because the node is configured such that it cannot become master.");
+                return;
+            }
+            // Silently skipping security auto configuration, because the node cannot contain the Security index data
+            boolean canHoldSecurityIndex = nodeRoles.stream().anyMatch(DiscoveryNodeRole::canContainData);
+            if (false == canHoldSecurityIndex) {
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                        "Skipping security auto configuration because the node is configured such that it cannot contain data.");
+                return;
+            }
+            // Silently skipping security auto configuration because TLS is already configured
+            if (false == env.settings().getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX).isEmpty() ||
+                    false == env.settings().getByPrefix(XPackSettings.HTTP_SSL_PREFIX).isEmpty()) {
+                // zero validation for the TLS settings as well, let the node bootup do its thing
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                        "Skipping security auto configuration because it appears that TLS is already configured.");
+                return;
+            }
+            // Silently skipping security auto configuration because file realm is configured
+            // Auto-configuration only requires that the file realm be enabled, and, for optimal experience,
+            // also be the first in the chain.
+            if (false == env.settings().getByPrefix(RealmSettings.realmSettingPrefix(FileRealmSettings.TYPE)).isEmpty()) {
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                        "Skipping security auto configuration because it appears that a file-based realm is already configured.");
+                return;
+            }
         }
         final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
+        // The node's yml configuration is mounted read-only, which is a sign that the configuration mustn't change.
+        // Inform that auto-configuration will not run.
         if (false == Files.isWritable(ymlPath)) {
-            terminal.println(Terminal.Verbosity.VERBOSE, String.format(Locale.ROOT, "Skipping security auto configuration because " +
+            terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because " +
                     "the configuration file [%s] is not writable", ymlPath));
             return;
         }
-        Path keystorePath = env.configFile().resolve(KeyStoreWrapper.KEYSTORE_FILENAME);
+        // Best effort determine if the node's keystore is writable.
+        // Inform that auto-configuration will not run if keystore cannot be updated.
+        final Path keystorePath = env.configFile().resolve(KeyStoreWrapper.KEYSTORE_FILENAME);
         if (Files.exists(keystorePath) && false == Files.isWritable(keystorePath)) {
-            terminal.println(Terminal.Verbosity.VERBOSE, String.format(Locale.ROOT, "Skipping security auto configuration because " +
+            terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because " +
                     "the node keystore file [%s] is not writable", keystorePath));
             return;
         }
-        if (env.settings().hasValue(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey())) {
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because this node is explicitly configured to form a new cluster.");
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "The node cannot be auto configured to participate in forming a new multi-node secure cluster.");
-            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: configured cluster formation");
-            return;
-        }
-        List<DiscoveryNodeRole> nodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(env.settings());
-        boolean canBecomeMaster = nodeRoles.contains(DiscoveryNodeRole.MASTER_ROLE) &&
-                false == nodeRoles.contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
-        if (false == canBecomeMaster) {
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because the node is configured such that it cannot become master.");
-            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: cannot become master");
-            return;
-        }
-        boolean canHoldSecurityIndex = nodeRoles.stream().anyMatch(DiscoveryNodeRole::canContainData);
-        if (false == canHoldSecurityIndex) {
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because the node is configured such that it cannot contain data.");
-            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: cannot contain data");
-            return;
-        }
-        if (false == env.settings().getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX).isEmpty() ||
-                false == env.settings().getByPrefix(XPackSettings.HTTP_SSL_PREFIX).isEmpty()) {
-            // again, zero validation for the TLS settings, let the node startup do its thing
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because it appears that TLS is already configured.");
-            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: TLS already configured");
-            return;
-        }
-        // check that no file realms have been configured.
-        // this can technically be improved upon:
-        // auto configuration only requires that the file realm be enabled, and, for optimal experience,
-        // also be the first in the chain
-        if (false == env.settings().getByPrefix(RealmSettings.realmSettingPrefix(FileRealmSettings.TYPE)).isEmpty()) {
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because it appears that a file-based realm is already configured.");
-            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: file realm configured");
-            return;
-        }
-        // tolerate enabling enrollment explicitly, as it could be useful to enable it by a command line option
-        // only the first time that the node is started
-        if (env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey()) && false ==
-                XPackSettings.ENROLLMENT_ENABLED.get(env.settings())) {
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because enrollment is explicitly disabled.");
-            //throw new UserException(ExitCodes.OK, "Skipping security auto configuration: enrollment disabled");
-            return;
-        }
 
-        final ZonedDateTime autoConfigDate = ZonedDateTime.now();
-        final String instantAutoConfigName = "auto_generated_" + autoConfigDate.toInstant().getEpochSecond();
+        // TODO round/truncate to day, as it is easier on the tests
+        //Rounding rounding = new Rounding.Builder(Rounding.DateTimeUnit.DAY_OF_MONTH).timeZone(ZoneOffset.UTC).build();
+        //ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.DAYS);
+        final ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC);
+        final String instantAutoConfigName = "auto_generated_on_" + autoConfigDate.toInstant().getEpochSecond();
         final Path instantAutoConfigDir = env.configFile().resolve(instantAutoConfigName);
         try {
             Files.createDirectory(instantAutoConfigDir);
@@ -174,6 +186,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
 
         // the transport key-pair is the same across the cluster and is trusted without hostname verification (it is self-signed),
         // do not populate the certificate's IP, DN, and CN certificate fields
+        // TODO is CN appropriate here?
         final X500Principal certificatePrincipal = new X500Principal("CN=" + System.getenv("HOSTNAME"));
         final GeneralNames subjectAltNames = getSubjectAltNames();
 
@@ -200,6 +213,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 transportKeystore.setKeyEntry(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME, transportKeyPair.getPrivate(),
                         transportKeystorePassword.getChars(), new Certificate[]{transportCert});
                 fullyWriteFile(transportKeystoreOutput, stream -> transportKeystore.store(stream, transportKeystorePassword.getChars()));
+                // no danger of overwrite because Security was not initially enabled, and this secure setting can only exist in that case
                 nodeKeystore.setString("xpack.security.transport.ssl.keystore.secure_password", transportKeystorePassword.getChars());
             } finally {
                 nodeKeystore.save(env.configFile(), nodeKeystorePassword.getChars());
@@ -215,6 +229,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 httpKeystore.setKeyEntry(HTTP_AUTOGENERATED_KEYSTORE_NAME, httpKeyPair.getPrivate(),
                         httpKeystorePassword.getChars(), new Certificate[]{httpCert, httpCACert});
                 fullyWriteFile(httpKeystoreOutput, stream -> httpKeystore.store(stream, httpKeystorePassword.getChars()));
+                // no danger of overwrite because Security was not initially enabled, and this secure setting can only exist in that case
                 nodeKeystore.setString("xpack.security.http.ssl.keystore.secure_password", httpKeystorePassword.getChars());
             } finally {
                 nodeKeystore.save(env.configFile(), nodeKeystorePassword.getChars());
@@ -325,6 +340,8 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 generalNameSet.add(new GeneralName(GeneralName.dNSName, reverseFQDN));
             }
         }
+        // this is the unequivocal mark for a cert generated by the auto-config process
+        generalNameSet.add(new GeneralName(GeneralName.otherName, AutoConfigInitialNode.class.getName()));
         return new GeneralNames(generalNameSet.toArray(new GeneralName[0]));
     }
 

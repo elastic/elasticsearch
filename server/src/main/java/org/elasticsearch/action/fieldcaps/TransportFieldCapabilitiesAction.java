@@ -16,7 +16,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -28,7 +27,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -43,9 +41,8 @@ import java.util.function.Predicate;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
     private final ThreadPool threadPool;
+    private final TransportService transportService;
     private final ClusterService clusterService;
-    private final TransportFieldCapabilitiesIndexAction shardAction;
-    private final RemoteClusterService remoteClusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Predicate<String> metadataFieldPred;
 
@@ -53,16 +50,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     public TransportFieldCapabilitiesAction(TransportService transportService,
                                             ClusterService clusterService,
                                             ThreadPool threadPool,
-                                            NodeClient client,
-                                            TransportFieldCapabilitiesIndexAction shardAction,
                                             ActionFilters actionFilters,
                                             IndicesService indicesService,
                                             IndexNameExpressionResolver indexNameExpressionResolver) {
         super(FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new);
         this.threadPool = threadPool;
+        this.transportService = transportService;
         this.clusterService = clusterService;
-        this.remoteClusterService = transportService.getRemoteClusterService();
-        this.shardAction = shardAction;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         final Set<String> metadataFields = indicesService.getAllMetadataFields();
         this.metadataFieldPred = metadataFields::contains;
@@ -73,8 +67,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         // retrieve the initial timestamp in case the action is a cross cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ClusterState clusterState = clusterService.state();
-        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(),
-            request.indices(), idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterState));
+        final Map<String, OriginalIndices> remoteClusterIndices =
+            transportService.getRemoteClusterService().groupIndices(request.indicesOptions(),
+                    request.indices(), idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterState));
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         final String[] concreteIndices;
         if (localIndices == null) {
@@ -119,32 +114,41 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         };
 
-        for (String index : concreteIndices) {
-            shardAction.execute(
-                new FieldCapabilitiesIndexRequest(
-                    request.fields(),
-                    index,
-                    localIndices,
-                    request.indexFilter(),
-                    nowInMillis,
-                    request.runtimeFields()
-                ),
-                new ActionListener<FieldCapabilitiesIndexResponse>() {
-                    @Override
-                    public void onResponse(FieldCapabilitiesIndexResponse result) {
-                        if (result.canMatch()) {
-                            indexResponses.add(result);
-                        }
-                        countDown.run();
-                    }
+        if (concreteIndices.length > 0) {
+            // fork this action to the management pool as it can fan out to a large number of child requests that get handled on SAME and
+            // thus would all run on the current transport thread and block it for an unacceptable amount of time
+            // (particularly with security enabled)
+            threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(ActionRunnable.wrap(listener, l -> {
+                for (String index : concreteIndices) {
+                    new TransportFieldCapabilitiesIndexAction.AsyncShardsAction(
+                        transportService,
+                        clusterService,
+                        new FieldCapabilitiesIndexRequest(
+                            request.fields(),
+                            index,
+                            localIndices,
+                            request.indexFilter(),
+                            nowInMillis,
+                            request.runtimeFields()
+                        ),
+                        new ActionListener<FieldCapabilitiesIndexResponse>() {
+                            @Override
+                            public void onResponse(FieldCapabilitiesIndexResponse result) {
+                                if (result.canMatch()) {
+                                    indexResponses.add(result);
+                                }
+                                countDown.run();
+                            }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        indexFailures.collect(e, index);
-                        countDown.run();
-                    }
+                            @Override
+                            public void onFailure(Exception e) {
+                                indexFailures.collect(e, index);
+                                countDown.run();
+                            }
+                        }
+                    ).start();
                 }
-            );
+            }));
         }
 
         // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
@@ -152,7 +156,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
             String clusterAlias = remoteIndices.getKey();
             OriginalIndices originalIndices = remoteIndices.getValue();
-            Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
+            Client remoteClusterClient = transportService.getRemoteClusterService().getRemoteClusterClient(threadPool, clusterAlias);
             FieldCapabilitiesRequest remoteRequest = new FieldCapabilitiesRequest();
             remoteRequest.setMergeResults(false); // we need to merge on this node
             remoteRequest.indicesOptions(originalIndices.indicesOptions());
@@ -212,9 +216,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private void addUnmappedFields(String[] indices, String field, Map<String, FieldCapabilities.Builder> typeMap) {
-        Set<String> unmappedIndices = new HashSet<>();
-        Arrays.stream(indices).forEach(unmappedIndices::add);
-        typeMap.values().stream().forEach((b) -> b.getIndices().stream().forEach(unmappedIndices::remove));
+        Set<String> unmappedIndices = new HashSet<>(Arrays.asList(indices));
+        typeMap.values().forEach((b) -> b.getIndices().forEach(unmappedIndices::remove));
         if (unmappedIndices.isEmpty() == false) {
             FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
             typeMap.put("unmapped", unmapped);
@@ -239,7 +242,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    private class FailureCollector {
+    private static final class FailureCollector {
         final Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = Collections.synchronizedMap(
             new HashMap<>()
         );

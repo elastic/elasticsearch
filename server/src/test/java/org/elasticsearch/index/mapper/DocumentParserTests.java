@@ -1906,7 +1906,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     /**
      * Mapper plugin providing a mock metadata field mapper implementation that supports setting its value
-     * as well as a mock runtime field parser.
      */
     private static final class DocumentParserTestsPlugin extends Plugin implements MapperPlugin {
         /**

@@ -42,12 +42,17 @@ public class ObjectRuntimeField implements RuntimeField {
                 }
             });
 
-            private final FieldMapper.Parameter<Map<String, Object>> fields = new FieldMapper.Parameter<>(
+            private final FieldMapper.Parameter<Map<String, Object>> fields = new FieldMapper.Parameter<Map<String, Object>>(
                 "fields",
                 false,
                 Collections::emptyMap,
                 (f, p, o) -> parseFields(f, o),
-                RuntimeField.initializerNotSupported());
+                RuntimeField.initializerNotSupported()
+            ).setValidator(objectMap -> {
+                if (objectMap == null || objectMap.isEmpty()) {
+                    throw new IllegalArgumentException("object runtime field [" + name + "] must declare its [fields]");
+                }
+            });
 
             @Override
             protected List<FieldMapper.Parameter<?>> getParameters() {

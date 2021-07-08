@@ -223,7 +223,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
                 }
                 return createRuntimeField(parent, getObjectSubfieldFactory(parentScriptFactory));
             }
-            assert parent == null && parentScriptFactory == null;
+            assert parent == null && parentScriptFactory == null : "a script is set, hence we can't be parsing sub-fields";
             Factory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
             return createRuntimeField(null, factory);
         }

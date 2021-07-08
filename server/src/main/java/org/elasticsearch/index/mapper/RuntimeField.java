@@ -82,6 +82,9 @@ public interface RuntimeField extends ToXContentFragment {
                 parameter.parse(name, parserContext, propNode);
                 iterator.remove();
             }
+            for (Parameter<?> parameter : getParameters()) {
+                parameter.validate();
+            }
         }
     }
 
@@ -145,6 +148,12 @@ public interface RuntimeField extends ToXContentFragment {
                     throw new MapperParsingException("No type specified for runtime field [" + fieldName + "]");
                 } else {
                     type = typeNode.toString();
+                }
+                Object scriptNode = propNode.get("script");
+                if (scriptNode != null && parent != null) {
+                    throw new MapperParsingException(
+                        "Cannot use [script] parameter on sub-field [" + fieldName + "] of object field [" + parent + "]"
+                    );
                 }
                 Parser typeParser = parserContext.runtimeFieldParser(type);
                 if (typeParser == null) {

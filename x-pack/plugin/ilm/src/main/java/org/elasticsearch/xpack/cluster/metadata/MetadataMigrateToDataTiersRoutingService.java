@@ -335,13 +335,13 @@ public final class MetadataMigrateToDataTiersRoutingService {
                 }
 
                 // we removed the allocate action allocation rules (or the action completely) so let's check if there is an
-                // explicit migrate action that's disabled, and enable it
+                // explicit migrate action that's disabled, and remove it so ILM can inject an enabled one
                 if (actionMap.containsKey(MigrateAction.NAME)) {
                     MigrateAction migrateAction = (MigrateAction) actionMap.get(MigrateAction.NAME);
                     if (migrateAction.isEnabled() == false) {
-                        MigrateAction enabledMigrateAction = new MigrateAction(true);
-                        actionMap.put(MigrateAction.NAME, enabledMigrateAction);
-                        logger.debug("ILM policy [{}], phase [{}]: enabled the migrate action", lifecyclePolicy.getName(), phase.getName());
+                        actionMap.remove(MigrateAction.NAME);
+                        logger.debug("ILM policy [{}], phase [{}]: removed the deactivated migrate action", lifecyclePolicy.getName(),
+                            phase.getName());
                     }
                 }
 

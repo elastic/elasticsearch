@@ -152,11 +152,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         IndexLifecycleMetadata updatedLifecycleMetadata = newState.metadata().custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicy lifecyclePolicy = updatedLifecycleMetadata.getPolicies().get(lifecycleName);
         Map<String, LifecycleAction> warmActions = lifecyclePolicy.getPhases().get("warm").getActions();
-        assertThat("allocate action in the warm phase didn't specify any number of replicas so it must be removed",
-            warmActions.size(), is(2));
+        assertThat("allocate action in the warm phase didn't specify any number of replicas so it must be removed, together with the " +
+                "deactivated migrate action", warmActions.size(), is(1));
         assertThat(warmActions.get(shrinkAction.getWriteableName()), is(shrinkAction));
-        MigrateAction expectedMigrateAction = new MigrateAction(true);
-        assertThat(warmActions.get(expectedMigrateAction.getWriteableName()), is(expectedMigrateAction));
     }
 
     @SuppressWarnings("unchecked")

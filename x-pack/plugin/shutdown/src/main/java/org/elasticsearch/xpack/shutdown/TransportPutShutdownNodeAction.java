@@ -31,7 +31,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
-import java.util.Objects;
 
 public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<PutShutdownNodeAction.Request> {
     private static final Logger logger = LogManager.getLogger(TransportPutShutdownNodeAction.class);
@@ -72,7 +71,8 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                 }
 
                 // Verify that there's not already a shutdown metadata for this node
-                if (Objects.nonNull(currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId()))) {
+                SingleNodeShutdownMetadata existingRecord = currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId());
+                if (existingRecord != null && isTypeChangeAllowed(existingRecord, request) == false) {
                     logger.error(Strings.toString(currentShutdownMetadata));
                     throw new IllegalArgumentException("node [" + request.getNodeId() + "] is already shutting down");
                 }
@@ -133,6 +133,18 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                 }
             }
         });
+    }
+
+    private boolean isTypeChangeAllowed(SingleNodeShutdownMetadata existingRecord, PutShutdownNodeAction.Request request) {
+        assert SingleNodeShutdownMetadata.Type.REMOVE.equals(request.getType())
+            || SingleNodeShutdownMetadata.Type.RESTART.equals(request.getType()) : "unknown shutdown type [" + request.getType() + "]";
+
+        if (request.getType().equals(existingRecord.getType())) {
+            return true;
+        } else {
+            return existingRecord.getType().equals(SingleNodeShutdownMetadata.Type.RESTART)
+                && request.getType().equals(SingleNodeShutdownMetadata.Type.REMOVE);
+        }
     }
 
     @Override

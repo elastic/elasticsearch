@@ -17,6 +17,10 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 
 import java.security.PrivateKey;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.Collections;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.containsString;
@@ -50,6 +54,42 @@ public class StoreKeyConfigTests extends ESTestCase {
             keyConfigPkcs11.createKeyManager(TestEnvironment.newEnvironment(settings)));
         assertThat(ee, throwableWithMessage(containsString("failed to initialize SSL KeyManager")));
         assertThat(ee.getCause().getMessage(), containsString("PKCS11 not found"));
+    }
+
+    public void testCreateKeyManagerFromPKCS12ContainingCA() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
+        final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
+        final String path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/httpCa.p12").toString();
+        final SecureString keyStorePassword = new SecureString("password".toCharArray());
+        final StoreKeyConfig keyConfig = new StoreKeyConfig(path, "PKCS12", keyStorePassword, keyStorePassword,
+            KeyManagerFactory.getDefaultAlgorithm(), TrustManagerFactory.getDefaultAlgorithm());
+        final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager(TestEnvironment.newEnvironment(settings));
+        final PrivateKey ca_key = keyManager.getPrivateKey("cakey");
+        final PrivateKey http_key = keyManager.getPrivateKey("http");
+        final String[] aliases = keyManager.getServerAliases("RSA", null);
+        final X509Certificate[] certificates = keyManager.getCertificateChain("http");
+        assertThat(ca_key, equalTo(null));
+        assertThat(http_key, notNullValue());
+        assertThat(aliases.length, equalTo(1));
+        assertThat(aliases[0], equalTo("http"));
+        assertThat(certificates.length, equalTo(2));
+    }
+
+    public void testCreateKeyManagerFromPKCS12ContainingCAOnly() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
+        final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
+        final String path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/ca.p12").toString();
+        final SecureString keyStorePassword = new SecureString("password".toCharArray());
+        final StoreKeyConfig keyConfig = new StoreKeyConfig(path, "PKCS12", keyStorePassword, keyStorePassword,
+            KeyManagerFactory.getDefaultAlgorithm(), TrustManagerFactory.getDefaultAlgorithm());
+        final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager(TestEnvironment.newEnvironment(settings));
+        final PrivateKey ca_key = keyManager.getPrivateKey("ca");
+        final String[] aliases = keyManager.getServerAliases("RSA", null);
+        final X509Certificate[] certificates = keyManager.getCertificateChain("ca");
+        assertThat(ca_key, notNullValue());
+        assertThat(aliases.length, equalTo(1));
+        assertThat(aliases[0], equalTo("ca"));
+        assertThat(certificates.length, equalTo(1));
     }
 
     private void tryReadPrivateKeyFromKeyStore(String type, String extension) {

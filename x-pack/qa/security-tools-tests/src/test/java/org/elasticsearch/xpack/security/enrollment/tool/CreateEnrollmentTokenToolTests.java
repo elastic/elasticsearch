@@ -161,6 +161,16 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
         assertThat(e.getMessage(), containsString("RED"));
     }
 
+    public void testUnhealthyClusterWithForce() throws Exception {
+        String scope = randomBoolean() ? "node" : "kibana";
+        String output = execute("--scope", scope);
+        if (scope.equals("kibana")) {
+            assertThat(output, containsString("WU5OlRHaHF5UU9UVENhUEJpOVZQak1iOWcifQ=="));
+        } else {
+            assertThat(output, containsString("25FOnRkdUgzTmNTVHNTOGN0c3AwaWNUeEEifQ=="));
+        }
+    }
+
     public void testEnrollmentDisabled() throws Exception {
         settings = Settings.builder()
             .put(settings)

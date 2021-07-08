@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.tool;
 
 import joptsimple.OptionSet;
+import joptsimple.OptionSpecBuilder;
 
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
@@ -20,6 +21,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
 import org.elasticsearch.xpack.security.authc.file.FileUserRolesStore;
@@ -35,9 +39,11 @@ import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * A {@link KeyStoreAwareCommand} that can be extended fpr any CLI tool that needs to allow a local user with
@@ -49,6 +55,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     private static final String[] ROLES = new String[] { "superuser" };
     private static final int PASSWORD_LENGTH = 14;
 
+    private final OptionSpecBuilder force;
     private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
     private SecureString password;
@@ -57,11 +64,14 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
 
     public BaseRunAsSuperuserCommand(
         Function<Environment, CommandLineHttpClient> clientFunction,
-        CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction
+        CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction,
+        String description
     ) {
-        super("description");
+        super(description);
         this.clientFunction = clientFunction;
         this.keyStoreFunction = keyStoreFunction;
+        force = parser.acceptsAll(List.of("f", "force"),
+            "Use this option to force execution of the command against a cluster that is currently unhealthy.");
     }
 
     @Override
@@ -118,7 +128,8 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
             FileUserRolesStore.writeFile(userRoles, rolesFile);
 
             attributesChecker.check(terminal);
-            checkClusterHealthWithRetries(newEnv, terminal, 5);
+            final boolean forceExecution = options.has(force);
+            checkClusterHealthWithRetries(newEnv, terminal, 5, forceExecution);
             executeCommand(terminal, options, newEnv);
         } catch (Exception e) {
             int exitCode;
@@ -136,7 +147,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     /**
      * Removes temporary file realm user from users and roles file
      */
-    protected void cleanup(Terminal terminal, Environment env) throws Exception {
+    private void cleanup(Terminal terminal, Environment env) throws Exception {
         final Path passwordFile = FileUserPasswdStore.resolveFile(env);
         final Path rolesFile = FileUserRolesStore.resolveFile(env);
         FileAttributesChecker attributesChecker = new FileAttributesChecker(passwordFile, rolesFile);
@@ -175,17 +186,22 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     }
 
     private void ensureFileRealmEnabled(Settings settings) throws Exception {
-        Map<String, Settings> fileRealmSettings = settings.getGroups("xpack.security.authc.realms.file");
+        final Map<RealmConfig.RealmIdentifier, Settings> realms = RealmSettings.getRealmSettings(settings);
+        Map<RealmConfig.RealmIdentifier, Settings> fileRealmSettings = realms.entrySet().stream()
+            .filter(e -> e.getKey().getType().equals(FileRealmSettings.TYPE))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         if (fileRealmSettings.size() > 1) {
             throw new UserException(
                 ExitCodes.CONFIG,
                 "Multiple file realms are configured. "
                     + "[file] is an internal realm type and therefore there can only be one such realm configured"
             );
-        } else if (fileRealmSettings.size() == 1
-            && fileRealmSettings.entrySet().stream().anyMatch(s -> s.getValue().get("enabled").equals("false"))) {
-                throw new UserException(ExitCodes.CONFIG, "File realm must be enabled");
-            }
+        } else if (fileRealmSettings.size() == 1) {
+            final String fileRealmName = fileRealmSettings.entrySet().iterator().next().getKey().getName();
+            if (RealmSettings.ENABLED_SETTING.apply(FileRealmSettings.TYPE)
+                .getConcreteSettingForNamespace(fileRealmName)
+                .get(settings) == false) throw new UserException(ExitCodes.CONFIG, "File realm must be enabled");
+        }
         // Else it's either explicitly enabled, or not defined in the settings so it is implicitly enabled.
     }
 
@@ -194,7 +210,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
      * retries as the file realm might not have reloaded the users file yet in order to authenticate our
      * newly created file realm user.
      */
-    private void checkClusterHealthWithRetries(Environment env, Terminal terminal, int retries) throws Exception {
+    private void checkClusterHealthWithRetries(Environment env, Terminal terminal, int retries, boolean force) throws Exception {
         CommandLineHttpClient client = clientFunction.apply(env);
         final URL clusterHealthUrl = createURL(new URL(client.getDefaultURL()), "_cluster/health", "?pretty");
         final HttpResponse response;
@@ -214,7 +230,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
                 );
                 Thread.sleep(1000);
                 retries -= 1;
-                checkClusterHealthWithRetries(env, terminal, retries);
+                checkClusterHealthWithRetries(env, terminal, retries, force);
             } else {
                 throw new UserException(
                     ExitCodes.DATA_ERROR,
@@ -226,10 +242,21 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
             if (clusterStatus.isEmpty()) {
                 throw new UserException(
                     ExitCodes.DATA_ERROR,
-                    "Failed to determine the health of the cluster. Cluster health API did not return a status value"
+                    "Failed to determine the health of the cluster. Cluster health API did not return a status value."
                 );
-            } else if ("red".equalsIgnoreCase(clusterStatus)) {
-                throw new UserException(ExitCodes.UNAVAILABLE, "Cluster health is currently RED.");
+            } else if ("red".equalsIgnoreCase(clusterStatus) && force == false) {
+                terminal.errorPrintln("Failed to determine the health of the cluster. Cluster health is currently RED.");
+                terminal.errorPrintln("This means that some cluster data is unavailable and your cluster is not fully functional.");
+                terminal.errorPrintln("The cluster logs (https://www.elastic.co/guide/en/elasticsearch/reference/master/logging.html)" +
+                    "might contain information/indications for the underlying cause");
+                terminal.errorPrintln(
+                    "It is recommended that you resolve the issues with your cluster before continuing");
+                terminal.errorPrintln("It is very likely that the command will fail when run against an unhealthy cluster.");
+                terminal.errorPrintln("");
+                terminal.errorPrintln("If you still want to attempt to execute this command against an unhealthy cluster," +
+                    " you can pass the `-f` parameter.");
+                throw new UserException(ExitCodes.UNAVAILABLE,
+                    "Failed to determine the health of the cluster. Cluster health is currently RED.");
             }
             // else it is yellow or green so we can continue
         }

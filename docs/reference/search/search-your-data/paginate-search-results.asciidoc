@@ -476,7 +476,7 @@ the result from the second request returned documents that belong to the second 
 maximum number of slices is set to 2 the union of the results of the two requests is equivalent
 to the results of a scroll query without slicing. By default the splitting is done first on the
 shards, then locally on each shard using the `_id` field. The local splitting follows the formula
-`slice(doc) = doc.lucene_id % max`.
+`slice(doc) = floorMod(hashCode(doc._id), max))`.
 
 Each scroll is independent and can be processed in parallel like any scroll request.
 

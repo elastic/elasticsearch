@@ -68,7 +68,7 @@ def v7compatibilityNotSupportedTests = {
           // translog settings removal is not supported under compatible api
           'indices.stats/20_translog/Translog retention settings are deprecated',
           'indices.stats/20_translog/Translog retention without soft_deletes',
-          'indices.stats/20_translog/Translog stats on closed indices without soft-deletes'
+          'indices.stats/20_translog/Translog stats on closed indices without soft-deletes',
 
           // upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex
           'indices.upgrade/10_basic/Basic test for upgrade indices',

@@ -1551,35 +1551,22 @@ public class RestoreService implements ClusterStateApplier {
                 if (matchRepository(repositoryUuid, repositoryName, otherRepositoryUuid, otherRepositoryName) == false) {
                     continue; // other index is backed by a snapshot from a different repository, skip
                 }
-                if (otherSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false)) {
+                final boolean otherDeleteSnap = otherSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false);
+                if (deleteSnapshot != otherDeleteSnap) {
                     throw new SnapshotRestoreException(
                         repositoryName,
                         snapshotInfo.snapshotId().getName(),
                         String.format(
                             Locale.ROOT,
-                            "cannot mount snapshot [%s/%s:%s] as index [%s]; another index %s uses the snapshot "
-                                + "with the deletion of snapshot on index removal enabled "
-                                + "[index.store.snapshot.delete_searchable_snapshot: true].",
+                            "cannot mount snapshot [%s/%s:%s] as index [%s] with [index.store.snapshot.delete_searchable_snapshot: %b]; "
+                                + "another index %s is mounted with [index.store.snapshot.delete_searchable_snapshot: %b].",
                             repositoryName,
                             repositoryUuid,
                             snapshotInfo.snapshotId().getName(),
                             index.getName(),
-                            other.getIndex()
-                        )
-                    );
-                } else if (deleteSnapshot) {
-                    throw new SnapshotRestoreException(
-                        repositoryName,
-                        snapshotInfo.snapshotId().getName(),
-                        String.format(
-                            Locale.ROOT,
-                            "cannot mount snapshot [%s/%s:%s] as index [%s] with the deletion of snapshot on index removal enabled "
-                                + "[index.store.snapshot.delete_searchable_snapshot: true]; another index %s uses the snapshot.",
-                            repositoryName,
-                            repositoryUuid,
-                            snapshotInfo.snapshotId().getName(),
-                            index.getName(),
-                            other.getIndex()
+                            deleteSnapshot,
+                            other.getIndex(),
+                            otherDeleteSnap
                         )
                     );
                 }

@@ -23,7 +23,7 @@ case "$1" in
     configure)
 
         # If $1=configure and $2 is set, this is an upgrade
-        if [ -n $2 ]; then
+        if [ -n "$2" ]; then
             IS_UPGRADE=true
         fi
         PACKAGE=deb
@@ -49,13 +49,14 @@ case "$1" in
         exit 1
     ;;
 esac
-
 # to pick up /usr/lib/sysctl.d/elasticsearch.conf
 if command -v systemctl > /dev/null; then
     systemctl restart systemd-sysctl.service || true
 fi
 
 if [ "x$IS_UPGRADE" != "xtrue" ]; then
+    # This runs on installation and since we do not set a password for the keystore by default, we can assume it's not password protected
+    /usr/share/elasticsearch/bin/elasticsearch-autoconfig-security <<< ""
     if command -v systemctl >/dev/null; then
         echo "### NOT starting on installation, please execute the following statements to configure elasticsearch service to start automatically using systemd"
         echo " sudo systemctl daemon-reload"

@@ -1068,7 +1068,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             response = client().prepareSearch("idx2")
                     .addAggregation(dateHistogram("histo")
                             .field("date")
-                            .calendarInterval(DateHistogramInterval.days(interval))
+                            .fixedInterval(DateHistogramInterval.days(interval))
                             .minDocCount(0)
                                     // when explicitly specifying a format, the extended bounds should be defined by the same format
                             .extendedBounds(new LongBounds(format(boundsMin, pattern), format(boundsMax, pattern)))

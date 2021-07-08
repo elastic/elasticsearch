@@ -28,15 +28,9 @@ import java.util.Objects;
 /**
  * A class that handles all the parsing, bwc and deprecations surrounding date histogram intervals.
  *
- * - Provides parser helpers for the deprecated interval/dateHistogramInterval parameters.
  * - Provides parser helpers for the new calendar/fixed interval parameters
- * - Can read old intervals from a stream and convert to new intervals
  * - Can write new intervals to old format when streaming out
  * - Provides a variety of helper methods to interpret the intervals as different types, depending on caller's need
- *
- * After the deprecated parameters are removed, this class can be simplified greatly.  The legacy options
- * will be removed, and the mutual-exclusion checks can be done in the setters directly removing the need
- * for the enum and the complicated "state machine" logic
  */
 public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField("fixed_interval");
@@ -45,13 +39,15 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     public enum IntervalTypeEnum implements Writeable {
         /*
          LEGACY_INTERVAL and LEGACY_DATE_HISTO are no longer used, but since this is a writeable enum, I'm leaving them
-         to hold the odrinal places for now.
+         to hold the ordinal places for now.
          */
 
         NONE("none"),
         FIXED(FIXED_INTERVAL_FIELD.getPreferredName()),
         CALENDAR(CALENDAR_INTERVAL_FIELD.getPreferredName()),
+        @Deprecated
         LEGACY_INTERVAL(null),
+        @Deprecated
         LEGACY_DATE_HISTO(null);
 
         public static IntervalTypeEnum fromString(String name) {

@@ -16,15 +16,15 @@ Retrieves the status of a node that's being prepared for shutdown.
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
-* If the <<operator-privileges,{operator-feature}>> is enabled, 
+* If the <<operator-privileges,{operator-feature}>> is enabled,
 you must be an operator to use this API.
 
 [[get-shutdown-api-desc]]
 ==== {api-description-title}
 
 Indicates whether a node is ready to be shut down, or if shut down preparations
-are still in progress or have stalled. 
-Returns status information for each part of the shut down process. 
+are still in progress or have stalled.
+Returns status information for each part of the shut down process.
 Use to monitor the shut down process after calling <<put-shutdown, put shutdown>>.
 
 [[get-shutdown-api-path-params]]
@@ -32,7 +32,7 @@ Use to monitor the shut down process after calling <<put-shutdown, put shutdown>
 
 `<node-id>`::
 (Optional, string)
-The ID of a node that is being prepared for shutdown. 
+The ID of a node that is being prepared for shutdown.
 If no ID is specified, returns the status of all nodes being prepared for shutdown.
 
 [[get-shutdown-api-params]]
@@ -43,7 +43,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[sget-shutdown-api-example]]
 ==== {api-examples-title}
 
-Prepare a node to be restarted: 
+Prepare a node to be restarted:
 
 [source,console]
 --------------------------------------------------
@@ -53,19 +53,16 @@ PUT /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
   "reason": "Demonstrating how the node shutdown API works"
 }
 --------------------------------------------------
-// TEST[setup:node]
-// TEST[s/USpTGYaBSIKbgSUJR2Z9lg/\$node_name/]
 
-Get the status of the shutdown preparations: 
+Get the status of the shutdown preparations:
 
 [source,console]
 --------------------------------------------------
 GET /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 --------------------------------------------------
 // TEST[continued]
-// TEST[s/USpTGYaBSIKbgSUJR2Z9lg/\$node_name/]
 
-The response shows information about the shutdown preparations, 
+The response shows information about the shutdown preparations,
 including the status of shard migration, task migration, and plugin cleanup:
 
 [source,console-result]
@@ -75,7 +72,7 @@ including the status of shard migration, task migration, and plugin cleanup:
         {
             "node_id": "USpTGYaBSIKbgSUJR2Z9lg",
             "type": "RESTART",
-            "reason": "demonstrating how the node shutdown API works",
+            "reason": "Demonstrating how the node shutdown API works",
             "shutdown_startedmillis": 1624406108685,
             "status": "COMPLETE",
             "shard_migration": {

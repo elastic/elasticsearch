@@ -9,8 +9,9 @@
 package org.elasticsearch.search.slice;
 
 import com.carrotsearch.hppc.BitMixer;
-import org.apache.lucene.index.LeafReaderContext;
+
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
@@ -22,7 +23,6 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * A {@link SliceQuery} that uses the numeric doc values of a field to do the slicing.
@@ -31,7 +31,6 @@ import java.util.Objects;
  * If updates are accepted on the field you must ensure that the same reader is used for all `slice` queries.
  */
 public final class DocValuesSliceQuery extends SliceQuery {
-    private final String field;
 
     /**
      * @param field The name of the field
@@ -39,8 +38,7 @@ public final class DocValuesSliceQuery extends SliceQuery {
      * @param max   The maximum number of slices
      */
     public DocValuesSliceQuery(String field, int id, int max) {
-        super(id, max);
-        this.field = field;
+        super(field, id, max);
     }
 
     @Override
@@ -49,7 +47,7 @@ public final class DocValuesSliceQuery extends SliceQuery {
 
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
-                final SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), field);
+                final SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), getField());
                 final DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
                 final TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
 
@@ -78,25 +76,8 @@ public final class DocValuesSliceQuery extends SliceQuery {
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                return DocValues.isCacheable(ctx, field);
+                return DocValues.isCacheable(ctx, getField());
             }
-
         };
-    }
-
-    @Override
-    protected boolean doEquals(SliceQuery o) {
-        DocValuesSliceQuery that = (DocValuesSliceQuery) o;
-        return Objects.equals(field, that.field);
-    }
-
-    @Override
-    protected int doHashCode() {
-        return Objects.hash(field);
-    }
-
-    @Override
-    public String toString(String f) {
-        return getClass().getSimpleName() + "[field=" + field + ", id=" + getId() + ", max=" + getMax() + "]";
     }
 }

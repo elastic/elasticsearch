@@ -16,6 +16,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 
 import java.io.IOException;
 
@@ -34,7 +35,7 @@ public final class DocIdSliceQuery extends SliceQuery {
      * @param max   The maximum number of slices
      */
     public DocIdSliceQuery(int id, int max) {
-        super(id, max);
+        super(FieldSortBuilder.DOC_FIELD_NAME, id, max);
     }
 
     @Override
@@ -80,22 +81,5 @@ public final class DocIdSliceQuery extends SliceQuery {
                 return false;
             }
         };
-    }
-
-
-
-    @Override
-    protected boolean doEquals(SliceQuery o) {
-        return true;
-    }
-
-    @Override
-    protected int doHashCode() {
-        return 0;
-    }
-
-    @Override
-    public String toString(String f) {
-        return getClass().getSimpleName() + "[id=" + getId() + ", max=" + getMax() + "]";
     }
 }

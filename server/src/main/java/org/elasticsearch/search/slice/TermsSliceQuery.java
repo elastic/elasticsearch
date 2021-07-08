@@ -26,7 +26,6 @@ import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.StringHelper;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * A {@link SliceQuery} that uses the terms dictionary of a field to do the slicing.
@@ -41,11 +40,8 @@ public final class TermsSliceQuery extends SliceQuery {
     // Fixed seed for computing term hashCode
     public static final int SEED = 7919;
 
-    private final String field;
-
     public TermsSliceQuery(String field, int id, int max) {
-        super(id, max);
-        this.field = field;
+        super(field, id, max);
     }
 
     @Override
@@ -70,7 +66,7 @@ public final class TermsSliceQuery extends SliceQuery {
      */
     private DocIdSet build(LeafReader reader) throws IOException {
         final DocIdSetBuilder builder = new DocIdSetBuilder(reader.maxDoc());
-        final Terms terms = reader.terms(field);
+        final Terms terms = reader.terms(getField());
         if (terms == null) {
             return DocIdSet.EMPTY;
         }
@@ -86,21 +82,5 @@ public final class TermsSliceQuery extends SliceQuery {
             }
         }
         return builder.build();
-    }
-
-    @Override
-    protected boolean doEquals(SliceQuery o) {
-        TermsSliceQuery that = (TermsSliceQuery) o;
-        return Objects.equals(field, that.field);
-    }
-
-    @Override
-    protected int doHashCode() {
-        return Objects.hash(field);
-    }
-
-    @Override
-    public String toString(String f) {
-        return getClass().getSimpleName() + "[field=" + field + ", id=" + getId() + ", max=" + getMax() + "]";
     }
 }

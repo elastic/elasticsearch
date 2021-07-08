@@ -25,6 +25,10 @@ dependencies {
   compileOnly project(':modules:lang-painless')
 }
 
+testClusters.all {
+  testDistribution = 'DEFAULT'
+}
+
 tasks.named("yamlRestCompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
     'search.query/50_queries_with_synonyms/Test common terms query with stacked tokens',

@@ -17,6 +17,7 @@ esplugin {
 }
 
 testClusters.all {
+  testDistribution = 'DEFAULT'
   numberOfNodes = 2
 }
 

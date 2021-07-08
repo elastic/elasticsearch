@@ -15,6 +15,7 @@ import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.SearchSlowLog;
@@ -479,5 +480,19 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 expectedUrl,
                 "Found [index.indexing.slowlog.level] configured. Discontinue use of this setting. Use thresholds.", null
             )));
+    }
+
+    public void testSimpleFSSetting() {
+        Settings.Builder settings = settings(Version.CURRENT);
+        settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "simplefs");
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        assertThat(issues, contains(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "[simplefs] is deprecated and will be removed in future versions",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-store.html",
+                "[simplefs] is deprecated and will be removed in future versions; " +
+                    "replace it with [niofs] or other file system implementations", null)
+        ));
     }
 }

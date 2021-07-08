@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.SearchSlowLog;
@@ -298,6 +299,19 @@ public class IndexDeprecationChecks {
             final String details = String.format(Locale.ROOT, "Found [%s] configured. Discontinue use of this setting. Use thresholds.",
                 setting.getKey());
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, null);
+        }
+        return null;
+    }
+
+    static DeprecationIssue storeTypeSettingCheck(IndexMetadata indexMetadata) {
+        final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexMetadata.getSettings());
+        if (IndexModule.Type.SIMPLEFS.match(storeType)) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "[simplefs] is deprecated and will be removed in future versions",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-store.html",
+                "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
+                    "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
+                    "as it offers superior or equivalent performance to [simplefs].", null);
         }
         return null;
     }

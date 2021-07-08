@@ -123,7 +123,6 @@ public class IndicesModule extends AbstractModule {
 
         mappers.put(FieldAliasMapper.CONTENT_TYPE, new FieldAliasMapper.TypeParser());
         mappers.put(FlattenedFieldMapper.CONTENT_TYPE, FlattenedFieldMapper.PARSER);
-        mappers.put(GeoPointFieldMapper.CONTENT_TYPE, GeoPointFieldMapper.PARSER);
         mappers.put(IpFieldMapper.CONTENT_TYPE, IpFieldMapper.PARSER);
         mappers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordFieldMapper.PARSER);
         mappers.put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser());

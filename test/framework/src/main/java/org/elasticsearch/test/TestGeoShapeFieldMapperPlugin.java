@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -29,6 +30,7 @@ public class TestGeoShapeFieldMapperPlugin extends Plugin implements MapperPlugi
     public Map<String, Mapper.TypeParser> getMappers() {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
         mappers.put(GeoShapeFieldMapper.CONTENT_TYPE, GeoShapeFieldMapper.PARSER);
+        mappers.put(GeoPointFieldMapper.CONTENT_TYPE, GeoPointFieldMapper.PARSER);
         return Collections.unmodifiableMap(mappers);
     }
 }

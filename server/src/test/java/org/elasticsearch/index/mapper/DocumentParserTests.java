@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -49,7 +50,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new DocumentParserTestsPlugin());
+        return List.of(new DocumentParserTestsPlugin(), new TestGeoShapeFieldMapperPlugin());
     }
 
     public void testParseWithRuntimeField() throws Exception {

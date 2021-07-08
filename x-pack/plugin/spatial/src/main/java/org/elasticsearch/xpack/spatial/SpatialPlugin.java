@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.geo.GeoPlugin;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseUtils;
@@ -84,6 +85,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
         Map<String, Mapper.TypeParser> mappers = new HashMap<>(super.getMappers());
         mappers.put(ShapeFieldMapper.CONTENT_TYPE, ShapeFieldMapper.PARSER);
         mappers.put(PointFieldMapper.CONTENT_TYPE, PointFieldMapper.PARSER);
+        mappers.put(GeoPointFieldMapper.CONTENT_TYPE, GeoPointFieldMapper.PARSER);
         mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, GeoShapeWithDocValuesFieldMapper.PARSER);
         return Collections.unmodifiableMap(mappers);
     }

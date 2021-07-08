@@ -63,6 +63,7 @@ import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -73,7 +74,6 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
-import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
@@ -92,7 +92,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     protected static final ToXContent.Params INCLUDE_DEFAULTS = new ToXContent.MapParams(Map.of("include_defaults", "true"));
 
     protected Collection<? extends Plugin> getPlugins() {
-        return emptyList();
+        return List.of(new TestGeoShapeFieldMapperPlugin());
     }
 
     protected Settings getIndexSettings() {

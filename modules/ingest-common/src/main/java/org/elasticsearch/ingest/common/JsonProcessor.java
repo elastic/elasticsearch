@@ -40,8 +40,8 @@ public final class JsonProcessor extends AbstractProcessor {
     private final ConflictStrategy addToRootConflictStrategy;
     private final boolean allowDuplicateKeys;
 
-    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot, ConflictStrategy addToRootConflictStrategy,
-                  boolean allowDuplicateKeys) {
+    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot,
+                  ConflictStrategy addToRootConflictStrategy, boolean allowDuplicateKeys) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
@@ -178,8 +178,8 @@ public final class JsonProcessor extends AbstractProcessor {
             try {
                 addToRootConflictStrategy = ConflictStrategy.fromString(conflictStrategyString);
             } catch (IllegalArgumentException e) {
-                throw newConfigurationException(TYPE, processorTag, "add_to_root_conflict_strategy", "conflict strategy [" + conflictStrategyString +
-                    "] not supported, cannot convert field.");
+                throw newConfigurationException(TYPE, processorTag, "add_to_root_conflict_strategy", "conflict strategy [" +
+                    conflictStrategyString + "] not supported, cannot convert field.");
             }
 
             if (addToRoot && targetField != null) {
@@ -195,7 +195,8 @@ public final class JsonProcessor extends AbstractProcessor {
                 targetField = field;
             }
 
-            return new JsonProcessor(processorTag, description, field, targetField, addToRoot, addToRootConflictStrategy, allowDuplicateKeys);
+            return new JsonProcessor(processorTag, description, field, targetField, addToRoot, addToRootConflictStrategy,
+                allowDuplicateKeys);
         }
     }
 }

@@ -126,7 +126,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
     public void testMigrateIlmPolicyFOrPhaseWithDeactivatedMigrateAction() {
         ShrinkAction shrinkAction = new ShrinkAction(2, null);
-        AllocateAction warmAllocateAction = new AllocateAction(null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
+        AllocateAction warmAllocateAction = new AllocateAction(null, org.elasticsearch.core.Map.of("data", "warm"), null,
+            org.elasticsearch.core.Map.of("rack", "rack1"));
         MigrateAction deactivatedMigrateAction = new MigrateAction(false);
 
         LifecyclePolicy policy = new LifecyclePolicy(lifecycleName,

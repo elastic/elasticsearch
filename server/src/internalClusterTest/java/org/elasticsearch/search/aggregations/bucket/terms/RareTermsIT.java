@@ -44,7 +44,7 @@ public class RareTermsIT extends ESSingleNodeTestCase {
         // We want to trigger the usage of cuckoo filters that happen only when there are
         // more than 10k distinct values in one shard.
         final int numDocs = randomIntBetween(12000, 17000);
-        // Index every value 5 times
+        // Index every value 3 times
         for (int i = 0; i < 3; i++) {
             indexDocs(numDocs);
             assertNoFailures(client().admin().indices().prepareRefresh(index).get());

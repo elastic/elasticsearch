@@ -143,11 +143,6 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         protected Function<List<Geometry>, List<Object>> getFormatter(SearchExecutionContext context, String format) {
             return context.getGeoFormatter(format);
         }
-
-        @Override
-        protected Geometry toGeometry(Geometry geometry) {
-            return geometry;
-        }
     }
 
     @SuppressWarnings("deprecation")

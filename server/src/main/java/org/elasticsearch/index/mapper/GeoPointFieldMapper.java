@@ -37,11 +37,9 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -247,38 +245,13 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        protected Geometry toGeometry(GeoPoint point) {
-            return new Point(point.lon(), point.lat());
-        }
-
-        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (scriptValues == null) {
                 return super.valueFetcher(context, format);
             }
             final Function<List<Geometry>, List<Object>> formatter =
                 getFormatter(context, format != null ? format : GeoFormatterFactory.GEOJSON);
-            return new ValueFetcher() {
-                LeafReaderContext ctx;
-
-                @Override
-                public void setNextReader(LeafReaderContext context) {
-                    this.ctx = context;
-                }
-
-                @Override
-                public List<Object> fetchValues(SourceLookup lookup)  {
-                    // TODO: should / can we reuse this list?
-                    final List<Geometry> geometries = new ArrayList<>();
-                    try {
-                        scriptValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> geometries.add(toGeometry(v)));
-                    } catch (Exception e) {
-                        // ignore errors - if they exist here then they existed at index time
-                        // and so on_script_error must have been set to `ignore`
-                    }
-                    return formatter.apply(geometries);
-                }
-            };
+            return FieldValues.valueFetcher(scriptValues, formatter, context, geometryParser::toGeometry);
         }
 
         @Override
@@ -328,6 +301,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                        boolean ignoreZValue,
                        boolean ignoreMalformed) {
             super(field, pointSupplier, objectParser, nullValue, ignoreZValue, ignoreMalformed);
+        }
+
+        @Override
+        protected Geometry toGeometry(GeoPoint point) {
+            return new Point(point.lon(), point.lat());
         }
 
         protected GeoPoint validate(GeoPoint in) {

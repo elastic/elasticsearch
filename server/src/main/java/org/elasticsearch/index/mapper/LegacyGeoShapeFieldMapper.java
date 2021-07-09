@@ -335,6 +335,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 onMalformed.accept(e);
             }
         }
+
+        @Override
+        protected Geometry toGeometry(ShapeBuilder<?, ?, ?> shape) {
+            return shape.buildGeometry();
+        }
     }
 
     public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType<ShapeBuilder<?, ?, ?>> implements GeoShapeQueryable {
@@ -455,11 +460,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         @Override
         protected Function<List<Geometry>, List<Object>> getFormatter(SearchExecutionContext context, String format) {
             return context.getGeoFormatter(format);
-        }
-
-        @Override
-        protected Geometry toGeometry(ShapeBuilder<?, ?, ?> shape) {
-            return shape.buildGeometry();
         }
     }
 

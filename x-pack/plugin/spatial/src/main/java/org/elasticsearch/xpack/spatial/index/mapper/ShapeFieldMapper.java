@@ -124,11 +124,6 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         }
 
         @Override
-        protected Geometry toGeometry(Geometry geometry) {
-            return geometry;
-        }
-
-        @Override
         protected Function<List<Geometry>, List<Object>> getFormatter(SearchExecutionContext context, String format) {
             return CartesianFormatterFactory.getFormatter(format);
         }

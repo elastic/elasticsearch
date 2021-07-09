@@ -52,6 +52,19 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             XContentParser parser,
             CheckedConsumer<T, IOException> consumer,
             Consumer<Exception> onMalformed) throws IOException;
+
+        /**
+         * Translate the given {@link T} into a {@link Geometry}.
+         */
+        protected abstract Geometry toGeometry(T shape);
+
+        private void fetchFromSource(Object sourceMap, Consumer<Geometry> consumer) {
+            try (XContentParser parser = MapXContentParser.wrapObject(sourceMap)) {
+                parse(parser, v -> consumer.accept(toGeometry(v)), e -> {}); /* ignore malformed */
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
     }
 
     public abstract static class AbstractGeometryFieldType<T> extends MappedFieldType {
@@ -71,11 +84,6 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
 
         /**
-         * Translate the given {@link T} into a {@link Geometry}.
-         */
-        protected abstract Geometry toGeometry(T shape);
-
-        /**
          * Gets the formatter by name.
          */
         protected abstract Function<List<Geometry>, List<Object>> getFormatter(SearchExecutionContext context, String format);
@@ -87,15 +95,9 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             return new ArraySourceValueFetcher(name(), context) {
                 @Override
                 protected Object parseSourceValue(Object value) {
-                    try (XContentParser parser = MapXContentParser.wrapObject(value)) {
-                        // TODO: should/can we reuse this list?
-                        final List<Geometry> geometries = new ArrayList<>();
-                        geometryParser.parse(parser, v -> geometries.add(toGeometry(v)), e -> {}); /* ignore malformed */
-                        return formatter.apply(geometries);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-
+                    final List<Geometry> values = new ArrayList<>();
+                    geometryParser.fetchFromSource(value, values::add);
+                    return formatter.apply(values);
                 }
             };
         }

@@ -28,6 +28,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -36,6 +37,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -48,7 +50,7 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(CustomScriptPlugin.class);
+        return List.of(CustomScriptPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

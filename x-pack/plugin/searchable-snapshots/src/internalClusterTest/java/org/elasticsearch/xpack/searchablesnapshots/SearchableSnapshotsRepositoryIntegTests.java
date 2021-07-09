@@ -13,9 +13,9 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
-import org.hamcrest.Matcher;
 
 import java.util.Arrays;
 import java.util.List;
@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSn
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
@@ -167,8 +168,16 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
 
         final boolean deleteSnapshot = randomBoolean();
         final String mounted = "mounted-with-setting-" + deleteSnapshot;
-        mountSnapshot(repository, snapshot, index, mounted, deleteSnapshotIndexSettings(deleteSnapshot), randomFrom(Storage.values()));
-        assertIndexSetting(mounted, SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, equalTo(Boolean.toString(deleteSnapshot)));
+        final Settings indexSettings = deleteSnapshotIndexSettingsOrNull(deleteSnapshot);
+
+        logger.info("--> mounting index [{}] with index settings [{}]", mounted, indexSettings);
+        mountSnapshot(repository, snapshot, index, mounted, indexSettings, randomFrom(Storage.values()));
+        assertThat(
+            getDeleteSnapshotIndexSetting(mounted),
+            indexSettings.hasValue(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION)
+                ? equalTo(Boolean.toString(deleteSnapshot))
+                : nullValue()
+        );
         assertHitCount(client().prepareSearch(mounted).setTrackTotalHits(true).get(), totalHits.value);
 
         final String mountedAgain = randomValueOtherThan(mounted, () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
@@ -188,7 +197,12 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         );
 
         mountSnapshot(repository, snapshot, index, mountedAgain, deleteSnapshotIndexSettings(deleteSnapshot));
-        assertIndexSetting(mountedAgain, SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, equalTo(Boolean.toString(deleteSnapshot)));
+        assertThat(
+            getDeleteSnapshotIndexSetting(mounted),
+            indexSettings.hasValue(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION)
+                ? equalTo(Boolean.toString(deleteSnapshot))
+                : nullValue()
+        );
         assertHitCount(client().prepareSearch(mountedAgain).setTrackTotalHits(true).get(), totalHits.value);
 
         assertAcked(client().admin().indices().prepareDelete(mountedAgain));
@@ -210,9 +224,15 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
 
         final String mounted = "mounted-" + index;
         final boolean deleteSnapshot = randomBoolean();
+        final Settings indexSettings = deleteSnapshotIndexSettingsOrNull(deleteSnapshot);
 
-        mountSnapshot(repository, snapshot, index, mounted, deleteSnapshotIndexSettings(deleteSnapshot), randomFrom(Storage.values()));
-        assertIndexSetting(mounted, SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, equalTo(Boolean.toString(deleteSnapshot)));
+        mountSnapshot(repository, snapshot, index, mounted, indexSettings, randomFrom(Storage.values()));
+        assertThat(
+            getDeleteSnapshotIndexSetting(mounted),
+            indexSettings.hasValue(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION)
+                ? equalTo(Boolean.toString(deleteSnapshot))
+                : nullValue()
+        );
         assertHitCount(client().prepareSearch(mounted).setTrackTotalHits(true).get(), totalHits.value);
 
         final IllegalArgumentException exception = expectThrows(
@@ -235,12 +255,19 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         return Settings.builder().put(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, value).build();
     }
 
-    private static void assertIndexSetting(String indexName, String indexSettingName, Matcher<String> matcher) {
+    private static Settings deleteSnapshotIndexSettingsOrNull(boolean value) {
+        if (value) {
+            return deleteSnapshotIndexSettings(true);
+        } else if (randomBoolean()) {
+            return deleteSnapshotIndexSettings(false);
+        } else {
+            return Settings.EMPTY;
+        }
+    }
+
+    @Nullable
+    private static String getDeleteSnapshotIndexSetting(String indexName) {
         final GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(indexName).get();
-        assertThat(
-            "Unexpected value for setting [" + indexSettingName + "] of index [" + indexName + ']',
-            getSettingsResponse.getSetting(indexName, indexSettingName),
-            matcher
-        );
+        return getSettingsResponse.getSetting(indexName, SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION);
     }
 }

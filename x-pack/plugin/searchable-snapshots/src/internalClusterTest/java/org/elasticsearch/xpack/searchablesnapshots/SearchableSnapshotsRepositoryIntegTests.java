@@ -235,6 +235,10 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         );
         assertHitCount(client().prepareSearch(mounted).setTrackTotalHits(true).get(), totalHits.value);
 
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareClose(mounted));
+        }
+
         final IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> client().admin()

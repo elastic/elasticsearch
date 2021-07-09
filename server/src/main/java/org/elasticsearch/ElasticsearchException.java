@@ -1038,12 +1038,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.action.search.VersionMismatchException.class,
                 org.elasticsearch.action.search.VersionMismatchException::new,
                 161,
-                Version.V_7_12_0),
-        TRANSPORT_WRAPPER_EXCEPTION(
-                 org.elasticsearch.transport.TransportWrapperException.class,
-                 org.elasticsearch.transport.TransportWrapperException::new,
-                 162,
-                 Version.V_8_0_0);
+                Version.V_7_12_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

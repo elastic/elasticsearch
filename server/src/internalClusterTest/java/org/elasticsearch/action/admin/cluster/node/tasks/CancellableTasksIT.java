@@ -44,11 +44,11 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportWrapperException;
 import org.junit.After;
 
 import java.io.IOException;
@@ -503,7 +503,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                         try {
                             client.executeLocally(TransportTestAction.ACTION, subRequest, latchedListener);
                         } catch (TaskCancelledException e) {
-                            latchedListener.onFailure(new TransportWrapperException("fail", e));
+                            latchedListener.onFailure(new SendRequestTransportException(null, "fail", e));
                         }
                     } else {
                         transportService.sendRequest(subRequest.node, ACTION.name(), subRequest,

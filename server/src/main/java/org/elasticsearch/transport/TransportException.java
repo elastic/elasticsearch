@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.IOException;
 
 public class TransportException extends ElasticsearchException {
-    protected TransportException(Throwable cause) {
+    public TransportException(Throwable cause) {
         super(cause);
     }
 
@@ -26,7 +26,7 @@ public class TransportException extends ElasticsearchException {
         super(msg);
     }
 
-    protected TransportException(String msg, Throwable cause) {
+    public TransportException(String msg, Throwable cause) {
         super(msg, cause);
     }
 }

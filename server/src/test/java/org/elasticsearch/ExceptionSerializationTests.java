@@ -84,7 +84,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportWrapperException;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -823,7 +822,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(159, NodeHealthCheckFailureException.class);
         ids.put(160, NoSeedNodeLeftException.class);
         ids.put(161, VersionMismatchException.class);
-        ids.put(162, TransportWrapperException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

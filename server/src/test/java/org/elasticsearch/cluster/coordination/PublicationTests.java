@@ -22,8 +22,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportWrapperException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -351,7 +351,7 @@ public class PublicationTests extends ESTestCase {
                 if (timeOut) {
                     publication.cancel("timed out");
                 } else {
-                    e.getValue().onFailure(new TransportWrapperException(new Exception("dummy failure")));
+                    e.getValue().onFailure(new TransportException(new Exception("dummy failure")));
                 }
                 assertTrue(publication.completed);
                 assertFalse(publication.committed);

@@ -41,7 +41,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportWrapperException;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -218,7 +217,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         long requestId = transport.capturedRequests()[0].requestId;
         transport.clear();
         // this should not trigger retry or anything and the listener should report exception immediately
-        transport.handleRemoteError(requestId, new TransportWrapperException("a generic transport exception",
+        transport.handleRemoteError(requestId, new TransportException("a generic transport exception",
             new Exception("generic test exception")));
 
         try {

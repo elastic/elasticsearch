@@ -43,7 +43,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportWrapperException;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -203,7 +202,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
                         @Override
                         public void handleResponse(TransportResponse response) {
                             handler.handleException(
-                                new TransportWrapperException(
+                                new TransportException(
                                     new ElasticsearchException(
                                         "ignoring successful publish response used purely for state transfer: " + response
                                     )
@@ -231,7 +230,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
                         .generic()
                         .execute(
                             () -> handler.handleException(
-                                new TransportWrapperException(
+                                new TransportException(
                                     new ElasticsearchException("voting-only node skipping publication to " + destinationNode)
                                 )
                             )

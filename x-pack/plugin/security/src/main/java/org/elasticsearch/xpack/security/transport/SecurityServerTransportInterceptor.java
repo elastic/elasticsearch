@@ -21,6 +21,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -31,7 +32,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
-import org.elasticsearch.transport.TransportWrapperException;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
@@ -148,7 +148,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         try {
             sender.sendRequest(connection, action, request, options, handler);
         } catch (Exception e) {
-            handler.handleException(new TransportWrapperException("failed sending request", e));
+            handler.handleException(new SendRequestTransportException(connection.getNode(), "failed sending request", e));
         }
     }
 

@@ -654,7 +654,7 @@ public class TransportService extends AbstractLifecycleComponent
             if (ex instanceof TransportException) {
                 te = (TransportException) ex;
             } else {
-                te = new TransportWrapperException("failure to send", ex);
+                te = new SendRequestTransportException(getLocalNode(), "failure to send", ex);
             }
             handler.handleException(te);
         }

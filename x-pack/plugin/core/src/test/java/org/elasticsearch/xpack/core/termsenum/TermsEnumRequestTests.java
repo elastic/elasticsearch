@@ -34,7 +34,7 @@ public class TermsEnumRequestTests extends AbstractSerializingTestCase<TermsEnum
 
     public void setUp() throws Exception {
         super.setUp();
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(IndicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());

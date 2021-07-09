@@ -181,7 +181,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
      * @param domain active directory domain name
      * @return LDAP DN, distinguished name, of the root of the domain
      */
-    public static String buildDnFromDomain(String domain) {
+    static String buildDnFromDomain(String domain) {
         return "DC=" + domain.replace(".", ",DC=");
     }
 

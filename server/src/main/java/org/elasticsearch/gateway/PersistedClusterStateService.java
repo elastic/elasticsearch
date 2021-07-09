@@ -216,7 +216,7 @@ public class PersistedClusterStateService {
     Directory createDirectory(Path path) throws IOException {
         // it is possible to disable the use of MMapDirectory for indices, and it may be surprising to users that have done so if we still
         // use a MMapDirectory here, which might happen with FSDirectory.open(path). Concurrency is of no concern here so a
-        // SimpleFSDirectory is fine:
+        // NIOFSDirectory is fine:
         return new NIOFSDirectory(path);
     }
 

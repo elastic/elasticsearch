@@ -105,7 +105,8 @@ public class DeprecationChecks {
             IndexDeprecationChecks::fieldNamesDisabledCheck,
             IndexDeprecationChecks::checkIndexDataPath,
             IndexDeprecationChecks::indexingSlowLogLevelSettingCheck,
-            IndexDeprecationChecks::searchSlowLogLevelSettingCheck
+            IndexDeprecationChecks::searchSlowLogLevelSettingCheck,
+            IndexDeprecationChecks::storeTypeSettingCheck
         ));
 
     /**

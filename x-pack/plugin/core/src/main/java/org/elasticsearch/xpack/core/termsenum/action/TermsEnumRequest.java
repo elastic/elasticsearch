@@ -125,6 +125,11 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
         return validationException;
     }
 
+    @Override
+    public boolean allowsRemoteIndices() {
+        return true;
+    }
+
     /**
      * The field to look inside for values
      */

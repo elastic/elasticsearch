@@ -94,7 +94,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             return;
         }
         // When detecting existing yml configuration that is incompatible with auto-configuration, auto-configuration is SILENTLY skipped
-        // This assumes the user knows what she's doing .
+        // This assumes the user knows what she's doing.
         {
             // Silently skipping security auto configuration, because Security is already configured.
             if (env.settings().hasValue(XPackSettings.SECURITY_ENABLED.getKey())) {
@@ -262,15 +262,16 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             bw.newLine();
             bw.write("# have been automatically generated in order to configure Security.               #");
             bw.newLine();
-            bw.write("# These have been generated the first time that the new node was started, on the  #");
+            bw.write("# These have been generated the first time that the new node was started, without #");
             bw.newLine();
-            bw.write("# terminal, without joining or enrolling to an existing cluster and only if       #");
+            bw.write("# joining or enrolling to an existing cluster and only if Security had not been   #");
             bw.newLine();
-            bw.write("# Security had not been explicitly configured beforehand.                         #");
+            bw.write("# explicitly configured beforehand.                                               #");
             bw.newLine();
             bw.write(String.format(Locale.ROOT, "# %-79s #", ""));
             bw.newLine();
             bw.write(String.format(Locale.ROOT, "# %-79s #", autoConfigDate));
+            // TODO add link to docs
             bw.newLine();
             bw.write("###################################################################################");
             bw.newLine();

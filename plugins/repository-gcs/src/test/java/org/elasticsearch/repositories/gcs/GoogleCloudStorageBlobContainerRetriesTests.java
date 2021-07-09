@@ -256,6 +256,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final AtomicInteger countUploads = new AtomicInteger(nbErrors * totalChunks);
         final AtomicBoolean allow410Gone = new AtomicBoolean(randomBoolean());
         final AtomicBoolean allowReadTimeout = new AtomicBoolean(rarely());
+        final AtomicInteger bytesReceived = new AtomicInteger();
         final int wrongChunk = randomIntBetween(1, totalChunks);
 
         final AtomicReference<String> sessionUploadId = new AtomicReference<>(UUIDs.randomBase64UUID());
@@ -306,6 +307,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                         // we must reset the counters because the whole object upload will be retried
                         countInits.set(nbErrors);
                         countUploads.set(nbErrors * totalChunks);
+                        bytesReceived.set(0);
 
                         exchange.sendResponseHeaders(HttpStatus.SC_GONE, -1);
                         return;
@@ -315,13 +317,25 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 final String range = exchange.getRequestHeaders().getFirst("Content-Range");
                 assertTrue(Strings.hasLength(range));
 
+                if (range.equals("bytes */*")) {
+                    final int receivedSoFar = bytesReceived.get();
+                    if (receivedSoFar > 0) {
+                        exchange.getResponseHeaders().add("Range", String.format(Locale.ROOT, "bytes=0-%d", receivedSoFar));
+                    }
+                    exchange.getResponseHeaders().add("Content-Length", "0");
+                    exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
+                    return;
+                }
+
                 if (countUploads.decrementAndGet() % 2 == 0) {
+
                     assertThat(Math.toIntExact(requestBody.length()), anyOf(equalTo(defaultChunkSize), equalTo(lastChunkSize)));
 
                     final int rangeStart = getContentRangeStart(range);
                     final int rangeEnd = getContentRangeEnd(range);
                     assertThat(rangeEnd + 1 - rangeStart, equalTo(Math.toIntExact(requestBody.length())));
                     assertThat(new BytesArray(data, rangeStart, rangeEnd - rangeStart + 1), is(requestBody));
+                    bytesReceived.updateAndGet(existing -> Math.max(existing, rangeEnd));
 
                     final Integer limit = getContentRangeLimit(range);
                     if (limit != null) {

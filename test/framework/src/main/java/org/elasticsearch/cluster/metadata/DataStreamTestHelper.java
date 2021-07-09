@@ -79,14 +79,16 @@ public final class DataStreamTestHelper {
         return IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, generation, epochMillis))
             .settings(SETTINGS)
             .numberOfShards(NUMBER_OF_SHARDS)
-            .numberOfReplicas(NUMBER_OF_REPLICAS);
+            .numberOfReplicas(NUMBER_OF_REPLICAS)
+            .dataStreamIndex(true);
     }
 
     public static IndexMetadata.Builder getIndexMetadataBuilderForIndex(Index index) {
         return IndexMetadata.builder(index.getName())
             .settings(Settings.builder().put(SETTINGS.build()).put(SETTING_INDEX_UUID, index.getUUID()))
             .numberOfShards(NUMBER_OF_SHARDS)
-            .numberOfReplicas(NUMBER_OF_REPLICAS);
+            .numberOfReplicas(NUMBER_OF_REPLICAS)
+            .dataStreamIndex(true);
     }
 
     public static DataStream.TimestampField createTimestampField(String fieldName) {

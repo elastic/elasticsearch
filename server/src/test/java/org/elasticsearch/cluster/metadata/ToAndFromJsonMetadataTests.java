@@ -152,7 +152,6 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
     }
 
     private static final String MAPPING_SOURCE1 = "{\"mapping1\":{\"text1\":{\"type\":\"string\"}}}";
-    private static final String MAPPING_SOURCE2 = "{\"mapping2\":{\"text2\":{\"type\":\"string\"}}}";
     private static final String ALIAS_FILTER1 = "{\"field1\":\"value1\"}";
     private static final String ALIAS_FILTER2 = "{\"field2\":\"value2\"}";
 
@@ -289,7 +288,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "        \"system\" : false,\n" +
             "        \"timestamp_range\" : {\n" +
             "          \"shards\" : [ ]\n" +
-            "        }\n" +
+            "        },\n" +
+            "        \"datastream_index\" : false\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -449,7 +449,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "        \"system\" : false,\n" +
             "        \"timestamp_range\" : {\n" +
             "          \"shards\" : [ ]\n" +
-            "        }\n" +
+            "        },\n" +
+            "        \"datastream_index\" : false\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -554,7 +555,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "        \"system\" : false,\n" +
             "        \"timestamp_range\" : {\n" +
             "          \"shards\" : [ ]\n" +
-            "        }\n" +
+            "        },\n" +
+            "        \"datastream_index\" : false\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +

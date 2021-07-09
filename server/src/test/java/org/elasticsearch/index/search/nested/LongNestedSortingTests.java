@@ -23,10 +23,14 @@ public class LongNestedSortingTests extends AbstractNumberNestedSortingTestCase 
     }
 
     @Override
-    protected IndexFieldData.XFieldComparatorSource createFieldComparator(String fieldName, MultiValueMode sortMode,
-                                                                                Object missingValue, Nested nested) {
+    protected IndexFieldData.XFieldComparatorSource createFieldComparator(
+        String fieldName,
+        MultiValueMode sortMode,
+        Object missingValue,
+        Nested nested
+    ) {
         IndexNumericFieldData fieldData = getForField(fieldName);
-        return new LongValuesComparatorSource(fieldData, missingValue, sortMode, nested);
+        return new LongValuesComparatorSource(fieldData, missingValue, sortMode, nested, null);
     }
 
     @Override

@@ -1,9 +1,9 @@
 ---
 - job:
-    name: "elastic+elasticsearch+%BRANCH%+pull-request/elastic+elasticsearch+%BRANCH%+pull-request+eql-correctness"
-    display-name: "elastic / elasticsearch # %BRANCH% - pull request eql-correctness"
+    name: "elastic+elasticsearch+pull-request+eql-correctness"
+    display-name: "elastic / elasticsearch - pull request eql-correctness"
     description: "Testing of Elasticsearch pull requests - eql-correctness"
-    workspace: "/dev/shm/elastic+elasticsearch+%BRANCH%+pull-request+eql-correctness"
+    workspace: "/dev/shm/elastic+elasticsearch+pull-request+eql-correctness"
     scm:
       - git:
           refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
@@ -18,9 +18,8 @@
           github-hooks: true
           status-context: elasticsearch-ci/eql-correctness
           cancel-builds-on-update: true
-          white-list-target-branches:
-            - %BRANCH%
-            - ^feat(ure)?/.*
+          black-list-target-branches:
+            - 6.8
           excluded-regions:
             - ^docs/.*
           black-list-labels:

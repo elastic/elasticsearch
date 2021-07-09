@@ -1,0 +1,2 @@
+The Elastic GeoIP Database Service uses the GeoLite2 Data created and licensed by MaxMind,
+which is governed by MaxMind’s GeoLite2 End User License Agreement, available at https://www.maxmind.com/en/geolite2/eula.

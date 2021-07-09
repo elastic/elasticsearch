@@ -24,3 +24,7 @@ dependencies {
 
 //this plugin is here only for the painless extension, there are no unit tests
 tasks.named("testingConventions").configure { enabled = false }
+
+testClusters.all {
+  module ':modules:geo'
+}

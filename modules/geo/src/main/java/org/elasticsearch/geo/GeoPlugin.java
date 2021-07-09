@@ -21,8 +21,10 @@ public class GeoPlugin extends Plugin implements MapperPlugin {
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return Map.of(
-            GeoPointFieldMapper.CONTENT_TYPE, GeoPointFieldMapper.PARSER,
-            GeoShapeFieldMapper.CONTENT_TYPE, GeoShapeFieldMapper.PARSER
+            GeoPointFieldMapper.CONTENT_TYPE,
+            GeoPointFieldMapper.PARSER,
+            GeoShapeFieldMapper.CONTENT_TYPE,
+            GeoShapeFieldMapper.PARSER
         );
     }
 }

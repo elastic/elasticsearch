@@ -72,7 +72,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
                 // Verify that there's not already a shutdown metadata for this node
                 SingleNodeShutdownMetadata existingRecord = currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId());
-                if (existingRecord != null && isTypeChangeAllowed(existingRecord, request) == false) {
+                if (existingRecord != null && isTypeChangeAllowed(existingRecord.getType(), request.getType()) == false) {
                     logger.error(Strings.toString(currentShutdownMetadata));
                     throw new IllegalArgumentException("node [" + request.getNodeId() + "] is already shutting down");
                 }
@@ -135,15 +135,15 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         });
     }
 
-    private boolean isTypeChangeAllowed(SingleNodeShutdownMetadata existingRecord, PutShutdownNodeAction.Request request) {
-        assert SingleNodeShutdownMetadata.Type.REMOVE.equals(request.getType())
-            || SingleNodeShutdownMetadata.Type.RESTART.equals(request.getType()) : "unknown shutdown type [" + request.getType() + "]";
+    // pkg-private for testing
+    static boolean isTypeChangeAllowed(SingleNodeShutdownMetadata.Type existingType, SingleNodeShutdownMetadata.Type newType) {
+        assert SingleNodeShutdownMetadata.Type.REMOVE.equals(newType)
+            || SingleNodeShutdownMetadata.Type.RESTART.equals(newType) : "unknown shutdown type [" + newType + "]";
 
-        if (request.getType().equals(existingRecord.getType())) {
+        if (newType.equals(existingType)) {
             return true;
         } else {
-            return existingRecord.getType().equals(SingleNodeShutdownMetadata.Type.RESTART)
-                && request.getType().equals(SingleNodeShutdownMetadata.Type.REMOVE);
+            return existingType.equals(SingleNodeShutdownMetadata.Type.RESTART) && newType.equals(SingleNodeShutdownMetadata.Type.REMOVE);
         }
     }
 

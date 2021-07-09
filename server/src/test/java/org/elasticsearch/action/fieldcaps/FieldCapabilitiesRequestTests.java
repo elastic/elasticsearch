@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -23,7 +22,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,7 +30,6 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.equalTo;
 
 public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCase<FieldCapabilitiesRequest> {
 
@@ -140,17 +137,5 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
             .indices("index2");
         ActionRequestValidationException exception = request.validate();
         assertNotNull(exception);
-    }
-
-    public void testSerializingWithRuntimeFieldsBeforeSupportedThrows() {
-        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
-        request.runtimeFields(singletonMap("day_of_week", singletonMap("type", "keyword")));
-        Version v = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_12_0));
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> copyWriteable(request, writableRegistry(), FieldCapabilitiesRequest::new, v)
-        );
-        assertThat(e.getMessage(), equalTo("Versions before 7.12.0 don't support [runtime_mappings], but trying to send _field_caps "
-            + "request to a node with version [" + v + "]"));
     }
 }

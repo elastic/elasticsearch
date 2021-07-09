@@ -71,11 +71,7 @@ def v7compatibilityNotSupportedTests = {
           'indices.stats/20_translog/Translog stats on closed indices without soft-deletes',
 
           // upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex
-          'indices.upgrade/10_basic/Basic test for upgrade indices',
-          'indices.upgrade/10_basic/Upgrade indices allow no indices',
-          'indices.upgrade/10_basic/Upgrade indices disallow no indices',
-          'indices.upgrade/10_basic/Upgrade indices disallow unavailable',
-          'indices.upgrade/10_basic/Upgrade indices ignore unavailable',
+          'indices.upgrade/*/*'
   ]
 }
 tasks.named("yamlRestCompatTest").configure {

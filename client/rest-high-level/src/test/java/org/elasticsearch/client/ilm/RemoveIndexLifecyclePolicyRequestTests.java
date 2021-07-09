@@ -34,7 +34,7 @@ public class RemoveIndexLifecyclePolicyRequestTests extends ESTestCase {
     protected RemoveIndexLifecyclePolicyRequest createInstance() {
         if (randomBoolean()) {
             return new RemoveIndexLifecyclePolicyRequest(Arrays.asList(generateRandomStringArray(20, 20, false)),
-                    IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
+                    new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(),
                     randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         } else {
             return new RemoveIndexLifecyclePolicyRequest(Arrays.asList(generateRandomStringArray(20, 20, false)));
@@ -42,7 +42,7 @@ public class RemoveIndexLifecyclePolicyRequestTests extends ESTestCase {
     }
 
     private RemoveIndexLifecyclePolicyRequest copyInstance(RemoveIndexLifecyclePolicyRequest req) {
-        return new RemoveIndexLifecyclePolicyRequest(new ArrayList<>(req.indices()), IndicesOptions.fromOptions(
+        return new RemoveIndexLifecyclePolicyRequest(new ArrayList<>(req.indices()), new IndicesOptions(
                 req.indicesOptions().ignoreUnavailable(), req.indicesOptions().allowNoIndices(),
                 req.indicesOptions().expandWildcardsOpen(), req.indicesOptions().expandWildcardsClosed(),
                 req.indicesOptions().allowAliasesToMultipleIndices(), req.indicesOptions().forbidClosedIndices(),
@@ -52,7 +52,7 @@ public class RemoveIndexLifecyclePolicyRequestTests extends ESTestCase {
     private RemoveIndexLifecyclePolicyRequest mutateInstance(RemoveIndexLifecyclePolicyRequest req) {
         if (randomBoolean()) {
             return new RemoveIndexLifecyclePolicyRequest(req.indices(),
-                    randomValueOtherThan(req.indicesOptions(), () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
+                    randomValueOtherThan(req.indicesOptions(), () -> new IndicesOptions(randomBoolean(), randomBoolean(),
                     randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())));
         } else {
             return new RemoveIndexLifecyclePolicyRequest(

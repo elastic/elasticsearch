@@ -512,7 +512,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         request.indices("test-index0", "test-index1"); // <1>
         // end::create-snapshot-request-indices
         // tag::create-snapshot-request-indicesOptions
-        request.indicesOptions(IndicesOptions.fromOptions(false, false, true, true)); // <1>
+        request.indicesOptions(new IndicesOptions(false, false, true, true)); // <1>
         // end::create-snapshot-request-indicesOptions
         // tag::create-snapshot-request-partial
         request.partial(false); // <1>

@@ -76,7 +76,7 @@ public final class EqlTestUtils {
     }
 
     public static IndicesOptions randomIndicesOptions() {
-        return IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+        return new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
             randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
     }
 

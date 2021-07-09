@@ -32,7 +32,7 @@ import java.util.Map;
 public class PutMappingRequest extends TimedRequest implements IndicesRequest, ToXContentObject {
 
     private final String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
+    private IndicesOptions indicesOptions = new IndicesOptions(false, false, true, true);
 
     private BytesReference source;
     private XContentType xContentType;

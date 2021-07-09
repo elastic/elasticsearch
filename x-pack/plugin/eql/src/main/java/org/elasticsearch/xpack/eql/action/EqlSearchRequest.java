@@ -48,7 +48,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true, true, false);
+    private IndicesOptions indicesOptions = new IndicesOptions(true, true, true, false);
 
     private QueryBuilder filter = null;
     private String timestampField = FIELD_TIMESTAMP;

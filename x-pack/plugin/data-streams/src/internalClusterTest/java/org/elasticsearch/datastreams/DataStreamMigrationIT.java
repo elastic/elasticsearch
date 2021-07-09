@@ -82,7 +82,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
 
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
             new String[] { "*" },
-            IndicesOptions.fromOptions(true, true, true, true, true)
+            new IndicesOptions(true, true, true, true, true)
         );
         ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(1));
@@ -121,7 +121,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
 
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
             new String[] { "*" },
-            IndicesOptions.fromOptions(true, true, true, true, true)
+            new IndicesOptions(true, true, true, true, true)
         );
         ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(1));
@@ -153,7 +153,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
 
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
             new String[] { "*" },
-            IndicesOptions.fromOptions(true, true, true, true, true)
+            new IndicesOptions(true, true, true, true, true)
         );
         ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(1));
@@ -188,7 +188,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
 
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
             new String[] { "*" },
-            IndicesOptions.fromOptions(true, true, true, true, true)
+            new IndicesOptions(true, true, true, true, true)
         );
         ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(1));
@@ -223,7 +223,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
 
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
             new String[] { "*" },
-            IndicesOptions.fromOptions(true, true, true, true, true)
+            new IndicesOptions(true, true, true, true, true)
         );
         ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(1));

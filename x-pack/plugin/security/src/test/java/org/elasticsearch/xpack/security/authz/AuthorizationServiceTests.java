@@ -787,7 +787,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         {
             //ignore_unavailable set to false, user is not authorized for this index nor does it exist
             SearchRequest searchRequest = new SearchRequest("does_not_exist")
-                .indicesOptions(IndicesOptions.fromOptions(false, true,
+                .indicesOptions(new IndicesOptions(false, true,
                     true, false));
 
             assertThrowsAuthorizationException(
@@ -801,7 +801,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         {
             //ignore_unavailable and allow_no_indices both set to true, user is not authorized for this index nor does it exist
             SearchRequest searchRequest = new SearchRequest("does_not_exist")
-                .indicesOptions(IndicesOptions.fromOptions(true, true, true, false));
+                .indicesOptions(new IndicesOptions(true, true, true, false));
             final ActionListener<Void> listener = ActionListener.wrap(ignore -> {
                 final IndicesAccessControl indicesAccessControl =
                     threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
@@ -1138,7 +1138,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testAuditTrailIsRecordedWhenIndexWildcardThrowsError() throws IOException {
-        IndicesOptions options = IndicesOptions.fromOptions(false, false, true, true);
+        IndicesOptions options = new IndicesOptions(false, false, true, true);
         TransportRequest request = new GetIndexRequest().indices("not-an-index-*").indicesOptions(options);
         ClusterState state = mockEmptyMetadata();
         RoleDescriptor role = new RoleDescriptor("a_all", null,

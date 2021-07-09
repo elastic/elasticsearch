@@ -301,7 +301,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         logger.info("--> updating data_path to [{}] for index [{}]", newIndexDataPath, index);
         assertAcked(client().admin().indices().prepareUpdateSettings(index)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, newIndexDataPath.toAbsolutePath().toString()).build())
-            .setIndicesOptions(IndicesOptions.fromOptions(true, false, true, true)));
+            .setIndicesOptions(new IndicesOptions(true, false, true, true)));
 
         logger.info("--> settings updated and files moved, re-opening index");
         assertAcked(client().admin().indices().prepareOpen(index));

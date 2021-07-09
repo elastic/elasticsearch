@@ -55,23 +55,23 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(0).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
-                equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
+                equalTo(new IndicesOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
         assertThat(request.requests().get(1).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(1).indicesOptions(),
-                equalTo(IndicesOptions.fromOptions(false, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
+                equalTo(new IndicesOptions(false, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
         assertThat(request.requests().get(2).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(2).indicesOptions(),
-                equalTo(IndicesOptions.fromOptions(false, true, true, false, SearchRequest.DEFAULT_INDICES_OPTIONS)));
+                equalTo(new IndicesOptions(false, true, true, false, SearchRequest.DEFAULT_INDICES_OPTIONS)));
         assertThat(request.requests().get(3).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(3).indicesOptions(),
-                equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
+                equalTo(new IndicesOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
         assertThat(request.requests().get(4).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(4).indicesOptions(),
-                equalTo(IndicesOptions.fromOptions(true, false, false, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
+                equalTo(new IndicesOptions(true, false, false, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
 
         assertThat(request.requests().get(5).indices(), is(Strings.EMPTY_ARRAY));
         assertThat(request.requests().get(6).indices(), is(Strings.EMPTY_ARRAY));
@@ -98,7 +98,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
-            equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
+            equalTo(new IndicesOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
     }
 
     public void testDefaultIndicesOptions() throws IOException {
@@ -112,7 +112,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
-            equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
+            equalTo(new IndicesOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
     }
 
     public void testSimpleAdd2() throws Exception {
@@ -253,21 +253,21 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testWritingExpandWildcards() throws IOException {
-        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true, true, randomBoolean(),
+        assertExpandWildcardsValue(new IndicesOptions(randomBoolean(), randomBoolean(), true, true, true, randomBoolean(),
             randomBoolean(), randomBoolean(), randomBoolean()), "all");
-        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true, false, randomBoolean(),
+        assertExpandWildcardsValue(new IndicesOptions(randomBoolean(), randomBoolean(), true, true, false, randomBoolean(),
             randomBoolean(), randomBoolean(), randomBoolean()), "open,closed");
-        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, true, randomBoolean(),
+        assertExpandWildcardsValue(new IndicesOptions(randomBoolean(), randomBoolean(), true, false, true, randomBoolean(),
             randomBoolean(), randomBoolean(), randomBoolean()), "open,hidden");
-        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, false, randomBoolean(),
+        assertExpandWildcardsValue(new IndicesOptions(randomBoolean(), randomBoolean(), true, false, false, randomBoolean(),
             randomBoolean(), randomBoolean(), randomBoolean()), "open");
-        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, true, true, randomBoolean(),
+        assertExpandWildcardsValue(new IndicesOptions(randomBoolean(), randomBoolean(), false, true, true, randomBoolean(),
             randomBoolean(), randomBoolean(), randomBoolean()), "closed,hidden");
-        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, true, false, randomBoolean(),
+        assertExpandWildcardsValue(new IndicesOptions(randomBoolean(), randomBoolean(), false, true, false, randomBoolean(),
             randomBoolean(), randomBoolean(), randomBoolean()), "closed");
-        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false, true, randomBoolean(),
+        assertExpandWildcardsValue(new IndicesOptions(randomBoolean(), randomBoolean(), false, false, true, randomBoolean(),
             randomBoolean(), randomBoolean(), randomBoolean()), "hidden");
-        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false, false, randomBoolean(),
+        assertExpandWildcardsValue(new IndicesOptions(randomBoolean(), randomBoolean(), false, false, false, randomBoolean(),
             randomBoolean(), randomBoolean(), randomBoolean()), "none");
     }
 
@@ -295,7 +295,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         MultiSearchRequest mutation = copyRequest(searchRequest);
         List<CheckedRunnable<IOException>> mutators = new ArrayList<>();
         mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(searchRequest.indicesOptions(),
-                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
+                () -> new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
         mutators.add(() -> mutation.maxConcurrentSearchRequests(randomIntBetween(1, 32)));
         mutators.add(() -> mutation.add(createSimpleSearchRequest()));
         randomFrom(mutators).run();
@@ -330,7 +330,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             // only expand_wildcards, ignore_unavailable and allow_no_indices can be specified from msearch api, so unset other options:
             IndicesOptions randomlyGenerated = searchRequest.indicesOptions();
             IndicesOptions msearchDefault = SearchRequest.DEFAULT_INDICES_OPTIONS;
-            searchRequest.indicesOptions(IndicesOptions.fromOptions(
+            searchRequest.indicesOptions(new IndicesOptions(
                 randomlyGenerated.ignoreUnavailable(), randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(),
                 randomlyGenerated.expandWildcardsClosed(), msearchDefault.expandWildcardsHidden(),
                 msearchDefault.allowAliasesToMultipleIndices(), msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(),

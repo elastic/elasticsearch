@@ -30,7 +30,7 @@ public class ExplainLifecycleRequestTests extends ESTestCase {
     private ExplainLifecycleRequest createTestInstance() {
         ExplainLifecycleRequest request = new ExplainLifecycleRequest(generateRandomStringArray(20, 20, false, false));
         if (randomBoolean()) {
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+            IndicesOptions indicesOptions = new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
                     randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
             request.indicesOptions(indicesOptions);
         }
@@ -46,7 +46,7 @@ public class ExplainLifecycleRequestTests extends ESTestCase {
                     () -> generateRandomStringArray(20, 10, false, false));
             break;
         case 1:
-            indicesOptions = randomValueOtherThan(indicesOptions, () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
+            indicesOptions = randomValueOtherThan(indicesOptions, () -> new IndicesOptions(randomBoolean(), randomBoolean(),
                     randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
             break;
         default:

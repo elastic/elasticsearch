@@ -40,7 +40,7 @@ public class IndicesOptionsTests extends ESTestCase {
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+            IndicesOptions indicesOptions = new IndicesOptions(
                 randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean(), randomBoolean());
 
@@ -74,7 +74,7 @@ public class IndicesOptionsTests extends ESTestCase {
         final boolean ignoreAliases = randomBoolean();
         final boolean ignoreThrottled = randomBoolean();
 
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices,
+        IndicesOptions indicesOptions = new IndicesOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices,
             expandToClosedIndices, expandToHiddenIndices, allowAliasesToMultipleIndices, forbidClosedIndices, ignoreAliases,
             ignoreThrottled);
 
@@ -96,10 +96,10 @@ public class IndicesOptionsTests extends ESTestCase {
         boolean expandToOpenIndices = randomBoolean();
         boolean expandToClosedIndices = randomBoolean();
 
-        IndicesOptions defaultOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+        IndicesOptions defaultOptions = new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices,
+        IndicesOptions indicesOptions = new IndicesOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices,
                 expandToClosedIndices, defaultOptions);
 
         assertEquals(ignoreUnavailable, indicesOptions.ignoreUnavailable());
@@ -145,7 +145,7 @@ public class IndicesOptionsTests extends ESTestCase {
         boolean allowNoIndices = randomBoolean();
         String allowNoIndicesString = Boolean.toString(allowNoIndices);
 
-        IndicesOptions defaultOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+        IndicesOptions defaultOptions = new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
         IndicesOptions updatedOptions = IndicesOptions.fromParameters(expandWildcardsString, ignoreUnavailableString,
@@ -162,11 +162,11 @@ public class IndicesOptionsTests extends ESTestCase {
     }
 
     public void testEqualityAndHashCode() {
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+        IndicesOptions indicesOptions = new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
             randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(indicesOptions, opts -> {
-            return IndicesOptions.fromOptions(opts.ignoreUnavailable(), opts.allowNoIndices(), opts.expandWildcardsOpen(),
+            return new IndicesOptions(opts.ignoreUnavailable(), opts.allowNoIndices(), opts.expandWildcardsOpen(),
                 opts.expandWildcardsClosed(), opts.expandWildcardsHidden(), opts.allowAliasesToMultipleIndices(),
                 opts.forbidClosedIndices(), opts.ignoreAliases(), opts.ignoreThrottled());
         }, opts -> {
@@ -218,7 +218,7 @@ public class IndicesOptionsTests extends ESTestCase {
                     mutated = true;
                 }
             }
-            return IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed, expandHidden,
+            return new IndicesOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed, expandHidden,
                 allowAliasesToMulti, forbidClosed, ignoreAliases, ignoreThrottled);
         });
     }

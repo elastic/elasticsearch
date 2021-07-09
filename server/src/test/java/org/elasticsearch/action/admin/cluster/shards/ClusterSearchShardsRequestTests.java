@@ -29,7 +29,7 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
         }
         if (randomBoolean()) {
             request.indicesOptions(
-                    IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+                    new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }
         if (randomBoolean()) {
             request.preference(randomAlphaOfLengthBetween(3, 10));

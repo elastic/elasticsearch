@@ -27,7 +27,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, false, true);
+    private IndicesOptions indicesOptions = new IndicesOptions(false, true, false, true);
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     public OpenIndexRequest(StreamInput in) throws IOException {

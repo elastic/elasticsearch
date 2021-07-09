@@ -24,7 +24,7 @@ import java.util.Objects;
 public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
+    private IndicesOptions indicesOptions = new IndicesOptions(false, true, true, true);
     private String[] names = Strings.EMPTY_ARRAY;
     private boolean humanReadable = false;
     private boolean includeDefaults = false;

@@ -47,7 +47,7 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
      */
     public TermsEnumRequest(String... indices) {
         super(indices);
-        indicesOptions(IndicesOptions.fromOptions(false, false, true, false));
+        indicesOptions(new IndicesOptions(false, false, true, false));
         timeout(DEFAULT_TIMEOUT);
     }
 

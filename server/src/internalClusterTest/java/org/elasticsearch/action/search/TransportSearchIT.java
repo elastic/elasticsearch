@@ -173,7 +173,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest("<test-{now/d}>");
-            searchRequest.indicesOptions(IndicesOptions.fromOptions(true, true, true, true));
+            searchRequest.indicesOptions(new IndicesOptions(true, true, true, true));
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(0, searchResponse.getTotalShards());
         }

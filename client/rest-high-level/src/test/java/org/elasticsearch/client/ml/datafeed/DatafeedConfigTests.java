@@ -102,7 +102,7 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
             builder.setMaxEmptySearches(randomIntBetween(10, 100));
         }
         if (randomBoolean()) {
-            builder.setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(),
+            builder.setIndicesOptions(new IndicesOptions(randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),

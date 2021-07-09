@@ -37,7 +37,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     public static final String NO_HOPS_ERROR_MESSAGE = "Graph explore request must have at least one hop";
     public static final String NO_VERTICES_ERROR_MESSAGE = "Graph explore hop must have at least one VertexRequest";
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
+    private IndicesOptions indicesOptions = new IndicesOptions(false, false, true, false);
     private String routing;
     private TimeValue timeout;
 

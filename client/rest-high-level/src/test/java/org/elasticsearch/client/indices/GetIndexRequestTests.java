@@ -49,7 +49,7 @@ public class GetIndexRequestTests extends ESTestCase {
     }
 
     public void testIndicesOptions() {
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        IndicesOptions indicesOptions = new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
         GetIndexRequest request = new GetIndexRequest().indicesOptions(indicesOptions);
         assertEquals(indicesOptions, request.indicesOptions());
     }

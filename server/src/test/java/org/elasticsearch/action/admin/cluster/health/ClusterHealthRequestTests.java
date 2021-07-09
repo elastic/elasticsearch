@@ -144,7 +144,7 @@ public class ClusterHealthRequestTests extends ESTestCase {
             request.indices(indices);
         }
         if (randomBoolean()) {
-            request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+            request.indicesOptions(new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }
         return request;
     }

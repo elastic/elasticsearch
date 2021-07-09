@@ -23,7 +23,7 @@ public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
             indices[i] = randomSimpleString(random(), 1, 30);
         }
 
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        IndicesOptions indicesOptions = new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
         UpdateByQueryRequest request = new UpdateByQueryRequest();
         request.indices(indices);

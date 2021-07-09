@@ -89,7 +89,7 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
         });
         mutators.add(request -> {
             IndicesOptions indicesOptions = randomValueOtherThan(request.indicesOptions(),
-                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+                () -> new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
             request.indicesOptions(indicesOptions);
         });
         mutators.add(request -> request.setMergeResults(request.isMergeResults() == false));

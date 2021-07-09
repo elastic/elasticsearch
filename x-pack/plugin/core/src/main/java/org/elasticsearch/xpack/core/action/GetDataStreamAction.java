@@ -39,7 +39,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
-        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+        private IndicesOptions indicesOptions = new IndicesOptions(false, true, true, true, false, false, true, false);
 
         public Request(String[] names) {
             this.names = names;

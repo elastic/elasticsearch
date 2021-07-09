@@ -36,7 +36,7 @@ public class SnapshotRequestsTests extends ESTestCase {
             builder.endArray();
         }
 
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        IndicesOptions indicesOptions = new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
         if (indicesOptions.expandWildcardsClosed()) {
             if (indicesOptions.expandWildcardsOpen()) {
                 builder.field("expand_wildcards", "all");
@@ -101,7 +101,7 @@ public class SnapshotRequestsTests extends ESTestCase {
             builder.endArray();
         }
 
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        IndicesOptions indicesOptions = new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
         if (indicesOptions.expandWildcardsClosed()) {
             if (indicesOptions.expandWildcardsOpen()) {
                 builder.field("expand_wildcards", "all");

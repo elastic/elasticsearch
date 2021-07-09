@@ -201,7 +201,7 @@ public class SecurityActionFilterTests extends ESTestCase {
 
     public void testApplyDestructiveOperations() throws Exception {
         ActionRequest request = new MockIndicesRequest(
-                IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
+                new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
                 randomFrom("*", "_all", "test*"));
         String action = randomFrom(CloseIndexAction.NAME, OpenIndexAction.NAME, DeleteIndexAction.NAME);
         ActionListener listener = mock(ActionListener.class);

@@ -24,7 +24,7 @@ public class RetryRequestTests extends AbstractWireSerializingTestCase<Request> 
             request.indices(generateRandomStringArray(20, 20, false));
         }
         if (randomBoolean()) {
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+            IndicesOptions indicesOptions = new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
             request.indicesOptions(indicesOptions);
         }
@@ -46,7 +46,7 @@ public class RetryRequestTests extends AbstractWireSerializingTestCase<Request> 
                     () -> generateRandomStringArray(20, 10, false, true));
                 break;
             case 1:
-                indicesOptions = randomValueOtherThan(indicesOptions, () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
+                indicesOptions = randomValueOtherThan(indicesOptions, () -> new IndicesOptions(randomBoolean(), randomBoolean(),
                     randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
                 break;
             default:

@@ -57,7 +57,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private String[] indices;
 
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
+    private IndicesOptions indicesOptions = new IndicesOptions(false, false, true, true);
 
     private String source;
     private String origin = "";

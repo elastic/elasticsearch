@@ -31,7 +31,7 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
         }
 
         SearchRequest searchRequest = new SearchRequest(indices);
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        IndicesOptions indicesOptions = new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
         searchRequest.indicesOptions(indicesOptions);
 
         DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);

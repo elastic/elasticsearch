@@ -385,7 +385,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testDashIndicesNoExpandWildcard() {
         SearchRequest request = new SearchRequest("-index1*", "--index11");
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), false, false));
+        request.indicesOptions(new IndicesOptions(false, randomBoolean(), false, false));
         List<String> indices =
                 resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal();
         String[] expectedIndices = new String[]{"-index1*", "--index11"};
@@ -397,7 +397,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testDashIndicesMinus() {
         SearchRequest request = new SearchRequest("-index10", "-index11", "--index11", "-index20");
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         List<String> indices =
                 resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal();
         String[] expectedIndices = new String[]{"-index10", "-index11", "--index11", "-index20"};
@@ -409,14 +409,14 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testDashIndicesPlus() {
         SearchRequest request = new SearchRequest("+bar");
-        request.indicesOptions(IndicesOptions.fromOptions(true, false, randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(true, false, randomBoolean(), randomBoolean()));
         expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)));
     }
 
     public void testDashNotExistingIndex() {
         SearchRequest request = new SearchRequest("-does_not_exist");
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal();
         String[] expectedIndices = new String[]{"-does_not_exist"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
@@ -427,7 +427,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveEmptyIndicesExpandWilcardsOpenAndClosed() {
         SearchRequest request = new SearchRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
@@ -438,7 +438,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveEmptyIndicesExpandWilcardsOpen() {
         SearchRequest request = new SearchRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "foofoobar", "foobarfoo", "foofoo"};
         assertSameValues(indices, replacedIndices);
@@ -447,7 +447,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveAllExpandWilcardsOpenAndClosed() {
         SearchRequest request = new SearchRequest("_all");
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
@@ -458,7 +458,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveAllExpandWilcardsOpen() {
         SearchRequest request = new SearchRequest("_all");
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "foofoobar", "foobarfoo", "foofoo"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
@@ -469,7 +469,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsStrictExpand() {
         SearchRequest request = new SearchRequest("barbaz", "foofoo*");
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), true, true));
+        request.indicesOptions(new IndicesOptions(false, randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"barbaz", "foofoobar", "foofoo", "foofoo-closed"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
@@ -480,7 +480,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsExpandOpenAndClosedIgnoreUnavailable() {
         SearchRequest request = new SearchRequest("barbaz", "foofoo*");
-        request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), true, true));
+        request.indicesOptions(new IndicesOptions(true, randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"foofoobar", "foofoo", "foofoo-closed"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
@@ -491,7 +491,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsStrictExpandOpen() {
         SearchRequest request = new SearchRequest("barbaz", "foofoo*");
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), true, false));
+        request.indicesOptions(new IndicesOptions(false, randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"barbaz", "foofoobar", "foofoo"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
@@ -502,7 +502,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsLenientExpandOpen() {
         SearchRequest request = new SearchRequest("barbaz", "foofoo*");
-        request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), true, false));
+        request.indicesOptions(new IndicesOptions(true, randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"foofoobar", "foofoo"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
@@ -513,7 +513,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsMinusExpandWilcardsOpen() {
         SearchRequest request = new SearchRequest("*", "-foofoo*");
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "foobarfoo"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
@@ -524,7 +524,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsMinusExpandWilcardsOpenAndClosed() {
         SearchRequest request = new SearchRequest("*", "-foofoo*");
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "foobarfoo", "bar-closed"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
@@ -535,7 +535,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsExclusionsExpandWilcardsOpenStrict() {
         SearchRequest request = new SearchRequest("*", "-foofoo*", "barbaz", "foob*");
-        request.indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
+        request.indicesOptions(new IndicesOptions(false, true, true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "foobarfoo", "barbaz"};
         assertSameValues(indices, replacedIndices);
@@ -544,7 +544,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsPlusAndMinusExpandWilcardsOpenIgnoreUnavailable() {
         SearchRequest request = new SearchRequest("*", "-foofoo*", "+barbaz", "+foob*");
-        request.indicesOptions(IndicesOptions.fromOptions(true, true, true, false));
+        request.indicesOptions(new IndicesOptions(true, true, true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "foobarfoo"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
@@ -555,7 +555,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsExclusionExpandWilcardsOpenAndClosedStrict() {
         SearchRequest request = new SearchRequest("*", "-foofoo*", "barbaz");
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), true, true));
+        request.indicesOptions(new IndicesOptions(false, randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "bar-closed", "barbaz", "foobarfoo"};
         assertSameValues(indices, replacedIndices);
@@ -564,7 +564,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsExclusionExpandWilcardsOpenAndClosedIgnoreUnavailable() {
         SearchRequest request = new SearchRequest("*", "-foofoo*", "barbaz");
-        request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), true, true));
+        request.indicesOptions(new IndicesOptions(true, randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "bar-closed", "foobarfoo"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
@@ -574,13 +574,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveNonMatchingIndicesAllowNoIndices() {
         SearchRequest request = new SearchRequest("missing*");
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), true, true, randomBoolean()));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), true, true, randomBoolean()));
         assertNoIndices(request, resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)));
     }
 
     public void testResolveNonMatchingIndicesDisallowNoIndices() {
         SearchRequest request = new SearchRequest("missing*");
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), false, true, randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)));
         assertEquals("no such index [missing*]", e.getMessage());
@@ -588,7 +588,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveExplicitIndicesStrict() {
         SearchRequest request = new SearchRequest("missing", "bar", "barbaz");
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"missing", "bar", "barbaz"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
@@ -599,7 +599,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveExplicitIndicesIgnoreUnavailable() {
         SearchRequest request = new SearchRequest("missing", "bar", "barbaz");
-        request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(true, randomBoolean(), randomBoolean(), randomBoolean()));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
@@ -610,14 +610,14 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveNoAuthorizedIndicesAllowNoIndices() {
         SearchRequest request = new SearchRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), true, true, randomBoolean()));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), true, true, randomBoolean()));
         assertNoIndices(request, resolveIndices(request,
                 buildAuthorizedIndices(userNoIndices, SearchAction.NAME)));
     }
 
     public void testResolveNoAuthorizedIndicesDisallowNoIndices() {
         SearchRequest request = new SearchRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), false, true, randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(userNoIndices, SearchAction.NAME)));
         assertEquals("no such index [[]]", e.getMessage());
@@ -625,7 +625,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveMissingIndexStrict() {
         SearchRequest request = new SearchRequest("bar*", "missing");
-        request.indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
+        request.indicesOptions(new IndicesOptions(false, true, true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] expectedIndices = new String[]{"bar", "missing"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
@@ -636,7 +636,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveMissingIndexIgnoreUnavailable() {
         SearchRequest request = new SearchRequest("bar*", "missing");
-        request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), true, false));
+        request.indicesOptions(new IndicesOptions(true, randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] expectedIndices = new String[]{"bar"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
@@ -647,7 +647,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveNonMatchingIndicesAndExplicit() {
         SearchRequest request = new SearchRequest("missing*", "bar");
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), true, true, randomBoolean()));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), true, true, randomBoolean()));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] expectedIndices = new String[]{"bar"};
         assertThat(indices.toArray(new String[indices.size()]), equalTo(expectedIndices));
@@ -656,7 +656,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveNoExpandStrict() {
         SearchRequest request = new SearchRequest("missing*");
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), false, false));
+        request.indicesOptions(new IndicesOptions(false, randomBoolean(), false, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] expectedIndices = new String[]{"missing*"};
         assertThat(indices.toArray(new String[indices.size()]), equalTo(expectedIndices));
@@ -665,13 +665,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveNoExpandIgnoreUnavailable() {
         SearchRequest request = new SearchRequest("missing*");
-        request.indicesOptions(IndicesOptions.fromOptions(true, true, false, false));
+        request.indicesOptions(new IndicesOptions(true, true, false, false));
         assertNoIndices(request, resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)));
     }
 
     public void testSearchWithRemoteIndex() {
         SearchRequest request = new SearchRequest("remote:indexName");
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         final ResolvedIndices resolved = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME));
         assertThat(resolved.getLocal(), emptyIterable());
         assertThat(resolved.getRemote(), containsInAnyOrder("remote:indexName"));
@@ -680,7 +680,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testSearchWithRemoteAndLocalIndices() {
         SearchRequest request = new SearchRequest("remote:indexName", "bar", "bar2");
-        request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(true, randomBoolean(), randomBoolean(), randomBoolean()));
         final ResolvedIndices resolved = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME));
         assertThat(resolved.getLocal(), containsInAnyOrder("bar"));
         assertThat(resolved.getRemote(), containsInAnyOrder("remote:indexName"));
@@ -689,7 +689,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testSearchWithRemoteAndLocalWildcards() {
         SearchRequest request = new SearchRequest("*:foo", "r*:bar*", "remote:baz*", "bar*", "foofoo");
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), randomBoolean(), true, false));
         final Set<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
         final ResolvedIndices resolved = resolveIndices(request, authorizedIndices);
         assertThat(resolved.getRemote(), containsInAnyOrder("remote:foo", "other_remote:foo", "remote:bar*", "remote:baz*"));
@@ -927,7 +927,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveGetAliasesRequestStrict() {
         GetAliasesRequest request = new GetAliasesRequest("alias1").indices("foo", "foofoo");
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         final Set<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all indices and aliases gets returned
@@ -940,7 +940,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveGetAliasesRequestIgnoreUnavailable() {
         GetAliasesRequest request = new GetAliasesRequest("alias1").indices("foo", "foofoo");
-        request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(true, randomBoolean(), randomBoolean(), randomBoolean()));
         final Set<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         String[] expectedIndices = new String[]{"alias1", "foofoo"};
@@ -952,7 +952,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveGetAliasesRequestMissingIndexStrict() {
         GetAliasesRequest request = new GetAliasesRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), true, randomBoolean()));
+        request.indicesOptions(new IndicesOptions(false, randomBoolean(), true, randomBoolean()));
         request.indices("missing");
         request.aliases("alias2");
         final Set<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
@@ -967,7 +967,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testGetAliasesRequestMissingIndexIgnoreUnavailableDisallowNoIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(true, false, randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(true, false, randomBoolean(), randomBoolean()));
         request.indices("missing");
         request.aliases("alias2");
         IndexNotFoundException exception = expectThrows(IndexNotFoundException.class,
@@ -977,7 +977,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testGetAliasesRequestMissingIndexIgnoreUnavailableAllowNoIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(true, true, randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(true, true, randomBoolean(), randomBoolean()));
         request.indices("missing");
         request.aliases("alias2");
         assertNoIndices(request, resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME)));
@@ -985,7 +985,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testGetAliasesRequestMissingIndexStrict() {
         GetAliasesRequest request = new GetAliasesRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         request.indices("missing");
         request.aliases("alias2");
         final Set<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
@@ -999,7 +999,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsGetAliasesRequestStrictExpand() {
         GetAliasesRequest request = new GetAliasesRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), true, true));
+        request.indicesOptions(new IndicesOptions(false, randomBoolean(), true, true));
         request.aliases("alias1");
         request.indices("foo*");
         final Set<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
@@ -1015,7 +1015,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsGetAliasesRequestStrictExpandOpen() {
         GetAliasesRequest request = new GetAliasesRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), true, false));
+        request.indicesOptions(new IndicesOptions(false, randomBoolean(), true, false));
         request.aliases("alias1");
         request.indices("foo*");
         final Set<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
@@ -1031,7 +1031,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsGetAliasesRequestLenientExpandOpen() {
         GetAliasesRequest request = new GetAliasesRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), true, false));
+        request.indicesOptions(new IndicesOptions(true, randomBoolean(), true, false));
         request.aliases("alias1");
         request.indices("foo*", "bar", "missing");
         final Set<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
@@ -1047,7 +1047,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testWildcardsGetAliasesRequestNoMatchingIndicesDisallowNoIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), false, true, randomBoolean()));
         request.aliases("alias3");
         request.indices("non_matching_*");
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
@@ -1057,7 +1057,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testWildcardsGetAliasesRequestNoMatchingIndicesAllowNoIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), true, true, randomBoolean()));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), true, true, randomBoolean()));
         request.aliases("alias3");
         request.indices("non_matching_*");
         assertNoIndices(request, resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME)));
@@ -1087,7 +1087,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testResolveAllGetAliasesRequestExpandWildcardsOpenOnly() {
         GetAliasesRequest request = new GetAliasesRequest();
         //set indices options to have wildcards resolved to open indices only (default is open and closed)
-        request.indicesOptions(IndicesOptions.fromOptions(true, false, true, false));
+        request.indicesOptions(new IndicesOptions(true, false, true, false));
         //even if not set, empty means _all
         if (randomBoolean()) {
             request.indices("_all");
@@ -1107,7 +1107,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testAllGetAliasesRequestNoAuthorizedIndicesAllowNoIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), true, true, randomBoolean()));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), true, true, randomBoolean()));
         request.aliases("alias1");
         request.indices("_all");
         assertNoIndices(request, resolveIndices(request,
@@ -1116,7 +1116,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testAllGetAliasesRequestNoAuthorizedIndicesDisallowNoIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), false, true, randomBoolean()));
         request.aliases("alias1");
         request.indices("_all");
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
@@ -1128,14 +1128,14 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         GetAliasesRequest request = new GetAliasesRequest();
         request.aliases("alias1");
         request.indices("foo*");
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), true, true, randomBoolean()));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), true, true, randomBoolean()));
         assertNoIndices(request, resolveIndices(request,
                 buildAuthorizedIndices(userNoIndices, GetAliasesAction.NAME)));
     }
 
     public void testWildcardsGetAliasesRequestNoAuthorizedIndicesDisallowNoIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), false, true, randomBoolean()));
         request.aliases("alias1");
         request.indices("foo*");
         //current user is not authorized for any index, foo* resolves to no indices, the request fails
@@ -1261,7 +1261,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
      *  the resolver
      */
     public void testRemotableRequestsAllowRemoteIndices() {
-        IndicesOptions options = IndicesOptions.fromOptions(true, false, false, false);
+        IndicesOptions options = new IndicesOptions(true, false, false, false);
         Tuple<TransportRequest, String> tuple = randomFrom(
                 new Tuple<TransportRequest, String>(new SearchRequest("remote:foo").indicesOptions(options), SearchAction.NAME),
                 new Tuple<TransportRequest, String>(new FieldCapabilitiesRequest().indices("remote:foo").indicesOptions(options),
@@ -1280,7 +1280,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
      * Tests that request types that do not support remote indices will be resolved as if all index names are local.
      */
     public void testNonRemotableRequestDoesNotAllowRemoteIndices() {
-        IndicesOptions options = IndicesOptions.fromOptions(true, false, false, false);
+        IndicesOptions options = new IndicesOptions(true, false, false, false);
         Tuple<TransportRequest, String> tuple = randomFrom(
                 new Tuple<TransportRequest, String>(new CloseIndexRequest("remote:foo").indicesOptions(options), CloseIndexAction.NAME),
                 new Tuple<TransportRequest, String>(new DeleteIndexRequest("remote:foo").indicesOptions(options), DeleteIndexAction.NAME),
@@ -1292,7 +1292,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testNonRemotableRequestDoesNotAllowRemoteWildcardIndices() {
-        IndicesOptions options = IndicesOptions.fromOptions(randomBoolean(), true, true, true);
+        IndicesOptions options = new IndicesOptions(randomBoolean(), true, true, true);
         Tuple<TransportRequest, String> tuple = randomFrom(
                 new Tuple<TransportRequest, String>(new CloseIndexRequest("*:*").indicesOptions(options), CloseIndexAction.NAME),
                 new Tuple<TransportRequest, String>(new DeleteIndexRequest("*:*").indicesOptions(options), DeleteIndexAction.NAME),
@@ -1375,13 +1375,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testUnauthorizedDateMathExpressionIgnoreUnavailable() {
         SearchRequest request = new SearchRequest("<datetime-{now/M}>");
-        request.indicesOptions(IndicesOptions.fromOptions(true, true, randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(true, true, randomBoolean(), randomBoolean()));
         assertNoIndices(request, resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)));
     }
 
     public void testUnauthorizedDateMathExpressionIgnoreUnavailableDisallowNoIndices() {
         SearchRequest request = new SearchRequest("<datetime-{now/M}>");
-        request.indicesOptions(IndicesOptions.fromOptions(true, false, randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(true, false, randomBoolean(), randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)));
         assertEquals("no such index [[<datetime-{now/M}>]]" , e.getMessage());
@@ -1391,7 +1391,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         String expectedIndex = "datetime-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(
             new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
         SearchRequest request = new SearchRequest("<datetime-{now/M}>");
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)));
         assertEquals("no such index [" + expectedIndex + "]" , e.getMessage());
@@ -1408,7 +1408,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest(pattern);
         if (randomBoolean()) {
             final boolean expandIndicesOpen = Regex.isSimpleMatchPattern(pattern) ? true : randomBoolean();
-            request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), expandIndicesOpen, randomBoolean()));
+            request.indicesOptions(new IndicesOptions(randomBoolean(), randomBoolean(), expandIndicesOpen, randomBoolean()));
         }
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         assertThat(indices.size(), equalTo(1));
@@ -1417,13 +1417,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testMissingDateMathExpressionIgnoreUnavailable() {
         SearchRequest request = new SearchRequest("<foobar-{now/M}>");
-        request.indicesOptions(IndicesOptions.fromOptions(true, true, randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(true, true, randomBoolean(), randomBoolean()));
         assertNoIndices(request, resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)));
     }
 
     public void testMissingDateMathExpressionIgnoreUnavailableDisallowNoIndices() {
         SearchRequest request = new SearchRequest("<foobar-{now/M}>");
-        request.indicesOptions(IndicesOptions.fromOptions(true, false, randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(true, false, randomBoolean(), randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)));
         assertEquals("no such index [[<foobar-{now/M}>]]" , e.getMessage());
@@ -1433,7 +1433,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         String expectedIndex = "foobar-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(
             new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
         SearchRequest request = new SearchRequest("<foobar-{now/M}>");
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)));
         assertEquals("no such index [" + expectedIndex + "]" , e.getMessage());
@@ -1496,7 +1496,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testHiddenIndicesResolution() {
         SearchRequest searchRequest = new SearchRequest();
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, true, true));
+        searchRequest.indicesOptions(new IndicesOptions(false, false, true, true, true));
         Set<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
         ResolvedIndices resolvedIndices
             = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
@@ -1507,7 +1507,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // open + hidden
         searchRequest = new SearchRequest();
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true));
+        searchRequest.indicesOptions(new IndicesOptions(false, false, true, false, true));
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(),
             containsInAnyOrder("bar", "foofoobar", "foobarfoo", "foofoo", "hidden-open", ".hidden-open", "date-hidden-" + todaySuffix,
@@ -1516,7 +1516,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // open + implicit hidden for . indices
         searchRequest = new SearchRequest(randomFrom(".h*", ".hid*"));
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false));
+        searchRequest.indicesOptions(new IndicesOptions(false, false, true, false, false));
         authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".hidden-open"));
@@ -1524,7 +1524,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // closed + hidden, ignore aliases
         searchRequest = new SearchRequest();
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, false, true, true, true, false, true, false));
+        searchRequest.indicesOptions(new IndicesOptions(false, false, false, true, true, true, false, true, false));
         authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder("bar-closed", "foofoo-closed", "hidden-closed", ".hidden-closed"));
@@ -1532,7 +1532,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // closed + implicit hidden for . indices
         searchRequest = new SearchRequest(randomFrom(".h*", ".hid*"));
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, false, true, false));
+        searchRequest.indicesOptions(new IndicesOptions(false, false, false, true, false));
         authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".hidden-closed"));
@@ -1540,7 +1540,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // allow no indices, do not expand to open or closed, expand hidden, ignore aliases
         searchRequest = new SearchRequest();
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, false, false, false, true, false, true, false));
+        searchRequest.indicesOptions(new IndicesOptions(false, true, false, false, false, true, false, true, false));
         authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), contains("-*"));
@@ -1560,7 +1560,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // Visible only
         SearchRequest searchRequest = new SearchRequest();
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false));
+        searchRequest.indicesOptions(new IndicesOptions(false, false, true, false, false));
         ResolvedIndices resolvedIndices
             = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder("alias-visible", "alias-visible-mixed"));
@@ -1568,7 +1568,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // Include hidden explicitly
         searchRequest = new SearchRequest();
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true));
+        searchRequest.indicesOptions(new IndicesOptions(false, false, true, false, true));
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(),
             containsInAnyOrder("alias-visible", "alias-visible-mixed", "alias-hidden", ".alias-hidden", "hidden-open"));
@@ -1576,28 +1576,28 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // Include hidden with a wildcard
         searchRequest = new SearchRequest("alias-h*");
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true));
+        searchRequest.indicesOptions(new IndicesOptions(false, false, true, false, true));
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder("alias-hidden"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Dot prefix, implicitly including hidden
         searchRequest = new SearchRequest(".a*");
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false));
+        searchRequest.indicesOptions(new IndicesOptions(false, false, true, false, false));
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".alias-hidden"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Make sure ignoring aliases works (visible only)
         searchRequest = new SearchRequest();
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, true, false, false, true, false, true, false));
+        searchRequest.indicesOptions(new IndicesOptions(false, true, true, false, false, true, false, true, false));
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), contains("-*"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Make sure ignoring aliases works (including hidden)
         searchRequest = new SearchRequest();
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true, true, false, true, false));
+        searchRequest.indicesOptions(new IndicesOptions(false, false, true, false, true, true, false, true, false));
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder("hidden-open"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
@@ -1610,7 +1610,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             // Resolve data streams:
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.indices("logs-*");
-            searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true));
+            searchRequest.indicesOptions(new IndicesOptions(false, false, true, false, false, true, true, true, true));
             final Set<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME, searchRequest);
             ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
                 SearchAction.NAME,
@@ -1624,7 +1624,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             // Data streams with allow no indices:
             searchRequest = new SearchRequest();
             searchRequest.indices("logs-*");
-            searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, true, false, false, true, true, true, true));
+            searchRequest.indicesOptions(new IndicesOptions(false, true, true, false, false, true, true, true, true));
             resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
                 SearchAction.NAME,
                 searchRequest,
@@ -1641,7 +1641,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             // Resolve *all* data streams:
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.indices("logs-*");
-            searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true));
+            searchRequest.indicesOptions(new IndicesOptions(false, false, true, false, false, true, true, true, true));
             final Set<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME, searchRequest);
             ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
                 SearchAction.NAME,

@@ -46,7 +46,7 @@ public class TransportRankEvalActionTests extends ESTestCase {
                 new String[] { indexName });
         SearchType expectedSearchType = randomFrom(SearchType.CURRENTLY_SUPPORTED);
         rankEvalRequest.searchType(expectedSearchType);
-        IndicesOptions expectedIndicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
+        IndicesOptions expectedIndicesOptions = new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
         rankEvalRequest.indicesOptions(expectedIndicesOptions);
 

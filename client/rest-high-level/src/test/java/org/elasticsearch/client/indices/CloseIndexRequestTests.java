@@ -36,7 +36,7 @@ public class CloseIndexRequestTests extends ESTestCase {
     }
 
     public void testIndicesOptions() {
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        IndicesOptions indicesOptions = new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
         CloseIndexRequest request = new CloseIndexRequest().indicesOptions(indicesOptions);
         assertEquals(indicesOptions, request.indicesOptions());
     }

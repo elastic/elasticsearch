@@ -38,8 +38,11 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
         new Builder<>(name, GeoPointFieldScript.CONTEXT, GeoPointFieldScript.PARSE_FROM_SOURCE) {
             @Override
-            RuntimeField newRuntimeField(GeoPointFieldScript.Factory scriptFactory) {
-                return new LeafRuntimeField(name, new GeoPointScriptFieldType(name, scriptFactory, getScript(), meta()), this);
+            AbstractScriptFieldType<?> createFieldType(String name,
+                                                       GeoPointFieldScript.Factory factory,
+                                                       Script script,
+                                                       Map<String, String> meta) {
+                return new GeoPointScriptFieldType(name, factory, getScript(), meta());
             }
         });
 

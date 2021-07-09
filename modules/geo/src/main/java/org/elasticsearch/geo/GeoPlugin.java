@@ -8,18 +8,21 @@
 
 package org.elasticsearch.geo;
 
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.Collections;
 import java.util.Map;
 
 public class GeoPlugin extends Plugin implements MapperPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(GeoShapeFieldMapper.CONTENT_TYPE, GeoShapeFieldMapper.PARSER);
+        return Map.of(
+            GeoPointFieldMapper.CONTENT_TYPE, GeoPointFieldMapper.PARSER,
+            GeoShapeFieldMapper.CONTENT_TYPE, GeoShapeFieldMapper.PARSER
+        );
     }
 }

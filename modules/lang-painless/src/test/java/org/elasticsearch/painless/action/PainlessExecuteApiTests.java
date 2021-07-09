@@ -22,6 +22,7 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,7 +41,9 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(PainlessPlugin.class);
+        return List.of(PainlessPlugin.class,
+            TestGeoShapeFieldMapperPlugin.class
+            );
     }
 
     public void testDefaults() throws IOException {

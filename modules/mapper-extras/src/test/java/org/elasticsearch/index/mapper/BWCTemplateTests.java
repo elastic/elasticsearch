@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.util.Collection;
 
@@ -23,7 +24,7 @@ import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 public class BWCTemplateTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(MapperExtrasPlugin.class);
+        return pluginList(TestGeoShapeFieldMapperPlugin.class, MapperExtrasPlugin.class);
     }
 
     public void testBeatsTemplatesBWC() throws Exception {

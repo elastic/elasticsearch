@@ -35,8 +35,8 @@ def v7compatibilityNotSupportedTests = {
 }
 
 tasks.named("yamlRestCompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
+  systemProperty 'tests.rest.blacklist', ([
     'search.query/50_queries_with_synonyms/Test common terms query with stacked tokens', // #42654 - not sure, remove `common` query
-  ]+ v7compatibilityNotSupportedTests()
+  ]+ v7compatibilityNotSupportedTests())
   .join(',')
 }

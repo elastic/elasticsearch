@@ -44,9 +44,7 @@ def v7compatibilityNotSupportedTests = {
 }
 
 tasks.named("yamlRestCompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
-  ]+ v7compatibilityNotSupportedTests()
-    .join(',')
+  systemProperty 'tests.rest.blacklist', v7compatibilityNotSupportedTests().join(',')
 }
 
 tasks.named('splitPackagesAudit').configure {

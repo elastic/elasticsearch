@@ -10,5 +10,5 @@ CREATE TABLE "test_emp" (
                     "name" VARCHAR(50),
                     "salary" INT
                    )
-   AS SELECT birth_date, emp_no, first_name, gender, hire_date, languages, last_name, CONCAT(first_name, ' ', last_name) AS name, salary FROM CSVREAD('classpath:/employees.csv');
+   AS SELECT BIRTH_DATE, EMP_NO, FIRST_NAME, GENDER, HIRE_DATE, LANGUAGES, LAST_NAME, CONCAT(FIRST_NAME, ' ', LAST_NAME) AS "name", SALARY FROM CSVREAD('classpath:employees.csv');
 

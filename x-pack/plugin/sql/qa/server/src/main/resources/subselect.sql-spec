@@ -52,14 +52,14 @@ SELECT COUNT(*), gender FROM (SELECT first_name AS f, last_name, gender FROM tes
 countAndGroupByByAlias
 SELECT COUNT(*), g FROM (SELECT first_name AS f, last_name, gender AS g FROM test_emp) GROUP BY g ORDER BY g ASC;
 countAndMax
-SELECT COUNT(*), gender, MAX("salary") FROM (SELECT first_name AS f, last_name, gender, salary FROM test_emp) GROUP BY gender ORDER BY gender ASC;
+SELECT COUNT(*), gender, MAX(salary) FROM (SELECT first_name AS f, last_name, gender, salary FROM test_emp) GROUP BY gender ORDER BY gender ASC;
 countAndMaxByAlias
-SELECT COUNT(*), g, MAX("s") FROM (SELECT first_name AS f, last_name, gender AS g, salary AS s FROM test_emp) GROUP BY g ORDER BY g ASC;
+SELECT COUNT(*), g, MAX(s) FROM (SELECT first_name AS f, last_name, gender AS g, salary AS s FROM test_emp) GROUP BY g ORDER BY g ASC;
 // @AwaitsFix(bugUrl = "follow-up to https://github.com/elastic/elasticsearch/pull/67216")
 countAndMaxByAliasAndFilter-Ignore
-SELECT COUNT(*), g, MAX("s") FROM (SELECT first_name AS f, last_name, gender AS g, salary AS s FROM test_emp) WHERE g IS NOT NULL GROUP BY g ORDER BY g ASC;
+SELECT COUNT(*), g, MAX(s) FROM (SELECT first_name AS f, last_name, gender AS g, salary AS s FROM test_emp) WHERE g IS NOT NULL GROUP BY g ORDER BY g ASC;
 countAndMultipleAggregates
-SELECT COUNT(*), gender, MAX("salary"), MAX(salary) m, MIN("salary") FROM (SELECT first_name AS f, last_name, gender, salary FROM test_emp) GROUP BY gender ORDER BY gender ASC;
+SELECT COUNT(*), gender, MAX(salary), MAX(salary) m, MIN(salary) FROM (SELECT first_name AS f, last_name, gender, salary FROM test_emp) GROUP BY gender ORDER BY gender ASC;
 
 castAndGroupBy
 SELECT TRUE as employed, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM (SELECT * FROM test_emp) GROUP BY g ORDER BY g DESC;
@@ -73,7 +73,7 @@ havingCount
 SELECT languages, COUNT(*) c FROM (SELECT languages FROM test_emp WHERE languages > 2 AND gender IS NOT NULL) GROUP BY languages HAVING COUNT(*) IS NOT NULL ORDER BY languages DESC;
 
 conditionOnCountAndMultipleConditions
-SELECT MIN("salary") min, MAX("salary") max, gender g, languages l, COUNT(*) c FROM (SELECT last_name, salary, languages, gender, first_name FROM test_emp WHERE languages > 3) WHERE languages < 5 GROUP BY g, languages HAVING c > 4 ORDER BY gender, languages;
+SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM (SELECT last_name, salary, languages, gender, first_name FROM test_emp WHERE languages > 3) WHERE languages < 5 GROUP BY g, languages HAVING c > 4 ORDER BY gender, languages;
 countDistinct
 SELECT gender, COUNT(DISTINCT languages) AS c FROM (SELECT * FROM test_emp) GROUP BY gender HAVING count(DISTINCT languages) > 0 ORDER BY gender;
 

@@ -459,7 +459,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        protected  Function<List<Geometry>, List<Object>> getFormatter(String format) {
+        protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
             return GeoFormatterFactory.getFormatter(format);
         }
     }

@@ -68,7 +68,10 @@ def v7compatibilityNotSupportedTests = {
           // translog settings removal is not supported under compatible api
           'indices.stats/20_translog/Translog retention settings are deprecated',
           'indices.stats/20_translog/Translog retention without soft_deletes',
-          'indices.stats/20_translog/Translog stats on closed indices without soft-deletes'
+          'indices.stats/20_translog/Translog stats on closed indices without soft-deletes',
+
+          // upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex
+          'indices.upgrade/*/*'
   ]
 }
 tasks.named("yamlRestCompatTest").configure {
@@ -90,11 +93,6 @@ tasks.named("yamlRestCompatTest").configure {
     'indices.put_template/11_basic_with_types/Put template with empty mappings',
     'indices.shrink/30_copy_settings/Copy settings during shrink index',
     'indices.split/30_copy_settings/Copy settings during split index',
-    'indices.upgrade/10_basic/Basic test for upgrade indices',
-    'indices.upgrade/10_basic/Upgrade indices allow no indices',
-    'indices.upgrade/10_basic/Upgrade indices disallow no indices',
-    'indices.upgrade/10_basic/Upgrade indices disallow unavailable',
-    'indices.upgrade/10_basic/Upgrade indices ignore unavailable',
     'mlt/20_docs/Basic mlt query with docs',
     'mlt/30_unlike/Basic mlt query with unlike',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',

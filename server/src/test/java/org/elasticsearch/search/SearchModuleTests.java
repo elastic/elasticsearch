@@ -342,7 +342,6 @@ public class SearchModuleTests extends ESTestCase {
             "combined_fields",
             "dis_max",
             "exists",
-            "field_masking_span",
             "function_score",
             "fuzzy",
             "geo_bounding_box",
@@ -367,6 +366,7 @@ public class SearchModuleTests extends ESTestCase {
             "script_score",
             "simple_query_string",
             "span_containing",
+            "span_field_masking",
             "span_first",
             "span_gap",
             "span_multi",
@@ -384,7 +384,7 @@ public class SearchModuleTests extends ESTestCase {
     };
 
     //add here deprecated queries to make sure we log a deprecation warnings when they are used
-    private static final String[] DEPRECATED_QUERIES = new String[] {"geo_polygon"};
+    private static final String[] DEPRECATED_QUERIES = new String[] {"field_masking_span", "geo_polygon"};
 
     /**
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.

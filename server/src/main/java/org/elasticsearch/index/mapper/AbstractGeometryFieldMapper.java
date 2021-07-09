@@ -53,6 +53,9 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             CheckedConsumer<T, IOException> consumer,
             Consumer<Exception> onMalformed) throws IOException;
 
+        /**
+         * Translate the given {@link T} into a {@link Geometry}.
+         */
         protected abstract Geometry toGeometry(T shape);
 
         private void fetchFromSource(Object sourceMap, Consumer<Geometry> consumer) {

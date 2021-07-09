@@ -240,9 +240,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        protected Function<GeoPoint, Object> getFormatter(String format) {
-            Function<Geometry, Object> formatter = GeoFormatterFactory.getFormatter(format);
-            return (point) -> formatter.apply(new Point(point.lon(), point.lat()));
+        protected  Function<List<Geometry>, List<Object>> getFormatter(String format) {
+            return GeoFormatterFactory.getFormatter(format);
         }
 
         @Override
@@ -250,8 +249,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (scriptValues == null) {
                 return super.valueFetcher(context, format);
             }
-            Function<GeoPoint, Object> formatter = getFormatter(format != null ? format : GeoFormatterFactory.GEOJSON);
-            return FieldValues.valueFetcher(scriptValues, v -> formatter.apply((GeoPoint) v), context);
+            Function<List<Geometry>, List<Object>> formatter = getFormatter(format != null ? format : GeoFormatterFactory.GEOJSON);
+            return FieldValues.valueFetcher(scriptValues, formatter, context, geometryParser::toGeometry);
         }
 
         @Override
@@ -319,6 +318,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 }
             }
             return in;
+        }
+
+        @Override
+        protected Geometry toGeometry(GeoPoint point) {
+            return new Point(point.lon(), point.lat());
         }
 
         private boolean isNormalizable(double coord) {

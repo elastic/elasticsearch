@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.security.cli.CertGenUtils.buildDnFromDomain;
 import static org.elasticsearch.xpack.security.cli.CertificateTool.fullyWriteFile;
 
 /**
@@ -187,7 +188,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
 
         // the transport key-pair is the same across the cluster and is trusted without hostname verification (it is self-signed),
         // do not populate the certificate's IP, DN, and CN certificate fields
-        final X500Principal certificatePrincipal = new X500Principal(DnRoleMapperSettings.buildDnFromDomain(System.getenv("HOSTNAME")));
+        final X500Principal certificatePrincipal = new X500Principal(buildDnFromDomain(System.getenv("HOSTNAME")));
         final GeneralNames subjectAltNames = getSubjectAltNames();
 
         KeyPair transportKeyPair = CertGenUtils.generateKeyPair(TRANSPORT_KEY_SIZE);

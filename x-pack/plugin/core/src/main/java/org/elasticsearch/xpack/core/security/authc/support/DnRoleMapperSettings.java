@@ -30,12 +30,4 @@ public final class DnRoleMapperSettings {
         return Arrays.asList(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING.apply(realmType), ROLE_MAPPING_FILE_SETTING.apply(realmType));
     }
 
-    /**
-     * See RFC 2247 Using Domains in LDAP/X.500 Distinguished Names
-     * @param domain active directory domain name
-     * @return LDAP DN, distinguished name, of the root of the domain
-     */
-    public static String buildDnFromDomain(String domain) {
-        return "DC=" + domain.replace(".", ",DC=");
-    }
 }

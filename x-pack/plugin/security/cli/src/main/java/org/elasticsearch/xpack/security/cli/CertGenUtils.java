@@ -315,4 +315,13 @@ public class CertGenUtils {
         final ASN1Encodable[] sequence = {new ASN1ObjectIdentifier(CN_OID), new DERTaggedObject(true, 0, new DERUTF8String(cn))};
         return new GeneralName(GeneralName.otherName, new DERSequence(sequence));
     }
+
+    /**
+     * See RFC 2247 Using Domains in LDAP/X.500 Distinguished Names
+     * @param domain active directory domain name
+     * @return LDAP DN, distinguished name, of the root of the domain
+     */
+    public static String buildDnFromDomain(String domain) {
+        return "DC=" + domain.replace(".", ",DC=");
+    }
 }

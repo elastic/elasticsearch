@@ -411,7 +411,7 @@ gradle.projectsEvaluated {
   }
 }
 
-tasks.register("precommit") {
+tasks.named("precommit") {
   dependsOn gradle.includedBuild('build-tools').task(':precommit')
   dependsOn gradle.includedBuild('build-tools-internal').task(':precommit')
 }

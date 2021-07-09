@@ -231,6 +231,7 @@ public class XPackSettings {
         settings.add(API_KEY_SERVICE_ENABLED_SETTING);
         settings.add(USER_SETTING);
         settings.add(PASSWORD_HASHING_ALGORITHM);
+        settings.add(ENROLLMENT_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

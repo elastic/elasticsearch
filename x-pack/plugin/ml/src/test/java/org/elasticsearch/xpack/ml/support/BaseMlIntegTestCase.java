@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -138,7 +139,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class,
             // Deprecation warnings go to a data stream, if we ever cause a deprecation warning the data streams plugin is required
-            DataStreamsPlugin.class);
+            DataStreamsPlugin.class,
+            // register geo fields
+            SpatialPlugin.class);
     }
 
     @Override

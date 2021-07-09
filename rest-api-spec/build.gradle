@@ -246,8 +246,6 @@ tasks.named("precommit").configure {
 }
 
 testClusters.all {
-  setting 'xpack.license.self_generated.type', 'basic'
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'false'
+  module ':modules:geo'
 }
 

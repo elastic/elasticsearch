@@ -27,7 +27,7 @@ The Store SMB plugin provides two storage types optimized for SMB:
 
 `smb_simple_fs`::
 
-    deprecated::[7.15, "`smb_simple_fs` is deprecated and will be removed in 8.0. Use `smb_nio_fs` or other file systems instead."]
+    deprecated::[7.15,"smb_simple_fs is deprecated and will be removed in 8.0. Use smb_nio_fs or other file systems instead."]
 
 `smb_nio_fs`::
 

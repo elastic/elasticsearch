@@ -11,7 +11,6 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
@@ -47,26 +45,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 
 public class PinnedQueryBuilderIT extends ESIntegTestCase {
-
-    public void testIdInsertionOrderRetained() {
-        String[] ids = generateRandomStringArray(10, 50, false);
-        PinnedQueryBuilder pqb = new PinnedQueryBuilder(new MatchAllQueryBuilder(), ids);
-        List<String> addedIds = pqb.ids();
-        int pos = 0;
-        for (String key : addedIds) {
-            assertEquals(ids[pos++], key);
-        }
-    }
-
-    public void testDocInsertionOrderRetained() {
-        Item[] items = randomArray(10, Item[]::new, () -> new Item(randomAlphaOfLength(64), randomAlphaOfLength(256)));
-        PinnedQueryBuilder pqb = new PinnedQueryBuilder(new MatchAllQueryBuilder(), items);
-        List<Item> addedDocs = pqb.docs();
-        int pos = 0;
-        for (Item item : addedDocs) {
-            assertEquals(items[pos++], item);
-        }
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

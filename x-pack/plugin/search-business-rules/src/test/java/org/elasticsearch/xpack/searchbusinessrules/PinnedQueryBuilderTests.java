@@ -234,4 +234,24 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                 () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
     }
+
+    public void testIdInsertionOrderRetained() {
+        String[] ids = generateRandomStringArray(10, 50, false);
+        PinnedQueryBuilder pqb = new PinnedQueryBuilder(new MatchAllQueryBuilder(), ids);
+        List<String> addedIds = pqb.ids();
+        int pos = 0;
+        for (String key : addedIds) {
+            assertEquals(ids[pos++], key);
+        }
+    }
+
+    public void testDocInsertionOrderRetained() {
+        Item[] items = randomArray(10, Item[]::new, () -> new Item(randomAlphaOfLength(64), randomAlphaOfLength(256)));
+        PinnedQueryBuilder pqb = new PinnedQueryBuilder(new MatchAllQueryBuilder(), items);
+        List<Item> addedDocs = pqb.docs();
+        int pos = 0;
+        for (Item item : addedDocs) {
+            assertEquals(items[pos++], item);
+        }
+    }
 }

@@ -223,7 +223,6 @@ import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountToken
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
@@ -539,8 +538,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             new FileServiceAccountTokenStore(environment, resourceWatcherService, threadPool, clusterService, cacheInvalidatorRegistry);
         components.add(fileServiceAccountTokenStore);
 
-        final ServiceAccountService serviceAccountService = new ServiceAccountService(new CompositeServiceAccountTokenStore(
-            List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore), threadPool.getThreadContext()), httpTlsRuntimeCheck);
+        final ServiceAccountService serviceAccountService = new ServiceAccountService(client,
+            fileServiceAccountTokenStore, indexServiceAccountTokenStore, httpTlsRuntimeCheck);
         components.add(serviceAccountService);
 
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,

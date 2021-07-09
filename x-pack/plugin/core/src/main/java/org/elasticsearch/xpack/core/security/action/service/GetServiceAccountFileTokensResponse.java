@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -69,10 +68,10 @@ public class GetServiceAccountFileTokensResponse extends BaseNodesResponse<GetSe
 
         public Node(StreamInput in) throws IOException {
             super(in);
-            this.tokenNames = in.readOptionalStringArray();
+            this.tokenNames = in.readStringArray();
         }
 
-        public Node(DiscoveryNode node, @Nullable String[] tokenNames) {
+        public Node(DiscoveryNode node, String[] tokenNames) {
             super(node);
             this.tokenNames = tokenNames;
         }
@@ -80,7 +79,7 @@ public class GetServiceAccountFileTokensResponse extends BaseNodesResponse<GetSe
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeStringArrayNullable(tokenNames);
+            out.writeStringArray(tokenNames);
         }
     }
 }

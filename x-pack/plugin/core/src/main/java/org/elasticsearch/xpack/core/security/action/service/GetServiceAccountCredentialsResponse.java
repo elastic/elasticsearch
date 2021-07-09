@@ -78,4 +78,11 @@ public class GetServiceAccountCredentialsResponse extends ActionResponse impleme
         builder.endObject().endObject();
         return builder;
     }
+
+    @Override
+    public String toString() {
+        return "GetServiceAccountCredentialsResponse{" + "principal='"
+            + principal + '\'' + ", indexTokenInfos=" + indexTokenInfos
+            + ", fileTokensResponse=" + fileTokensResponse + '}';
+    }
 }

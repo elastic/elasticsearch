@@ -2745,8 +2745,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::get-service-account-credentials-response
             final String principal = getServiceAccountCredentialsResponse.getPrincipal(); // <1>
-            final String nodeName = getServiceAccountCredentialsResponse.getNodeName(); // <2>
-            final List<ServiceTokenInfo> serviceTokenInfos = getServiceAccountCredentialsResponse.getServiceTokenInfos(); // <3>
+//            final String nodeName = getServiceAccountCredentialsResponse.getNodeName(); // <2>
+            final List<ServiceTokenInfo> serviceTokenInfos = getServiceAccountCredentialsResponse.getIndexTokenInfos(); // <3>
             final String tokenName = serviceTokenInfos.get(0).getName(); // <4>
             final String tokenSource = serviceTokenInfos.get(0).getSource(); // <5>
             // end::get-service-account-credentials-response
@@ -2787,8 +2787,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertNotNull(future.actionGet());
             assertThat(future.actionGet().getPrincipal(), equalTo("elastic/fleet-server"));
-            assertThat(future.actionGet().getServiceTokenInfos().size(), greaterThanOrEqualTo(1));
-            assertThat(future.actionGet().getServiceTokenInfos().stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()),
+            assertThat(future.actionGet().getIndexTokenInfos().size(), greaterThanOrEqualTo(1));
+            assertThat(future.actionGet().getIndexTokenInfos().stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()),
                 hasItem("token2"));
         }
     }

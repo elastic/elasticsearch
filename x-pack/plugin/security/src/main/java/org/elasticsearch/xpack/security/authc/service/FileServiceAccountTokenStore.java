@@ -51,8 +51,7 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
     private volatile Map<String, char[]> tokenHashes;
 
     public FileServiceAccountTokenStore(Environment env, ResourceWatcherService resourceWatcherService, ThreadPool threadPool,
-                                        ClusterService clusterService,
-                                        CacheInvalidatorRegistry cacheInvalidatorRegistry) {
+                                        ClusterService clusterService, CacheInvalidatorRegistry cacheInvalidatorRegistry) {
         super(env.settings(), threadPool);
         this.clusterService = clusterService;
         file = resolveFile(env);

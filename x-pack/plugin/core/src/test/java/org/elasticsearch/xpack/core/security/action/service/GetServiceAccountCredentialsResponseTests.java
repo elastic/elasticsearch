@@ -7,17 +7,23 @@
 
 package org.elasticsearch.xpack.core.security.action.service;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -28,100 +34,98 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class GetServiceAccountCredentialsResponseTests extends AbstractWireSerializingTestCase<GetServiceAccountCredentialsResponse> {
+public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
 
-    @Override
-    protected Writeable.Reader<GetServiceAccountCredentialsResponse> instanceReader() {
-        return GetServiceAccountCredentialsResponse::new;
+    public void testSerialisation() throws IOException {
+        final GetServiceAccountCredentialsResponse original = createTestInstance();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        original.writeTo(out);
+        final GetServiceAccountCredentialsResponse deserialized = new GetServiceAccountCredentialsResponse(out.bytes().streamInput());
+
+        assertThat(original.getPrincipal(), equalTo(deserialized.getPrincipal()));
+        assertThat(original.getIndexTokenInfos(), equalTo(deserialized.getIndexTokenInfos()));
+        assertThat(original.getFileTokensResponse().getTokenInfos(), equalTo(deserialized.getFileTokensResponse().getTokenInfos()));
     }
 
-    @Override
-    protected GetServiceAccountCredentialsResponse createTestInstance() {
+    private GetServiceAccountCredentialsResponse createTestInstance() {
         final String principal = randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8);
-        final String nodeName = randomAlphaOfLengthBetween(3, 8);
-        final List<TokenInfo> tokenInfos = IntStream.range(0, randomIntBetween(0, 10))
-            .mapToObj(i -> randomTokenInfo())
+        final List<TokenInfo> indexTokenInfos = IntStream.range(0, randomIntBetween(0, 10))
+            .mapToObj(i -> TokenInfo.indexToken(randomAlphaOfLengthBetween(3, 8)))
             .collect(Collectors.toUnmodifiableList());
-        return new GetServiceAccountCredentialsResponse(principal, nodeName, tokenInfos);
+        final GetServiceAccountFileTokensResponse fileTokensResponse = randomGetServiceAccountFileTokensResponse();
+        return new GetServiceAccountCredentialsResponse(principal, indexTokenInfos, fileTokensResponse);
     }
 
-    @Override
-    protected GetServiceAccountCredentialsResponse mutateInstance(GetServiceAccountCredentialsResponse instance) throws IOException {
-
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new GetServiceAccountCredentialsResponse(randomValueOtherThan(instance.getPrincipal(),
-                    () -> randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)),
-                    instance.getNodeName(), instance.getIndexTokenInfos());
-            case 1:
-                return new GetServiceAccountCredentialsResponse(instance.getPrincipal(),
-                    randomValueOtherThan(instance.getNodeName(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    instance.getIndexTokenInfos());
-            default:
-                final ArrayList<TokenInfo> tokenInfos = new ArrayList<>(instance.getIndexTokenInfos());
-                switch (randomIntBetween(0, 2)) {
-                    case 0:
-                        if (false == tokenInfos.isEmpty()) {
-                            tokenInfos.remove(randomIntBetween(0, tokenInfos.size() - 1));
-                        } else {
-                            tokenInfos.add(randomTokenInfo());
-                        }
-                        break;
-                    case 1:
-                        tokenInfos.add(randomIntBetween(0, tokenInfos.isEmpty() ? 0 : tokenInfos.size() - 1), randomTokenInfo());
-                        break;
-                    default:
-                        if (false == tokenInfos.isEmpty()) {
-                            for (int i = 0; i < randomIntBetween(1, tokenInfos.size()); i++) {
-                                final int j = randomIntBetween(0, tokenInfos.size() - 1);
-                                tokenInfos.set(j, randomValueOtherThan(tokenInfos.get(j), this::randomTokenInfo));
-                            }
-                        } else {
-                            tokenInfos.add(randomTokenInfo());
-                        }
-                }
-                return new GetServiceAccountCredentialsResponse(instance.getPrincipal(), instance.getNodeName(),
-                    tokenInfos.stream().collect(Collectors.toUnmodifiableList()));
-        }
-    }
-
-    public void testEquals() {
-        final GetServiceAccountCredentialsResponse response = createTestInstance();
-        final ArrayList<TokenInfo> tokenInfos = new ArrayList<>(response.getIndexTokenInfos());
-        Collections.shuffle(tokenInfos, random());
-        assertThat(new GetServiceAccountCredentialsResponse(
-            response.getPrincipal(), response.getNodeName(), tokenInfos.stream().collect(Collectors.toUnmodifiableList())),
-            equalTo(response));
-    }
-
+    @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
         final GetServiceAccountCredentialsResponse response = createTestInstance();
-        final Map<String, TokenInfo> nameToTokenInfos = response.getIndexTokenInfos().stream()
-            .collect(Collectors.toMap(TokenInfo::getName, Function.identity()));
+        final Collection<TokenInfo> indexTokenInfos = response.getIndexTokenInfos();
+        final List<TokenInfo> fileTokenInfos = response.getFileTokensResponse().getTokenInfos();
+
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         final Map<String, Object> responseMap = XContentHelper.convertToMap(BytesReference.bytes(builder),
             false, builder.contentType()).v2();
 
         assertThat(responseMap.get("service_account"), equalTo(response.getPrincipal()));
-        assertThat(responseMap.get("node_name"), equalTo(response.getNodeName()));
-        assertThat(responseMap.get("count"), equalTo(response.getIndexTokenInfos().size()));
-        @SuppressWarnings("unchecked")
+        assertThat(responseMap.get("count"), equalTo(indexTokenInfos.size() + fileTokenInfos.size()));
+
+        final Map<String, TokenInfo> nameToIndexTokenInfos = indexTokenInfos.stream()
+            .collect(Collectors.toMap(TokenInfo::getName, Function.identity()));
         final Map<String, Object> tokens = (Map<String, Object>) responseMap.get("tokens");
         assertNotNull(tokens);
-        tokens.keySet().forEach(k -> assertThat(nameToTokenInfos.remove(k).getSource(), equalTo(TokenInfo.TokenSource.INDEX)));
+        tokens.keySet().forEach(k -> assertThat(nameToIndexTokenInfos.remove(k).getSource(), equalTo(TokenInfo.TokenSource.INDEX)));
+        assertThat(nameToIndexTokenInfos, is(anEmptyMap()));
 
-        @SuppressWarnings("unchecked")
+        final Map<String, TokenInfo> nameToFileTokenInfos = fileTokenInfos.stream()
+            .collect(Collectors.toMap(TokenInfo::getName, Function.identity()));
         final Map<String, Object> fileTokens = (Map<String, Object>) responseMap.get("file_tokens");
         assertNotNull(fileTokens);
-        fileTokens.keySet().forEach(k -> assertThat(nameToTokenInfos.remove(k).getSource(), equalTo(TokenInfo.TokenSource.FILE)));
-
-        assertThat(nameToTokenInfos, is(anEmptyMap()));
+        fileTokens.forEach((key, value) -> {
+            if (key.equals("_nodes")) {
+                final Map<String, Object> nodesContent = (Map<String, Object>) value;
+                assertThat(nodesContent.get("successful"), equalTo(response.getFileTokensResponse().getNodes().size()));
+                assertThat(nodesContent.get("failed"), equalTo(response.getFileTokensResponse().failures().size()));
+            } else {
+                final Map<String, Object> tokenContent = (Map<String, Object>) value;
+                assertThat(tokenContent.get("nodes"), equalTo(nameToFileTokenInfos.get(key).getNodeNames()));
+                assertThat(nameToFileTokenInfos.remove(key).getSource(), equalTo(TokenInfo.TokenSource.FILE));
+            }
+        });
+        assertThat(nameToFileTokenInfos, is(anEmptyMap()));
     }
 
-    private TokenInfo randomTokenInfo() {
-        return randomBoolean() ?
-            TokenInfo.fileToken(randomAlphaOfLengthBetween(3, 8)) :
-            TokenInfo.indexToken(randomAlphaOfLengthBetween(3, 8));
+    private GetServiceAccountFileTokensResponse randomGetServiceAccountFileTokensResponse() {
+        final ClusterName clusterName = new ClusterName(randomAlphaOfLength(8));
+        final int total = randomIntBetween(1, 5);
+        final int nFailures = randomIntBetween(0, 5);
+        final String[] tokenNames = randomArray(0, 10, String[]::new, () -> randomAlphaOfLengthBetween(3, 8));
+
+        final ArrayList<GetServiceAccountFileTokensResponse.Node> nodes = new ArrayList<>();
+        for (int i = 0; i < total - nFailures; i++) {
+            final GetServiceAccountFileTokensResponse.Node node = randomNodeResponse(tokenNames, i);
+            nodes.add(node);
+        }
+
+        final ArrayList<FailedNodeException> failures = new ArrayList<>();
+        for (int i = 0; i < nFailures; i++) {
+            final FailedNodeException e = randomFailedNodeException(i);
+            failures.add(e);
+        }
+        return new GetServiceAccountFileTokensResponse(clusterName, nodes, failures);
+    }
+
+    private FailedNodeException randomFailedNodeException(int i) {
+        return new FailedNodeException(randomAlphaOfLength(9) + i, randomAlphaOfLength(20), new NoSuchFileException("service_tokens"));
+    }
+
+    private GetServiceAccountFileTokensResponse.Node randomNodeResponse(String[] tokenNames, int i) {
+        final DiscoveryNode discoveryNode = new DiscoveryNode(
+            randomAlphaOfLength(8) + i,
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+            Version.CURRENT);
+        return new GetServiceAccountFileTokensResponse.Node(
+            discoveryNode,
+            randomSubsetOf(randomIntBetween(0, tokenNames.length), tokenNames).toArray(String[]::new));
     }
 }

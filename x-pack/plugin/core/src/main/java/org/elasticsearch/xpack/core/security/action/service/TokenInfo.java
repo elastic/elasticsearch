@@ -19,7 +19,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
-public class TokenInfo implements Writeable, ToXContentObject {
+public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenInfo> {
 
     private final String name;
     private final TokenSource source;
@@ -50,6 +50,10 @@ public class TokenInfo implements Writeable, ToXContentObject {
         return source;
     }
 
+    public Collection<String> getNodeNames() {
+        return nodeNames;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o)
@@ -57,12 +61,17 @@ public class TokenInfo implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass())
             return false;
         TokenInfo tokenInfo = (TokenInfo) o;
-        return Objects.equals(name, tokenInfo.name) && source == tokenInfo.source;
+        return Objects.equals(name, tokenInfo.name) && source == tokenInfo.source && Objects.equals(nodeNames, tokenInfo.nodeNames);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, source);
+        return Objects.hash(name, source, nodeNames);
+    }
+
+    @Override
+    public String toString() {
+        return "TokenInfo{" + "name='" + name + '\'' + ", source=" + source + ", nodeNames=" + nodeNames + '}';
     }
 
     public static TokenInfo indexToken(String name) {
@@ -87,6 +96,17 @@ public class TokenInfo implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeEnum(source);
         out.writeOptionalStringCollection(nodeNames);
+    }
+
+    @Override
+    public int compareTo(TokenInfo o) {
+        // Not comparing node names since name and source guarantee unique order
+        int v = source.compareTo(o.source);
+        if (v == 0) {
+            return name.compareTo(o.name);
+        } else {
+            return v;
+        }
     }
 
     public enum TokenSource {

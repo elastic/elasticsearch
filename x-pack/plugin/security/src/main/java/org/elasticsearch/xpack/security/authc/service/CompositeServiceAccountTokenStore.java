@@ -24,8 +24,7 @@ public final class CompositeServiceAccountTokenStore implements ServiceAccountTo
     private final ThreadContext threadContext;
     private final List<ServiceAccountTokenStore> stores;
 
-    public CompositeServiceAccountTokenStore(
-        List<ServiceAccountTokenStore> stores, ThreadContext threadContext) {
+    public CompositeServiceAccountTokenStore(List<ServiceAccountTokenStore> stores, ThreadContext threadContext) {
         this.stores = stores;
         this.threadContext = threadContext;
     }

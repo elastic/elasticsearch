@@ -244,3 +244,10 @@ tasks.register('enforceYamlTestConvention').configure {
 tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention'
 }
+
+testClusters.all {
+  setting 'xpack.license.self_generated.type', 'basic'
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
+}
+

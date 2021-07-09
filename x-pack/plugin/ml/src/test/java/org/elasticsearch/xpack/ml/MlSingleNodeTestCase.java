@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -96,7 +97,9 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
             IngestCommonPlugin.class,
             MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
-            IndexLifecycle.class);
+            IndexLifecycle.class,
+            // Spatial is required for GeoPoint regsitration
+            SpatialPlugin.class);
     }
 
     @Override

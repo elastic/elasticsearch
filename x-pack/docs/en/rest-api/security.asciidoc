@@ -4,7 +4,7 @@
 To use the security APIs, you must set `xpack.security.enabled` to `true` in
 the `elasticsearch.yml` file.
 
-You can use the following APIs to perform security activities.
+Use the following APIs to perform security activities.
 
 * <<security-api-authenticate>>
 * <<security-api-clear-cache>>
@@ -18,7 +18,7 @@ You can use the following APIs to perform security activities.
 [[security-api-app-privileges]]
 === Application privileges
 
-You can use the following APIs to add, update, retrieve, and remove application
+Use the following APIs to add, update, retrieve, and remove application
 privileges:
 
 * <<security-api-put-privileges,Create or update privileges>>
@@ -30,7 +30,7 @@ privileges:
 [[security-role-mapping-apis]]
 === Role mappings
 
-You can use the following APIs to add, remove, update, and retrieve role mappings:
+Use the following APIs to add, remove, update, and retrieve role mappings:
 
 * <<security-api-put-role-mapping,Create or update role mappings>>
 * <<security-api-delete-role-mapping,Delete role mappings>>
@@ -40,7 +40,7 @@ You can use the following APIs to add, remove, update, and retrieve role mapping
 [[security-role-apis]]
 === Roles
 
-You can use the following APIs to add, remove, update, and retrieve roles in the native realm:
+Use the following APIs to add, remove, update, and retrieve roles in the native realm:
 
 * <<security-api-put-role,Create or update roles>>
 * <<security-api-clear-role-cache,Clear roles cache>>
@@ -51,7 +51,7 @@ You can use the following APIs to add, remove, update, and retrieve roles in the
 [[security-token-apis]]
 === Tokens
 
-You can use the following APIs to create and invalidate bearer tokens for access
+Use the following APIs to create and invalidate bearer tokens for access
 without requiring basic authentication:
 
 * <<security-api-get-token,Get token>>
@@ -61,7 +61,7 @@ without requiring basic authentication:
 [[security-api-keys]]
 === API Keys
 
-You can use the following APIs to create, retrieve and invalidate API keys for access
+Use the following APIs to create, retrieve and invalidate API keys for access
 without requiring basic authentication:
 
 * <<security-api-create-api-key,Create API key>>
@@ -74,7 +74,7 @@ without requiring basic authentication:
 [[security-user-apis]]
 === Users
 
-You can use the following APIs to add, remove, update, or retrieve users in the
+Use the following APIs to add, remove, update, or retrieve users in the
 native realm:
 
 * <<security-api-put-user,Create or update users>>
@@ -88,7 +88,7 @@ native realm:
 [[security-service-account-apis]]
 === Service Accounts
 
-You can use the following APIs to list service accounts and manage the service tokens:
+Use the following APIs to list service accounts and manage the service tokens:
 
 * <<security-api-get-service-accounts>>
 * <<security-api-create-service-token>>
@@ -99,7 +99,7 @@ You can use the following APIs to list service accounts and manage the service t
 [[security-openid-apis]]
 === OpenID Connect
 
-You can use the following APIs to authenticate users against an OpenID Connect
+Use the following APIs to authenticate users against an OpenID Connect
 authentication realm when using a custom web application other than Kibana
 
 * <<security-api-oidc-prepare-authentication, Prepare an authentication request>>
@@ -110,7 +110,7 @@ authentication realm when using a custom web application other than Kibana
 [[security-saml-apis]]
 === SAML
 
-You can use the following APIs to authenticate users against a SAML authentication
+Use the following APIs to authenticate users against a SAML authentication
 realm when using a custom web application other than Kibana
 
 * <<security-api-saml-prepare-authentication, Prepare an authentication request>>
@@ -124,12 +124,12 @@ realm when using a custom web application other than Kibana
 [[security-enrollment-apis]]
 === Enrollment
 
-You can use the following APIs to allow new nodes to join an existing cluster with
-security enabled or to allow a client to configure itself to communicate with
-a secured {es} cluster
+Use the following APIs to enable new nodes to join an existing cluster with
+security enabled, or to enable a {kib} instance to configure itself to
+communicate with a secured {es} cluster.
 
 * <<security-api-node-enrollment, Enroll a new node>>
-* <<security-api-kibana-enrollment, Enroll a new kibana instance>>
+* <<security-api-kibana-enrollment, Enroll a new {kib} instance>>
 
 
 include::security/authenticate.asciidoc[]

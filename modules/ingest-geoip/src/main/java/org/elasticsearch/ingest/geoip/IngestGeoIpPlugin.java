@@ -64,6 +64,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 
@@ -113,10 +114,6 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             throw new UncheckedIOException(e);
         }
 
-        if (GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false) {
-            return List.of(databaseRegistry.get());
-        }
-
         geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(client, new HttpClient(), clusterService, threadPool);
         return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor);
     }
@@ -130,9 +127,6 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool,
                                                                        Client client, SettingsModule settingsModule,
                                                                        IndexNameExpressionResolver expressionResolver) {
-        if (GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false) {
-            return Collections.emptyList();
-        }
         return List.of(geoIpDownloaderTaskExecutor);
     }
 
@@ -165,9 +159,6 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        if (GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false) {
-            return Collections.emptyList();
-        }
         SystemIndexDescriptor geoipDatabasesIndex = SystemIndexDescriptor.builder()
             .setIndexPattern(DATABASES_INDEX)
             .setDescription("GeoIP databases")
@@ -177,9 +168,10 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                 .build())
-            .setOrigin("geoip")
+            .setOrigin(INGEST_ORIGIN)
             .setVersionMetaKey("version")
             .setPrimaryIndex(DATABASES_INDEX)
+            .setNetNew()
             .build();
         return Collections.singleton(geoipDatabasesIndex);
     }

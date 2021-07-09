@@ -1,5 +1,4 @@
-[role="xpack"]
-[[ml-sum-functions]]
+["appendix",role="exclude",id="ml-sum-functions"]
 = Sum functions
 
 The sum functions detect anomalies when the sum of a field in a bucket is

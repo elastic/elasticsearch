@@ -23,13 +23,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -47,7 +42,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -58,17 +52,13 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.QueryBuilderHelper;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -81,8 +71,10 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
     private final ClusterService clusterService;
     private static final int MAX_FORECAST_TO_SEARCH = 10_000;
 
-    private static final Set<ForecastRequestStatus> DELETABLE_STATUSES =
-        EnumSet.of(ForecastRequestStatus.FINISHED, ForecastRequestStatus.FAILED);
+    private static final Set<String> DELETABLE_STATUSES =
+        Stream.of(ForecastRequestStatus.FINISHED, ForecastRequestStatus.FAILED)
+            .map(ForecastRequestStatus::toString)
+            .collect(toSet());
 
     @Inject
     public TransportDeleteForecastAction(TransportService transportService,
@@ -115,14 +107,10 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         SearchSourceBuilder source =
             new SearchSourceBuilder()
                 .size(MAX_FORECAST_TO_SEARCH)
-                // We only need the following 3 fields, there is no need fetching all of them
-                .fetchSource(
-                    new String[] {
-                        Job.ID.getPreferredName(),
-                        ForecastRequestStats.FORECAST_ID.getPreferredName(),
-                        ForecastRequestStats.STATUS.getPreferredName()
-                    },
-                    Strings.EMPTY_ARRAY)
+                // We only need forecast id and status, there is no need fetching the whole source
+                .fetchSource(false)
+                .docValueField(ForecastRequestStats.FORECAST_ID.getPreferredName())
+                .docValueField(ForecastRequestStats.STATUS.getPreferredName())
                 .query(query);
         SearchRequest searchRequest =
             new SearchRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
@@ -131,30 +119,32 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, forecastStatsHandler);
     }
 
-    static void validateForecastState(Collection<ForecastRequestStats> forecastsToDelete, JobState jobState, String jobId) {
-        List<String> badStatusForecasts = forecastsToDelete.stream()
-            .filter(f -> DELETABLE_STATUSES.contains(f.getStatus()) == false)
-            .map(ForecastRequestStats::getForecastId)
-            .collect(Collectors.toList());
-        if (badStatusForecasts.size() > 0 && JobState.OPENED.equals(jobState)) {
-            throw ExceptionsHelper.conflictStatusException(
-                Messages.getMessage(Messages.REST_CANNOT_DELETE_FORECAST_IN_CURRENT_STATE, badStatusForecasts, jobId));
+    static List<String> extractForecastIds(SearchHit[] forecastsToDelete, JobState jobState, String jobId) {
+        List<String> forecastIds = new ArrayList<>(forecastsToDelete.length);
+        List<String> badStatusForecastIds = new ArrayList<>();
+        for (SearchHit hit : forecastsToDelete) {
+            String forecastId = hit.field(ForecastRequestStats.FORECAST_ID.getPreferredName()).getValue();
+            String forecastStatus = hit.field(ForecastRequestStats.STATUS.getPreferredName()).getValue();
+            if (DELETABLE_STATUSES.contains(forecastStatus)) {
+                forecastIds.add(forecastId);
+            } else {
+                badStatusForecastIds.add(forecastId);
+            }
         }
+        if (badStatusForecastIds.size() > 0 && JobState.OPENED.equals(jobState)) {
+            throw ExceptionsHelper.conflictStatusException(
+                Messages.getMessage(Messages.REST_CANNOT_DELETE_FORECAST_IN_CURRENT_STATE, badStatusForecastIds, jobId));
+        }
+        return forecastIds;
     }
 
     private void deleteForecasts(SearchResponse searchResponse,
                                  DeleteForecastAction.Request request,
                                  ActionListener<AcknowledgedResponse> listener) {
         final String jobId = request.getJobId();
-        Set<ForecastRequestStats> forecastsToDelete;
-        try {
-            forecastsToDelete = parseForecastsFromSearch(searchResponse);
-        } catch (IOException e) {
-            listener.onFailure(e);
-            return;
-        }
+        SearchHits forecastsToDelete = searchResponse.getHits();
 
-        if (forecastsToDelete.isEmpty()) {
+        if (forecastsToDelete.getHits().length == 0) {
             if (Strings.isAllOrWildcard(request.getForecastId()) && request.isAllowNoForecasts()) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
@@ -166,16 +156,15 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         final ClusterState state = clusterService.state();
         PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, persistentTasks);
+        final List<String> forecastIds;
         try {
-            validateForecastState(forecastsToDelete, jobState, jobId);
+            forecastIds = extractForecastIds(forecastsToDelete.getHits(), jobState, jobId);
         } catch (ElasticsearchException ex) {
             listener.onFailure(ex);
             return;
         }
 
-        final List<String> forecastIds = forecastsToDelete.stream().map(ForecastRequestStats::getForecastId).collect(Collectors.toList());
         DeleteByQueryRequest deleteByQueryRequest = buildDeleteByQuery(jobId, forecastIds);
-
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
             response -> {
                 if (response.isTimedOut()) {
@@ -216,19 +205,6 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
             }
         }
         return new Tuple<>(status, reason);
-    }
-
-    private static Set<ForecastRequestStats> parseForecastsFromSearch(SearchResponse searchResponse) throws IOException {
-        SearchHits hits = searchResponse.getHits();
-        List<ForecastRequestStats> allStats = new ArrayList<>(hits.getHits().length);
-        for (SearchHit hit : hits) {
-            try (InputStream stream = hit.getSourceRef().streamInput();
-                 XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
-                     NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
-                allStats.add(ForecastRequestStats.STRICT_PARSER.apply(parser, null));
-            }
-        }
-        return new HashSet<>(allStats);
     }
 
     private DeleteByQueryRequest buildDeleteByQuery(String jobId, List<String> forecastsToDelete) {

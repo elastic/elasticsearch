@@ -471,7 +471,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     @Override
-    protected void index(ParseContext context, ShapeBuilder<?, ?, ?> shapeBuilder) throws IOException {
+    protected void index(DocumentParserContext context, ShapeBuilder<?, ?, ?> shapeBuilder) throws IOException {
         if (shapeBuilder == null) {
             return;
         }

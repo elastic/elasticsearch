@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -47,23 +48,27 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public abstract class GeoQueryTests extends ESSingleNodeTestCase {
+public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singleton(TestGeoShapeFieldMapperPlugin.class);
     }
 
-    protected abstract XContentBuilder createDefaultMapping() throws Exception;
+    protected abstract void createMapping(String indexName, String type, String fieldName, Settings settings) throws Exception;
 
-    static String defaultGeoFieldName = "geo";
-    static String defaultIndexName = "test";
+    protected void createMapping(String indexName, String type, String fieldName) throws Exception {
+        createMapping(indexName, type, fieldName, Settings.EMPTY);
+    }
+
+    protected static final String defaultGeoFieldName = "geo";
+    protected static final String defaultIndexName = "test";
+    protected static final String defaultType = "_doc";
 
     public void testNullShape() throws Exception {
-        XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
+        createMapping(defaultIndexName, defaultType, defaultGeoFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName, "_doc")
+        client().prepareIndex(defaultIndexName, defaultType)
             .setId("aNullshape")
             .setSource("{\"geo\": null}", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE).get();
@@ -72,8 +77,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
     };
 
     public void testIndexPointsFilterRectangle() throws Exception {
-        XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
+        createMapping(defaultIndexName, defaultType, defaultGeoFieldName);
         ensureGreen();
 
         client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
@@ -111,8 +115,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexPointsCircle() throws Exception {
-        XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
+        createMapping(defaultIndexName, defaultType, defaultGeoFieldName);
         ensureGreen();
 
         client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
@@ -143,8 +146,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexPointsPolygon() throws Exception {
-        XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
+        createMapping(defaultIndexName, defaultType, defaultGeoFieldName);
         ensureGreen();
 
         client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
@@ -176,8 +178,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexPointsMultiPolygon() throws Exception {
-        XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
+        createMapping(defaultIndexName, defaultType, defaultGeoFieldName);
         ensureGreen();
 
         client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
@@ -260,8 +261,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexPointsRectangle() throws Exception {
-        XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
+        createMapping(defaultIndexName, defaultType, defaultGeoFieldName);
         ensureGreen();
 
         client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
@@ -289,8 +289,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexPointsIndexedRectangle() throws Exception {
-        XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate(defaultIndexName).addMapping(defaultIndexName, xcb).get();
+        createMapping(defaultIndexName, defaultType, defaultGeoFieldName);
         ensureGreen();
 
         client().prepareIndex(defaultIndexName,"_doc").setId("point1").setSource(jsonBuilder()
@@ -305,7 +304,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
 
         String indexedShapeIndex = "indexed_query_shapes";
         String indexedShapePath = "shape";
-        xcb = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject(indexedShapePath)
             .field("type", "geo_shape")
             .endObject()
@@ -346,8 +345,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testRectangleSpanningDateline() throws Exception {
-        XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        createMapping(defaultIndexName, defaultType, defaultGeoFieldName);
         ensureGreen();
 
         client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
@@ -369,15 +367,13 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
 
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", rectangle);
         SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
-        assertHitCount(response, 2);
         SearchHits searchHits = response.getHits();
         assertThat(searchHits.getAt(0).getId(),not(equalTo("1")));
         assertThat(searchHits.getAt(1).getId(),not(equalTo("1")));
     }
 
     public void testPolygonSpanningDateline() throws Exception {
-        XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        createMapping(defaultIndexName, defaultType, defaultGeoFieldName);
         ensureGreen();
 
         client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
@@ -410,7 +406,6 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", polygon);
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
-        assertHitCount(response, 2);
         SearchHits searchHits = response.getHits();
         assertThat(searchHits.getAt(0).getId(),not(equalTo("1")));
         assertThat(searchHits.getAt(1).getId(),not(equalTo("1")));
@@ -419,8 +414,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testMultiPolygonSpanningDateline() throws Exception {
-        XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        createMapping(defaultIndexName, defaultType, defaultGeoFieldName);
         ensureGreen();
 
         client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
@@ -458,18 +452,16 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", multiPolygon);
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
-        assertHitCount(response, 2);
         SearchHits searchHits = response.getHits();
         assertThat(searchHits.getAt(0).getId(),not(equalTo("3")));
         assertThat(searchHits.getAt(1).getId(),not(equalTo("3")));
     }
 
     public void testWithInQueryLine() throws Exception {
-        XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        createMapping(defaultIndexName, defaultType, defaultGeoFieldName);
         ensureGreen();
 
-        Line line = new Line(new double[]{-25, -25}, new double[]{-35, -35});
+        Line line = new Line(new double[]{-25, -35}, new double[]{-25, -35});
 
         try {
             client().prepareSearch("test")
@@ -482,8 +474,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testQueryWithinMultiLine() throws Exception {
-        XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        createMapping(defaultIndexName, defaultType, defaultGeoFieldName);
         ensureGreen();
 
         Line lsb1 = new Line(new double[]{-35, -25}, new double[] {-35, -25});
@@ -491,16 +482,18 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
 
         MultiLine multiline = new MultiLine(org.elasticsearch.core.List.of(lsb1, lsb2));
 
-        GeoShapeQueryBuilder builder = QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiline).relation(ShapeRelation.WITHIN);
-        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setQuery(builder);
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, searchRequestBuilder::get);
-        assertThat(e.getCause().getMessage(),
-            containsString("Field [" + defaultGeoFieldName + "] found an unsupported shape Line"));
+        try {
+            client().prepareSearch(defaultIndexName)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiline).relation(ShapeRelation.WITHIN)).get();
+        } catch (
+            SearchPhaseExecutionException e) {
+            assertThat(e.getCause().getMessage(),
+                containsString("Field [" + defaultGeoFieldName + "] found an unsupported shape Line"));
+        }
     }
 
     public void testQueryLinearRing() throws Exception {
-        XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        createMapping(defaultIndexName, defaultType, defaultGeoFieldName);
         ensureGreen();
 
         LinearRing linearRing = new LinearRing(new double[]{-25, -35, -25}, new double[]{-25, -35, -25});
@@ -511,16 +504,14 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         searchRequestBuilder.setQuery(queryBuilder);
         searchRequestBuilder.setIndices("test");
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, searchRequestBuilder::get);
-        assertThat(e.getCause().getMessage(),
-            containsString("Field [" + defaultGeoFieldName + "] found an unsupported shape LinearRing"));
+        assertThat(e.getCause().getMessage(), containsString("LinearRing"));
     }
 
     public void testQueryPoint() throws Exception {
-        XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        createMapping(defaultIndexName, defaultType, defaultGeoFieldName);
         ensureGreen();
 
-        client().prepareIndex("test", "_doc").setId("1").setSource(jsonBuilder()
+        client().prepareIndex(defaultIndexName, defaultType).setId("1").setSource(jsonBuilder()
             .startObject()
             .field(defaultGeoFieldName, "POINT(-35 -25)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
@@ -553,11 +544,10 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testQueryMultiPoint() throws Exception {
-        XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        createMapping(defaultIndexName, defaultType, defaultGeoFieldName);
         ensureGreen();
 
-        client().prepareIndex("test", "_doc").setId("1").setSource(jsonBuilder()
+        client().prepareIndex(defaultIndexName, defaultType).setId("1").setSource(jsonBuilder()
             .startObject()
             .field(defaultGeoFieldName, "POINT(-35 -25)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();

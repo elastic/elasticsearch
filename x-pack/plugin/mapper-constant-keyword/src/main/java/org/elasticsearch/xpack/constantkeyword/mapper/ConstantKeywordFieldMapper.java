@@ -34,7 +34,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -145,14 +145,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 ? lookup -> Collections.emptyList()
                 : lookup -> Collections.singletonList(value);
         }
-        
-        
+
+
 
         @Override
         public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
             throws IOException {
-            boolean matches = caseInsensitive ? 
-                value.toLowerCase(Locale.ROOT).startsWith(string.toLowerCase(Locale.ROOT)) : 
+            boolean matches = caseInsensitive ?
+                value.toLowerCase(Locale.ROOT).startsWith(string.toLowerCase(Locale.ROOT)) :
                 value.startsWith(string);
             if (matches == false) {
                 return null;
@@ -258,7 +258,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
         final String value = parser.textOrNull();
 

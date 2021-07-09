@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
@@ -36,7 +35,6 @@ public class TermsEnumRequestTests extends AbstractSerializingTestCase<TermsEnum
         super.setUp();
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(IndicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());

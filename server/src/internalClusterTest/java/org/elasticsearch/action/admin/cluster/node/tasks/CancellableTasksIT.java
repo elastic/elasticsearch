@@ -503,7 +503,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                         try {
                             client.executeLocally(TransportTestAction.ACTION, subRequest, latchedListener);
                         } catch (TaskCancelledException e) {
-                            latchedListener.onFailure(new SendRequestTransportException(null, "fail", e));
+                            latchedListener.onFailure(new TransportException(e));
                         }
                     } else {
                         transportService.sendRequest(subRequest.node, ACTION.name(), subRequest,

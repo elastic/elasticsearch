@@ -107,7 +107,6 @@ tasks.named("yamlRestCompatTest").configure {
     'search/260_parameter_validation/test size=-1 is deprecated', //size=-1 change
     'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
     'search/340_type_query/type query', // type_query - probably should behave like match_all
-    'search_shards/10_basic/Search shards aliases with and without filters',
    ] + v7compatibilityNotSupportedTests())
     .join(',')
 }

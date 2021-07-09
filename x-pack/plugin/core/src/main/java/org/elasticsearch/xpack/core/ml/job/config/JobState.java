@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.job.config;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -19,7 +20,7 @@ import java.util.Locale;
  * When a job is created it is initialised in to the state closed
  * i.e. it is not running.
  */
-public enum JobState implements Writeable {
+public enum JobState implements Writeable, MemoryTrackedTaskState {
 
     CLOSING, CLOSED, OPENED, FAILED, OPENING;
 
@@ -59,5 +60,15 @@ public enum JobState implements Writeable {
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);
+    }
+
+    @Override
+    public boolean consumesMemory() {
+        return isNoneOf(CLOSED, FAILED);
+    }
+
+    @Override
+    public boolean isAllocating() {
+        return this == OPENING;
     }
 }

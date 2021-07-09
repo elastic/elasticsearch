@@ -220,11 +220,10 @@ public final class Def {
          int upTo = 1;
          for (int i = 1; i < numArguments; i++) {
              if (lambdaArgs.get(i - 1)) {
-                 String signature = (String) args[upTo++];
-                 int numCaptures = Integer.parseInt(signature.substring(signature.indexOf(',')+1));
-                 arity -= numCaptures;
+                 Def.Encoding signature = new Def.Encoding((String) args[upTo++]);
+                 arity -= signature.numCaptures;
                  // arity in painlessLookup does not include 'this' reference
-                 if (signature.charAt(1) == 't') {
+                 if (signature.needsInstance) {
                      arity--;
                  }
              }
@@ -252,10 +251,10 @@ public final class Def {
          for (int i = 1; i < numArguments; i++) {
              // its a functional reference, replace the argument with an impl
              if (lambdaArgs.get(i - 1)) {
-                 Def.Encoding defEncoding = new Def.Encoding((String) args[upTo++]);
+                 Def.Encoding defEncoding = new Encoding((String) args[upTo++]);
                  MethodHandle filter;
-                Class<?> interfaceType = method.typeParameters.get(i - 1 - replaced - (defEncoding.needsInstance ? 1 : 0));
-                if (defEncoding.isStatic) {
+                 Class<?> interfaceType = method.typeParameters.get(i - 1 - replaced - (defEncoding.needsInstance ? 1 : 0));
+                 if (defEncoding.isStatic) {
                      // the implementation is strongly typed, now that we know the interface type,
                      // we have everything.
                      filter = lookupReferenceInternal(painlessLookup,

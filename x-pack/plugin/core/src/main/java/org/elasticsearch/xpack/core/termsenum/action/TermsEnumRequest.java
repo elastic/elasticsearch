@@ -130,6 +130,11 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
         return true;
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
     /**
      * The field to look inside for values
      */

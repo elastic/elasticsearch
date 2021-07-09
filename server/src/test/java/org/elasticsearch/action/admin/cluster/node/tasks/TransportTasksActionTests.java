@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -500,6 +501,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         responseLatch.await(10, TimeUnit.SECONDS);
     }
 
+    @TestLogging(reason="debugging for https://github.com/elastic/elasticsearch/issues/69731",
+        value="org.elasticsearch.transport.TcpTransport:TRACE," +
+            "org.elasticsearch.transport.TransportService.tracer:TRACE," +
+            "org.elasticsearch.tasks.TaskManager:TRACE")
     public void testFailedTasksCount() throws ExecutionException, InterruptedException, IOException {
         Settings settings = Settings.builder().put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), true).build();
         setupTestNodes(settings);
@@ -512,11 +517,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                     testNodes[i].transportService) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-                    logger.info("Action on node {}", node);
+                    TransportTasksActionTests.this.logger.info("Action on node {}", node);
                     throw new RuntimeException("Test exception");
                 }
             };
         }
+
+        logger.info("--> checking for ongoing tasks before starting test actions");
 
         final StringBuilder taskDescriptions = new StringBuilder();
         for (TestNode testNode : testNodes) {

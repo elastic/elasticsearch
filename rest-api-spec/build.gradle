@@ -23,7 +23,6 @@ artifacts {
 }
 
 testClusters.all {
-  testDistribution = 'DEFAULT'
   module ':modules:mapper-extras'
 }
 

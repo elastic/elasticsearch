@@ -253,7 +253,12 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
           - is_false: "value_to_replace"
           - is_true: "value_not_to_replace"
           - is_false: "value_not_to_replace"
-
+        ---
+        "use cat with no header":
+          - do:
+              cat.indices:
+                {}
+          - match: {}
         """.stripIndent()
         when:
         def result = gradleRunner("yamlRestCompatTest").build()
@@ -341,6 +346,16 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         - is_false: "replaced_value"
         - is_true: "value_not_to_replace"
         - is_false: "value_not_to_replace"
+        ---
+        "use cat with no header":
+          - do:
+              cat.indices:
+                {}
+              allowed_warnings:
+                - "added allowed warning"
+              allowed_warnings_regex:
+                - "added allowed warning regex .* [0-9]"
+          - match: {}
         """.stripIndent()).readAll()
 
         expectedAll.eachWithIndex{ ObjectNode expected, int i ->

@@ -91,8 +91,6 @@ tasks.named("yamlRestCompatTest").configure {
     'indices.open/10_basic/?wait_for_active_shards=index-setting',
     // not fixing this in #70966
     'indices.put_template/11_basic_with_types/Put template with empty mappings',
-    'indices.shrink/30_copy_settings/Copy settings during shrink index',
-    'indices.split/30_copy_settings/Copy settings during split index',
     'mlt/20_docs/Basic mlt query with docs',
     'mlt/30_unlike/Basic mlt query with unlike',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',

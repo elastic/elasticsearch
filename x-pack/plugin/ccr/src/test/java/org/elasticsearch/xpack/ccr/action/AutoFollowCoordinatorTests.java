@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
@@ -24,13 +25,13 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -2162,20 +2163,38 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 clusterState = createRemoteClusterState(clusterState, true, indexName);
             }
         }
-        final List<AutoFollowCoordinator.AutoFollowResult> autoFollowResults = executeAutoFollow(".*", clusterState);
-        assertThat(autoFollowResults.size(), equalTo(1));
-        assertThat(autoFollowResults.get(0).autoFollowExecutionResults, is(anEmptyMap()));
+
+        Tuple<List<AutoFollowCoordinator.AutoFollowResult>, Set<String>> autoFollowResults = executeAutoFollow(".*", clusterState);
+        assertThat(autoFollowResults.v1().size(), equalTo(1));
+        assertThat(autoFollowResults.v1().get(0).autoFollowExecutionResults, is(anEmptyMap()));
+        assertThat(autoFollowResults.v2(), is(empty()));
     }
 
     public void testSystemDataStreamsAreNotAutoFollowed() {
-        final List<AutoFollowCoordinator.AutoFollowResult> autoFollowResults =
+        Tuple<List<AutoFollowCoordinator.AutoFollowResult>, Set<String>> autoFollowResults =
             executeAutoFollow("*.", createRemoteClusterStateWithDataStream(".test-data-stream"));
 
-        assertThat(autoFollowResults.size(), equalTo(1));
-        assertThat(autoFollowResults.get(0).autoFollowExecutionResults, is(anEmptyMap()));
+        assertThat(autoFollowResults.v1().size(), equalTo(1));
+        assertThat(autoFollowResults.v1().get(0).autoFollowExecutionResults, is(anEmptyMap()));
+        assertThat(autoFollowResults.v2(), is(empty()));
     }
 
-    private List<AutoFollowCoordinator.AutoFollowResult> executeAutoFollow(String indexPattern, final ClusterState finalRemoteState) {
+    public void testFollowerIndexIsCreatedInExecuteAutoFollow() {
+        final String indexName = "idx-1";
+        ClusterState clusterState = createRemoteClusterState(indexName, true, 0, false);
+
+        Tuple<List<AutoFollowCoordinator.AutoFollowResult>, Set<String>> autoFollowResults = executeAutoFollow("idx-*", clusterState);
+        assertThat(autoFollowResults.v1().size(), equalTo(1));
+        assertThat(autoFollowResults.v1().get(0).autoFollowExecutionResults.size(), equalTo(1));
+        for (Map.Entry<Index, Exception> autoFollowEntry : autoFollowResults.v1().get(0).autoFollowExecutionResults.entrySet()) {
+            assertThat(autoFollowEntry.getKey().getName(), equalTo(indexName));
+            assertThat(autoFollowEntry.getValue(), nullValue());
+        }
+        assertThat(autoFollowResults.v2().contains(indexName), equalTo(true));
+    }
+
+    private Tuple<List<AutoFollowCoordinator.AutoFollowResult>, Set<String>> executeAutoFollow(String indexPattern,
+                                                                                               ClusterState finalRemoteState) {
         final Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
@@ -2211,7 +2230,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         final AtomicReference<ClusterState> lastModifiedClusterState = new AtomicReference<>(localState);
         final List<AutoFollowCoordinator.AutoFollowResult> results = new ArrayList<>();
-        final Set<Object> followedIndices = ConcurrentCollections.newConcurrentSet();
+        final Set<String> followedIndices = ConcurrentCollections.newConcurrentSet();
         final AutoFollower autoFollower =
             new AutoFollower("remote", results::addAll, localClusterStateSupplier(localState), () -> 1L, Runnable::run) {
                 @Override
@@ -2245,7 +2264,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         autoFollower.start();
 
         assertThat(results, notNullValue());
-        return results;
+        return Tuple.tuple(results, followedIndices);
     }
 
     private static ClusterState createRemoteClusterState(String indexName, boolean enableSoftDeletes) {

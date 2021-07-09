@@ -137,8 +137,8 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
     // pkg-private for testing
     static boolean isTypeChangeAllowed(SingleNodeShutdownMetadata.Type existingType, SingleNodeShutdownMetadata.Type newType) {
-        assert SingleNodeShutdownMetadata.Type.REMOVE.equals(newType)
-            || SingleNodeShutdownMetadata.Type.RESTART.equals(newType) : "unknown shutdown type [" + newType + "]";
+        assert SingleNodeShutdownMetadata.Type.REMOVE.equals(newType) || SingleNodeShutdownMetadata.Type.RESTART.equals(newType)
+            : "unknown shutdown type [" + newType + "]";
 
         if (newType.equals(existingType)) {
             return true;

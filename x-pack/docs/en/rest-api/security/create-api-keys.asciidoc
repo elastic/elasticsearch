@@ -91,7 +91,7 @@ The following example creates an API key:
 POST /_security/api_key
 {
   "name": "my-api-key",
-  "expiration": "1d", <1>
+  "expiration": "1d",   <1>
   "role_descriptors": { <2>
     "role-a": {
       "cluster": ["all"],
@@ -133,9 +133,9 @@ API key information.
 [source,console-result]
 ----
 {
-  "id":"VuaCfGcBCdbkQm-e5aOx", <1>
+  "id":"VuaCfGcBCdbkQm-e5aOx",       <1>
   "name":"my-api-key",
-  "expiration":1544068612110, <2>
+  "expiration":1544068612110,        <2>
   "api_key":"ui2lp2axTNmsyakw9tvNnw" <3>
 }
 ----
@@ -149,13 +149,46 @@ API key information.
 To use the generated API key, send a request with an `Authorization` header that
 contains an `ApiKey` prefix followed by the API key credentials. The credentials
 are a Base64-encoded string in UTF-8 format that you create by combining the
-`id` and `api_key` with a colon (`:`).
+`id` and `api_key` with a colon (`:`). For example:
 
-IMPORTANT: Authentication will fail if you use UTF-16 or UTF-32 encoding.
+[source,shell]
+----
+curl -H "Authorization: ApiKey <credentials>" \
+http://localhost:9200/_cluster/health\?pretty <1>
+----
+// NOTCONSOLE
+<1> If your node has `xpack.security.http.ssl.enabled` set to `true`, then you
+must specify `https` when creating your API key
 
-For example, on a Unix-like system, the following command combines the `id` and
-`api_key` from the previous response:
+.Use UTF-8 encoding
+****
+When converting the concatenated String of `id` and `api_key` into bytes, the
+format must be UTF-8. Authentication will fail if you use UTF-16 or UTF-32
+encoding.
 
+If you're concatenating `id` and `api_key` and then getting the bytes of that
+String from the command line (like in <<concat-api-key,this example>>), the
+`echo` command defaults to ASCII formatting, which is equivalent to UTF-8
+encoding.
+
+However, some other tools require an explicit encoding when converting a String
+into bytes. For example, in Java, you might use something like the following
+code, which assumes that `result` is the response from the create API key API.
+This conversion ensures that the bytes of the concatenated string is in UTF-8
+format:
+
+[source,java]
+----
+var bytes = (result.id + ":" + result.api_key).getBytes(StandardCharsets.UTF_8);
+var header = "ApiKey " + Base64.getEncoder().encodeToString(bytes);
+----
+****
+
+On a Unix-like system, the following command combines the `id` and `api_key`
+from the previous response. The concatenation of these parameters should be in
+UTF-8 format:
+
+[[concat-api-key]]
 [source,shell]
 ----
 echo -n "VuaCfGcBCdbkQm-e5aOx:ui2lp2axTNmsyakw9tvNnw" | base64 <1>
@@ -163,20 +196,18 @@ echo -n "VuaCfGcBCdbkQm-e5aOx:ui2lp2axTNmsyakw9tvNnw" | base64 <1>
 <1> Use `-n` so that the `echo` command doesn't print the trailing newline
 character
 
-The command outputs a Base64-encoded string:
+The command outputs a Base64-encoded String:
 
 [source,shell]
 ----
 VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==
 ----
 
-Use this string in a request to authenticate with your cluster:
+Use this String in a request to authenticate with your cluster:
 
 [source,shell]
 ----
 curl -H "Authorization: ApiKey VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==" \
-http://localhost:9200/_cluster/health <1>
+http://localhost:9200/_cluster/health\?pretty
 ----
 // NOTCONSOLE
-<1> If your node has `xpack.security.http.ssl.enabled` set to `true`, then you
-must specify `https` when creating your API key

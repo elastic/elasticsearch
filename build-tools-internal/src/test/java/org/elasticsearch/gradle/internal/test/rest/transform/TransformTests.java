@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
+
 import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
 import org.hamcrest.CoreMatchers;
@@ -26,15 +27,14 @@ import org.junit.Before;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public abstract class TransformTests extends GradleUnitTestCase {
@@ -181,11 +181,11 @@ public abstract class TransformTests extends GradleUnitTestCase {
         return null;
     }
 
-    protected void validateBodyHasWarnings(String featureName, List<ObjectNode> tests, Set<String> expectedWarnings) {
+    protected void validateBodyHasWarnings(String featureName, List<ObjectNode> tests, Collection<String> expectedWarnings) {
         validateBodyHasWarnings(featureName, null, tests, expectedWarnings);
     }
 
-    protected void validateBodyHasWarnings(String featureName, String testName, List<ObjectNode> tests, Set<String> expectedWarnings) {
+    protected void validateBodyHasWarnings(String featureName, String testName, List<ObjectNode> tests, Collection<String> expectedWarnings) {
         AtomicBoolean actuallyDidSomething = new AtomicBoolean(false);
         tests.forEach(test -> {
             Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();

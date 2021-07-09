@@ -28,7 +28,7 @@ testClusters.all {
 
 tasks.named("test").configure { enabled = false }
 tasks.named("jarHell").configure { enabled = false }
-def v7compatiblityNotSupportedTests = {
+def v7compatibilityNotSupportedTests = {
   return [
           // Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API
           'cat*/*/*',
@@ -110,7 +110,7 @@ tasks.named("yamlRestCompatTest").configure {
     'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
     'search/340_type_query/type query', // type_query - probably should behave like match_all
     'search_shards/10_basic/Search shards aliases with and without filters',
-   ] + v7compatiblityNotSupportedTests())
+   ] + v7compatibilityNotSupportedTests())
     .join(',')
 }
 

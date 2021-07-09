@@ -148,7 +148,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         try {
             sender.sendRequest(connection, action, request, options, handler);
         } catch (Exception e) {
-            handler.handleException(new SendRequestTransportException(connection.getNode(), "failed sending request", e));
+            handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
         }
     }
 

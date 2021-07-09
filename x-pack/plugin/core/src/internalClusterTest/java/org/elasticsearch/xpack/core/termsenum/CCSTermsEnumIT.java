@@ -59,6 +59,9 @@ public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
             .field("foo.keyword");
         TermsEnumResponse response = client().execute(TermsEnumAction.INSTANCE, req).actionGet();
         assertTrue(response.isComplete());
+        assertThat(response.getTotalShards(), equalTo(1));
+        assertThat(response.getSuccessfulShards(), equalTo(1));
+        assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getTerms().size(), equalTo(3));
         assertThat(response.getTerms().get(0), equalTo("bar"));
         assertThat(response.getTerms().get(1), equalTo("foobar"));
@@ -69,6 +72,9 @@ public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
             .field("foo.keyword");
         response = client().execute(TermsEnumAction.INSTANCE, req).actionGet();
         assertTrue(response.isComplete());
+        assertThat(response.getTotalShards(), equalTo(2));
+        assertThat(response.getSuccessfulShards(), equalTo(2));
+        assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getTerms().size(), equalTo(4));
         assertThat(response.getTerms().get(0), equalTo("bar"));
         assertThat(response.getTerms().get(1), equalTo("foo"));
@@ -80,6 +86,9 @@ public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
             .searchAfter("foobar");
         response = client().execute(TermsEnumAction.INSTANCE, req).actionGet();
         assertTrue(response.isComplete());
+        assertThat(response.getTotalShards(), equalTo(2));
+        assertThat(response.getSuccessfulShards(), equalTo(2));
+        assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getTerms().size(), equalTo(1));
         assertThat(response.getTerms().get(0), equalTo("zar"));
 
@@ -88,6 +97,9 @@ public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
             .searchAfter("bar");
         response = client().execute(TermsEnumAction.INSTANCE, req).actionGet();
         assertTrue(response.isComplete());
+        assertThat(response.getTotalShards(), equalTo(2));
+        assertThat(response.getSuccessfulShards(), equalTo(2));
+        assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getTerms().size(), equalTo(3));
         assertThat(response.getTerms().get(0), equalTo("foo"));
         assertThat(response.getTerms().get(1), equalTo("foobar"));

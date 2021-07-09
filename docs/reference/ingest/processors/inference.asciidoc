@@ -125,7 +125,7 @@ classes to the `probabilities` field. Both fields are contained in the
 `target_field` results object.
 
 Refer to the 
-{ml-docs}/ml-lang-ident.html#ml-lang-ident-example[language identification] 
+{ml-docs}/ml-dfa-lang-ident.html#ml-lang-ident-example[language identification] 
 trained model documentation for a full example.
 
 

@@ -402,7 +402,6 @@ public class Constants {
         "indices:data/read/eql/async/get",
         "indices:data/read/explain",
         "indices:data/read/field_caps",
-        "indices:data/read/field_caps[index]",
         "indices:data/read/get",
         "indices:data/read/mget",
         "indices:data/read/mget[shard]",

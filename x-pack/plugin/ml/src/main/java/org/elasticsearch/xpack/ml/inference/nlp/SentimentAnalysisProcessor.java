@@ -11,7 +11,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SentimentAnalysisResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -28,8 +27,9 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
     private final BertTokenizer tokenizer;
     private final List<String> classLabels;
 
-    SentimentAnalysisProcessor(BertTokenizer tokenizer, @Nullable List<String> classLabels) {
+    SentimentAnalysisProcessor(BertTokenizer tokenizer, NlpTaskConfig config) {
         this.tokenizer = tokenizer;
+        List<String> classLabels = config.getClassificationLabels();
         if (classLabels == null || classLabels.isEmpty()) {
             this.classLabels = List.of("negative", "positive");
         } else {

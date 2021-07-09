@@ -33,10 +33,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * A key configuration that is backed by a {@link KeyStore}
@@ -79,6 +77,23 @@ public class StoreKeyConfig extends KeyConfig {
         try {
             KeyStore ks = getStore(ksPath, keyStoreType, keyStorePassword);
             checkKeyStore(ks);
+            // TBD: filter out only http.ssl.keystore
+            List<String> aliases = new ArrayList<>();
+            for (String s : Collections.list(ks.aliases())) {
+                if (ks.isKeyEntry(s)) {
+                    aliases.add(s);
+                }
+            }
+            if (aliases.size() > 1) {
+                for (String alias : aliases) {
+                    Certificate certificate = ks.getCertificate(alias);
+                    if (certificate instanceof X509Certificate) {
+                        if (((X509Certificate) certificate).getBasicConstraints() != -1) {
+                            ks.deleteEntry(alias);
+                        }
+                    }
+                }
+            }
             return CertParsingUtils.keyManager(ks, keyPassword.getChars(), keyStoreAlgorithm);
         } catch (FileNotFoundException | NoSuchFileException e) {
             throw missingKeyConfigFile(e, KEYSTORE_FILE, ksPath);
@@ -124,24 +139,6 @@ public class StoreKeyConfig extends KeyConfig {
                 if (certificate instanceof X509Certificate) {
                     certificates.add(new CertificateInfo(keyStorePath, keyStoreType, alias, i == 0, (X509Certificate) certificate));
                 }
-            }
-        }
-        return certificates;
-    }
-
-    /**
-     * Returns all certificates that can be found in the keystore, either as part of a PrivateKeyEntry or a TrustedCertificateEntry.
-     * Duplicates are removed.
-     */
-    public Collection<X509Certificate> x509Certificates(Environment environment) throws GeneralSecurityException, IOException {
-        final KeyStore trustStore = getStore(CertParsingUtils.resolvePath(keyStorePath, environment), keyStoreType, keyStorePassword);
-        final Set<X509Certificate> certificates = new HashSet<>();
-        final Enumeration<String> aliases = trustStore.aliases();
-        while (aliases.hasMoreElements()) {
-            String alias = aliases.nextElement();
-            final Certificate certificate = trustStore.getCertificate(alias);
-            if (certificate instanceof X509Certificate) {
-                certificates.add((X509Certificate) certificate);
             }
         }
         return certificates;

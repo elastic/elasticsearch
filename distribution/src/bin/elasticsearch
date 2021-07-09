@@ -28,10 +28,6 @@ for option in "$@"; do
   esac
 done
 
-if [ -z "$ES_TMPDIR" ]; then
-  ES_TMPDIR=`"$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
-fi
-
 # get keystore password before setting java options to avoid
 # conflicting GC configurations for the keystore tools
 unset KEYSTORE_PASSWORD

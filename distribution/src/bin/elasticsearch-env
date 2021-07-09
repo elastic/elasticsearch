@@ -94,6 +94,12 @@ fi
 # now make ES_PATH_CONF absolute
 ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 
+if [ -z "$ES_TMPDIR" ]; then
+  ES_TMPDIR=`"$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
+fi
+# avoid here-string writing to /tmp
+TMPDIR=$ES_TMPDIR
+
 ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
 ES_DISTRIBUTION_TYPE=${es.distribution.type}
 ES_BUNDLED_JDK=${es.bundled_jdk}

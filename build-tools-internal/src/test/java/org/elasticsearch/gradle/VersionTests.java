@@ -17,8 +17,6 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.nullValue;
@@ -100,7 +98,7 @@ public class VersionTests extends GradleUnitTestCase {
         Version.fromString("foo.bar.baz");
     }
 
-    public void testLabels() {
+    public void testQualifiers() {
         Version v = Version.fromString("1.2.3");
         assertThat(v.getQualifier(), nullValue());
 
@@ -109,6 +107,9 @@ public class VersionTests extends GradleUnitTestCase {
 
         v = Version.fromString("1.2.3-SNAPSHOT");
         assertThat(v.getQualifier(), equalTo("SNAPSHOT"));
+
+        v = Version.fromString("1.2.3-SNAPSHOT-EXTRA", Version.Mode.RELAXED);
+        assertThat(v.getQualifier(), equalTo("SNAPSHOT-EXTRA"));
     }
 
     private void assertOrder(Version smaller, Version bigger) {

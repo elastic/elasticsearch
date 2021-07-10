@@ -161,7 +161,8 @@ tasks.named("yamlRestCompatTest").configure {
     //https://github.com/elastic/elasticsearch/pull/41502
     'rollup/start_job/Test start job twice',
     // a type field was added to cat.ml_trained_models #73660, this might need some work
-    'ml/trained_model_cat_apis/Test cat trained models'
+    'ml/trained_model_cat_apis/Test cat trained models',
+    'service_accounts/10_basic/Test service account tokens', // https://github.com/elastic/elasticsearch/pull/75200
     ] + v7compatibilityNotSupportedTests())
 
 

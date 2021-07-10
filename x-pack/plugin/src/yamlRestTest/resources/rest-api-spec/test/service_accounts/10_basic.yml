@@ -77,8 +77,9 @@ teardown:
   - match: { "count": 2 }
   - match: { "tokens": { "api-token-1": {} } }
   - match: { "file_tokens._nodes.failed": 0 }
-  - is_true: { "file_tokens.token1" }
-  - is_true: { "file_tokens.token1.length" }
+  - is_true: file_tokens.token1
+  - is_true: file_tokens.token1.nodes
+  - match: { "file_tokens.token1.nodes.0" : "/(yamlRestTest-0|yamlRestCompatTest-0)/" }
 
   - do:
       security.clear_cached_service_tokens:

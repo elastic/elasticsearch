@@ -119,6 +119,11 @@ public class NumberFieldMapper extends FieldMapper {
                     if (v && EnumSet.of(NumberType.INTEGER, NumberType.LONG, NumberType.BYTE, NumberType.SHORT).contains(type) == false) {
                         throw new IllegalArgumentException("Parameter [dimension] cannot be set to numeric type [" + type.name + "]");
                     }
+                    if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                        throw new IllegalArgumentException(
+                            "Field [dimension] requires that [" + indexed.name + "] and [" + hasDocValues.name + "] are true"
+                        );
+                    }
                 });
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
@@ -1138,47 +1143,56 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        XContentParser parser = context.parser();
-        Object value;
-        Number numericValue = null;
-        if (parser.currentToken() == Token.VALUE_NULL) {
-            value = null;
-        } else if (coerce.value()
-                && parser.currentToken() == Token.VALUE_STRING
-                && parser.textLength() == 0) {
-            value = null;
-        } else {
-            try {
-                numericValue = fieldType().type.parse(parser, coerce.value());
-            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
-                if (ignoreMalformed.value() && parser.currentToken().isValue()) {
-                    context.addIgnoredField(mappedFieldType.name());
-                    return;
-                } else {
-                    throw e;
-                }
+        Number value;
+        try {
+            value = value(context.parser(), type, nullValue, coerce.value());
+        } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
+            if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
+                context.addIgnoredField(mappedFieldType.name());
+                return;
+            } else {
+                throw e;
             }
-            value = numericValue;
         }
-
-        if (value == null) {
-            value = nullValue;
+        if (value != null) {
+            indexValue(context, value);
         }
+    }
 
-        if (value == null) {
-            return;
+    /**
+     * Read the value at the current position of the parser.
+     * @throws InputCoercionException if xcontent couldn't convert the value in the required type, for example, integer overflow
+     * @throws JsonParseException if there was any error parsing the json
+     * @throws IllegalArgumentException if there was an error parsing the value from the json
+     * @throws IOException if there was any other IO error
+     */
+    private static Number value(XContentParser parser, NumberType numberType, Number nullValue, boolean coerce)
+        throws InputCoercionException, JsonParseException, IllegalArgumentException, IOException {
+
+        if (parser.currentToken() == Token.VALUE_NULL) {
+            return nullValue;
         }
-
-        if (numericValue == null) {
-            numericValue = fieldType().type.parse(value, coerce.value());
+        if (coerce && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
+            return nullValue;
         }
-
-        indexValue(context, numericValue);
+        return numberType.parse(parser, coerce);
     }
 
     private void indexValue(DocumentParserContext context, Number numericValue) {
-        context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue,
-            indexed, hasDocValues, stored));
+        List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
+        if (dimension) {
+            // Check that a dimension field is single-valued and not an array
+            if (context.doc().getByKey(fieldType().name()) != null) {
+                throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
+            }
+            if (fields.size() > 0) {
+                // Add the first field by key so that we can validate if it has been added
+                context.doc().addWithKey(fieldType().name(), fields.get(0));
+                context.doc().addAll(fields.subList(1, fields.size()));
+            }
+        } else {
+            context.doc().addAll(fields);
+        }
 
         if (hasDocValues == false && (stored || indexed)) {
             context.addToFieldNames(fieldType().name());

@@ -26,9 +26,10 @@ Returns configuration and usage information about {anomaly-jobs}.
 [[cat-anomaly-detectors-desc]]
 ==== {api-description-title}
 
-See {ml-docs}/ml-jobs.html[{anomaly-jobs-cap}].
-
 NOTE: This API returns a maximum of 10,000 jobs.
+
+For more information about {anomaly-detect}, see
+{ml-docs}/ml-ad-finding-anomalies.html[Finding anomalies].
 
 [[cat-anomaly-detectors-path-params]]
 ==== {api-path-parms-title}

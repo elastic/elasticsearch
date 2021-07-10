@@ -124,12 +124,13 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
 
-            this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
-                .setValidator(v -> {
-                    if (v && ignoreAbove.getValue() < ignoreAbove.getDefaultValue()) {
-                        throw new IllegalArgumentException("Field [ignore_above] cannot be set in conjunction with field [dimension]");
-                    }
-                });
+            this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false).setValidator(v -> {
+                if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                    throw new IllegalArgumentException(
+                        "Field [dimension] requires that [" + indexed.name + "] and [" + hasDocValues.name + "] are true"
+                    );
+                }
+            }).precludesParameters(normalizer, ignoreAbove);
         }
 
         public Builder(String name) {
@@ -364,12 +365,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         return null;
                     }
 
-                    NamedAnalyzer normalizer = normalizer();
-                    if (normalizer == null) {
-                        return keywordValue;
-                    }
-
-                    return normalizeValue(normalizer, name(), keywordValue);
+                    return normalizeValue(normalizer(), name(), keywordValue);
                 }
             };
         }
@@ -435,6 +431,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             return isDimension;
         }
     }
+
+    /** The maximum keyword length allowed for a dimension field */
+    private static final int DIMENSION_MAX_BYTES = 1024;
 
     private final boolean indexed;
     private final boolean hasDocValues;
@@ -510,16 +509,28 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
-        NamedAnalyzer normalizer = fieldType().normalizer();
-        if (normalizer != null) {
-            value = normalizeValue(normalizer, name(), value);
-        }
+        value = normalizeValue(fieldType().normalizer(), name(), value);
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
+        if (dimension && binaryValue.length > DIMENSION_MAX_BYTES) {
+            throw new IllegalArgumentException(
+                "Dimension field [" + fieldType().name() + "] cannot be more than [" + DIMENSION_MAX_BYTES + "] bytes long."
+            );
+        }
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
-            context.doc().add(field);
+            if (dimension) {
+                // Check that a dimension field is single-valued and not an array
+                if (context.doc().getByKey(fieldType().name()) != null) {
+                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
+                }
+                // Add dimension field with key so that we ensure it is single-valued.
+                // Dimension fields are always indexed.
+                context.doc().addWithKey(fieldType().name(), field);
+            } else {
+                context.doc().add(field);
+            }
 
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());
@@ -532,6 +543,9 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) {
+        if (normalizer == Lucene.KEYWORD_ANALYZER) {
+            return value;
+        }
         try (TokenStream ts = normalizer.tokenStream(field, value)) {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();

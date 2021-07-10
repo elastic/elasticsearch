@@ -53,6 +53,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -94,7 +95,18 @@ public class RestCompatTestTransformTask extends DefaultTask {
         // always inject compat headers
         headers.put("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
         headers.put("Accept", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
-        transformations.add(new InjectHeaders(headers));
+        transformations.add(new InjectHeaders(headers, Set.of(RestCompatTestTransformTask::doesNotHaveCatOperation)));
+    }
+
+    private static boolean doesNotHaveCatOperation(ObjectNode doNodeValue) {
+        final Iterator<String> fieldNamesIterator = doNodeValue.fieldNames();
+        while (fieldNamesIterator.hasNext()) {
+            final String fieldName = fieldNamesIterator.next();
+            if (fieldName.startsWith("cat.")) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

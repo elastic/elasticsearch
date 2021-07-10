@@ -527,7 +527,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final GetServiceAccountCredentialsResponse response = future.actionGet();
         assertThat(response.getPrincipal(), equalTo(accountId.asPrincipal()));
         assertThat(response.getFileTokensResponse(), is(fileTokensResponse));
-        assertThat(response.getIndexTokenInfos(), equalTo(indexTokenInfos));
+        assertThat(response.getTokenInfos(), equalTo(indexTokenInfos));
     }
 
     public void testTlsRequired() {

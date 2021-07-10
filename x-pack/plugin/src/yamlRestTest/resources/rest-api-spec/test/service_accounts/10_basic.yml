@@ -76,7 +76,9 @@ teardown:
   - match: { "service_account": "elastic/fleet-server" }
   - match: { "count": 2 }
   - match: { "tokens": { "api-token-1": {} } }
-  - match: { "file_tokens": { "token1": {}} }
+  - match: { "file_tokens._nodes.failed": 0 }
+  - is_true: { "file_tokens.token1" }
+  - is_true: { "file_tokens.token1.length" }
 
   - do:
       security.clear_cached_service_tokens:

@@ -20,12 +20,12 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 
-public class GetServiceAccountFileTokensResponse {
+public class FileServiceTokensResponse {
 
     private final NodesResponseHeader header;
     private final List<ServiceTokenInfo> tokenInfos;
 
-    public GetServiceAccountFileTokensResponse(
+    public FileServiceTokensResponse(
         NodesResponseHeader header, List<ServiceTokenInfo> tokenInfos) {
         this.header = header;
         this.tokenInfos = tokenInfos;
@@ -39,7 +39,7 @@ public class GetServiceAccountFileTokensResponse {
         return tokenInfos;
     }
 
-    public static GetServiceAccountFileTokensResponse fromXContent(XContentParser parser) throws IOException {
+    public static FileServiceTokensResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         NodesResponseHeader header = null;
         final ArrayList<ServiceTokenInfo> fileTokenInfos = new ArrayList<>();
@@ -56,7 +56,7 @@ public class GetServiceAccountFileTokensResponse {
                 fileTokenInfos.add(parseFileToken(parser.currentName(), parser));
             }
         }
-        return new GetServiceAccountFileTokensResponse(header, fileTokenInfos);
+        return new FileServiceTokensResponse(header, fileTokenInfos);
     }
 
     static ServiceTokenInfo parseFileToken(String tokenName, XContentParser parser) throws IOException {

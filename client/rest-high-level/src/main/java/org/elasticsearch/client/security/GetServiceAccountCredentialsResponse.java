@@ -8,6 +8,7 @@
 
 package org.elasticsearch.client.security;
 
+import org.elasticsearch.client.NodesResponseHeader;
 import org.elasticsearch.client.security.support.ServiceTokenInfo;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
@@ -17,6 +18,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -28,42 +31,40 @@ public final class GetServiceAccountCredentialsResponse {
 
     private final String principal;
     private final List<ServiceTokenInfo> indexTokenInfos;
-    private final GetServiceAccountFileTokensResponse fileTokensResponse;
+    private final FileServiceTokensResponse fileTokensResponse;
 
     public GetServiceAccountCredentialsResponse(String principal,
-                                                int count,
                                                 List<ServiceTokenInfo> indexTokenInfos,
-                                                GetServiceAccountFileTokensResponse fileTokensResponse) {
-        if (count != indexTokenInfos.size() + fileTokensResponse.getTokenInfos().size()) {
-            throw new IllegalArgumentException("number of tokens do not match");
-        }
-        this.fileTokensResponse = Objects.requireNonNull(fileTokensResponse, "file tokens response is required");
+                                                FileServiceTokensResponse fileTokensResponse) {
         this.principal = Objects.requireNonNull(principal, "principal is required");
         this.indexTokenInfos = List.copyOf(Objects.requireNonNull(indexTokenInfos, "service token infos are required)"));
+        this.fileTokensResponse = Objects.requireNonNull(fileTokensResponse, "file tokens response is required");
     }
 
     public String getPrincipal() {
         return principal;
     }
 
-    public int getCount() {
-        return indexTokenInfos.size() + fileTokensResponse.getTokenInfos().size();
+    public List<ServiceTokenInfo> getTokenInfos() {
+        return Stream.concat(fileTokensResponse.getTokenInfos().stream(), indexTokenInfos.stream())
+            .collect(Collectors.toUnmodifiableList());
     }
 
-    public List<ServiceTokenInfo> getIndexTokenInfos() {
-        return indexTokenInfos;
-    }
-
-    public GetServiceAccountFileTokensResponse getFileTokensResponse() {
-        return fileTokensResponse;
+    public NodesResponseHeader getFileTokensResponseHeader() {
+        return fileTokensResponse.getHeader();
     }
 
     @SuppressWarnings("unchecked")
     static ConstructingObjectParser<GetServiceAccountCredentialsResponse, Void> PARSER =
         new ConstructingObjectParser<>("get_service_account_credentials_response",
             args -> {
-                return new GetServiceAccountCredentialsResponse((String) args[0], (int) args[1], (List<ServiceTokenInfo>) args[2],
-                    (GetServiceAccountFileTokensResponse) args[3]);
+                final int count = (int) args[1];
+                final List<ServiceTokenInfo> indexTokenInfos = (List<ServiceTokenInfo>) args[2];
+                final FileServiceTokensResponse fileTokensResponse = (FileServiceTokensResponse) args[3];
+                if (count != indexTokenInfos.size() + fileTokensResponse.getTokenInfos().size()) {
+                    throw new IllegalArgumentException("number of tokens do not match");
+                }
+                return new GetServiceAccountCredentialsResponse((String) args[0], indexTokenInfos, fileTokensResponse);
             });
 
     static {
@@ -72,7 +73,7 @@ public final class GetServiceAccountCredentialsResponse {
         PARSER.declareObject(constructorArg(),
             (p, c) -> GetServiceAccountCredentialsResponse.parseIndexTokenInfos(p), new ParseField("tokens"));
         PARSER.declareObject(constructorArg(),
-            (p, c) -> GetServiceAccountFileTokensResponse.fromXContent(p), new ParseField("file_tokens"));
+            (p, c) -> FileServiceTokensResponse.fromXContent(p), new ParseField("file_tokens"));
     }
 
     public static GetServiceAccountCredentialsResponse fromXContent(XContentParser parser) throws IOException {

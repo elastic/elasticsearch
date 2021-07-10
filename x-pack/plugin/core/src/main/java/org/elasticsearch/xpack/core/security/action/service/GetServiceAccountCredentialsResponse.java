@@ -17,6 +17,7 @@ import org.elasticsearch.rest.action.RestActions;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 
@@ -44,8 +45,9 @@ public class GetServiceAccountCredentialsResponse extends ActionResponse impleme
         return principal;
     }
 
-    public Collection<TokenInfo> getIndexTokenInfos() {
-        return indexTokenInfos;
+    public Collection<TokenInfo> getTokenInfos() {
+        return Stream.concat(fileTokensResponse.getTokenInfos().stream(), indexTokenInfos.stream())
+            .collect(toUnmodifiableList());
     }
 
     public GetServiceAccountFileTokensResponse getFileTokensResponse() {

@@ -43,7 +43,7 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
         final GetServiceAccountCredentialsResponse deserialized = new GetServiceAccountCredentialsResponse(out.bytes().streamInput());
 
         assertThat(original.getPrincipal(), equalTo(deserialized.getPrincipal()));
-        assertThat(original.getIndexTokenInfos(), equalTo(deserialized.getIndexTokenInfos()));
+        assertThat(original.getTokenInfos(), equalTo(deserialized.getTokenInfos()));
         assertThat(original.getFileTokensResponse().getTokenInfos(), equalTo(deserialized.getFileTokensResponse().getTokenInfos()));
     }
 
@@ -59,8 +59,7 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
         final GetServiceAccountCredentialsResponse response = createTestInstance();
-        final Collection<TokenInfo> indexTokenInfos = response.getIndexTokenInfos();
-        final List<TokenInfo> fileTokenInfos = response.getFileTokensResponse().getTokenInfos();
+        final Collection<TokenInfo> tokenInfos = response.getTokenInfos();
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -68,17 +67,16 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
             false, builder.contentType()).v2();
 
         assertThat(responseMap.get("service_account"), equalTo(response.getPrincipal()));
-        assertThat(responseMap.get("count"), equalTo(indexTokenInfos.size() + fileTokenInfos.size()));
+        assertThat(responseMap.get("count"), equalTo(tokenInfos.size()));
 
-        final Map<String, TokenInfo> nameToIndexTokenInfos = indexTokenInfos.stream()
+        final Map<String, TokenInfo> nameToTokenInfos = tokenInfos.stream()
             .collect(Collectors.toMap(TokenInfo::getName, Function.identity()));
+
         final Map<String, Object> tokens = (Map<String, Object>) responseMap.get("tokens");
         assertNotNull(tokens);
-        tokens.keySet().forEach(k -> assertThat(nameToIndexTokenInfos.remove(k).getSource(), equalTo(TokenInfo.TokenSource.INDEX)));
-        assertThat(nameToIndexTokenInfos, is(anEmptyMap()));
+        tokens.keySet().forEach(k -> assertThat(nameToTokenInfos.remove(k).getSource(), equalTo(TokenInfo.TokenSource.INDEX)));
 
-        final Map<String, TokenInfo> nameToFileTokenInfos = fileTokenInfos.stream()
-            .collect(Collectors.toMap(TokenInfo::getName, Function.identity()));
+
         final Map<String, Object> fileTokens = (Map<String, Object>) responseMap.get("file_tokens");
         assertNotNull(fileTokens);
         fileTokens.forEach((key, value) -> {
@@ -88,11 +86,11 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
                 assertThat(nodesContent.get("failed"), equalTo(response.getFileTokensResponse().failures().size()));
             } else {
                 final Map<String, Object> tokenContent = (Map<String, Object>) value;
-                assertThat(tokenContent.get("nodes"), equalTo(nameToFileTokenInfos.get(key).getNodeNames()));
-                assertThat(nameToFileTokenInfos.remove(key).getSource(), equalTo(TokenInfo.TokenSource.FILE));
+                assertThat(tokenContent.get("nodes"), equalTo(nameToTokenInfos.get(key).getNodeNames()));
+                assertThat(nameToTokenInfos.remove(key).getSource(), equalTo(TokenInfo.TokenSource.FILE));
             }
         });
-        assertThat(nameToFileTokenInfos, is(anEmptyMap()));
+        assertThat(nameToTokenInfos, is(anEmptyMap()));
     }
 
     private GetServiceAccountFileTokensResponse randomGetServiceAccountFileTokensResponse() {

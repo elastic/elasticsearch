@@ -59,27 +59,15 @@ public class GetServiceAccountCredentialsResponseTests
         assertThat(serverTestInstance.getPrincipal(), equalTo(clientInstance.getPrincipal()));
 
         assertThat(
-            serverTestInstance.getIndexTokenInfos().stream()
+            serverTestInstance.getTokenInfos().stream()
                 .map(tokenInfo -> new Tuple<>(tokenInfo.getName(), tokenInfo.getSource().name().toLowerCase(Locale.ROOT)))
                 .collect(Collectors.toSet()),
-            equalTo(clientInstance.getIndexTokenInfos().stream()
-                .map(info -> new Tuple<>(info.getName(), info.getSource()))
-                .collect(Collectors.toSet())));
-
-        assertThat(
-            serverTestInstance.getFileTokensResponse()
-                .getTokenInfos()
-                .stream()
-                .map(tokenInfo -> new Tuple<>(tokenInfo.getName(), tokenInfo.getSource().name().toLowerCase(Locale.ROOT)))
-                .collect(Collectors.toSet()),
-            equalTo(clientInstance.getFileTokensResponse()
-                .getTokenInfos()
-                .stream()
+            equalTo(clientInstance.getTokenInfos().stream()
                 .map(info -> new Tuple<>(info.getName(), info.getSource()))
                 .collect(Collectors.toSet())));
 
         assertThat(
             serverTestInstance.getFileTokensResponse().failures().size(),
-            equalTo(clientInstance.getFileTokensResponse().getHeader().getFailures().size()));
+            equalTo(clientInstance.getFileTokensResponseHeader().getFailures().size()));
     }
 }

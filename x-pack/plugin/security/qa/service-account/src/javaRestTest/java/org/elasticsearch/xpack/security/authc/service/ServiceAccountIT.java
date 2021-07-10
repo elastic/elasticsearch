@@ -293,7 +293,6 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("document already exists"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetServiceAccountCredentials() throws IOException {
         final Request getTokensRequest = new Request("GET", "_security/service/elastic/fleet-server/credential");
         final Response getTokensResponse1 = client().performRequest(getTokensRequest);
@@ -434,6 +433,6 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(header.get("failures"), nullValue());
         assertThat(fileTokens, hasKey("token1"));
         final Map<String, Object> token1 = (Map<String, Object>) fileTokens.get("token1");
-        assertThat(((List<String>) token1.get("nodes")).size(), equalTo(2));
+        assertThat((List<String>) token1.get("nodes"), equalTo(List.of("javaRestTest-0", "javaRestTest-1")));
     }
 }

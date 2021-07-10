@@ -63,6 +63,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -278,17 +279,19 @@ public class ServiceAccountServiceTests extends ESTestCase {
     public void testTryAuthenticateBearerToken() throws ExecutionException, InterruptedException {
         // Valid token
         final PlainActionFuture<Authentication> future5 = new PlainActionFuture<>();
-        final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
 
-        final ServiceAccountTokenStore store = randomFrom(fileServiceAccountTokenStore, indexServiceAccountTokenStore);
+        final CachingServiceAccountTokenStore authenticatingStore = randomFrom(fileServiceAccountTokenStore, indexServiceAccountTokenStore);
+        Stream.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore).forEach(store -> {
+            doAnswer(invocationOnMock -> {
+                @SuppressWarnings("unchecked")
+                final ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult> listener =
+                    (ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+                listener.onResponse(
+                    new ServiceAccountTokenStore.StoreAuthenticationResult(store == authenticatingStore, store.getTokenSource()));
+                return null;
+            }).when(store).authenticate(any(), any());
+        });
 
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            final ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult> listener =
-                (ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new ServiceAccountTokenStore.StoreAuthenticationResult(true, tokenSource));
-            return null;
-        }).when(store).authenticate(any(), any());
         final String nodeName = randomAlphaOfLengthBetween(3, 8);
         serviceAccountService.authenticateToken(
             new ServiceAccountToken(new ServiceAccountId("elastic", "fleet-server"), "token1",
@@ -300,7 +303,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
                     Map.of("_elastic_service_account", true), true),
                 new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName),
                 null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-                Map.of("_token_name", "token1", "_token_source", tokenSource.name().toLowerCase(Locale.ROOT))
+                Map.of("_token_name", "token1",
+                    "_token_source", authenticatingStore.getTokenSource().name().toLowerCase(Locale.ROOT))
             )
         ));
     }

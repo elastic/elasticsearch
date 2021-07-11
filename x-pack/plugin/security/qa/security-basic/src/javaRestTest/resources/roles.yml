@@ -9,6 +9,7 @@ security_test_role:
 
 api_key_admin_role:
   cluster:
+    - manage_own_api_key
     - manage_api_key
 
 api_key_user_role:

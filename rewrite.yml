@@ -1,0 +1,21 @@
+type: specs.openrewrite.org/v1beta/recipe
+name: org.elasticsearch.java.backport.ListOfBackport
+displayName: Use `org.elasticsearch.core.Lists#of(..)` not java.util.List.of#(..)
+description: Java 8 does not support the `java.util.List#of(..)`.
+tags:
+  - jdk
+recipeList:
+  - org.openrewrite.java.ChangeMethodTargetToStatic:
+      methodPattern: java.util.List of(..)
+      fullyQualifiedTargetTypeName: org.elasticsearch.core.Lists
+
+type: specs.openrewrite.org/v1beta/recipe
+name: org.elasticsearch.java.backport.MapOfBackport
+displayName: Use `org.elasticsearch.core.Maps#of(..)` not java.util.Map.of#(..)
+description: Java 8 does not support the `java.util.Map#of(..)`.
+tags:
+  - jdk
+recipeList:
+  - org.openrewrite.java.ChangeMethodTargetToStatic:
+      methodPattern: java.util.Map of(..)
+      fullyQualifiedTargetTypeName: org.elasticsearch.core.Maps

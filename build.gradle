@@ -141,6 +141,60 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
 }
 
 allprojects {
+  apply plugin:'elasticsearch.rewrite'
+  rewrite {
+    rewriteVersion = "latest.release"
+    activeRecipe("org.elasticsearch.java.backport.ListOfBackport", "org.elasticsearch.java.backport.MapOfBackport")
+    configFile = rootProject.file("rewrite.yml")
+  }
+
+  repositories {
+    mavenCentral()
+    maven {
+      url = "https://oss.sonatype.org/content/repositories/snapshots/"
+    }
+  }
+
+  configurations {
+    rewriteRun {
+      resolutionStrategy {
+        force 'org.jetbrains:annotations:21.0.1'
+        force 'org.slf4j:slf4j-api:1.7.31'
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.5.10'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.5.10'
+      }
+    }
+    rewriteDryRun {
+      resolutionStrategy {
+        force 'org.jetbrains:annotations:21.0.1'
+        force 'org.slf4j:slf4j-api:1.7.31'
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.5.10'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.5.10'
+      }
+    }
+    rewrite {
+      extendsFrom rewriteRun
+      resolutionStrategy {
+        force 'org.jetbrains:annotations:21.0.1'
+        force 'org.slf4j:slf4j-api:1.7.31'
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.5.10'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.5.10'
+      }
+    }
+  }
+
+  String rewriteVersion = rewrite.getRewriteVersion();
+
+  dependencies {
+    rewrite "com.breskeby.rewrite:auto-backport:1.0"
+    rewriteRun "org.openrewrite:rewrite-java-11:" + rewriteVersion
+    rewriteRun "org.openrewrite:rewrite-java-8:" + rewriteVersion
+    rewriteRun "org.openrewrite:rewrite-maven:" + rewriteVersion
+    rewriteRun "org.openrewrite:rewrite-xml:" + rewriteVersion
+    rewriteRun "org.openrewrite:rewrite-yaml:" + rewriteVersion
+    rewriteRun "org.openrewrite:rewrite-properties:" + rewriteVersion
+  }
+
   // common maven publishing configuration
   group = 'org.elasticsearch'
   version = VersionProperties.elasticsearch

@@ -123,6 +123,10 @@ gradlePlugin {
       id = 'elasticsearch.rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.RestTestPlugin'
     }
+    rewrite {
+      id = 'elasticsearch.rewrite'
+      implementationClass = 'org.elasticsearch.gradle.internal.rewrite.RewritePlugin'
+    }
     standaloneRestTest {
       id = 'elasticsearch.standalone-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.StandaloneRestTestPlugin'
@@ -197,9 +201,12 @@ repositories {
 configurations {
   integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
 }
+
 dependencies {
 
   api localGroovy()
+  api gradleApi()
+  api "org.openrewrite:plugin:latest.release"
 
   api "org.elasticsearch:build-conventions:$version"
   api "org.elasticsearch.gradle:build-tools:$version"

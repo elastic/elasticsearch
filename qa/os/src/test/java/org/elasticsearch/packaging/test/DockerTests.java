@@ -487,6 +487,50 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that settings are applied when they are supplied as environment variables with names that are:
+     * <ul>
+     *     <li>Prefixed with {@code ES_}</li>
+     *     <li>All uppercase</li>
+     *     <li>Dots (periods) are converted to underscores</li>
+     *     <li>Underscores in setting names are escaped by doubling them</li>
+     * </ul>
+     */
+    public void test086EnvironmentVariablesInSnakeCaseAreTranslated() {
+        // Note the double-underscore in the var name here, which retains the underscore in translation
+        installation = runContainer(distribution(), builder().envVars(Map.of("ES_XPACK_SECURITY_FIPS__MODE_ENABLED", "false")));
+
+        final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
+            .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
+            .findFirst();
+
+        assertThat(commandLine.isPresent(), equalTo(true));
+
+        assertThat(commandLine.get(), containsString("-Expack.security.fips_mode.enabled=false"));
+    }
+
+    /**
+     * Check that environment variables that do not match the criteria for translation to settings are ignored.
+     */
+    public void test087EnvironmentVariablesInIncorrectFormatAreIgnored() {
+        final Map<String, String> envVars = new HashMap<>();
+        // No ES_ prefix
+        envVars.put("XPACK_SECURITY_FIPS__MODE_ENABLED", "false");
+        // Not underscore-separated
+        envVars.put("ES.XPACK.SECURITY.FIPS_MODE.ENABLED", "false");
+        // Not uppercase
+        envVars.put("es_xpack_security_fips__mode_enabled", "false");
+        installation = runContainer(distribution(), builder().envVars(envVars));
+
+        final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
+            .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
+            .findFirst();
+
+        assertThat(commandLine.isPresent(), equalTo(true));
+
+        assertThat(commandLine.get(), not(containsString("-Expack.security.fips_mode.enabled=false")));
+    }
+
+    /**
      * Check whether the elasticsearch-certutil tool has been shipped correctly,
      * and if present then it can execute.
      */

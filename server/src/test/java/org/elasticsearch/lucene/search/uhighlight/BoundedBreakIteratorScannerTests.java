@@ -133,4 +133,16 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         assertEquals(33, bi.preceding(offset));
         assertEquals(text.length(), bi.following(offset - 1));
     }
+
+    public void testFragmentSizeThatIsTooBig() {
+        final int fragmentSize = Integer.MAX_VALUE;
+        BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, fragmentSize);
+
+        final String text = "Any sentence";
+        final int offset = 0; // find at beggining of text
+
+        bi.setText(text);
+        assertEquals(0, bi.preceding(offset));
+        assertEquals(text.length(), bi.following(offset - 1));
+    }
 }

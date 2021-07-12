@@ -49,7 +49,8 @@ tasks.named("transformV7RestTests").configure({ task ->
 
   task.addAllowedWarningRegex(".*_xpack/watcher/.* is deprecated.*")
   task.addAllowedWarningRegex("\\[types removal\\].*")
-  task.replaceValueTextByKeyValue("path", "/my_index/my_type/{{ctx.watch_id}}", "/my_index/_doc/{{ctx.watch_id}}")
+  task.replaceValueTextByKeyValue("path", "/my_index/my_type/{{ctx.watch_id}}", "/my_index/_doc/{{ctx.watch_id}}",
+    "Test webhook action with mustache integration")
 
 })
 

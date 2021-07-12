@@ -166,7 +166,7 @@ public class IndexSnapshotsService {
         }
 
         private ShardSnapshotInfo createIndexShardSnapshotInfo(String indexMetadataId, SnapshotFiles snapshotFiles) {
-            return new ShardSnapshotInfo(indexId, shardId, snapshotInfo, indexMetadataId, snapshotFiles);
+            return new ShardSnapshotInfo(indexId, shardId, snapshotInfo, indexMetadataId, snapshotFiles.shardStateIdentifier());
         }
     }
 }

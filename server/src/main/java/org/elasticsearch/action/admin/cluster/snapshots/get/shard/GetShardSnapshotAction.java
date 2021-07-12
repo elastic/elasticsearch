@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionType;
 public class GetShardSnapshotAction extends ActionType<GetShardSnapshotResponse> {
 
     public static final GetShardSnapshotAction INSTANCE = new GetShardSnapshotAction();
-    public static final String NAME = "cluster:admin/snapshot/get_shard";
+    public static final String NAME = "internal:admin/snapshot/get_shard";
 
     public GetShardSnapshotAction() {
         super(NAME, GetShardSnapshotResponse::new);

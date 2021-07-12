@@ -7,13 +7,9 @@
  */
 package org.elasticsearch.index.snapshots.blobstore;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +18,7 @@ import java.util.Objects;
 /**
  * Contains a list of files participating in a snapshot
  */
-public class SnapshotFiles implements Writeable {
+public class SnapshotFiles {
 
     private final String snapshot;
 
@@ -51,19 +47,6 @@ public class SnapshotFiles implements Writeable {
         this.snapshot = snapshot;
         this.indexFiles = indexFiles;
         this.shardStateIdentifier = shardStateIdentifier;
-    }
-
-    public SnapshotFiles(StreamInput in) throws IOException {
-        this.snapshot = in.readString();
-        this.indexFiles = in.readList(FileInfo::new);
-        this.shardStateIdentifier = in.readOptionalString();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(snapshot);
-        out.writeList(indexFiles);
-        out.writeOptionalString(shardStateIdentifier);
     }
 
     /**
@@ -147,20 +130,5 @@ public class SnapshotFiles implements Writeable {
             + "], indexFiles="
             + indexFiles
             + "}";
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SnapshotFiles that = (SnapshotFiles) o;
-        return Objects.equals(snapshot, that.snapshot)
-            && Objects.equals(indexFiles, that.indexFiles)
-            && Objects.equals(shardStateIdentifier, that.shardStateIdentifier);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(snapshot, indexFiles, shardStateIdentifier);
     }
 }

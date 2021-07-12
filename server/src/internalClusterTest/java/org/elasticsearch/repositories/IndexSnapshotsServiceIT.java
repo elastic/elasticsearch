@@ -38,11 +38,9 @@ import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
@@ -162,7 +160,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             assertThat(indexShardSnapshotInfoOpt.isPresent(), equalTo(true));
 
             final ShardSnapshotInfo shardSnapshotInfo = indexShardSnapshotInfoOpt.get();
-            assertThat(shardSnapshotInfo.getIndexFiles(), not(empty()));
+            assertThat(shardSnapshotInfo.getShardStateIdentifier(), notNullValue());
 
             final ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().execute().actionGet();
             final IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(indexName);
@@ -202,7 +200,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             assertThat(indexShardSnapshotInfoOpt.isPresent(), equalTo(true));
             final ShardSnapshotInfo shardSnapshotInfo = indexShardSnapshotInfoOpt.get();
             assertThat(shardSnapshotInfo.getIndexMetadataIdentifier(), is(notNullValue()));
-            assertThat(shardSnapshotInfo.getIndexFiles(), not(empty()));
+            assertThat(shardSnapshotInfo.getShardStateIdentifier(), notNullValue());
 
             final SnapshotInfo snapshotInfo = shardSnapshotInfo.getSnapshotInfo();
             assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));

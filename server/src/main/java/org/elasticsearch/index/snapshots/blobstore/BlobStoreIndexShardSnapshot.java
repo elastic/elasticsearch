@@ -11,9 +11,6 @@ package org.elasticsearch.index.snapshots.blobstore;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -24,7 +21,6 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.IntStream;
 
 /**
@@ -35,7 +31,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     /**
      * Information about snapshotted file
      */
-    public static class FileInfo implements Writeable {
+    public static class FileInfo {
 
         private final String name;
         private final ByteSizeValue partSize;
@@ -72,17 +68,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             this.partSize = partSize;
             this.partBytes = partBytes;
             assert IntStream.range(0, numberOfParts).mapToLong(this::partBytes).sum() == metadata.length();
-        }
-
-        public FileInfo(StreamInput in) throws IOException {
-            this(in.readString(), new StoreFileMetadata(in), new ByteSizeValue(in));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            metadata.writeTo(out);
-            partSize.writeTo(out);
         }
 
         /**
@@ -342,23 +327,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 + ", metadata: "
                 + metadata
                 + "]";
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FileInfo fileInfo = (FileInfo) o;
-            return partBytes == fileInfo.partBytes
-                && numberOfParts == fileInfo.numberOfParts
-                && Objects.equals(name, fileInfo.name)
-                && Objects.equals(partSize, fileInfo.partSize)
-                && Objects.equals(metadata, fileInfo.metadata);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, partSize, partBytes, numberOfParts, metadata);
         }
     }
 

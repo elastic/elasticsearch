@@ -93,11 +93,11 @@ public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
     InternalMappedSignificantTerms<?, ?> getRandomSignificantTerms(SignificanceHeuristic heuristic) {
         if (randomBoolean()) {
             SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY,
-                DocValueFormat.RAW, randomDoubleBetween(0, 100, true));
+                    DocValueFormat.RAW, randomDoubleBetween(0, 100, true));
             return new SignificantLongTerms("some_name", 1, 1, null, DocValueFormat.RAW, 10, 20, heuristic, singletonList(bucket));
         } else {
             SignificantStringTerms.Bucket bucket = new SignificantStringTerms.Bucket(new BytesRef("someterm"), 1, 2, 3, 4,
-                InternalAggregations.EMPTY, DocValueFormat.RAW, randomDoubleBetween(0, 100, true));
+                    InternalAggregations.EMPTY, DocValueFormat.RAW, randomDoubleBetween(0, 100, true));
             return new SignificantStringTerms("some_name", 1, 1, null, DocValueFormat.RAW, 10, 20, heuristic, singletonList(bucket));
         }
     }
@@ -203,9 +203,9 @@ public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
 
     private abstract class TestAggFactory<A extends InternalSignificantTerms<A, B>, B extends InternalSignificantTerms.Bucket<B>> {
         final A createAggregation(SignificanceHeuristic significanceHeuristic, long subsetSize, long supersetSize, int bucketCount,
-                                  BiFunction<TestAggFactory<?, B>, Integer, B> bucketFactory) {
+                BiFunction<TestAggFactory<?, B>, Integer, B> bucketFactory) {
             List<B> buckets = IntStream.range(0, bucketCount).mapToObj(i -> bucketFactory.apply(this, i))
-                .collect(Collectors.toList());
+                    .collect(Collectors.toList());
             return createAggregation(significanceHeuristic, subsetSize, supersetSize, buckets);
         }
 
@@ -213,13 +213,12 @@ public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
 
         abstract B createBucket(long subsetDF, long subsetSize, long supersetDF, long supersetSize, long label);
     }
-
     private class StringTestAggFactory extends TestAggFactory<SignificantStringTerms, SignificantStringTerms.Bucket> {
         @Override
         SignificantStringTerms createAggregation(SignificanceHeuristic significanceHeuristic, long subsetSize, long supersetSize,
-                                                 List<SignificantStringTerms.Bucket> buckets) {
+                List<SignificantStringTerms.Bucket> buckets) {
             return new SignificantStringTerms("sig_terms", 2, -1,
-                emptyMap(), DocValueFormat.RAW, subsetSize, supersetSize, significanceHeuristic, buckets);
+                    emptyMap(), DocValueFormat.RAW, subsetSize, supersetSize, significanceHeuristic, buckets);
         }
 
         @Override
@@ -228,13 +227,12 @@ public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
                 subsetSize, supersetDF, supersetSize, InternalAggregations.EMPTY, DocValueFormat.RAW, 0);
         }
     }
-
     private class LongTestAggFactory extends TestAggFactory<SignificantLongTerms, SignificantLongTerms.Bucket> {
         @Override
         SignificantLongTerms createAggregation(SignificanceHeuristic significanceHeuristic, long subsetSize, long supersetSize,
-                                               List<SignificantLongTerms.Bucket> buckets) {
+                List<SignificantLongTerms.Bucket> buckets) {
             return new SignificantLongTerms("sig_terms", 2, -1, emptyMap(), DocValueFormat.RAW,
-                subsetSize, supersetSize, significanceHeuristic, buckets);
+                    subsetSize, supersetSize, significanceHeuristic, buckets);
         }
 
         @Override

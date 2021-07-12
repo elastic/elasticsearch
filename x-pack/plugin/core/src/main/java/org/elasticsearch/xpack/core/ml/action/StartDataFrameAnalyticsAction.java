@@ -235,7 +235,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         }
 
         @Override
-        public String getTaskId() {
+        public String getMlId() {
             return id;
         }
     }

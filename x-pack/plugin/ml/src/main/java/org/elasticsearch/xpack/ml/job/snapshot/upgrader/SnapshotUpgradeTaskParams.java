@@ -99,7 +99,7 @@ public class SnapshotUpgradeTaskParams implements PersistentTaskParams, MlTaskPa
     }
 
     @Override
-    public String getTaskId() {
+    public String getMlId() {
         return jobId;
     }
 }

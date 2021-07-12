@@ -238,7 +238,7 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
         }
 
         @Override
-        public String getTaskId() {
+        public String getMlId() {
             return jobId;
         }
     }

@@ -86,7 +86,7 @@ public class NodeLoadDetector {
                 MemoryTrackedTaskState state = MlTasks.getMemoryTrackedTaskState(task);
                 if (state == null || state.consumesMemory()) {
                     MlTaskParams taskParams = (MlTaskParams) task.getParams();
-                    nodeLoad.addTask(task.getTaskName(), taskParams.getTaskId(), state.isAllocating(), mlMemoryTracker);
+                    nodeLoad.addTask(task.getTaskName(), taskParams.getMlId(), state.isAllocating(), mlMemoryTracker);
                 }
             }
 

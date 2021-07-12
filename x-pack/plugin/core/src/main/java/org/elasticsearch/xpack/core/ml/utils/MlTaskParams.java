@@ -9,5 +9,8 @@ package org.elasticsearch.xpack.core.ml.utils;
 
 public interface MlTaskParams {
 
-    String getTaskId();
+    /**
+     * The id of the ML config this task is executing
+     */
+    String getMlId();
 }

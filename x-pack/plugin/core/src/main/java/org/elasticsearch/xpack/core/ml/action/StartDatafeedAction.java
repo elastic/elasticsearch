@@ -329,7 +329,7 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
         }
 
         @Override
-        public String getTaskId() {
+        public String getMlId() {
             return datafeedId;
         }
     }

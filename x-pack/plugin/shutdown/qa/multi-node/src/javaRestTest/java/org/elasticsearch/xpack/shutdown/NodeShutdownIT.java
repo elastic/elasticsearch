@@ -99,18 +99,27 @@ public class NodeShutdownIT extends ESRestTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
+
     public void testPutShutdownCanChangeTypeFromRestartToRemove() throws Exception {
+        checkTypeChange("RESTART", "REMOVE");
+    }
+
+    public void testPutShutdownCanChangeTypeFromRemoveToRestart() throws Exception {
+        checkTypeChange("REMOVE", "RESTART");
+    }
+
+    @SuppressWarnings("unchecked")
+    public void checkTypeChange(String fromType, String toType) throws Exception {
         assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
-        String type = "restart";
+        String type = fromType;
 
         // PUT the shutdown once
         putNodeShutdown(nodeIdToShutdown, type);
 
         // now PUT it again, the same and we shouldn't get an error
         String newReason = "this reason is different";
-        String newType = "REMOVE";
+        String newType = toType;
 
         // Put a shutdown request
         Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");

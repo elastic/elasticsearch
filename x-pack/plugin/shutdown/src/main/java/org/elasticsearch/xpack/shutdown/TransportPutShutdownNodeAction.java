@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -72,9 +71,15 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
                 // Verify that there's not already a shutdown metadata for this node
                 SingleNodeShutdownMetadata existingRecord = currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId());
-                if (existingRecord != null && isTypeChangeAllowed(existingRecord.getType(), request.getType()) == false) {
-                    logger.error(Strings.toString(currentShutdownMetadata));
-                    throw new IllegalArgumentException("node [" + request.getNodeId() + "] is already shutting down");
+                if (existingRecord != null) {
+                    logger.trace(
+                        "replacing existing shutdown record for node [{}] of type [{}] with reason [{}] with new type [{}] and reason [{}]",
+                        existingRecord.getNodeId(),
+                        existingRecord.getType(),
+                        existingRecord.getReason(),
+                        request.getType(),
+                        request.getReason()
+                    );
                 }
 
                 SingleNodeShutdownMetadata newNodeMetadata = SingleNodeShutdownMetadata.builder()
@@ -133,18 +138,6 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                 }
             }
         });
-    }
-
-    // pkg-private for testing
-    static boolean isTypeChangeAllowed(SingleNodeShutdownMetadata.Type existingType, SingleNodeShutdownMetadata.Type newType) {
-        assert SingleNodeShutdownMetadata.Type.REMOVE.equals(newType) || SingleNodeShutdownMetadata.Type.RESTART.equals(newType)
-            : "unknown shutdown type [" + newType + "]";
-
-        if (newType.equals(existingType)) {
-            return true;
-        } else {
-            return existingType.equals(SingleNodeShutdownMetadata.Type.RESTART) && newType.equals(SingleNodeShutdownMetadata.Type.REMOVE);
-        }
     }
 
     @Override

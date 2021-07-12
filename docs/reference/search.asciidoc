@@ -39,6 +39,12 @@ exception of the <<search-explain,explain API>>.
 * <<multi-search-template>>
 * <<render-search-template-api>>
 
+ifdef::permanently-unreleased-branch[]
+[discrete]
+[[geo-search-apis]]
+=== Geospatial search
+* <<vector-tile-api>>
+endif::[]
 
 include::search/search.asciidoc[]
 
@@ -75,3 +81,7 @@ include::search/profile.asciidoc[]
 include::search/field-caps.asciidoc[]
 
 include::search/rank-eval.asciidoc[]
+
+ifdef::permanently-unreleased-branch[]
+include::search/vector-tile-api.asciidoc[]
+endif::[]

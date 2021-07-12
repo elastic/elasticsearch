@@ -599,6 +599,7 @@ next batch of search results for the request. See
 This parameter is only returned if the <<search-api-scroll-query-param,`scroll`
 query parameter>> is specified in the request.
 
+[[search-api-took]]
 `took`::
 +
 --
@@ -629,6 +630,7 @@ If `true`,
 the request timed out before completion;
 returned results may be partial or empty.
 
+[[search-api-shards]]
 `_shards`::
 (object)
 Contains a count of shards used for the request.

@@ -1,0 +1,47 @@
+{
+  "vector_tile": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/vector-tile-api.html",
+      "description": "Searches a vector tile for geospatial values. Returns results as a binary Mapbox vector tile."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/{index}/_mvt/{field}/{zoom}/{x}/{y}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "Comma-separated list of data streams, indices, or aliases to search"
+            },
+            "field": {
+              "type": "string",
+              "description": "Field containing geospatial data to return"
+            },
+            "zoom": {
+              "type": "integer",
+              "description": "Zoom level for the vector tile to search"
+            },
+            "x": {
+              "type": "integer",
+              "description": "X coordinate for the vector tile to search"
+            },
+            "y": {
+              "type": "integer",
+              "description": "Y coordinate for the vector tile to search"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

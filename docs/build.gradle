@@ -68,6 +68,9 @@ testClusters.matching { it.name == "integTest"}.configureEach {
       setting 'es.shutdown_feature_flag_enabled', 'true'
     }
     systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
+    if (BuildParams.isSnapshotBuild() == false) {
+      systemProperty 'es.vector_tile_feature_flag_registered', 'true'
+    }
     keystorePassword 'keystore-password'
   }
 

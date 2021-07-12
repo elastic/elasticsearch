@@ -35,13 +35,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -49,8 +47,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -775,6 +776,7 @@ public class MetadataCreateIndexService {
         shardLimitValidator.validateShardLimit(indexSettings, currentState);
         validateSoftDeleteSettings(indexSettings);
         validateTranslogRetentionSettings(indexSettings);
+        validateStoreTypeSetting(indexSettings);
         return indexSettings;
     }
 
@@ -1240,6 +1242,16 @@ public class MetadataCreateIndexService {
             deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "translog_retention",
                 "Translog retention settings [index.translog.retention.age] "
                 + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+        }
+    }
+
+    public static void validateStoreTypeSetting(Settings indexSettings) {
+        final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexSettings);
+        if (IndexModule.Type.SIMPLEFS.match(storeType)) {
+            deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "store_type_setting",
+                "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
+                    "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type as it offers superior " +
+                    "or equivalent performance to [simplefs].");
         }
     }
 }

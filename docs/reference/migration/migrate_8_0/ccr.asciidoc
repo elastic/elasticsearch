@@ -1,0 +1,22 @@
+[discrete]
+[[breaking_80_ccr_changes]]
+==== Cross Cluster Replication changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+.Remote system indices are not followed automatically if they match an auto-follow pattern.
+[%collapsible]
+====
+*Details* +
+Remote system indices matching an <<ccr-auto-follow,auto-follow pattern>>
+won't be configured as a follower index automatically.
+
+*Impact* +
+Explicitly <<ccr-put-follow,create a follower index>> to follow a remote system
+index if that's the wanted behaviour.
+====

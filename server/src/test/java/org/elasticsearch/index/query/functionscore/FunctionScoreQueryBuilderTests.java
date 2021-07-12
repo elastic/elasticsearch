@@ -61,10 +61,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -116,11 +115,15 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     @Override
-    protected Set<String> getObjectsHoldingArbitraryContent() {
+    protected Map<String, String> getObjectsHoldingArbitraryContent() {
         //script_score.script.params can contain arbitrary parameters. no error is expected when adding additional objects
         //within the params object. Score functions get parsed in the data nodes, so they are not validated in the coord node.
-        return new HashSet<>(Arrays.asList(Script.PARAMS_PARSE_FIELD.getPreferredName(), ExponentialDecayFunctionBuilder.NAME,
-                LinearDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder.NAME));
+        final Map<String, String> objects = new HashMap<>();
+        objects.put(Script.PARAMS_PARSE_FIELD.getPreferredName(), null);
+        objects.put(ExponentialDecayFunctionBuilder.NAME, null);
+        objects.put(LinearDecayFunctionBuilder.NAME, null);
+        objects.put(GaussDecayFunctionBuilder.NAME, null);
+        return objects;
     }
 
     /**

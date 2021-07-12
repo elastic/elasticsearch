@@ -1,6 +1,6 @@
 [role="xpack"]
 [[xpack-alerting]]
-= Watch for cluster and index events
+= Elastic Alerting using Watcher
 
 [partintro]
 --

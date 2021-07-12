@@ -21,10 +21,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
-import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
-import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
-import org.elasticsearch.xpack.ml.aggs.correlation.CountCorrelationIndicator;
 import org.elasticsearch.xpack.ml.aggs.correlation.CountCorrelationFunction;
+import org.elasticsearch.xpack.ml.aggs.correlation.CountCorrelationIndicator;
+import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +32,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.closeTo;
 
-public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
+public class MlAggregationsIT extends MlNativeAutodetectIntegTestCase {
 
     public void testCountCorrelation() {
 
@@ -209,8 +208,5 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
             fail("Bulk response contained " + failures + " failures");
         }
     }
-
-
-
 
 }

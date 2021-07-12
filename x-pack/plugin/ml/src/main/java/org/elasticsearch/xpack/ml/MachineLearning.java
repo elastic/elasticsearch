@@ -1174,7 +1174,10 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return MlAutoscalingNamedWritableProvider.getNamedWriteables();
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+        namedWriteables.addAll(MlAutoscalingNamedWritableProvider.getNamedWriteables());
+        namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
+        return namedWriteables;
     }
 
     @Override

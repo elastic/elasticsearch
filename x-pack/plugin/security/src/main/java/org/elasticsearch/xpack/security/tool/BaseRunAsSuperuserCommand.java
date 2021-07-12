@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.tool;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpecBuilder;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
@@ -37,6 +38,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -110,6 +112,14 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
             final Path passwordFile = FileUserPasswdStore.resolveFile(newEnv);
             final Path rolesFile = FileUserRolesStore.resolveFile(newEnv);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(passwordFile, rolesFile);
+            // Store the roles file first so that when we get to store the user, it will definitely be a superuser
+            Map<String, String[]> userRoles = FileUserRolesStore.parseFile(rolesFile, null);
+            if (userRoles == null) {
+                throw new IllegalStateException("File realm configuration file [" + rolesFile + "] is missing");
+            }
+            userRoles = new HashMap<>(userRoles);
+            userRoles.put(username, ROLES);
+            FileUserRolesStore.writeFile(userRoles, rolesFile);
 
             Map<String, char[]> users = FileUserPasswdStore.parseFile(passwordFile, null, settings);
             if (users == null) {
@@ -118,14 +128,6 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
             users = new HashMap<>(users);
             users.put(username, hasher.hash(password));
             FileUserPasswdStore.writeFile(users, passwordFile);
-
-            Map<String, String[]> userRoles = FileUserRolesStore.parseFile(rolesFile, null);
-            if (userRoles == null) {
-                throw new IllegalStateException("File realm configuration file [" + rolesFile + "] is missing");
-            }
-            userRoles = new HashMap<>(userRoles);
-            userRoles.put(username, ROLES);
-            FileUserRolesStore.writeFile(userRoles, rolesFile);
 
             attributesChecker.check(terminal);
             final boolean forceExecution = options.has(force);
@@ -150,29 +152,34 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     private void cleanup(Terminal terminal, Environment env) throws Exception {
         final Path passwordFile = FileUserPasswdStore.resolveFile(env);
         final Path rolesFile = FileUserRolesStore.resolveFile(env);
+        final List<String> errorMessages = new ArrayList<>();
         FileAttributesChecker attributesChecker = new FileAttributesChecker(passwordFile, rolesFile);
 
         Map<String, char[]> users = FileUserPasswdStore.parseFile(passwordFile, null, env.settings());
         if (users == null) {
-            throw new UserException(ExitCodes.CONFIG, "File realm configuration file [" + passwordFile + "] is missing");
+            errorMessages.add("File realm configuration file [" + passwordFile + "] is missing");
+        } else {
+            users = new HashMap<>(users);
+            char[] passwd = users.remove(username);
+            if (passwd != null) {
+                // No need to overwrite, if the user was already removed
+                FileUserPasswdStore.writeFile(users, passwordFile);
+                Arrays.fill(passwd, '\0');
+            }
         }
-        users = new HashMap<>(users);
-        char[] passwd = users.remove(username);
-        if (passwd != null) {
-            // No need to overwrite, if the user was already removed
-            FileUserPasswdStore.writeFile(users, passwordFile);
-            Arrays.fill(passwd, '\0');
-        }
-
         Map<String, String[]> userRoles = FileUserRolesStore.parseFile(rolesFile, null);
         if (userRoles == null) {
-            throw new UserException(ExitCodes.CONFIG, "File realm configuration file [" + rolesFile + "] is missing");
+            errorMessages.add("File realm configuration file [" + rolesFile + "] is missing");
+        } else {
+            userRoles = new HashMap<>(userRoles);
+            String[] roles = userRoles.remove(username);
+            if (roles != null) {
+                // No need to overwrite, if the user was already removed
+                FileUserRolesStore.writeFile(userRoles, rolesFile);
+            }
         }
-        userRoles = new HashMap<>(userRoles);
-        String[] roles = userRoles.remove(username);
-        if (roles != null) {
-            // No need to overwrite, if the user was already removed
-            FileUserRolesStore.writeFile(userRoles, rolesFile);
+        if ( errorMessages.isEmpty() == false ) {
+            throw new UserException(ExitCodes.CONFIG, String.join(" , ", errorMessages));
         }
         attributesChecker.check(terminal);
     }
@@ -221,10 +228,13 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
         }
         final int responseStatus = response.getHttpStatus();
         if (responseStatus != HttpURLConnection.HTTP_OK) {
-            if (responseStatus == HttpURLConnection.HTTP_UNAUTHORIZED && retries > 0) {
+            // We try to write the roles file first and then the users one, but theoretically we could have loaded the users
+            // before we have actually loaded the roles so we also retry on 403 ( temp user is found but has no roles )
+            if ((responseStatus == HttpURLConnection.HTTP_UNAUTHORIZED || responseStatus == HttpURLConnection.HTTP_FORBIDDEN)
+                && retries > 0 ) {
                 terminal.println(
                     Terminal.Verbosity.VERBOSE,
-                    "Unexpected http status [401] while attempting to determine cluster health. Will retry at most "
+                    "Unexpected http status [" + responseStatus + "] while attempting to determine cluster health. Will retry at most "
                         + retries
                         + " more times."
                 );
@@ -247,8 +257,9 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
             } else if ("red".equalsIgnoreCase(clusterStatus) && force == false) {
                 terminal.errorPrintln("Failed to determine the health of the cluster. Cluster health is currently RED.");
                 terminal.errorPrintln("This means that some cluster data is unavailable and your cluster is not fully functional.");
-                terminal.errorPrintln("The cluster logs (https://www.elastic.co/guide/en/elasticsearch/reference/master/logging.html)" +
-                    "might contain information/indications for the underlying cause");
+                terminal.errorPrintln("The cluster logs (https://www.elastic.co/guide/en/elasticsearch/reference/"
+                    + Version.CURRENT.major + "." + Version.CURRENT.minor + "/logging.html)"
+                    + " might contain information/indications for the underlying cause");
                 terminal.errorPrintln(
                     "It is recommended that you resolve the issues with your cluster before continuing");
                 terminal.errorPrintln("It is very likely that the command will fail when run against an unhealthy cluster.");

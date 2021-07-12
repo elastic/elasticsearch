@@ -74,6 +74,11 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
     }
 
     @BeforeClass
+    public static void muteInFips(){
+        assumeFalse("Enrollment mode is not supported in FIPS mode.", inFipsJvm());
+    }
+
+    @BeforeClass
     public static void setupJimfs() {
         String view = randomFrom("basic", "posix");
         Configuration conf = Configuration.unix().toBuilder().setAttributeViews(view).build();

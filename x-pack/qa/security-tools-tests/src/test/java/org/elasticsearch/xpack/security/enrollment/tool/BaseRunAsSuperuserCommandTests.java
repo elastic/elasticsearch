@@ -12,6 +12,7 @@ import com.google.common.jimfs.Jimfs;
 
 import joptsimple.OptionSet;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
@@ -184,8 +185,9 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
         String error = terminal.getErrorOutput();
         assertThat(error, stringContainsInOrder("Failed to determine the health of the cluster. Cluster health is currently RED.",
             "This means that some cluster data is unavailable and your cluster is not fully functional.",
-            "The cluster logs (https://www.elastic.co/guide/en/elasticsearch/reference/master/logging.html)" +
-                "might contain information/indications for the underlying cause"));
+            "The cluster logs (https://www.elastic.co/guide/en/elasticsearch/reference/"
+                + Version.CURRENT.major + "." + Version.CURRENT.minor + "/logging.html)" +
+                " might contain information/indications for the underlying cause"));
         assertNoUsers();
         assertNoUsersRoles();
     }

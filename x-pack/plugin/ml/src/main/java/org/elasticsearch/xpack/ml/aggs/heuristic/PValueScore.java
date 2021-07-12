@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.aggs.heuristic;
 
 
 import org.apache.commons.math3.distribution.BinomialDistribution;
-import org.apache.commons.math3.distribution.ChiSquaredDistribution;
+import org.apache.commons.math3.util.FastMath;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,6 +27,7 @@ public class PValueScore extends SignificanceHeuristic {
     public static final String NAME = "p_value";
     public static final ObjectParser<PValueScore, Void> PARSER = new ObjectParser<>(NAME, PValueScore::new);
 
+    private static final MlChiSquaredDistribution CHI_SQUARED_DISTRIBUTION = new MlChiSquaredDistribution(1);
     public PValueScore() {
     }
 
@@ -70,29 +71,31 @@ public class PValueScore extends SignificanceHeuristic {
      *  similar if there are many trials. We arrange for small differences in frequency to always
      *  have large p-values. We also artificially increase the p-value of when the probability
      *  of the category is very small.
+     *
+     * @return -log(p-value)
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
         checkFrequencyValidity(subsetFreq, subsetSize, supersetFreq, supersetSize, "PValueScore");
+
         if (subsetFreq * supersetSize <= subsetSize * supersetFreq) {
-            return 1.0;
+            return 0.0;
         }
-        if (subsetFreq == 0 || subsetSize == 0 || supersetFreq == 0 || supersetSize == 0) {
-            // TODO is this right?
-            return 1.0;
+
+        if (supersetSize == 0L || subsetSize == 0L) {
+            return 0.0;
         }
 
         // Adjust counts to ignore ratio changes which are less than 5%
-        if (subsetFreq / subsetSize < supersetFreq / supersetSize) {
+        if (subsetFreq * supersetSize < supersetFreq * subsetSize) {
             subsetFreq = (long)(Math.min(1.05 * subsetFreq, supersetFreq / (double)supersetSize * subsetSize) + 0.5);
         }
-        if (subsetFreq / subsetSize > supersetFreq / supersetSize) {
+        if (subsetFreq * supersetSize > supersetFreq * subsetSize) {
             supersetFreq = (long)(Math.min(1.05 * supersetFreq, subsetFreq / (double)subsetSize * supersetSize) + 0.5);
         }
 
         long epsSubSetSize = eps(subsetSize);
         long epsSuperSetSize = eps(supersetSize);
-        ChiSquaredDistribution chi2 = new ChiSquaredDistribution(1);
 
         double v1 = new BinomialDistribution(
             (int)(subsetSize + epsSubSetSize),
@@ -114,7 +117,8 @@ public class PValueScore extends SignificanceHeuristic {
             .logProbability((int)(supersetFreq + epsSuperSetSize));
 
         double logLikelihoodRatio = v1 + v2 - v3 - v4;
-        return 1 - chi2.cumulativeProbability(2.0 * logLikelihoodRatio);
+        double pValue = CHI_SQUARED_DISTRIBUTION.survivalFunction(2.0 * logLikelihoodRatio);
+        return -FastMath.log(FastMath.max(pValue, Double.MIN_NORMAL));
     }
 
     private long eps(long value) {

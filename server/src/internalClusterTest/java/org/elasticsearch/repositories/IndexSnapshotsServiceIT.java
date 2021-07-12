@@ -30,6 +30,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -256,6 +257,35 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         for (String workingRepoName : workingRepoNames) {
             assertThat(response.getFailureForRepository(workingRepoName).isEmpty(), is(equalTo(true)));
             assertThat(response.getIndexShardSnapshotInfoForRepository(workingRepoName).isPresent(), equalTo(true));
+        }
+    }
+
+    public void testGetShardSnapshotInMultipleRepositories() {
+        int repoCount = randomIntBetween(2, 10);
+        List<String> repositories = new ArrayList<>();
+        for (int i = 0; i < repoCount; i++) {
+            final String repoName = randomAlphaOfLength(10);
+            createRepository(repoName, "fs");
+            repositories.add(repoName);
+        }
+
+        final String indexName = "test-idx";
+        createIndexWithContent(indexName);
+
+        Map<String, SnapshotInfo> repositorySnapshots = new HashMap<>();
+        for (String repository : repositories) {
+            repositorySnapshots.put(repository, createSnapshot(repository, "snap-1", Collections.singletonList(indexName)));
+        }
+
+        GetShardSnapshotResponse response = getLatestSnapshotForShardFuture(repositories, indexName, 0).actionGet();
+
+        for (String repository : repositories) {
+            assertThat(response.getFailureForRepository(repository).isEmpty(), is(equalTo(true)));
+            Optional<ShardSnapshotInfo> shardSnapshotInfoOpt = response.getIndexShardSnapshotInfoForRepository(repository);
+            assertThat(shardSnapshotInfoOpt.isPresent(), equalTo(true));
+
+            ShardSnapshotInfo shardSnapshotInfo = shardSnapshotInfoOpt.get();
+            assertThat(shardSnapshotInfo.getSnapshotInfo(), equalTo(repositorySnapshots.get(repository)));
         }
     }
 

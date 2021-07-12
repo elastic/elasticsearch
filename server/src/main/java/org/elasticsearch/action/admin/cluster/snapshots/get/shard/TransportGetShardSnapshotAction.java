@@ -36,6 +36,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -86,19 +88,35 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
             repositories.size()
         );
 
-        for (String repository : repositories) {
-            indexSnapshotsService.getLatestSuccessfulSnapshotForShard(
-                repository,
-                shardId,
-                ActionListener.wrap(shardSnapshotInfo -> groupedActionListener.onResponse(Tuple.tuple(shardSnapshotInfo, null)), err -> {
-                    if (request.isSingleRepositoryRequest() == false && err instanceof RepositoryException) {
-                        groupedActionListener.onResponse(Tuple.tuple(null, (RepositoryException) err));
-                    } else {
-                        groupedActionListener.onFailure(err);
-                    }
-                })
-            );
+        BlockingQueue<String> repositoriesQueue = new LinkedBlockingQueue<>(repositories);
+        getShardSnapshots(
+            repositoriesQueue,
+            shardId,
+            ActionListener.wrap(shardSnapshotInfo -> groupedActionListener.onResponse(Tuple.tuple(shardSnapshotInfo, null)), err -> {
+                if (request.isSingleRepositoryRequest() == false && err instanceof RepositoryException) {
+                    groupedActionListener.onResponse(Tuple.tuple(null, (RepositoryException) err));
+                } else {
+                    groupedActionListener.onFailure(err);
+                }
+            })
+        );
+    }
+
+    private void getShardSnapshots(
+        BlockingQueue<String> repositories,
+        ShardId shardId,
+        ActionListener<Optional<ShardSnapshotInfo>> listener
+    ) {
+        final String repository = repositories.poll();
+        if (repository == null) {
+            return;
         }
+
+        indexSnapshotsService.getLatestSuccessfulSnapshotForShard(
+            repository,
+            shardId,
+            ActionListener.runAfter(listener, () -> getShardSnapshots(repositories, shardId, listener))
+        );
     }
 
     private GetShardSnapshotResponse transformToResponse(

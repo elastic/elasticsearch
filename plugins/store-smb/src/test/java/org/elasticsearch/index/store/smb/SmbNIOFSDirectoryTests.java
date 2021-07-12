@@ -11,14 +11,14 @@ package org.elasticsearch.index.store.smb;
 import java.io.IOException;
 import java.nio.file.Path;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.index.store.EsBaseDirectoryTestCase;
 
-public class SmbSimpleFSDirectoryTests extends EsBaseDirectoryTestCase {
+public class SmbNIOFSDirectoryTests extends EsBaseDirectoryTestCase {
 
     @Override
     protected Directory getDirectory(Path file) throws IOException {
-        return new SmbDirectoryWrapper(new SimpleFSDirectory(file));
+        return new SmbDirectoryWrapper(new NIOFSDirectory(file));
     }
 
     @Override

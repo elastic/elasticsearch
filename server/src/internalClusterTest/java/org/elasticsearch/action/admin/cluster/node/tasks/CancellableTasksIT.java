@@ -258,7 +258,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         PlainActionFuture<TestResponse> future = new PlainActionFuture<>();
         TestRequest subRequest = generateTestRequest(nodes, 0, between(0, 1));
         beforeSendLatches.get(subRequest).countDown();
-        mainAction.startSubTask(nodeWithParentTask, mainAction.actionName, taskId, subRequest, future);
+        mainAction.startSubTask(taskId, subRequest, future);
         TaskCancelledException te = expectThrows(TaskCancelledException.class, future::actionGet);
         assertThat(te.getMessage(), equalTo("The parent task was cancelled, shouldn't start any child tasks"));
         allowEntireRequest(rootRequest);
@@ -482,12 +482,11 @@ public class CancellableTasksIT extends ESIntegTestCase {
             }));
             for (TestRequest subRequest : subRequests) {
                 TaskId parentTaskId = new TaskId(client.getLocalNodeId(), task.getId());
-                startSubTask(transportService.getLocalNode(), ACTION.name(), parentTaskId, subRequest, groupedListener);
+                startSubTask(parentTaskId, subRequest, groupedListener);
             }
         }
 
-        protected void startSubTask(DiscoveryNode discoveryNode, String action, TaskId parentTaskId, TestRequest subRequest,
-                                    ActionListener<TestResponse> listener) {
+        protected void startSubTask(TaskId parentTaskId, TestRequest subRequest, ActionListener<TestResponse> listener) {
             subRequest.setParentTask(parentTaskId);
             CountDownLatch completeLatch = completedLatches.get(subRequest);
             LatchedActionListener<TestResponse> latchedListener = new LatchedActionListener<>(listener, completeLatch);
@@ -504,7 +503,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                         try {
                             client.executeLocally(TransportTestAction.ACTION, subRequest, latchedListener);
                         } catch (TaskCancelledException e) {
-                            latchedListener.onFailure(new SendRequestTransportException(discoveryNode, action, e));
+                            latchedListener.onFailure(new SendRequestTransportException(subRequest.node, ACTION.name(), e));
                         }
                     } else {
                         transportService.sendRequest(subRequest.node, ACTION.name(), subRequest,

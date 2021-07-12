@@ -4,14 +4,19 @@
 
 Phases allowed: hot, cold, frozen.
 
-Takes a snapshot of the managed index in the configured repository
-and mounts it as a searchable snapshot.
-If the managed index is part of a <<data-streams, data stream>>,
-the mounted index replaces the original index in the data stream.
+Takes a snapshot of the managed index in the configured repository and mounts it
+as a <<searchable-snapshots,{search-snap}>>. If the index is part of a
+<<data-streams, data stream>>, the mounted index replaces the original index in
+the stream.
 
-To use the `searchable_snapshot` action in the `hot` phase, the `rollover`
-action *must* be present. If no rollover action is configured, {ilm-init}
-will reject the policy.
+The `searchable_snapshot` action requires <<data-tiers,data tiers>>. The action
+uses the
+<<tier-preference-allocation-filter,`index.routing.allocation.include._tier_preference`>>
+setting to mount the index directly to the phase's corresponding data tier. In
+the frozen phase, the action mounts the searchable snapshot index to the frozen
+tier using the <<shared-cache,shared cache mount option>>. In other phases, the
+action mounts a <<full-copy,fully copy>> of the searchable snapshot index to the
+corresponding data tier.
 
 IMPORTANT: If the `searchable_snapshot` action is used in the `hot` phase the
 subsequent phases cannot define any of the `shrink`, `forcemerge`, `freeze` or

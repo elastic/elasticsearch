@@ -122,7 +122,6 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
     private GetShardSnapshotResponse transformToResponse(
         Collection<Tuple<Optional<ShardSnapshotInfo>, RepositoryException>> shardSnapshots
     ) {
-
         final Map<String, ShardSnapshotInfo> repositoryShardSnapshot = shardSnapshots.stream()
             .map(Tuple::v1)
             .filter(Objects::nonNull)

@@ -19,6 +19,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -94,16 +95,15 @@ public class IndexSnapshotsService {
         }, listener::onFailure);
 
         snapshotInfoStepListener.whenComplete(fetchSnapshotContext -> {
-            final SnapshotInfo snapshotInfo = fetchSnapshotContext.snapshotInfo;
+            assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT_META + ']')
+                : "Expected current thread [" + Thread.currentThread() + "] to be a snapshot meta thread.";
+            final SnapshotInfo snapshotInfo = fetchSnapshotContext.getSnapshotInfo();
 
             if (snapshotInfo == null || snapshotInfo.state() != SnapshotState.SUCCESS) {
                 // We couldn't find a valid candidate
                 listener.onResponse(Optional.empty());
                 return;
             }
-
-            // TODO: This is executed in SNAPSHOT_META thread pool and we perform a few blocking operations here, should we execute this
-            // step somewhere else?
 
             // We fetch BlobStoreIndexShardSnapshots instead of BlobStoreIndexShardSnapshot in order to get the shardStateId that
             // allows us to tell whether or not this shard had in-flight operations while the snapshot was taken.
@@ -167,6 +167,10 @@ public class IndexSnapshotsService {
 
         private ShardSnapshotInfo createIndexShardSnapshotInfo(String indexMetadataId, SnapshotFiles snapshotFiles) {
             return new ShardSnapshotInfo(indexId, shardId, snapshotInfo, indexMetadataId, snapshotFiles.shardStateIdentifier());
+        }
+
+        SnapshotInfo getSnapshotInfo() {
+            return snapshotInfo;
         }
     }
 }

@@ -68,11 +68,11 @@ public class GetShardSnapshotRequest extends MasterNodeRequest<GetShardSnapshotR
     }
 
     public boolean getFromAllRepositories() {
-        return repositories.size() == 1 && repositories.get(0) != null && repositories.get(0).equalsIgnoreCase(ALL_REPOSITORIES);
+        return repositories.size() == 1 && ALL_REPOSITORIES.equalsIgnoreCase(repositories.get(0));
     }
 
     public boolean isSingleRepositoryRequest() {
-        return repositories.size() == 1 && repositories.get(0) != null && repositories.get(0).equalsIgnoreCase(ALL_REPOSITORIES) == false;
+        return repositories.size() == 1 && ALL_REPOSITORIES.equalsIgnoreCase(repositories.get(0)) == false;
     }
 
     public ShardId getShardId() {

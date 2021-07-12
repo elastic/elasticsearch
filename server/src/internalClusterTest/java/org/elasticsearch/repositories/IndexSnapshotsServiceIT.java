@@ -160,7 +160,6 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             assertThat(indexShardSnapshotInfoOpt.isPresent(), equalTo(true));
 
             final ShardSnapshotInfo shardSnapshotInfo = indexShardSnapshotInfoOpt.get();
-            assertThat(shardSnapshotInfo.getShardStateIdentifier(), notNullValue());
 
             final ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().execute().actionGet();
             final IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(indexName);
@@ -200,7 +199,6 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             assertThat(indexShardSnapshotInfoOpt.isPresent(), equalTo(true));
             final ShardSnapshotInfo shardSnapshotInfo = indexShardSnapshotInfoOpt.get();
             assertThat(shardSnapshotInfo.getIndexMetadataIdentifier(), is(notNullValue()));
-            assertThat(shardSnapshotInfo.getShardStateIdentifier(), notNullValue());
 
             final SnapshotInfo snapshotInfo = shardSnapshotInfo.getSnapshotInfo();
             assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));

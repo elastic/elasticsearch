@@ -60,9 +60,9 @@ import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
 
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
-    private static final String FILTER_PIPE = "filter", HEAD_PIPE = "head", TAIL_PIPE = "tail";
+    static final String FILTER_PIPE = "filter", HEAD_PIPE = "head", TAIL_PIPE = "tail";
 
-    private static final Set<String> SUPPORTED_PIPES = Sets.newHashSet("count", FILTER_PIPE, HEAD_PIPE, "sort", TAIL_PIPE, "unique",
+    static final Set<String> SUPPORTED_PIPES = Sets.newHashSet("count", FILTER_PIPE, HEAD_PIPE, "sort", TAIL_PIPE, "unique",
             "unique_count");
 
     private final UnresolvedRelation RELATION = new UnresolvedRelation(synthetic("<relation>"), null, "", false, "");
@@ -348,7 +348,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                 return new Tail(source(ctx), tailLimit, plan);
 
             default:
-                throw new ParsingException(source(ctx), "Pipe [{}] is not supported yet", name);
+                throw new ParsingException(source(ctx), "Pipe [{}] is not supported", name);
         }
     }
 

@@ -61,7 +61,8 @@ public class ShardSnapshotInfo implements Writeable {
 
     @Nullable
     public String getShardStateIdentifier() {
-        // It might be null if the shard had in-flight operations and localCheckpoint != maxSeqNo while it was snapshotted
+        // It might be null if the shard had in-flight operations meaning that:
+        // localCheckpoint != maxSeqNo || maxSeqNo != indexShard.getLastSyncedGlobalCheckpoint() when the snapshot was taken
         return shardStateIdentifier;
     }
 

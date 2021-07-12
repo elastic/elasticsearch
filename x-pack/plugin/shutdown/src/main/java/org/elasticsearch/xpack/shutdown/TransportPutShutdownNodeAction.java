@@ -72,8 +72,8 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                 // Verify that there's not already a shutdown metadata for this node
                 SingleNodeShutdownMetadata existingRecord = currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId());
                 if (existingRecord != null) {
-                    logger.trace(
-                        "replacing existing shutdown record for node [{}] of type [{}] with reason [{}] with new type [{}] and reason [{}]",
+                    logger.info(
+                        "updating existing shutdown record for node [{}] of type [{}] with reason [{}] with new type [{}] and reason [{}]",
                         existingRecord.getNodeId(),
                         existingRecord.getType(),
                         existingRecord.getReason(),

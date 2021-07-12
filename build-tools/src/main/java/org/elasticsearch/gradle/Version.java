@@ -7,9 +7,6 @@
  */
 package org.elasticsearch.gradle;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,9 +37,9 @@ public final class Version implements Comparable<Version> {
         RELAXED
     }
 
-    private static final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+|-SNAPSHOT)?");
+    private static final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)(?:-(alpha\\d+|beta\\d+|rc\\d+|SNAPSHOT))?");
 
-    private static final Pattern relaxedPattern = Pattern.compile("v?(\\d+)\\.(\\d+)\\.(\\d+)((?:-[a-zA-Z0-9_]+)*)?");
+    private static final Pattern relaxedPattern = Pattern.compile("v?(\\d+)\\.(\\d+)\\.(\\d+)(?:-([a-zA-Z0-9_]+(?:-[a-zA-Z0-9]+)*))?");
 
     public Version(int major, int minor, int revision) {
         this(major, minor, revision, null);

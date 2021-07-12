@@ -86,6 +86,6 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
         documentFields.put(
             ForecastRequestStats.STATUS.getPreferredName(),
             new DocumentField(ForecastRequestStats.STATUS.getPreferredName(), Collections.singletonList(status.toString())));
-        return new SearchHit(0, "", documentFields, Collections.emptyMap());
+        return new SearchHit(0, "", null, documentFields, Collections.emptyMap());
     }
 }

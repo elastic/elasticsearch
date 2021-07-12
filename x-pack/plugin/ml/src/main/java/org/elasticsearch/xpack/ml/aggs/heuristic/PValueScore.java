@@ -72,7 +72,14 @@ public class PValueScore extends SignificanceHeuristic {
      *  have large p-values. We also artificially increase the p-value of when the probability
      *  of the category is very small.
      *
-     * @return -log(p-value)
+     *  NOTE: Since in the original calculation of `p-value`, smaller indicates more significance, the value actual value returned
+     *        is `log(-p-value)`. To get the original p-value from the score, simply calculate `exp(-retval)`
+     *
+     * @param subsetFreq   The frequency of the term in the selected sample
+     * @param subsetSize   The size of the selected sample (typically number of docs)
+     * @param supersetFreq The frequency of the term in the superset from which the sample was taken
+     * @param supersetSize The size of the superset from which the sample was taken  (typically number of docs)
+     * @return log(-p-value)
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
@@ -117,7 +124,7 @@ public class PValueScore extends SignificanceHeuristic {
             .logProbability((int)(supersetFreq + epsSuperSetSize));
 
         double logLikelihoodRatio = v1 + v2 - v3 - v4;
-        double pValue = CHI_SQUARED_DISTRIBUTION.survivalFunction(2.0 * logLikelihoodRatio);
+        double pValue = (CHI_SQUARED_DISTRIBUTION.survivalFunction(2.0 * logLikelihoodRatio) * 0.5);
         return -FastMath.log(FastMath.max(pValue, Double.MIN_NORMAL));
     }
 
@@ -127,10 +134,7 @@ public class PValueScore extends SignificanceHeuristic {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        return true;
+        return obj != null && obj.getClass() == getClass();
     }
 
     @Override

@@ -1,9 +1,9 @@
 ---
 - job:
-    name: "elastic+elasticsearch+%BRANCH%+pull-request/elastic+elasticsearch+%BRANCH%+pull-request+docs-check"
-    display-name: "elastic / elasticsearch # %BRANCH% - pull request docs-check"
+    name: "elastic+elasticsearch+pull-request+docs-check"
+    display-name: "elastic / elasticsearch - pull request docs-check"
     description: "Testing of Elasticsearch pull requests - docs-check"
-    workspace: "/dev/shm/elastic+elasticsearch+%BRANCH%+pull-request+docs-check"
+    workspace: "/dev/shm/elastic+elasticsearch+pull-request+docs-check"
     scm:
       - git:
           refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
@@ -18,9 +18,6 @@
           github-hooks: true
           status-context: elasticsearch-ci/docs-check
           cancel-builds-on-update: true
-          white-list-target-branches:
-            - %BRANCH%
-            - ^feat(ure)?/.*
           included-regions:
             - ^docs/.*
           black-list-labels:
@@ -30,6 +27,8 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            JAVA8_HOME=$HOME/.java/java8
+            JAVA11_HOME=$HOME/.java/java11
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr

@@ -126,6 +126,11 @@ public class TransportService extends AbstractLifecycleComponent
         @Override
         public void close() {
         }
+
+        @Override
+        public String toString() {
+            return "local node connection";
+        }
     };
 
     /**
@@ -649,7 +654,7 @@ public class TransportService extends AbstractLifecycleComponent
             if (ex instanceof TransportException) {
                 te = (TransportException) ex;
             } else {
-                te = new TransportException("failure to send", ex);
+                te = new SendRequestTransportException(connection.getNode(), action, ex);
             }
             handler.handleException(te);
         }

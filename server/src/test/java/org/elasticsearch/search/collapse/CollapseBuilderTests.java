@@ -145,14 +145,14 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
 
             numberFieldType =
                 new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, true, false,
-                    false, false, null, Collections.emptyMap(), null);
+                    false, false, null, Collections.emptyMap(), null, false);
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
             assertEquals(exc.getMessage(), "cannot collapse on field `field` without `doc_values`");
 
             numberFieldType =
                 new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, false,
-                    true, false, null, Collections.emptyMap(), null);
+                    true, false, null, Collections.emptyMap(), null, false);
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
             builder.setInnerHits(new InnerHitBuilder());
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));

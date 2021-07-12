@@ -10,8 +10,7 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -21,7 +20,6 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class ListenerTimeoutsTests extends ESTestCase {
@@ -33,8 +31,7 @@ public class ListenerTimeoutsTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
-        taskQueue = new DeterministicTaskQueue(settings, random());
+        taskQueue = new DeterministicTaskQueue();
     }
 
     public void testListenerTimeout() {

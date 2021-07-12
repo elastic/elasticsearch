@@ -197,13 +197,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
         Map<RealmConfig.RealmIdentifier, Settings> fileRealmSettings = realms.entrySet().stream()
             .filter(e -> e.getKey().getType().equals(FileRealmSettings.TYPE))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        if (fileRealmSettings.size() > 1) {
-            throw new UserException(
-                ExitCodes.CONFIG,
-                "Multiple file realms are configured. "
-                    + "[file] is an internal realm type and therefore there can only be one such realm configured"
-            );
-        } else if (fileRealmSettings.size() == 1) {
+        if (fileRealmSettings.size() == 1) {
             final String fileRealmName = fileRealmSettings.entrySet().iterator().next().getKey().getName();
             if (RealmSettings.ENABLED_SETTING.apply(FileRealmSettings.TYPE)
                 .getConcreteSettingForNamespace(fileRealmName)

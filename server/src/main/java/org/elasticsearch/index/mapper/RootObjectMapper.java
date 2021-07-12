@@ -96,7 +96,9 @@ public class RootObjectMapper extends ObjectMapper {
 
         @Override
         public RootObjectMapper build(ContentPath contentPath) {
-            return (RootObjectMapper) super.build(contentPath);
+            RootObjectMapper root = (RootObjectMapper) super.build(contentPath);
+            root.fixRedundantIncludes();
+            return root;
         }
 
         @Override
@@ -118,7 +120,7 @@ public class RootObjectMapper extends ObjectMapper {
      * {@code true} or which is transitively included in root by a chain of nodes with
      * {@code isIncludeInParent} returning {@code true}.
      */
-    public void fixRedundantIncludes() {
+    private void fixRedundantIncludes() {
        fixRedundantIncludes(this, true);
     }
 
@@ -294,7 +296,9 @@ public class RootObjectMapper extends ObjectMapper {
 
     @Override
     public RootObjectMapper merge(Mapper mergeWith, MergeReason reason) {
-        return (RootObjectMapper) super.merge(mergeWith, reason);
+        RootObjectMapper merged = (RootObjectMapper) super.merge(mergeWith, reason);
+        merged.fixRedundantIncludes();
+        return merged;
     }
 
     @Override

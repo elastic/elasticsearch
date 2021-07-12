@@ -262,9 +262,10 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testParseInvalidValue() {
+        String unitSuffix = (randomBoolean() ? " " : "") + randomFrom(ByteSizeUnit.values()).getSuffix();
         ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
-                () -> ByteSizeValue.parseBytesSizeValue("-6mb", "test_setting"));
-        assertEquals("failed to parse setting [test_setting] with value [-6mb] as a size in bytes", exception.getMessage());
+                () -> ByteSizeValue.parseBytesSizeValue("-6" + unitSuffix, "test_setting"));
+        assertEquals("failed to parse setting [test_setting] with value [-6" + unitSuffix + "] as a size in bytes", exception.getMessage());
         assertNotNull(exception.getCause());
         assertEquals(IllegalArgumentException.class, exception.getCause().getClass());
     }
@@ -290,8 +291,10 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         assertEquals("failed to parse setting [test] with value [notANumber] as a size in bytes: unit is missing or unrecognized",
                 exception.getMessage());
 
-        exception = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("notANumberMB", "test"));
-        assertEquals("failed to parse setting [test] with value [notANumberMB]", exception.getMessage());
+        String unitSuffix = (randomBoolean() ? " " : "") + randomFrom(ByteSizeUnit.values()).getSuffix();
+        exception = expectThrows(ElasticsearchParseException.class,
+            () -> ByteSizeValue.parseBytesSizeValue("notANumber" + unitSuffix, "test"));
+        assertEquals("failed to parse setting [test] with value [notANumber" + unitSuffix + "]", exception.getMessage());
     }
 
     public void testParseFractionalNumber() throws IOException {

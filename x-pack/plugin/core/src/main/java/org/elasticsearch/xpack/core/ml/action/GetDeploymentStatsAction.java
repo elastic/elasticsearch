@@ -53,9 +53,18 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
         }
 
         public Request(StreamInput in) throws IOException {
+            super(in);
             this.deploymentId = in.readString();
             this.allowNoMatch = in.readBoolean();
             this.expandedIds = in.readStringList();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(deploymentId);
+            out.writeBoolean(allowNoMatch);
+            out.writeStringCollection(expandedIds);
         }
 
         public String getDeploymentId() {
@@ -146,7 +155,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 builder.field("model_id", modelId);
                 builder.field("node_id", node_id);
                 builder.field("inference_count", inferenceCount);
-                builder.field("average_time_ms", avgInferenceTime);
+                builder.field("average_inference_time_ms", avgInferenceTime);
                 builder.timeField("last_access", "last_access_string", lastAccess.toEpochMilli());
                 builder.field("model_size", modelSize);
                 builder.endObject();

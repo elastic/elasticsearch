@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -31,7 +29,6 @@ import org.elasticsearch.xpack.ml.inference.deployment.ModelStats;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -42,8 +39,6 @@ import java.util.stream.Collectors;
 
 public class TransportGetDeploymentStatsAction extends TransportTasksAction<TrainedModelDeploymentTask,
     GetDeploymentStatsAction.Request, GetDeploymentStatsAction.Response, GetDeploymentStatsAction.Response.DeploymentStats> {
-
-    private static final Logger logger = LogManager.getLogger(TransportGetDeploymentStatsAction.class);
 
     private final DeploymentManager deploymentManager;
 
@@ -74,7 +69,6 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
 
         String[] tokenizedRequestIds = Strings.tokenizeToStringArray(request.getDeploymentId(), ",");
 
-        logger.info("get stats for tasks: " + Arrays.toString(tokenizedRequestIds));
         Collection<PersistentTasksCustomMetadata.PersistentTask<?>> deploymentTasks = MlTasks.trainedModelDeploymentTasks(tasks);
 
         if (Strings.isAllOrWildcard(request.getDeploymentId())) {
@@ -127,18 +121,12 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
             request.setExpandedIds(matchedDeploymentIds);
         }
 
-        logger.info("request ids {}", request.getExpandedIds());
-        logger.info("request nodes {}", Arrays.asList(request.getNodes()));
-
         super.doExecute(task, request, listener);
     }
 
     @Override
     protected void taskOperation(GetDeploymentStatsAction.Request request, TrainedModelDeploymentTask task,
                                  ActionListener<GetDeploymentStatsAction.Response.DeploymentStats> listener) {
-
-        logger.error("task op on node {}", clusterService.getNodeName());
-
         ModelStats stats = deploymentManager.getStats(task);
         var response = new GetDeploymentStatsAction.Response.DeploymentStats(task.getModelId(),
             this.clusterService.getNodeName(),

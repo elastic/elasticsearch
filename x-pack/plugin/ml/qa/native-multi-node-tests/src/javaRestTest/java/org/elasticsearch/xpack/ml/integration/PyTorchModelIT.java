@@ -167,19 +167,55 @@ public class PyTorchModelIT extends ESRestTestCase {
         refreshModelStoreAndVocabIndex();
         createTrainedModel(modelA);
         startDeployment(modelA);
-        try {
-            infer("once", modelA);
-            infer("twice", modelA);
-            Response response = getDeploymentStats(modelA);
-            List<Map<String, Object>> stats = (List<Map<String, Object>>)entityAsMap(response).get("deployment_stats");
-            assertThat(stats, hasSize(1));
-            assertThat(stats.get(0).get("inference_count"), equalTo(2));
-            assertThat(stats.get(0).get("model_size"), equalTo("1.5kb"));
+        infer("once", modelA);
+        infer("twice", modelA);
+        Response response = getDeploymentStats(modelA);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>)entityAsMap(response).get("deployment_stats");
+        assertThat(stats, hasSize(1));
+        assertThat(stats.get(0).get("inference_count"), equalTo(2));
+        assertThat(stats.get(0).get("model_size"), equalTo("1.5kb"));
+    }
 
-        } finally {
-            stopDeployment(modelA);
+    @SuppressWarnings("unchecked")
+    public void testGetDeploymentStats_WithWildcard() throws IOException {
+        createModelStoreIndex();
+
+        String modelFoo = "foo";
+        putTaskConfig(modelFoo, List.of("once", "twice"));
+        putModelDefinition(modelFoo);
+        createTrainedModel(modelFoo);
+
+        String modelBar = "bar";
+        putTaskConfig(modelBar, List.of("once", "twice"));
+        putModelDefinition(modelBar);
+        createTrainedModel(modelBar);
+
+        refreshModelStoreIndex();
+
+        startDeployment(modelFoo);
+        startDeployment(modelBar);
+        infer("once", modelFoo);
+        infer("once", modelBar);
+        {
+            Response response = getDeploymentStats("*");
+            Map<String, Object> map = entityAsMap(response);
+            logger.info(map);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("deployment_stats");
+            assertThat(stats, hasSize(2));
+            assertThat(stats.get(0).get("inference_count"), equalTo(1));
+            assertThat(stats.get(1).get("inference_count"), equalTo(1));
+            assertThat(stats.get(0).get("model_id"), equalTo(modelBar));
+            assertThat(stats.get(1).get("model_id"), equalTo(modelFoo));
         }
-
+        {
+            Response response = getDeploymentStats("f*");
+            Map<String, Object> map = entityAsMap(response);
+            logger.info(map);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("deployment_stats");
+            assertThat(stats, hasSize(1));
+            assertThat(stats.get(0).get("inference_count"), equalTo(1));
+            assertThat(stats.get(0).get("model_id"), equalTo(modelFoo));
+        }
     }
 
     private void putModelDefinition(String modelId) throws IOException {

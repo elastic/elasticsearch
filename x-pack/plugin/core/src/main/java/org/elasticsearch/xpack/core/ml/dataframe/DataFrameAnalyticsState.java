@@ -48,7 +48,7 @@ public enum DataFrameAnalyticsState implements Writeable, MemoryTrackedTaskState
     }
 
     /**
-     * @return {@code false} if state matches any of the given {@code candidates}
+     * @return {@code true} if state matches none of the given {@code candidates}
      */
     public boolean isNoneOf(DataFrameAnalyticsState... candidates) {
         return Arrays.stream(candidates).noneMatch(candidate -> this == candidate);

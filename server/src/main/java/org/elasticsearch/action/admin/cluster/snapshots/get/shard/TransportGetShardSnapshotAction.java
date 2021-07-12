@@ -94,7 +94,7 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
             shardId,
             ActionListener.wrap(shardSnapshotInfo -> groupedActionListener.onResponse(Tuple.tuple(shardSnapshotInfo, null)), err -> {
                 if (request.isSingleRepositoryRequest() == false && err instanceof RepositoryException) {
-                    groupedActionListener.onResponse(Tuple.tuple(null, (RepositoryException) err));
+                    groupedActionListener.onResponse(Tuple.tuple(Optional.empty(), (RepositoryException) err));
                 } else {
                     groupedActionListener.onFailure(err);
                 }
@@ -122,7 +122,7 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
     private GetShardSnapshotResponse transformToResponse(
         Collection<Tuple<Optional<ShardSnapshotInfo>, RepositoryException>> shardSnapshots
     ) {
-        assert shardSnapshots.stream().noneMatch(tuple -> tuple.v1() == null && tuple.v2() == null);
+        assert shardSnapshots.stream().noneMatch(tuple -> tuple.v1().isEmpty() && tuple.v2() == null);
 
         final Map<String, ShardSnapshotInfo> repositoryShardSnapshot = shardSnapshots.stream()
             .map(Tuple::v1)

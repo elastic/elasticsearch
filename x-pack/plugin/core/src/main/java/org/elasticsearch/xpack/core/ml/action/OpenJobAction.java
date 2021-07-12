@@ -12,23 +12,24 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -59,7 +60,7 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
         private JobParams jobParams;
 
         public Request(JobParams jobParams) {
-            this.jobParams = jobParams;
+            this.jobParams = Objects.requireNonNull(jobParams);
         }
 
         public Request(String jobId) {
@@ -118,7 +119,7 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
         }
     }
 
-    public static class JobParams implements XPackPlugin.XPackPersistentTaskParams {
+    public static class JobParams implements XPackPlugin.XPackPersistentTaskParams, MlTaskParams {
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField JOB = new ParseField("job");
@@ -243,6 +244,11 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
         @Override
         public Version getMinimalSupportedVersion() {
             return Version.CURRENT.minimumCompatibilityVersion();
+        }
+
+        @Override
+        public String getMlId() {
+            return jobId;
         }
     }
 

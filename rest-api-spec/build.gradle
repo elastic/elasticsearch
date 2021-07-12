@@ -74,7 +74,7 @@ def v7compatibilityNotSupportedTests = {
           'indices.upgrade/*/*'
   ]
 }
-tasks.named("yamlRestCompatTest").configure {
+tasks.named("yamlRestTestV7Compat").configure {
   onlyIf {
     // Skip these tests on Windows since the blacklist exceeds Windows CLI limits
     OS.current() != OS.WINDOWS
@@ -103,7 +103,7 @@ tasks.named("yamlRestCompatTest").configure {
     .join(',')
 }
 
-tasks.named("transformV7RestTests").configure({ task ->
+tasks.named("transformV7RestCompatTests").configure({ task ->
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
   task.replaceValueInMatch("nodes.\$node_id.roles.8", "ml", "node_info role test")

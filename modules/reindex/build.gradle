@@ -164,7 +164,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     }
   }
 }
-tasks.named("transformV7RestTests").configure({ task ->
+tasks.named("transformV7RestCompatTests").configure({ task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
 })
 
@@ -175,7 +175,7 @@ def v7compatibilityNotSupportedTests = {
   ]
 }
 
-tasks.named("yamlRestCompatTest").configure {
+tasks.named("yamlRestTestV7Compat").configure {
       systemProperty 'tests.rest.blacklist', v7compatibilityNotSupportedTests().join(',')
 }
 

@@ -35,7 +35,7 @@ if (BuildParams.inFipsJvm){
   tasks.named("yamlRestTest").configure{enabled = false }
 }
 
-tasks.named("transformV7RestTests").configure({ task ->
+tasks.named("transformV7RestCompatTests").configure({ task ->
   task.replaceKeyInDo("watcher.ack_watch", "xpack-watcher.ack_watch")
   task.replaceKeyInDo("watcher.activate_watch", "xpack-watcher.activate_watch")
   task.replaceKeyInDo("watcher.deactivate_watch", "xpack-watcher.deactivate_watch")
@@ -54,7 +54,7 @@ tasks.named("transformV7RestTests").configure({ task ->
 
 })
 
-tasks.named("yamlRestCompatTest").configure {
+tasks.named("yamlRestTestV7Compat").configure {
   systemProperty 'tests.rest.blacklist', [
     'mustache/25_array_compare/Basic array_compare watch',
     'mustache/30_search_input/Test search input mustache integration (using request body and rest_total_hits_as_int)',

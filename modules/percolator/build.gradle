@@ -25,6 +25,6 @@ restResources {
   }
 }
 
-tasks.named("transformV7RestTests").configure({ task ->
+tasks.named("transformV7RestCompatTests").configure({ task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
 })

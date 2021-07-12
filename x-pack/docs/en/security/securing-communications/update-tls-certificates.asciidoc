@@ -1,13 +1,14 @@
 [[update-node-certs]]
 == Updating node security certificates
-You need to update your TLS certificates if your current node certificates might
-expire soon, you're adding new nodes to your secured cluster, or a security
-breach has broken the trust of your certificate chain. In these instances where
-<<update-node-certs-same,your CA and key remains the same>>, you can sign new
-certificates using the original Certificate Authority (CA) that you used to sign your existing certificates.
+You might need to update your TLS certificates if your current node
+certificates expire soon, you're adding new nodes to your secured cluster, or
+a security breach has broken the trust of your certificate chain.
 
-If you have to trust a new CA from your organization, or you need to generate a new CA yourself, you need to use this new CA to sign the new node certificates and instruct your nodes to trust the new CA. 
-<<update-node-certs-different,generate a new CA certificate and key>> for each
+In instances where you have access to the original Certificate Authority (CA) key and certificate that you used to sign your existing node certificates (and where your CA has not been compromised), you can
+<<update-node-certs-same,use that CA to sign the new certificates>>.
+
+If you have to trust a new CA from your organization, or you need to generate a new CA yourself, you need to use this new CA to sign the new node certificates and instruct your nodes to trust the new CA. In this case, you'll
+<<update-node-certs-different,generate a new node certificate and key>> for each
 node that is signed by the new CA certificate and instruct your nodes to trust
 this certificate chain.
 
@@ -15,13 +16,12 @@ Depending on which certificates are expiring, you might need to update the
 certificates for the transport layer, the HTTP layer, or both. 
 
 Regardless of the scenario, {es} monitors the SSL resources for updates
-on a five-second interval by default. You can just copy the new
+by default, on a five-second interval. You can just copy the new
 certificate and key files (or keystore) into the {es} configuration directory
 and your nodes will detect the changes and reload the keys and certificates. 
 
 Because {es} doesn't reload the `elasticsearch.yml` configuration,
-you must use *the same file names* so that {es} refreshes the
-certificates and keys.
+you must use *the same file names* if you want to take advantage of automatic certificate and key reloading. 
 
 If you need to update the `elasticsearch.yml` configuration or change
 passwords for keys or keystores that are stored in the
@@ -60,8 +60,8 @@ certificate.
 
 If you have access to the CA used to sign your existing certificates, you only
 need to replace the certificates and keys for each node in your cluster. If you
-replace your existing certificates and keys on each node use the same filenames,
-{es} reloads the files starts using the new certificates and keys.
+replace your existing certificates and keys on each node and use the same
+filenames, {es} reloads the files starts using the new certificates and keys.
 
 You don't have to restart each node, but doing so forces new TLS connections and is <<use-rolling-restarts,a recommended practice>> when updating certificates.
 Therefore, the following steps include a node restart after updating each
@@ -87,11 +87,6 @@ TIP: If your CA has changed, complete the steps in
 The following examples use PKCS#12 files, but the same steps apply to JKS
 keystores.
 
-Rather than run the `elasticsearch-certutil` tool once for each node, create an
-`instances.yml` file that contains information about each of your nodes. You can
-then use the `elasticsearch-certutil` tool to generate certificates for all of
-your nodes with a single command.
-
 . Open the `ES_PATH_CONF/elasticsearch.yml` file and check the names of the
 keystores that are currently in use. You'll use the same names for your new
 certificate.
@@ -108,69 +103,26 @@ xpack.security.transport.ssl.truststore.path: config/elastic-stack-ca.p12
 xpack.security.transport.ssl.truststore.type: PKCS12
 ----
 
-. On any node in your cluster, create an `instances.yml` file that contains
-information about each of your nodes. Include all IP addresses and DNS names
-that you use to identify each node. 
-+
-[source,yaml]
-----
-instances:
-  - name: "node1"
-    ip:
-      - "192.168.1.101"
-    dns:
-      - "node1"
-      - "node1.mydomain.com"
-  - name: "node2"
-    ip:
-      - "192.168.1.102"
-    dns:
-      - "node2"
-      - "node2.mydomain.com"
-  - name: "node3"
-    ip:
-      - "192.168.1.103"
-    dns:
-      - "node3"
-      - "node3.mydomain.com"
-  - name: "node4"
-    ip:
-      - "192.168.1.104"
-    dns:
-      - "node4"
-      - "node4.mydomain.com"
-----
-
-. Using your existing CA, generate a keystore for each of your nodes. You must
+. Using your existing CA, generate a keystore for your nodes. You must
 use the CA that was used to sign the certificate currently in use.
 +
 [source,shell]
 ----
-./bin/elasticsearch-certutil cert --in instances.yml --ca elastic-stack-ca.p12
+./bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
 ----
 +
 [%collapsible%open]
 .Command parameters
 ====
-   `-in`:: Specifies the name of the input YAML file (`instances.yml`)
-   containing information about each of your nodes.
-
    `--ca <ca_file>`:: Name of the CA keystore used to sign your certificates.
+   If you used the `elasticsearch-certutil` tool to generate your existing CA,
+   the keystore name defaults to `elastic-stack-ca.p12`.
 ====
 
    a. Enter a name for the output file or accept the default of
-   `certificate-bundle.zip`.
+   `elastic-certificates.p12`.
 
-   b. When prompted, enter a password for each node certificate. It's good
-   practice to use a different password for each node certificate and store the
-   files in a secure location.
-
-   c. Decompress the `certificate-bundle.zip` file. The output contains a
-   directory for each of your nodes with a `<node-name>.p12` file.
-
-   d. Rename the `<node-name>.p12` file to match the existing file name
-   specified by the `xpack.security.transport.ssl.keystore.path` variable in 
-   the `elasticsearch.yml` file on each node.
+   b. When prompted, enter a password for the node keystore.
 
 . If you entered a password when creating the node keystore that is different 
 from the current keystore password, run the following command to store the
@@ -183,16 +135,16 @@ password in the {es} keystore:
 ----
 --
 
-. [[start-rolling-restart,step 5]]On the current node in your cluster where you're updating the keystore,
+. [[start-rolling-restart,step 4]]On the current node in your cluster where you're updating the keystore,
 start a <<restart-cluster-rolling,rolling restart>>.
 +
 Stop at the step indicating *Perform any needed changes*, and then proceed to
 the next step in this procedure.
 
-. [[replace-keystores]]Replace your existing keystore with the new keystore, ensuring that the
-file names match. For example, `node1.p12`.
+. [[replace-keystores]]Replace your existing keystore with the new keystore,
+ensuring that the file names match. For example, `elastic-certificates.p12`.
 +
-If your 
+IMPORTANT: If your 
 <<cert-password-updates,keystore password is changing>>, then save the
 keystore with a new filename so that {es} doesn't attempt to reload the file
 before you update the password.
@@ -203,20 +155,23 @@ For example:
 +
 [source,yaml]
 ----
-xpack.security.transport.ssl.keystore.path: config/node1.p12
+xpack.security.transport.ssl.keystore.path: config/elastic-certificates.p12
 xpack.security.transport.ssl.keystore.type: PKCS12
 xpack.security.transport.ssl.truststore.path: config/elastic-stack-ca.p12
 xpack.security.transport.ssl.truststore.type: PKCS12
 ----
 
-. Start the node where you updated the keystore, and then complete the remaining
-steps for a <<restart-cluster-rolling,rolling restart>>.
+. Start the node where you updated the keystore.
 
-. [[verify-keystore,step 9]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
-{es} loaded the new keystore.
+. [[verify-keystore,step 8]](Optional) Use the
+<<security-api-ssl,SSL certificate API>> to verify that {es} loaded the new
+keystore.
 
-. One node at a time, complete <<start-rolling-restart>> through
-<<verify-keystore>> until you've updated all keystores in your cluster.
+. If you're only updating certificates for the transport layer (and not the HTTP layer), then complete <<start-rolling-restart>> through <<verify-keystore>> one node at a time until you've updated all keystores in your cluster. You can then
+complete the remaining steps for a <<restart-cluster-rolling,rolling restart>>.
++
+Otherwise, do not complete a rolling restart and proceed to the steps for
+generating a new certificate for the HTTP layer.
 
 [discrete]
 [[transport-layer-sameca-whatsnext]]
@@ -233,9 +188,7 @@ this certificate when they connect to {es}.
 
 NOTE: If your organization has its own CA, you'll need to 
 <<certutil-csr,generate Certificate Signing Requests (CSRs)>>. CSRs contain
-information that your CA uses to generate and sign a certificate
-instead of using self-signed certificates that the `elasticsearch-certutil` tool
-generates.
+information that your CA uses to generate and sign a certificate.
 
 . On any node in your cluster where {es} is installed, run the {es} HTTP
 certificate tool.
@@ -267,9 +220,9 @@ explaining how to use these files.
 Each certificate will have its own private key, and will be issued for a
 specific hostname or IP address.
 
-   g. When prompted, enter the name of the first node in your cluster. Use the
-   same node name as the value for the `node.name` parameter in the
-   `elasticsearch.yml` file.
+   g. When prompted, enter the name of the first node in your cluster. It's
+   helpful to use the same node name as the value for the `node.name`
+   parameter in the `elasticsearch.yml` file.
 
    h. Enter all hostnames used to connect to your first node. These hostnames
    will be added as DNS names in the Subject Alternative Name (SAN) field in your certificate.
@@ -284,7 +237,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
    your private key when prompted.
 
 . Unzip the generated `elasticsearch-ssl-http.zip` file. This compressed file
-   contains one directory for both {es} and {kib}. Within the `/elasticsearch`
+   contains two directories; one each for {es} and {kib}. Within the `/elasticsearch`
    directory is a directory for each node that you specified with it's own
    `http.p12` file. For example:
 +
@@ -315,7 +268,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 --
 
 . If necessary, rename the `http.p12` file to match the name of your existing
-certificate for HTTP client communications.
+certificate for HTTP client communications. For example, `node1-http.p12`.
 
 . [[start-rolling-restart-http,step 5]]On the current node in your cluster where you're updating the keystore,
 start a <<restart-cluster-rolling,rolling restart>>.
@@ -326,7 +279,7 @@ the next step in this procedure.
 . Replace your existing keystore with the new keystore, ensuring that the
 file names match. For example, `node1-http.p12`.
 +
-If your 
+IMPORTANT: If your 
 <<cert-password-updates,keystore password is changing>>, then save the
 keystore with a new filename so that {es} doesn't attempt to reload the file
 before you update the password.
@@ -368,8 +321,8 @@ If you have to trust a new CA from your organization, or you need to generate a 
 [[node-certs-different-transport]]
 ==== Generate a new certificate for the transport layer
 Create a new CA certificate and add it to your existing CA truststore. After
-{es} reloads the file, you can remove the old CA certificate from your
-truststore.
+you finish updating your certificates for all nodes, you can remove the old CA
+certificate from your truststore (but not before!).
 
 NOTE: The following examples use PKCS#12 files, but the same steps apply to JKS
 keystores.
@@ -392,12 +345,6 @@ xpack.security.transport.ssl.truststore.type: PKCS12
 
 . On *any* node in your cluster, generate a new CA certificate. You only need
 to complete this step one time.
-+
-NOTE: If your organization has its own CA, you'll need to 
-<<certutil-csr,generate Certificate Signing Requests (CSRs)>>. CSRs contain
-information that your CA uses to generate and sign a security certificate
-instead of using self-signed certificates that the `elasticsearch-certutil` tool
-generates.
 +
 [source,shell]
 ----
@@ -446,75 +393,40 @@ keytool -importcert -trustcacerts -noprompt -keystore elastic-stack-ca.p12 \
    `-file`:: Name of the new CA certificate to import.
 ====
 
-. Check that the new CA certificate was added to your truststore. The output
-should contain both the existing CA certificate and your new certificate. Each
-CA certificate is identified by the `friendlyName` attribute in the output.
-+
-When prompted, enter the password for the CA truststore.
+. [[check-ca-truststore]] Check that the new CA certificate was added to your
+truststore. 
 +
 [source,shell]
 ----
 keytool -keystore config/elastic-stack-ca.p12 -list
 ----
+When prompted, enter the password for the CA truststore.
++
+The output should contain both the existing CA certificate and your new
+certificate. If you previously used the `elasticsearch-certutil` tool to
+generate your keystore, the alias of the old CA defaults to `ca` and the type of
+entry is `PrivateKeyEntry`.
 
 [discrete]
 [[node-certs-different-nodes]]
 ==== Generate a new certificate for each node in your cluster
 Now that your CA truststore is updated, use your new CA certificate to sign
-a certificate for each node in your cluster. Rather than run the
-`elasticsearch-certutil` tool once for each node, create an `instances.yml` file
-that contains information about each of your nodes. You can then use the
-`elasticsearch-certutil` tool to generate certificates for all of your nodes
-with a single command.
+a certificate for your nodes.
 
-. On any node in your cluster, create an `instances.yml` file that contains
-information about each of your nodes. Include all IP addresses and DNS names
-that you use to identify each node. 
-+
-[source,yaml]
-----
-instances:
-  - name: "node1"
-    ip:
-      - "192.168.1.101"
-    dns:
-      - "node1"
-      - "node1.mydomain.com"
-  - name: "node2"
-    ip:
-      - "192.168.1.102"
-    dns:
-      - "node2"
-      - "node2.mydomain.com"
-  - name: "node3"
-    ip:
-      - "192.168.1.103"
-    dns:
-      - "node3"
-      - "node3.mydomain.com"
-  - name: "node4"
-    ip:
-      - "192.168.1.104"
-    dns:
-      - "node4"
-      - "node4.mydomain.com"
-----
+NOTE: If your organization has its own CA, you'll need to 
+<<certutil-csr,generate Certificate Signing Requests (CSRs)>>. CSRs contain
+information that your CA uses to generate and sign a security certificate.
 
-. Using the new CA certificate and key, create a new certificate for each node
-in your cluster. Include the `instances.yml` file that you created previously.
+. Using the new CA certificate and key, create a new certificate for your nodes.
 +
 [source,shell]
 ----
-./bin/elasticsearch-certutil cert --in instances.yml --ca-cert ca/ca.crt \
---ca-key ca/ca.key
+./bin/elasticsearch-certutil cert --ca-cert ca/ca.crt --ca-key ca/ca.key
 ----
 +
 [%collapsible%open]
 .Command parameters
 ====
-   `-in`:: Specifies the name of the input YAML file (`instances.yml`)
-   containing information about each of your nodes.
-
    `--ca-cert`:: Specifies the path to your new CA certificate (`ca.crt`) in PEM
    format. You must also specify the `--ca-key` parameter.
 
@@ -523,20 +435,11 @@ in your cluster. Include the `instances.yml` file that you created previously.
 ====
 
    a. Enter a name for the output file or accept the default of
-   `certificate-bundle.zip`.
+   `elastic-certificates.p12`.
 
-   b. When prompted, enter a password for each node certificate. It's good
-   practice to use a different password for each node certificate and store the
-   files in a secure location.
+   b. When prompted, enter a password for your node certificate.
 
-   c. Decompress the `certificate-bundle.zip` file. The output contains a
-   directory for each of your nodes with a `<node-name>.p12` file.
-
-   d. Rename the `<node-name>.p12` file to match the existing file name
-   specified by the `xpack.security.transport.ssl.keystore.path` variable in 
-   the `elasticsearch.yml` file on each node.
-
-. [[start-rolling-restart-newca,step 3]]On the current node in your cluster where
+. [[start-rolling-restart-newca,step 2]]On the current node in your cluster where
 you're updating the keystore, start a
 <<restart-cluster-rolling,rolling restart>>.
 +
@@ -544,9 +447,9 @@ Stop at the step indicating *Perform any needed changes*, and then proceed to
 the next step in this procedure.
 
 . Replace your existing keystore with the new keystore, ensuring that the
-file names match. For example, `<node-name>.p12`.
+file names match. For example, `elastic-certificates.p12`.
 +
-If your 
+IMPORTANT: If your 
 <<cert-password-updates,keystore password is changing>>, then save the
 keystore with a new filename so that {es} doesn't attempt to reload the file
 before you update the password.
@@ -557,27 +460,36 @@ For example:
 +
 [source,yaml]
 ----
-xpack.security.transport.ssl.keystore.path: config/<node-name>.p12
+xpack.security.transport.ssl.keystore.path: config/elastic-certificates.p12
 xpack.security.transport.ssl.keystore.type: PKCS12
 xpack.security.transport.ssl.truststore.path: config/elastic-stack-ca.p12
 xpack.security.transport.ssl.truststore.type: PKCS12
 ----
 
-. Start the node where you updated the keystore, and then complete the remaining
-steps for a <<restart-cluster-rolling,rolling restart>>.
+. Start the node where you updated the keystore.
 
-. [[verify-keystore-newca,step 7]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
-{es} loaded the new keystore.
+. [[verify-keystore-newca,step 6]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that {es} loaded the new keystore.
 
-. One node at a time, complete <<start-rolling-restart-newca>> through
-<<verify-keystore-newca>> until you've updated all keystores in your cluster.
+. If you're only updating certificates for the transport layer (and not the HTTP
+layer), then complete <<start-rolling-restart-newca>> through
+<<verify-keystore-newca>> one node at a time until you've updated all keystores
+in your cluster. You can then complete the remaining steps for a
+<<restart-cluster-rolling,rolling restart>>.
++
+Otherwise, do not complete a rolling restart and proceed to the steps for
+generating a new certificate for the HTTP layer.
 
-. (Optional) After rotating keystores on each node in your cluster, remove the
-old CA certificate from your truststore.
+. (Optional) After rotating keystores on each node in your cluster,
+<<check-ca-truststore,list the certificates in your truststore>> and then remove
+the old CA certificate.
++
+If you previously used the `elasticsearch-certutil` tool to generate your
+keystore, the alias of the old CA defaults to `ca` and the type of entry is
+`PrivateKeyEntry`.
 +
 [source,shell]
 ----
-keytool -delete -noprompt -alias <old-ca>  -keystore config/elastic-stack-ca.p12 \
+keytool -delete -noprompt -alias ca  -keystore config/elastic-stack-ca.p12 \
 -storepass <password>
 ----
 +
@@ -607,6 +519,48 @@ NOTE: If your organization has its own CA, you'll need to
 information that your CA uses to generate and sign a security certificate
 instead of using self-signed certificates that the `elasticsearch-certutil` tool
 generates.
+
+Before generating new certificates for the HTTP layer, you need to go to all the clients that connect to {es} (such as {kib}, {beats}, {ls}, and any language
+clients) and configure them to also trust the new CA (`ca.crt`) that you
+generated.
+
+. For *every* client that connects to {es}, import the new `ca.crt` certificate
+into your existing CA truststore for the HTTP layer. This step ensures that your
+cluster trusts the new CA certificate. This example uses the Java `keytool`
+utility to import the certificate into the `http.p12` CA truststore.
++
+[source,shell]
+----
+keytool -importcert -trustcacerts -noprompt -keystore http.p12 \
+-storepass <password>  -alias new-ca -file ca.crt
+----
++
+[%collapsible%open]
+.Command parameters
+====
+   `-keystore`:: Name of the HTTP truststore that you are importing the new CA
+   certificate into. 
+
+   `-storepass`:: Password for the CA truststore. 
+
+   `-alias`:: Name that you want to assign to the new CA certificate entry in
+   the keystore.
+
+   `-file`:: Name of the new CA certificate to import.
+====
+
+. Check that the new CA certificate was added to your truststore. 
++
+[source,shell]
+----
+keytool -keystore config/http.p12 -list
+----
+When prompted, enter the password for the CA truststore.
++
+The output should contain both the existing CA certificate and your new
+certificate. If you previously used the `elasticsearch-certutil` tool to
+generate your keystore, the alias of the old CA defaults to `http` and the type
+of entry is `PrivateKeyEntry`.
 
 . On any node in your cluster where {es} is installed, run the {es} HTTP
 certificate tool.
@@ -687,10 +641,9 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 --
 
 . If necessary, rename each `http.p12` file to match the name of your existing
-certificate for HTTP client communications. This keystore contains both a
-certificate and key.
+certificate for HTTP client communications. For example, `node1-http.p12`.
 
-. [[start-rolling-restart-http-newca,step 5]]On the current node in your cluster where you're updating the keystore,
+. [[start-rolling-restart-http-newca,step 7]]On the current node in your cluster where you're updating the keystore,
 start a <<restart-cluster-rolling,rolling restart>>.
 +
 Stop at the step indicating *Perform any needed changes*, and then proceed to
@@ -699,7 +652,7 @@ the next step in this procedure.
 . Replace your existing keystore with the new keystore, ensuring that the
 file names match. For example, `node1-http.p12`.
 +
-If your 
+IMPORTANT: If your 
 <<cert-password-updates,keystore password is changing>>, then save the
 keystore with a new filename so that {es} doesn't attempt to reload the file
 before you update the password.
@@ -725,27 +678,11 @@ to the secure settings in {es}.
 . Start the node where you updated the keystore, and then complete the remaining
 steps for a <<restart-cluster-rolling,rolling restart>>.
 
-. [[verify-keystore-http-newca,step 10]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
+. [[verify-keystore-http-newca,step 12]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
 {es} loaded the new keystore.
 
 . One node at a time, complete <<start-rolling-restart-http-newca>> through
 <<verify-keystore-http-newca>> until you've updated all keystores in your cluster.
-
-. (Optional) After rotating keystores on each node in your cluster, remove the
-old CA certificate from your truststore. 
-+
-[source,shell]
-----
-keytool -delete -noprompt -alias <old-ca>  -keystore config/http.p12 \
--storepass <password>
-----
-+
-[%collapsible%open]
-.Command parameters
-====
-   `-alias`:: Name of the old CA certificate that you want to remove from your
-   truststore.
-====
 
 [discrete]
 [[http-kibana-newca-whatsnext]]

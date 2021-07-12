@@ -145,8 +145,8 @@ public final class ExpandedIdsMatcher {
      * test if the given id is matched by any of the matchers.
      *
      * Unlike {@link ExpandedIdsMatcher} there is no
-     * allowNoMatchForWildcards logic and matched ids
-     * are cannot be removed.
+     * allowNoMatchForWildcards logic and the matchers
+     * are not be removed once they have been matched.
      */
     public static class SimpleIdsMatcher {
 

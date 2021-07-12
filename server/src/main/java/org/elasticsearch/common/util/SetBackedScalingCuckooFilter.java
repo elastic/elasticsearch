@@ -103,23 +103,6 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         this.fpp = fpp;
     }
 
-    public SetBackedScalingCuckooFilter(SetBackedScalingCuckooFilter other) {
-        this.threshold = other.threshold;
-        this.isSetMode = other.isSetMode;
-        this.rng = other.rng;
-        this.breaker = other.breaker;
-        this.capacity = other.capacity;
-        this.fpp = other.fpp;
-        if (isSetMode) {
-            this.hashes = new HashSet<>(other.hashes);
-        } else {
-            this.filters = new ArrayList<>(other.filters);
-            this.numBuckets = filters.get(0).getNumBuckets();
-            this.fingerprintMask = filters.get(0).getFingerprintMask();
-            this.bitsPerEntry = filters.get(0).getBitsPerEntry();
-        }
-    }
-
     public SetBackedScalingCuckooFilter(StreamInput in, Random rng) throws IOException {
         this.threshold = in.readVInt();
         this.isSetMode = in.readBoolean();
@@ -148,6 +131,27 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         } else {
             out.writeList(filters);
         }
+    }
+
+    /**
+     * Returns the number of distinct values that are tracked before converting to an approximate representation.
+     * */
+    public int getThreshold() {
+        return threshold;
+    }
+
+    /**
+     * Returns the random number generator used for the cuckoo hashing process.
+     * */
+    public Random getRng() {
+        return rng;
+    }
+
+    /**
+     * Returns the false-positive rate used for the cuckoo filters.
+     * */
+    public double getFpp() {
+        return fpp;
     }
 
     /**

@@ -127,14 +127,13 @@ public class ExpandedIdsMatcherTests extends ESTestCase {
         assertTrue(requiredMatches.isOnlyExact());
     }
 
-    public void testIdMatches() {
+    public void testSimpleMatcher() {
         {
-            ExpandedIdsMatcher matcher = new ExpandedIdsMatcher(new String[]{"*"}, true);
+            ExpandedIdsMatcher.SimpleIdsMatcher matcher = new ExpandedIdsMatcher.SimpleIdsMatcher(new String[]{"*"});
             assertTrue(matcher.idMatches(randomAlphaOfLength(5)));
         }
-
         {
-            ExpandedIdsMatcher matcher = new ExpandedIdsMatcher(new String[]{"foo*","bar"}, true);
+            ExpandedIdsMatcher.SimpleIdsMatcher matcher = new ExpandedIdsMatcher.SimpleIdsMatcher(new String[]{"foo*","bar"});
             assertTrue(matcher.idMatches("foo1"));
             assertTrue(matcher.idMatches("bar"));
             assertFalse(matcher.idMatches("car"));

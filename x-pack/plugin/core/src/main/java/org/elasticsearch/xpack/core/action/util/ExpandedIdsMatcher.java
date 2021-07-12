@@ -116,20 +116,6 @@ public final class ExpandedIdsMatcher {
         }
     }
 
-    /**
-     * Do any of the current set of matchers match {@code id}?
-     *
-     * {@link #filterMatchedIds(Collection)} removes matchers from set
-     * of required matchers used in this method. The result of this
-     * call may change after a call to {@link #filterMatchedIds(Collection)}.
-     *
-     * @param id Id to test
-     * @return True if the given id is matched by any of the matchers
-     */
-    public boolean idMatches(String id) {
-        return requiredMatches.stream().anyMatch(idMatcher -> idMatcher.matches(id));
-    }
-
     public boolean hasUnmatchedIds() {
         return requiredMatches.isEmpty() == false;
     }
@@ -149,6 +135,49 @@ public final class ExpandedIdsMatcher {
      */
     public boolean isOnlyExact() {
         return onlyExact;
+    }
+
+
+    /**
+     * A simple matcher with one purpose to test whether an id
+     * matches a expression that may contain wildcards.
+     * Use the {@link #idMatches(String)} function to
+     * test if the given id is matched by any of the matchers.
+     *
+     * Unlike {@link ExpandedIdsMatcher} there is no
+     * allowNoMatchForWildcards logic and matched ids
+     * are cannot be removed.
+     */
+    public static class SimpleIdsMatcher {
+
+        private final LinkedList<IdMatcher> requiredMatches;
+
+        public SimpleIdsMatcher(String[] tokens) {
+            requiredMatches = new LinkedList<>();
+
+            if (Strings.isAllOrWildcard(tokens)) {
+                requiredMatches.add(new WildcardMatcher("*"));
+                return;
+            }
+
+            for (String token : tokens) {
+                if (Regex.isSimpleMatchPattern(token)) {
+                    requiredMatches.add(new WildcardMatcher(token));
+                } else {
+                    requiredMatches.add(new EqualsIdMatcher(token));
+                }
+            }
+        }
+
+        /**
+         * Do any of the matchers match {@code id}?
+         *
+         * @param id Id to test
+         * @return True if the given id is matched by any of the matchers
+         */
+        public boolean idMatches(String id) {
+            return requiredMatches.stream().anyMatch(idMatcher -> idMatcher.matches(id));
+        }
     }
 
     private abstract static class IdMatcher {

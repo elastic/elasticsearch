@@ -216,6 +216,15 @@ public class PyTorchModelIT extends ESRestTestCase {
             assertThat(stats.get(0).get("inference_count"), equalTo(1));
             assertThat(stats.get(0).get("model_id"), equalTo(modelFoo));
         }
+        {
+            Response response = getDeploymentStats("bar");
+            Map<String, Object> map = entityAsMap(response);
+            logger.info(map);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("deployment_stats");
+            assertThat(stats, hasSize(1));
+            assertThat(stats.get(0).get("inference_count"), equalTo(1));
+            assertThat(stats.get(0).get("model_id"), equalTo(modelBar));
+        }
     }
 
     private void putModelDefinition(String modelId) throws IOException {

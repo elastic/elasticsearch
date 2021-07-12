@@ -36,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -283,6 +284,43 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             ShardSnapshotInfo shardSnapshotInfo = shardSnapshotInfoOpt.get();
             assertThat(shardSnapshotInfo.getSnapshotInfo(), equalTo(repositorySnapshots.get(repository)));
         }
+    }
+
+    public void testFailedSnapshotsAreNotReturned() throws Exception {
+        final String indexName = "test";
+        createIndexWithContent(indexName);
+
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+
+        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            ((MockRepository) repositoriesService.repository(repoName)).setBlockAndFailOnWriteSnapFiles();
+        }
+
+        client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, "snap")
+            .setIndices(indexName)
+            .setWaitForCompletion(false)
+            .setFeatureStates(NO_FEATURE_STATES_VALUE)
+            .get();
+
+        waitForBlockOnAnyDataNode(repoName);
+
+        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            ((MockRepository) repositoriesService.repository(repoName)).unblock();
+        }
+
+        assertBusy(() -> assertThat(getSnapshot(repoName, "snap").state(), equalTo(SnapshotState.PARTIAL)));
+
+        Optional<ShardSnapshotInfo> shardSnapshotInfo = getLatestSnapshotForShard(repoName, indexName, 0);
+        assertThat(shardSnapshotInfo.isEmpty(), equalTo(true));
+
+        final SnapshotInfo snapshotInfo = createSnapshot(repoName, "snap-1", Collections.singletonList(indexName));
+
+        Optional<ShardSnapshotInfo> latestSnapshotForShard = getLatestSnapshotForShard(repoName, indexName, 0);
+        assertThat(latestSnapshotForShard.isPresent(), equalTo(true));
+        assertThat(latestSnapshotForShard.get().getSnapshotInfo(), equalTo(snapshotInfo));
     }
 
     private Optional<ShardSnapshotInfo> getLatestSnapshotForShard(String repository, String indexName, int shard) {

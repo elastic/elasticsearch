@@ -91,17 +91,11 @@ tasks.named("yamlRestCompatTest").configure {
     'indices.open/10_basic/?wait_for_active_shards=index-setting',
     // not fixing this in #70966
     'indices.put_template/11_basic_with_types/Put template with empty mappings',
-    'mlt/20_docs/Basic mlt query with docs',
-    'mlt/30_unlike/Basic mlt query with unlike',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
     'search.aggregation/20_terms/*profiler*', // The profiler results aren't backwards compatible.
     'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
     'search.aggregation/370_doc_count_field/Test filters agg with doc_count', // Uses profiler for assertions which is not backwards compatible
-    'mtermvectors/11_basic_with_types/Basic tests for multi termvector get',
-    'mtermvectors/21_deprecated_with_types/Deprecated camel case and _ parameters should fail in Term Vectors query',
-    'mtermvectors/30_mix_typeless_typeful/mtermvectors without types on an index that has types',
     'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', //terms_lookup
-    'search/171_terms_query_with_types/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', //bulk
     'search/260_parameter_validation/test size=-1 is deprecated', //size=-1 change
     'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
     'search/340_type_query/type query', // type_query - probably should behave like match_all

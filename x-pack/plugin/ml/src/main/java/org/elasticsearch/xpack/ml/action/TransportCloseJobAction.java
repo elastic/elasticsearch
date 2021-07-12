@@ -242,7 +242,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
 
     void stopDatafeedsIfNecessary(OpenAndClosingIds jobIds, boolean isForce, TimeValue timeout, PersistentTasksCustomMetadata tasksMetadata,
                                   ActionListener<Boolean> listener) {
-        datafeedConfigProvider.findDatafeedsForJobIds(jobIds.openJobIds, ActionListener.wrap(
+        datafeedConfigProvider.findDatafeedIdsForJobIds(jobIds.openJobIds, ActionListener.wrap(
                 datafeedIds -> {
                     List<String> runningDatafeedIds = datafeedIds
                         .stream()

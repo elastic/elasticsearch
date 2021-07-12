@@ -198,6 +198,41 @@ public final class DatafeedManager {
         ));
     }
 
+    public void getDatafeedsByJobIds(Set<String> jobIds, ClusterState state, ActionListener<Map<String, DatafeedConfig.Builder>> listener) {
+        datafeedConfigProvider.findDatafeedsByJobIds(jobIds, ActionListener.wrap(
+            datafeeds -> {
+                Map<String, DatafeedConfig.Builder> response = new HashMap<>(datafeeds);
+                Map<String, DatafeedConfig> fromState = MlMetadata.getMlMetadata(state).getDatafeedsByJobIds(jobIds);
+                for (Map.Entry<String, DatafeedConfig> datafeedConfigEntry : fromState.entrySet()) {
+                    DatafeedConfig.Builder alreadyExistingDatafeed = response.get(datafeedConfigEntry.getKey());
+                    if (alreadyExistingDatafeed != null) {
+                        if (alreadyExistingDatafeed.getId().equals(datafeedConfigEntry.getValue().getId())) {
+                            listener.onFailure(new IllegalStateException(
+                                "Datafeed ["
+                                    + alreadyExistingDatafeed.getId()
+                                    + "] configuration "
+                                    + "exists in both clusterstate and index"));
+                            return;
+                        }
+                        listener.onFailure(new IllegalStateException(
+                            "datafeed ["
+                                + datafeedConfigEntry.getValue().getId()
+                                + "] configuration in cluster state and ["
+                                + alreadyExistingDatafeed.getId()
+                                + "] in the configuration index both refer to job ["
+                                + datafeedConfigEntry.getKey()
+                                + "]"
+                        ));
+                        return;
+                    }
+                    response.put(datafeedConfigEntry.getKey(), new DatafeedConfig.Builder(datafeedConfigEntry.getValue()));
+                }
+                listener.onResponse(response);
+            },
+            listener::onFailure
+        ));
+    }
+
     public void updateDatafeed(
         UpdateDatafeedAction.Request request,
         ClusterState state,
@@ -423,7 +458,7 @@ public final class DatafeedManager {
     }
 
     private void checkJobDoesNotHaveADatafeed(String jobId, ActionListener<Boolean> listener) {
-        datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
+        datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
             datafeedIds -> {
                 if (datafeedIds.isEmpty()) {
                     listener.onResponse(Boolean.TRUE);
@@ -437,7 +472,7 @@ public final class DatafeedManager {
     }
 
     private void checkJobDoesNotHaveADifferentDatafeed(String jobId, String datafeedId, ActionListener<Boolean> listener) {
-        datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
+        datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
             datafeedIds -> {
                 if (datafeedIds.isEmpty()) {
                     // Ok the job does not have a datafeed

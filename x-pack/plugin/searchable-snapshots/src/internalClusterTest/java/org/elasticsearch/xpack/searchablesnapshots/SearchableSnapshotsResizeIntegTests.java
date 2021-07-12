@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xpack.core.DataTier;
 import org.junit.After;
 import org.junit.Before;
 
@@ -57,13 +60,9 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
         super.tearDown();
     }
 
-    private void assertCannotResize(ThrowingRunnable runnable) {
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, runnable);
-        assertThat(exception.getMessage(), equalTo("searchable snapshot index [mounted-index] cannot be resized"));
-    }
-
     public void testShrinkSearchableSnapshotIndex() {
-        assertCannotResize(
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
             () -> client().admin()
                 .indices()
                 .prepareResizeIndex("mounted-index", "shrunk-index")
@@ -76,10 +75,12 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
                 )
                 .get()
         );
+        assertThat(exception.getMessage(), equalTo("can't shrink searchable snapshot index [mounted-index]"));
     }
 
     public void testSplitSearchableSnapshotIndex() {
-        assertCannotResize(
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
             () -> client().admin()
                 .indices()
                 .prepareResizeIndex("mounted-index", "split-index")
@@ -92,11 +93,48 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
                 )
                 .get()
         );
+        assertThat(exception.getMessage(), equalTo("can't split searchable snapshot index [mounted-index]"));
     }
 
     public void testCloneSearchableSnapshotIndex() {
-        assertCannotResize(
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
             () -> client().admin().indices().prepareResizeIndex("mounted-index", "cloned-index").setResizeType(ResizeType.CLONE).get()
         );
+        assertThat(
+            exception.getMessage(),
+            equalTo("can't clone searchable snapshot index [mounted-index]; setting [index.store.type] should be overridden")
+        );
+
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareResizeIndex("mounted-index", "cloned-index")
+                .setResizeType(ResizeType.CLONE)
+                .setSettings(Settings.builder().putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()).build())
+                .get()
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("can't clone searchable snapshot index [mounted-index]; setting [index.recovery.type] should be overridden")
+        );
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareResizeIndex("mounted-index", "cloned-index")
+                .setResizeType(ResizeType.CLONE)
+                .setSettings(
+                    Settings.builder()
+                        .putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
+                        .putNull(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey())
+                        .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DataTier.DATA_HOT)
+                        .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                        .build()
+                )
+        );
+        ensureGreen("cloned-index");
+        assertAcked(client().admin().indices().prepareDelete("cloned-index"));
     }
 }

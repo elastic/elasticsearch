@@ -472,7 +472,7 @@ public final class DatafeedManager {
     }
 
     private void checkJobDoesNotHaveADifferentDatafeed(String jobId, String datafeedId, ActionListener<Boolean> listener) {
-        datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
+        datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
             datafeedIds -> {
                 if (datafeedIds.isEmpty()) {
                     // Ok the job does not have a datafeed

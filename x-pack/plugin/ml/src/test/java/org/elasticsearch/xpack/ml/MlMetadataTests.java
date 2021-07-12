@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedRunnerTests.createDatafeedConfig;
@@ -156,7 +155,9 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         mlMetadataBuilder.putDatafeeds(datafeeds);
         MlMetadata mlMetadata = mlMetadataBuilder.build();
 
-        Map<String, DatafeedConfig> datafeedsByJobIds = mlMetadata.getDatafeedsByJobIds(Set.of("bar-1", "foo-1", "foo-2"));
+        Map<String, DatafeedConfig> datafeedsByJobIds = mlMetadata.getDatafeedsByJobIds(
+            org.elasticsearch.core.Set.of("bar-1", "foo-1", "foo-2")
+        );
         assertThat(datafeedsByJobIds, allOf(hasKey("bar-1"), hasKey("foo-1"), hasKey("foo-2")));
         assertThat(datafeedsByJobIds.get("bar-1").getId(), equalTo("bar-1-feed"));
         assertThat(datafeedsByJobIds.get("foo-1").getId(), equalTo("foo-1-feed"));

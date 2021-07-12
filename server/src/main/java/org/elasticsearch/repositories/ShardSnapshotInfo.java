@@ -16,10 +16,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotState;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 public class ShardSnapshotInfo implements Writeable {
     private final IndexId indexId;
@@ -36,7 +36,6 @@ public class ShardSnapshotInfo implements Writeable {
         SnapshotFiles snapshotFiles
     ) {
         assert snapshotInfo.indices().contains(indexId.getName());
-        assert snapshotInfo.state() == SnapshotState.SUCCESS;
 
         this.indexId = indexId;
         this.shardId = shardId;
@@ -78,5 +77,22 @@ public class ShardSnapshotInfo implements Writeable {
 
     public List<BlobStoreIndexShardSnapshot.FileInfo> getIndexFiles() {
         return snapshotFiles.indexFiles();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ShardSnapshotInfo that = (ShardSnapshotInfo) o;
+        return Objects.equals(indexId, that.indexId)
+            && Objects.equals(snapshotInfo, that.snapshotInfo)
+            && Objects.equals(shardId, that.shardId)
+            && Objects.equals(indexMetadataIdentifier, that.indexMetadataIdentifier)
+            && Objects.equals(snapshotFiles, that.snapshotFiles);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(indexId, snapshotInfo, shardId, indexMetadataIdentifier, snapshotFiles);
     }
 }

@@ -57,9 +57,6 @@ public class SnapshotFiles implements Writeable {
         this.snapshot = in.readString();
         this.indexFiles = in.readList(FileInfo::new);
         this.shardStateIdentifier = in.readOptionalString();
-        if (in.readBoolean()) {
-            this.physicalFiles = in.readMap(StreamInput::readString, FileInfo::new);
-        }
     }
 
     @Override
@@ -67,11 +64,6 @@ public class SnapshotFiles implements Writeable {
         out.writeString(snapshot);
         out.writeList(indexFiles);
         out.writeOptionalString(shardStateIdentifier);
-        final boolean hasPhysicalFiles = physicalFiles != null;
-        out.writeBoolean(hasPhysicalFiles);
-        if (hasPhysicalFiles) {
-            out.writeMap(physicalFiles, StreamOutput::writeString, (o, fileInfo) -> fileInfo.writeTo(o));
-        }
     }
 
     /**
@@ -155,5 +147,20 @@ public class SnapshotFiles implements Writeable {
             + "], indexFiles="
             + indexFiles
             + "}";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SnapshotFiles that = (SnapshotFiles) o;
+        return Objects.equals(snapshot, that.snapshot)
+            && Objects.equals(indexFiles, that.indexFiles)
+            && Objects.equals(shardStateIdentifier, that.shardStateIdentifier);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(snapshot, indexFiles, shardStateIdentifier);
     }
 }

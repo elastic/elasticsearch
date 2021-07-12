@@ -726,7 +726,7 @@ public class AuthorizationService {
                         valueFuture = new ListenableFuture<>();
                         addedListener = true;
                     }
-            }
+                }
                 if (addedListener) {
                     asyncSupplier.getAsync(valueFuture);
                 }

@@ -136,8 +136,8 @@ setup:
 ---
 "point-in-time with slicing":
   - skip:
-      version: " - 7.14.99"
-      reason: "support for slicing was added in 7.15"
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/75212"
   - do:
       open_point_in_time:
         index: test

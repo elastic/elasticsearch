@@ -1014,11 +1014,12 @@ public class RestoreService implements ClusterStateApplier {
         Settings changeSettings,
         String[] ignoreSettings
     ) {
+        final Settings settings = indexMetadata.getSettings();
         Settings normalizedChangeSettings = Settings.builder()
             .put(changeSettings)
             .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
             .build();
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexMetadata.getSettings())
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)
             && IndexSettings.INDEX_SOFT_DELETES_SETTING.exists(changeSettings)
             && IndexSettings.INDEX_SOFT_DELETES_SETTING.get(changeSettings) == false) {
             throw new SnapshotRestoreException(
@@ -1026,8 +1027,26 @@ public class RestoreService implements ClusterStateApplier {
                 "cannot disable setting [" + IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey() + "] on restore"
             );
         }
+        if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(settings))) {
+            final Boolean changed = changeSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, null);
+            if (changed != null) {
+                final Boolean previous = settings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, null);
+                if (Objects.equals(previous, changed) == false) {
+                    throw new SnapshotRestoreException(
+                        snapshot,
+                        String.format(
+                            Locale.ROOT,
+                            "cannot change value of [%s] when restoring searchable snapshot [%s:%s] as index %s",
+                            SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION,
+                            snapshot.getRepository(),
+                            snapshot.getSnapshotId().getName(),
+                            indexMetadata.getIndex()
+                        )
+                    );
+                }
+            }
+        }
         IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
-        Settings settings = indexMetadata.getSettings();
         Set<String> keyFilters = new HashSet<>();
         List<String> simpleMatchPatterns = new ArrayList<>();
         for (String ignoredSetting : ignoreSettings) {
@@ -1517,7 +1536,7 @@ public class RestoreService implements ClusterStateApplier {
             final String snapshotUuid = indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY);
 
             final boolean deleteSnapshot = indexSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false);
-            if (deleteSnapshot && snapshotInfo.indices().size() != 1) {
+            if (deleteSnapshot && snapshotInfo.indices().size() != 1 && Objects.equals(snapshotUuid, snapshotInfo.snapshotId().getUUID())) {
                 throw new SnapshotRestoreException(
                     repositoryName,
                     snapshotInfo.snapshotId().getName(),

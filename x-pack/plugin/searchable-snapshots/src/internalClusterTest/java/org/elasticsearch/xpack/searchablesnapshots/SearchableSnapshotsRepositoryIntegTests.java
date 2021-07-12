@@ -18,8 +18,10 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
@@ -30,6 +32,7 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSn
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
@@ -253,6 +256,149 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         );
 
         assertAcked(client().admin().indices().prepareDelete(mounted));
+    }
+
+    public void testRestoreSearchableSnapshotIndexConflicts() throws Exception {
+        final String repository = "repository-" + getTestName().toLowerCase(Locale.ROOT);
+        createRepository(repository, FsRepository.TYPE, randomRepositorySettings());
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createAndPopulateIndex(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true));
+
+        final String snapshotOfIndex = "snapshot-of-index";
+        createSnapshot(repository, snapshotOfIndex, List.of(indexName));
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        final String mountedIndex = "mounted-index";
+        final boolean deleteSnapshot = randomBoolean();
+        final Settings indexSettings = deleteSnapshotIndexSettingsOrNull(deleteSnapshot);
+        logger.info("--> mounting snapshot of index [{}] as [{}] with index settings [{}]", indexName, mountedIndex, indexSettings);
+        mountSnapshot(repository, snapshotOfIndex, indexName, mountedIndex, indexSettings, randomFrom(Storage.values()));
+        assertThat(
+            getDeleteSnapshotIndexSetting(mountedIndex),
+            indexSettings.hasValue(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION)
+                ? equalTo(Boolean.toString(deleteSnapshot))
+                : nullValue()
+        );
+
+        final String snapshotOfMountedIndex = "snapshot-of-mounted-index";
+        createSnapshot(repository, snapshotOfMountedIndex, List.of(mountedIndex));
+        assertAcked(client().admin().indices().prepareDelete(mountedIndex));
+
+        final String mountedIndexAgain = "mounted-index-again";
+        final boolean deleteSnapshotAgain = deleteSnapshot == false;
+        final Settings indexSettingsAgain = deleteSnapshotIndexSettings(deleteSnapshotAgain);
+        logger.info("--> mounting snapshot of index [{}] again as [{}] with index settings [{}]", indexName, mountedIndex, indexSettings);
+        mountSnapshot(repository, snapshotOfIndex, indexName, mountedIndexAgain, indexSettingsAgain, randomFrom(Storage.values()));
+        assertThat(
+            getDeleteSnapshotIndexSetting(mountedIndexAgain),
+            indexSettingsAgain.hasValue(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION)
+                ? equalTo(Boolean.toString(deleteSnapshotAgain))
+                : nullValue()
+        );
+
+        logger.info("--> restoring snapshot of searchable snapshot index [{}] should be conflicting", mountedIndex);
+        final SnapshotRestoreException exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(repository, snapshotOfMountedIndex)
+                .setIndices(mountedIndex)
+                .setWaitForCompletion(true)
+                .get()
+        );
+        assertThat(
+            exception.getMessage(),
+            allOf(
+                containsString("cannot mount snapshot [" + repository + '/'),
+                containsString(':' + snapshotOfMountedIndex + "] as index [" + mountedIndex + "] with "),
+                containsString("[index.store.snapshot.delete_searchable_snapshot: " + deleteSnapshot + "]; another "),
+                containsString("index [" + mountedIndexAgain + '/'),
+                containsString("is mounted with [index.store.snapshot.delete_searchable_snapshot: " + deleteSnapshotAgain + "].")
+            )
+        );
+        assertAcked(client().admin().indices().prepareDelete("mounted-*"));
+    }
+
+    public void testRestoreSearchableSnapshotIndexWithDifferentSettingsConflicts() throws Exception {
+        final String repository = "repository-" + getTestName().toLowerCase(Locale.ROOT);
+        createRepository(repository, FsRepository.TYPE, randomRepositorySettings());
+
+        final int nbIndices = randomIntBetween(1, 3);
+        for (int i = 0; i < nbIndices; i++) {
+            createAndPopulateIndex("index-" + i, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true));
+        }
+
+        final String snapshotOfIndices = "snapshot-of-indices";
+        createFullSnapshot(repository, snapshotOfIndices);
+
+        final int nbMountedIndices = randomIntBetween(1, 3);
+        final Set<String> mountedIndices = new HashSet<>(nbMountedIndices);
+
+        final boolean deleteSnapshot = nbIndices == 1 && randomBoolean();
+        final Settings indexSettings = deleteSnapshotIndexSettingsOrNull(deleteSnapshot);
+
+        for (int i = 0; i < nbMountedIndices; i++) {
+            final String index = "index-" + randomInt(nbIndices - 1);
+            final String mountedIndex = "mounted-" + i;
+            logger.info("--> mounting snapshot of index [{}] as [{}] with index settings [{}]", index, mountedIndex, indexSettings);
+            mountSnapshot(repository, snapshotOfIndices, index, mountedIndex, indexSettings, randomFrom(Storage.values()));
+            assertThat(
+                getDeleteSnapshotIndexSetting(mountedIndex),
+                indexSettings.hasValue(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION)
+                    ? equalTo(Boolean.toString(deleteSnapshot))
+                    : nullValue()
+            );
+            if (randomBoolean()) {
+                assertAcked(client().admin().indices().prepareClose(mountedIndex));
+            }
+            mountedIndices.add(mountedIndex);
+        }
+
+        final String snapshotOfMountedIndices = "snapshot-of-mounted-indices";
+        createSnapshot(repository, snapshotOfMountedIndices, List.of("mounted-*"));
+
+        List<String> restorables = randomBoolean()
+            ? List.of("mounted-*")
+            : randomSubsetOf(randomIntBetween(1, nbMountedIndices), mountedIndices);
+        final SnapshotRestoreException exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(repository, snapshotOfMountedIndices)
+                .setIndices(restorables.toArray(String[]::new))
+                .setIndexSettings(deleteSnapshotIndexSettings(deleteSnapshot == false))
+                .setRenameReplacement("restored-with-different-setting-$1")
+                .setRenamePattern("(.+)")
+                .setWaitForCompletion(true)
+                .get()
+        );
+
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "cannot change value of [index.store.snapshot.delete_searchable_snapshot] when restoring searchable snapshot ["
+                    + repository
+                    + ':'
+                    + snapshotOfMountedIndices
+                    + "] as index [mounted-"
+            )
+        );
+
+        final RestoreSnapshotResponse restoreResponse = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(repository, snapshotOfMountedIndices)
+            .setIndices(restorables.toArray(String[]::new))
+            .setIndexSettings(indexSettings)
+            .setRenameReplacement("restored-with-same-setting-$1")
+            .setRenamePattern("(.+)")
+            .setWaitForCompletion(true)
+            .get();
+        assertThat(restoreResponse.getRestoreInfo().totalShards(), greaterThan(0));
+        assertThat(restoreResponse.getRestoreInfo().failedShards(), equalTo(0));
+
+        assertAcked(client().admin().indices().prepareDelete("mounted-*"));
+        assertAcked(client().admin().indices().prepareDelete("restored-with-same-setting-*"));
     }
 
     private static Settings deleteSnapshotIndexSettings(boolean value) {

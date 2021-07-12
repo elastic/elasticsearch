@@ -12,9 +12,14 @@ import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
-import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+
+import static java.util.Arrays.asList;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.nullValue;
 
 public class VersionTests extends GradleUnitTestCase {
 
@@ -26,7 +31,6 @@ public class VersionTests extends GradleUnitTestCase {
         assertVersionEquals("7.0.1-alpha2", 7, 0, 1);
         assertVersionEquals("5.1.2-rc3", 5, 1, 2);
         assertVersionEquals("6.1.2-SNAPSHOT", 6, 1, 2);
-        assertVersionEquals("6.1.2-beta1-SNAPSHOT", 6, 1, 2);
         assertVersionEquals("17.03.11", 17, 3, 11);
     }
 
@@ -41,29 +45,30 @@ public class VersionTests extends GradleUnitTestCase {
 
     public void testCompareWithStringVersions() {
         assertTrue("1.10.20 is not interpreted as before 2.0.0", Version.fromString("1.10.20").before("2.0.0"));
-        assertTrue(
+        assertEquals(
             "7.0.0-alpha1 should be equal to 7.0.0-alpha1",
-            Version.fromString("7.0.0-alpha1").equals(Version.fromString("7.0.0-alpha1"))
+            Version.fromString("7.0.0-alpha1"),
+            Version.fromString("7.0.0-alpha1")
         );
-        assertTrue(
+        assertEquals(
             "7.0.0-SNAPSHOT should be equal to 7.0.0-SNAPSHOT",
-            Version.fromString("7.0.0-SNAPSHOT").equals(Version.fromString("7.0.0-SNAPSHOT"))
+            Version.fromString("7.0.0-SNAPSHOT"),
+            Version.fromString("7.0.0-SNAPSHOT")
         );
     }
 
     public void testCollections() {
-        assertTrue(
-            Arrays.asList(
-                Version.fromString("5.2.0"),
-                Version.fromString("5.2.1-SNAPSHOT"),
-                Version.fromString("6.0.0"),
-                Version.fromString("6.0.1"),
-                Version.fromString("6.1.0")
-            ).containsAll(Arrays.asList(Version.fromString("6.0.1"), Version.fromString("5.2.1-SNAPSHOT")))
+        List<Version> aList = asList(
+            Version.fromString("5.2.0"),
+            Version.fromString("5.2.1-SNAPSHOT"),
+            Version.fromString("6.0.0"),
+            Version.fromString("6.0.1"),
+            Version.fromString("6.1.0")
         );
-        Set<Version> versions = new HashSet<>();
-        versions.addAll(
-            Arrays.asList(
+        assertThat(aList, hasItems(Version.fromString("6.0.1"), Version.fromString("5.2.1-SNAPSHOT")));
+
+        Set<Version> aSet = new HashSet<>(
+            asList(
                 Version.fromString("5.2.0"),
                 Version.fromString("5.2.1-SNAPSHOT"),
                 Version.fromString("6.0.0"),
@@ -71,9 +76,7 @@ public class VersionTests extends GradleUnitTestCase {
                 Version.fromString("6.1.0")
             )
         );
-        Set<Version> subset = new HashSet<>();
-        subset.addAll(Arrays.asList(Version.fromString("6.0.1"), Version.fromString("5.2.1-SNAPSHOT")));
-        assertTrue(versions.containsAll(subset));
+        assertThat(aSet, hasItems(Version.fromString("6.0.1"), Version.fromString("5.2.1-SNAPSHOT")));
     }
 
     public void testToString() {
@@ -95,6 +98,20 @@ public class VersionTests extends GradleUnitTestCase {
         expectedEx.expect(IllegalArgumentException.class);
         expectedEx.expectMessage("Invalid version format");
         Version.fromString("foo.bar.baz");
+    }
+
+    public void testQualifiers() {
+        Version v = Version.fromString("1.2.3");
+        assertThat(v.getQualifier(), nullValue());
+
+        v = Version.fromString("1.2.3-rc1");
+        assertThat(v.getQualifier(), equalTo("rc1"));
+
+        v = Version.fromString("1.2.3-SNAPSHOT");
+        assertThat(v.getQualifier(), equalTo("SNAPSHOT"));
+
+        v = Version.fromString("1.2.3-SNAPSHOT-EXTRA", Version.Mode.RELAXED);
+        assertThat(v.getQualifier(), equalTo("SNAPSHOT-EXTRA"));
     }
 
     private void assertOrder(Version smaller, Version bigger) {

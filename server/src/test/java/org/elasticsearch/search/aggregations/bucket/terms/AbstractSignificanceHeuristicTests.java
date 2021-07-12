@@ -53,10 +53,19 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
+/**
+ * Abstract test case for testing significant term heuristics
+ */
 public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
 
+    /**
+     * @return A random instance of the heuristic to test
+     */
     protected abstract SignificanceHeuristic getHeuristic();
 
+    /**
+     * @return test if the score is `0` with a subset frequency of `0`
+     */
     protected abstract boolean testZeroScore();
 
     // test that stream output can actually be read - does not replace bwc test
@@ -138,6 +147,13 @@ public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
         assertThat(score, greaterThanOrEqualTo(0.0));
     }
 
+    /**
+     * Testing heuristic specific assertions
+     * Typically, this method would call either
+     * {@link AbstractSignificanceHeuristicTests#testBackgroundAssertions(SignificanceHeuristic, SignificanceHeuristic)}
+     * or {@link AbstractSignificanceHeuristicTests#testAssertions(SignificanceHeuristic)}
+     * depending on which was appropriate
+     */
     public abstract void testAssertions();
 
     public void testParseFromString() throws IOException {

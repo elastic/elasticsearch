@@ -28,11 +28,13 @@ public class GNDTests extends AbstractSignificanceHeuristicTests {
         testBackgroundAssertions(new GND(true), new GND(false));
     }
 
+    /**
+     * term is only in the subset, not at all in the other set but that is because the other set is empty.
+     * this should actually not happen because only terms that are in the subset are considered now,
+     * however, in this case the score should be 0 because a term that does not exist cannot be relevant...
+     */
     public void testGNDCornerCases() {
         GND gnd = new GND(true);
-        //term is only in the subset, not at all in the other set but that is because the other set is empty.
-        // this should actually not happen because only terms that are in the subset are considered now,
-        // however, in this case the score should be 0 because a term that does not exist cannot be relevant...
         assertThat(gnd.getScore(0, randomIntBetween(1, 2), 0, randomIntBetween(2,3)), equalTo(0.0));
         // the terms do not co-occur at all - should be 0
         assertThat(gnd.getScore(0, randomIntBetween(1, 2), randomIntBetween(2, 3), randomIntBetween(5,6)), equalTo(0.0));

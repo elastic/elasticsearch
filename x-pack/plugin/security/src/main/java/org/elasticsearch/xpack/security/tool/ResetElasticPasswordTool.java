@@ -91,8 +91,10 @@ public class ResetElasticPasswordTool extends BaseRunAsSuperuserCommand {
                 () -> requestBodySupplier(elasticPassword),
                 this::responseBuilder
             );
+            final int responseStatus = httpResponse.getHttpStatus();
             if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
-                throw new UserException(ExitCodes.TEMP_FAILURE, "Failed to reset password for the elastic user");
+                throw new UserException(ExitCodes.TEMP_FAILURE,
+                    "Failed to reset password for the elastic user. Unexpected http status [" + responseStatus + "]");
             } else {
                 if (options.has(interactive)) {
                     terminal.println("Password for the elastic user successfully reset.");

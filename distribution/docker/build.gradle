@@ -15,6 +15,8 @@ apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.rest-resources'
 
+String useLocalBeats = Boolean.parseBoolean(System.getProperty('docker.localBeats'))
+
 repositories {
   // Define a repository that allows Gradle to fetch a resource from GitHub. This
   // is only used to fetch the `tini` binary, when building the Iron Bank docker image
@@ -32,9 +34,16 @@ repositories {
 
   // Cloud builds bundle some beats
   ivy {
-    url "https://${VersionProperties.isElasticsearchSnapshot() ? 'snapshots' : 'artifacts'}-no-kpi.elastic.co/"
-    patternLayout {
-      artifact '/downloads/[organization]/[module]/[module]-[revision]-linux-[classifier].[ext]'
+    if (useLocalBeats) {
+      url "file://${buildDir}/artifacts/"
+      patternLayout {
+        artifact '/[module]-[revision]-linux-[classifier].[ext]'
+      }
+    } else {
+      url "https://${VersionProperties.isElasticsearchSnapshot() ? 'snapshots' : 'artifacts'}-no-kpi.elastic.co/"
+      patternLayout {
+        artifact '/downloads/[organization]/[module]/[module]-[revision]-linux-[classifier].[ext]'
+      }
     }
     metadataSources { artifact() }
     content { includeGroup 'beats' }

@@ -103,7 +103,7 @@ tasks.named("yamlRestTestV7Compat").configure {
     .join(',')
 }
 
-tasks.named("transformV7RestCompatTests").configure({ task ->
+tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
   task.replaceValueInMatch("nodes.\$node_id.roles.8", "ml", "node_info role test")

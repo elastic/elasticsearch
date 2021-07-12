@@ -164,7 +164,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     }
   }
 }
-tasks.named("transformV7RestCompatTests").configure({ task ->
+tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
 })
 

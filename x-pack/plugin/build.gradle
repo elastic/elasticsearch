@@ -94,7 +94,7 @@ tasks.named("yamlRestTest").configure {
   dependsOn "copyExtraResources"
 }
 
-tasks.named("transformV7RestCompatTests").configure({ task ->
+tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.replaceKeyInDo("license.delete", "xpack-license.delete")
   task.replaceKeyInDo("license.get", "xpack-license.get")
   task.replaceKeyInDo("license.get_basic_status", "xpack-license.get_basic_status")
@@ -217,7 +217,7 @@ tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention', 'enforceApiSpecsConvention'
 }
 
-tasks.named("transformV7RestCompatTests").configure({ task ->
+tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
 })

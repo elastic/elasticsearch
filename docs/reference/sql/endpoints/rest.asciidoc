@@ -610,8 +610,8 @@ For CSV, TSV, and TXT responses, the API returns these values in the respective
 // TESTRESPONSE[s/"is_partial": true/"is_partial": $body.is_partial/]
 // TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
 
-To check the progress of an async search, use the search ID with the get async
-SQL search status API.
+To check the progress of an async search, use the search ID with the
+<<get-async-sql-search-status-api,get async SQL search status API>>.
 
 [source,console]
 ----
@@ -636,9 +636,10 @@ complete results.
 // TESTRESPONSE[s/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=/$body.id/]
 // TESTRESPONSE[s/"expiration_time_in_millis": 1611690295000/"expiration_time_in_millis": $body.expiration_time_in_millis/]
 
-To get the results, use the search ID with the get async SQL search API. If the
-search is still running, specify how long you’d like to wait using
-`wait_for_completion_timeout`. You can also specify the response `format`.
+To get the results, use the search ID with the <<get-async-sql-search-api,get
+async SQL search API>>. If the search is still running, specify how long you’d
+like to wait using `wait_for_completion_timeout`. You can also specify the
+response `format`.
 
 [source,console]
 ----
@@ -676,8 +677,9 @@ GET _sql/async/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxO
 ----
 // TEST[skip: no access to search ID]
 
-Use the delete async SQL search API to delete an async search before the
-`keep_alive` period ends. If the search is still running, {es} cancels it.
+Use the <<delete-async-sql-search-api,delete async SQL search API>> to delete an
+async search before the `keep_alive` period ends. If the search is still
+running, {es} cancels it.
 
 [source,console]
 ----
@@ -725,12 +727,13 @@ returned complete results.
 // TESTRESPONSE[s/"columns": \.\.\./"columns": $body.columns/]
 // TESTRESPONSE[s/"cursor": \.\.\./"cursor": $body.cursor/]
 
-You can get the same results later using the search ID with the get async SQL
-search API.
+You can get the same results later using the search ID with the
+<<get-async-sql-search-api,get async SQL search API>>.
 
 Saved synchronous searches are still subject to the `keep_alive` retention
 period. When this period ends, {es} deletes the search results. You can also
-delete saved searches using the delete async SQL search API.
+delete saved searches using the <<delete-async-sql-search-api,delete async SQL
+search API>>.
 
 [[sql-rest-fields]]
 === Supported REST parameters

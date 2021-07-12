@@ -2709,6 +2709,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     // test that the response handler is invoked on a failure to send
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75209")
     public void testFailToSend() throws InterruptedException {
         final RuntimeException failToSendException;
         if (randomBoolean()) {

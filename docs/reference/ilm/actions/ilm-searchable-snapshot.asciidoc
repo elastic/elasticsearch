@@ -14,7 +14,7 @@ uses the
 <<tier-preference-allocation-filter,`index.routing.allocation.include._tier_preference`>>
 setting to mount the index directly to the phase's corresponding data tier. In
 the frozen phase, the action mounts the searchable snapshot index to the frozen
-tier using the <<shared-cache,shared cache mount option>> . In other phases, the
+tier using the <<shared-cache,shared cache mount option>>. In other phases, the
 action mounts a <<full-copy,fully copy>> searchable snapshot index to the
 corresponding data tier.
 

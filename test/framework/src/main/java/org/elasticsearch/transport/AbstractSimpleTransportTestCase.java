@@ -2716,6 +2716,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testFailToSendIllegalStateException() throws InterruptedException {
         TransportException exception = doFailToSend(new IllegalStateException("fail to send"));
+        assertThat(exception, instanceOf(SendRequestTransportException.class));
         assertThat(exception.getMessage(), containsString("fail-to-send-action"));
         assertThat(exception.getCause(), instanceOf(IllegalStateException.class));
         assertThat(exception.getCause().getMessage(), equalTo("fail to send"));

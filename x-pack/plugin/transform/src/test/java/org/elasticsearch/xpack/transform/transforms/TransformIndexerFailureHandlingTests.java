@@ -120,7 +120,11 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             super(
                 threadPool,
                 new TransformServices(
-                transformsConfigManager, mock(TransformCheckpointService.class), auditor, mock(SchedulerEngine.class)),
+                    transformsConfigManager,
+                    mock(TransformCheckpointService.class),
+                    auditor,
+                    mock(SchedulerEngine.class)
+                ),
                 checkpointProvider,
                 transformConfig,
                 fieldMappings,
@@ -645,10 +649,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             throw new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] {
-                    new ShardSearchFailure(
-                        new ElasticsearchTimeoutException("timed out during dbq")
-                    ) }
+                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timed out during dbq")) }
             );
         };
 

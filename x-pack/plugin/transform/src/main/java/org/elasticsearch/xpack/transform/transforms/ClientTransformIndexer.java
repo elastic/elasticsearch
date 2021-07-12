@@ -463,22 +463,24 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     private void closePointInTime() {
-        if (pit != null) {
-            String oldPit = pit.getEncodedId();
-            pit = null;
-            ClosePointInTimeRequest closePitRequest = new ClosePointInTimeRequest(oldPit);
-            ClientHelper.executeWithHeadersAsync(
-                transformConfig.getHeaders(),
-                ClientHelper.TRANSFORM_ORIGIN,
-                client,
-                ClosePointInTimeAction.INSTANCE,
-                closePitRequest,
-                ActionListener.wrap(response -> { logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit); }, e -> {
-                    // note: closing the pit should never throw, even if the pit is invalid
-                    logger.error(new ParameterizedMessage("[{}] Failed to close point in time reader", getJobId()), e);
-                })
-            );
+        if (pit == null) {
+            return;
         }
+
+        String oldPit = pit.getEncodedId();
+        pit = null;
+        ClosePointInTimeRequest closePitRequest = new ClosePointInTimeRequest(oldPit);
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            ClosePointInTimeAction.INSTANCE,
+            closePitRequest,
+            ActionListener.wrap(response -> { logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit); }, e -> {
+                // note: closing the pit should never throw, even if the pit is invalid
+                logger.error(new ParameterizedMessage("[{}] Failed to close point in time reader", getJobId()), e);
+            })
+        );
     }
 
     private void injectPointInTimeIfNeeded(SearchRequest searchRequest, ActionListener<SearchRequest> listener) {

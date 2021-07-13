@@ -44,6 +44,7 @@ public final class XPackField {
     public static final String TRANSFORM = "transform";
     /** Name constant for flattened fields. */
     public static final String FLATTENED = "flattened";
+    @Deprecated
     /** Name constant for the vectors feature. */
     public static final String VECTORS = "vectors";
     /** Name constant for the voting-only-node feature. */

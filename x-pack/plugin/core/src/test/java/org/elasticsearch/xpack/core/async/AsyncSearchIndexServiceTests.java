@@ -98,9 +98,9 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         @Override
         public String toString() {
             return "TestAsyncResponse{" +
-                "test='" + test + "'," +
-                "failure='" + failure + "'," +
-                "expirationTimeMillis=" + expirationTimeMillis +
+                "test='" + test + '\'' +
+                "failure='" + failure + '\'' +
+                ", expirationTimeMillis=" + expirationTimeMillis +
                 '}';
         }
 

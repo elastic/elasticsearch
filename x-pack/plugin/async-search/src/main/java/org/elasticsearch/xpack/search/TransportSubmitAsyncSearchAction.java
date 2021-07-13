@@ -49,8 +49,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 public class TransportSubmitAsyncSearchAction extends HandledTransportAction<SubmitAsyncSearchRequest, AsyncSearchResponse> {
-    private static final Logger logger = LogManager.getLogger(TransportSubmitAsyncSearchAction.class);
-
     private final NodeClient nodeClient;
     private final Function<SearchRequest, InternalAggregation.ReduceContext> requestToAggReduceContextBuilder;
     private final TransportSearchAction searchAction;
@@ -177,21 +175,13 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private void onFinalResponse(AsyncSearchTask searchTask,
                                  AsyncSearchResponse response,
                                  Runnable nextAction) {
-        store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
-            ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
-                exc -> {
-                    Throwable cause = ExceptionsHelper.unwrapCause(exc);
-                    if (cause instanceof DocumentMissingException == false &&
-                            cause instanceof VersionConflictEngineException == false) {
-                        logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
-                            searchTask.getExecutionId().getEncoded()), exc);
-                    }
-                    unregisterTaskAndMoveOn(searchTask, nextAction);
-                }));
-    }
-
-    private void unregisterTaskAndMoveOn(SearchTask searchTask, Runnable nextAction) {
-        taskManager.unregister(searchTask);
-        nextAction.run();
+        store.updateResponse(searchTask.getExecutionId().getDocId(),
+            threadContext.getResponseHeaders(),
+            response,
+            ActionListener.wrap(() ->  {
+                taskManager.unregister(searchTask);
+                nextAction.run();
+            })
+        );
     }
 }

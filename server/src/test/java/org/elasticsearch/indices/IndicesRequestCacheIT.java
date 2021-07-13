@@ -21,6 +21,8 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
@@ -41,6 +43,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
@@ -185,29 +188,27 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index", 2, 1);
     }
 
-    public void testQueryRewriteDates() throws Exception {
+    public void testQueryRewriteDates() {
         Client client = client();
         assertAcked(client.admin().indices().prepareCreate("index").addMapping("type", "d", "type=date")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get());
-        indexRandom(true, client.prepareIndex("index", "type", "1").setSource("d", "2014-01-01T00:00:00"),
-                client.prepareIndex("index", "type", "2").setSource("d", "2014-02-01T00:00:00"),
-                client.prepareIndex("index", "type", "3").setSource("d", "2014-03-01T00:00:00"),
-                client.prepareIndex("index", "type", "4").setSource("d", "2014-04-01T00:00:00"),
-                client.prepareIndex("index", "type", "5").setSource("d", "2014-05-01T00:00:00"),
-                client.prepareIndex("index", "type", "6").setSource("d", "2014-06-01T00:00:00"),
-                client.prepareIndex("index", "type", "7").setSource("d", "2014-07-01T00:00:00"),
-                client.prepareIndex("index", "type", "8").setSource("d", "2014-08-01T00:00:00"),
-                client.prepareIndex("index", "type", "9").setSource("d", "2014-09-01T00:00:00"));
-        ensureSearchable("index");
-        assertCacheState(client, "index", 0, 0);
+                    .put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1") // disable automatic refreshes
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get());
 
-        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
-        ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refresh();
+        BulkRequestBuilder bulkBuilder = client().prepareBulk();
+        bulkBuilder.add(client.prepareIndex("index", "type", "1").setSource("d", "2014-01-01T00:00:00"));
+        bulkBuilder.add(client.prepareIndex("index", "type", "2").setSource("d", "2014-02-01T00:00:00"));
+        bulkBuilder.add(client.prepareIndex("index", "type", "3").setSource("d", "2014-03-01T00:00:00"));
+        bulkBuilder.add(client.prepareIndex("index", "type", "4").setSource("d", "2014-04-01T00:00:00"));
+        bulkBuilder.add(client.prepareIndex("index", "type", "5").setSource("d", "2014-05-01T00:00:00"));
+        bulkBuilder.add(client.prepareIndex("index", "type", "6").setSource("d", "2014-06-01T00:00:00"));
+        bulkBuilder.add(client.prepareIndex("index", "type", "7").setSource("d", "2014-07-01T00:00:00"));
+        bulkBuilder.add(client.prepareIndex("index", "type", "8").setSource("d", "2014-08-01T00:00:00"));
+        bulkBuilder.add(client.prepareIndex("index", "type", "9").setSource("d", "2014-09-01T00:00:00"));
+        BulkResponse actionGet = bulkBuilder.execute().actionGet();
+        assertThat(actionGet.hasFailures() ? actionGet.buildFailureMessage() : "", actionGet.hasFailures(), equalTo(false));
         ensureSearchable("index");
-
+        refresh("index");
         assertCacheState(client, "index", 0, 0);
 
         final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
@@ -232,9 +233,10 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index", 2, 1);
     }
 
-    public void testQueryRewriteDatesWithNow() throws Exception {
+    public void testQueryRewriteDatesWithNow() {
         Client client = client();
         Settings settings = Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+            .put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1") // disable automatic refreshes
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
         assertAcked(client.admin().indices().prepareCreate("index-1").addMapping("type", "d", "type=date")
                 .setSettings(settings).get());
@@ -243,26 +245,21 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertAcked(client.admin().indices().prepareCreate("index-3").addMapping("type", "d", "type=date")
                 .setSettings(settings).get());
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        indexRandom(true, client.prepareIndex("index-1", "type", "1").setSource("d", now),
-                client.prepareIndex("index-1", "type", "2").setSource("d", now.minusDays(1)),
-                client.prepareIndex("index-1", "type", "3").setSource("d", now.minusDays(2)),
-                client.prepareIndex("index-2", "type", "4").setSource("d", now.minusDays(3)),
-                client.prepareIndex("index-2", "type", "5").setSource("d", now.minusDays(4)),
-                client.prepareIndex("index-2", "type", "6").setSource("d", now.minusDays(5)),
-                client.prepareIndex("index-3", "type", "7").setSource("d", now.minusDays(6)),
-                client.prepareIndex("index-3", "type", "8").setSource("d", now.minusDays(7)),
-                client.prepareIndex("index-3", "type", "9").setSource("d", now.minusDays(8)));
-        ensureSearchable("index-1", "index-2", "index-3");
-        assertCacheState(client, "index-1", 0, 0);
-        assertCacheState(client, "index-2", 0, 0);
-        assertCacheState(client, "index-3", 0, 0);
 
-        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index-1", "index-2", "index-3").setFlush(true)
-                .get();
-        ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refresh();
+        BulkRequestBuilder bulkBuilder = client().prepareBulk();
+        bulkBuilder.add(client.prepareIndex("index-1", "type", "1").setSource("d", now));
+        bulkBuilder.add(client.prepareIndex("index-1", "type", "2").setSource("d", now.minusDays(1)));
+        bulkBuilder.add(client.prepareIndex("index-1", "type", "3").setSource("d", now.minusDays(2)));
+        bulkBuilder.add(client.prepareIndex("index-2", "type", "4").setSource("d", now.minusDays(3)));
+        bulkBuilder.add(client.prepareIndex("index-2", "type", "5").setSource("d", now.minusDays(4)));
+        bulkBuilder.add(client.prepareIndex("index-2", "type", "6").setSource("d", now.minusDays(5)));
+        bulkBuilder.add(client.prepareIndex("index-3", "type", "7").setSource("d", now.minusDays(6)));
+        bulkBuilder.add(client.prepareIndex("index-3", "type", "8").setSource("d", now.minusDays(7)));
+        bulkBuilder.add(client.prepareIndex("index-3", "type", "9").setSource("d", now.minusDays(8)));
+        BulkResponse actionGet = bulkBuilder.execute().actionGet();
+        assertThat(actionGet.hasFailures() ? actionGet.buildFailureMessage() : "", actionGet.hasFailures(), equalTo(false));
         ensureSearchable("index-1", "index-2", "index-3");
+        refresh("index-1", "index-2", "index-3");
 
         assertCacheState(client, "index-1", 0, 0);
         assertCacheState(client, "index-2", 0, 0);

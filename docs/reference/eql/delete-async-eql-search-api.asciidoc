@@ -25,8 +25,11 @@ DELETE /_eql/search/FkpMRkJGS1gzVDRlM3g4ZzMyRGlLbkEaTXlJZHdNT09TU2VTZVBoNDM3cFZM
 [[delete-async-eql-search-api-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, only the user who first submitted
-the EQL search can delete the search using this API.
+* If the {es} {security-features} are enabled, only the following users can
+use this API to delete a search:
+
+** Users with the `cancel_task` <<privileges-list-cluster,cluster privilege>>
+** The user who first submitted the search
 
 * See <<eql-required-fields>>.
 

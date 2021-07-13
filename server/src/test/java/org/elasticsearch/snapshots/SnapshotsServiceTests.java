@@ -389,11 +389,14 @@ public class SnapshotsServiceTests extends ESTestCase {
     public void testSnapshottingIndicesExcludesClones() {
         final String repoName = "test-repo";
         final String indexName = "index";
-        final ClusterState clusterState = stateWithSnapshots(stateWithUnassignedIndices(indexName), cloneEntry(
-            snapshot(repoName, "target-snapshot"),
-            snapshot(repoName, "source-snapshot").getSnapshotId(),
-            clonesMap(new RepositoryShardId(indexId(indexName), 0), initShardStatus(uuid()))
-        ));
+        final ClusterState clusterState = stateWithSnapshots(
+            stateWithUnassignedIndices(indexName),
+            cloneEntry(
+                snapshot(repoName, "target-snapshot"),
+                snapshot(repoName, "source-snapshot").getSnapshotId(),
+                clonesMap(new RepositoryShardId(indexId(indexName), 0), initShardStatus(uuid()))
+            )
+        );
 
         assertThat(
             SnapshotsService.snapshottingIndices(clusterState, singleton(clusterState.metadata().index(indexName).getIndex())),

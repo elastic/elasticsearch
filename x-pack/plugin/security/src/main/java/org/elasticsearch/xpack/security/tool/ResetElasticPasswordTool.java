@@ -121,7 +121,7 @@ public class ResetElasticPasswordTool extends BaseRunAsSuperuserCommand {
                 password1.close();
                 continue;
             }
-            try (SecureString password2 = new SecureString(terminal.readSecret("Reenter password for [elastic]: "))) {
+            try (SecureString password2 = new SecureString(terminal.readSecret("Re-enter password for [elastic]: "))) {
                 if (password1.equals(password2) == false) {
                     terminal.errorPrintln("Passwords do not match.");
                     terminal.errorPrintln("Try again.");

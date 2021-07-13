@@ -1157,7 +1157,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         );
     }
 
-
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return UnaryOperator.identity();

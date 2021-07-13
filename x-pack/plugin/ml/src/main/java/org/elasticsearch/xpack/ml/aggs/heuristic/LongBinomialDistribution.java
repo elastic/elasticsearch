@@ -73,7 +73,6 @@ public class LongBinomialDistribution {
         this.probabilityOfSuccess = probabilityOfSuccess;
     }
 
-
     /**
      * For a random variable X whose values are distributed according to this distribution,
      * this method returns log(P(X = x)), where log is the natural logarithm.
@@ -126,7 +125,6 @@ public class LongBinomialDistribution {
         }
         return ret;
     }
-
 
     /**
      * Compute the error of Stirling's series at the given value.

@@ -72,6 +72,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1122,7 +1123,7 @@ public class MetadataCreateIndexService {
     static void validateCloneIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
         if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(sourceMetadata.getSettings()))) {
-            for (Setting<?> nonCloneableSetting : List.of(INDEX_STORE_TYPE_SETTING, INDEX_RECOVERY_TYPE_SETTING)) {
+            for (Setting<?> nonCloneableSetting : Arrays.asList(INDEX_STORE_TYPE_SETTING, INDEX_RECOVERY_TYPE_SETTING)) {
                 if (nonCloneableSetting.exists(targetIndexSettings) == false) {
                     throw new IllegalArgumentException("can't clone searchable snapshot index [" + sourceIndex + "]; setting ["
                         + nonCloneableSetting.getKey()

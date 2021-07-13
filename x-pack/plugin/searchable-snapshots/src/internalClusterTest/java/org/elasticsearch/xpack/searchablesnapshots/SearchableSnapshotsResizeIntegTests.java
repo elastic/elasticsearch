@@ -68,12 +68,7 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
                 .indices()
                 .prepareResizeIndex("mounted-index", "shrunk-index")
                 .setResizeType(ResizeType.SHRINK)
-                .setSettings(
-                    Settings.builder()
-                        .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                        .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                        .build()
-                )
+                .setSettings(indexSettingsNoReplicas(1).build())
                 .get()
         );
         assertThat(exception.getMessage(), equalTo("can't shrink searchable snapshot index [mounted-index]"));
@@ -86,12 +81,7 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
                 .indices()
                 .prepareResizeIndex("mounted-index", "split-index")
                 .setResizeType(ResizeType.SPLIT)
-                .setSettings(
-                    Settings.builder()
-                        .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                        .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 4)
-                        .build()
-                )
+                .setSettings(indexSettingsNoReplicas(4).build())
                 .get()
         );
         assertThat(exception.getMessage(), equalTo("can't split searchable snapshot index [mounted-index]"));

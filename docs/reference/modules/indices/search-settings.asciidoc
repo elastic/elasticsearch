@@ -18,6 +18,12 @@ increasing this setting, make sure you've exhausted all other options to avoid h
 Higher values can lead to performance degradations and memory issues, especially in clusters with
 a high load or few resources.
 
+Elasticsearch offers some tools to avoid running into issues with regards to the maximum number of
+clauses such as the <<query-dsl-terms-query,`terms`>> query, which allows querying many distinct
+values while still counting as a single clause, or the <<index-prefixes,`index_prefixes`>> option
+of <<text-field-type,`text`>> fields, which allows executing prefix queries that expand to a high
+number of terms as a single term query.
+
 [[search-settings-max-buckets]]
 `search.max_buckets`::
 (<<cluster-update-settings,Dynamic>>, integer)

@@ -25,7 +25,7 @@ import java.util.Arrays;
 public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
     public static final ManageOwnApiKeyClusterPrivilege INSTANCE = new ManageOwnApiKeyClusterPrivilege();
     private static final String PRIVILEGE_NAME = "manage_own_api_key";
-    private static final String API_KEY_ID_KEY = "_security_api_key_id";
+    public static final String API_KEY_ID_KEY = "_security_api_key_id";
 
     private final ClusterPermission permission;
 

@@ -23,7 +23,7 @@ These formats are commonly used in:
 
 * <<mapping,Index mappings>>
 * <<index-templates,Index templates>>
-* <<pipeline,Ingest pipelines>>
+* <<ingest,Ingest pipelines>>
 
 If you don't use custom date formats, you can skip the rest of this guide.
 Most custom date formats are compatible. However, several require

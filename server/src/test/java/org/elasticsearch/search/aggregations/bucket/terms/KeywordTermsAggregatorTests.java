@@ -8,6 +8,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -25,6 +26,7 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -87,11 +89,16 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
     private void testSearchCase(Query query, List<String> dataset,
                                 Consumer<TermsAggregationBuilder> configure,
                                 Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
+        MappedFieldType keywordFieldType
+            = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD, randomBoolean(), true, Collections.emptyMap());
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 for (String value : dataset) {
                     document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(value)));
+                    if (keywordFieldType.isSearchable()) {
+                        document.add(new Field(KEYWORD_FIELD, new BytesRef(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
+                    }
                     indexWriter.addDocument(document);
                     document.clear();
                 }
@@ -108,7 +115,6 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
                     configure.accept(aggregationBuilder);
                 }
 
-                MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD);
 
                 InternalMappedTerms rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, keywordFieldType);
                 verify.accept(rareTerms);

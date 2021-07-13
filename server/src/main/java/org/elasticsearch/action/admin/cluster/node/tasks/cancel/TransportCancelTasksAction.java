@@ -35,8 +35,17 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
 
     @Inject
     public TransportCancelTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
-        super(CancelTasksAction.NAME, clusterService, transportService, actionFilters,
-            CancelTasksRequest::new, CancelTasksResponse::new, TaskInfo::new, ThreadPool.Names.MANAGEMENT);
+        super(
+                CancelTasksAction.NAME,
+                clusterService,
+                transportService,
+                actionFilters,
+                CancelTasksRequest::new,
+                CancelTasksResponse::new,
+                TaskInfo::new,
+                // Cancellation is usually lightweight, and runs on the transport thread if the task didn't even start yet, but some
+                // implementations of CancellableTask#onCancelled() are nontrivial so we use GENERIC here. TODO could it be SAME?
+                ThreadPool.Names.GENERIC);
     }
 
     @Override

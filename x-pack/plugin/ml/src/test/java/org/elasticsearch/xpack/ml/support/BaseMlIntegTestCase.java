@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -112,8 +112,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
@@ -165,7 +165,6 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     protected Job.Builder createJob(String id, ByteSizeValue modelMemoryLimit, boolean allowLazyOpen) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
 
         Detector.Builder d = new Detector.Builder("count", null);
@@ -188,7 +187,6 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     public static Job.Builder createFareQuoteJob(String id, ByteSizeValue modelMemoryLimit) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         dataDescription.setTimeFormat(DataDescription.EPOCH);
         dataDescription.setTimeField("time");
 
@@ -209,7 +207,6 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     public static Job.Builder createScheduledJob(String jobId) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         dataDescription.setTimeFormat("yyyy-MM-dd HH:mm:ss");
 
         Detector.Builder d = new Detector.Builder("count", null);
@@ -469,7 +466,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     /**
      * Sets delayed allocation to 0 to make sure we have tests are not delayed
-      */
+     */
     protected void setMlIndicesDelayedNodeLeftTimeoutToZero() {
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         originSettingClient.admin().indices().updateSettings(new UpdateSettingsRequest(".ml-*")

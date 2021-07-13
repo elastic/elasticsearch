@@ -38,7 +38,7 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
         assertThat(query, instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) query;
         assertEquals("_feature", termQuery.getTerm().field());
@@ -50,6 +50,11 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
     protected void assertSearchable(MappedFieldType fieldType) {
         //always searchable even if it uses TextSearchInfo.NONE
         assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
     }
 
     @Override
@@ -135,5 +140,11 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         })));
         assertEquals("[rank_feature] fields do not support indexing multiple values for the same field [foo.field] in the same document",
                 e.getCause().getMessage());
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

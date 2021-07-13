@@ -12,8 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
@@ -58,9 +58,7 @@ public class InboundPipeline implements Releasable {
     @Override
     public void close() {
         isClosed = true;
-        Releasables.closeWhileHandlingException(decoder, aggregator);
-        Releasables.closeWhileHandlingException(pending);
-        pending.clear();
+        Releasables.closeExpectNoException(decoder, aggregator, () -> Releasables.close(pending), pending::clear);
     }
 
     public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
@@ -152,7 +150,7 @@ public class InboundPipeline implements Releasable {
                 bytesReferences[index] = pendingReference.retain();
                 ++index;
             }
-            final Releasable releasable = () -> Releasables.closeWhileHandlingException(bytesReferences);
+            final Releasable releasable = () -> Releasables.closeExpectNoException(bytesReferences);
             return new ReleasableBytesReference(CompositeBytesReference.of(bytesReferences), releasable);
         }
     }

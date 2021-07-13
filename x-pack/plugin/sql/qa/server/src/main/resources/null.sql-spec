@@ -69,3 +69,23 @@ SELECT LEAST(10098, ABS(MAX(emp_no)) + 1) AS lt FROM test_emp GROUP BY languages
 
 leastOrderBy
 SELECT LEAST(10096, ABS(emp_no + 1)) AS lt FROM test_emp ORDER BY lt LIMIT 10;
+
+
+//
+// IS NULL/IS NOT NULL propagation
+//
+
+isNullAndComparisonOnTheSameField
+SELECT emp_no IS NULL AS e FROM "test_emp" WHERE emp_no IS NULL AND emp_no > 10;
+
+isNotNullAndComparisonOnTheSameField
+SELECT emp_no IS NULL AS e FROM "test_emp" WHERE emp_no IS NOT NULL AND emp_no IS NULL;
+
+nullifyFieldExpression
+SELECT emp_no + 1 AS e FROM "test_emp" WHERE (emp_no + 2) / 1 + 10 % 3 > 100 AND emp_no IS NULL;
+
+nullifyCoalesceInSelectAndFilter
+SELECT COALESCE(null, ABS(emp_no) + 1, 123) AS c FROM test_emp WHERE emp_no IS NULL ORDER BY c NULLS FIRST LIMIT 5;
+
+
+

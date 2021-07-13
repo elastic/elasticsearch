@@ -13,10 +13,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.core.spatial.search.aggregations.GeoShapeMetricAggregation;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -24,7 +26,7 @@ import java.util.Objects;
 /**
  * A single line string representing a sorted sequence of geo-points
  */
-public class InternalGeoLine extends InternalAggregation {
+public class InternalGeoLine extends InternalAggregation implements GeoShapeMetricAggregation {
     private static final double SCALE = Math.pow(10, 6);
 
     private long[] line;
@@ -147,21 +149,9 @@ public class InternalGeoLine extends InternalAggregation {
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        final List<double[]> coordinates = new ArrayList<>();
-        for (int i = 0; i < line.length; i++) {
-            int x = (int) (line[i] >> 32);
-            int y = (int) line[i];
-            coordinates.add(new double[] {
-                roundDegrees(GeoEncodingUtils.decodeLongitude(x)),
-                roundDegrees(GeoEncodingUtils.decodeLatitude(y))
-            });
-        }
         builder
             .field("type", "Feature")
-            .startObject("geometry")
-                .field("type", "LineString")
-                .array("coordinates", coordinates.toArray())
-            .endObject()
+            .field("geometry", geoJSONGeometry())
             .startObject("properties")
                 .field("complete", isComplete());
         if (includeSorts) {
@@ -211,5 +201,22 @@ public class InternalGeoLine extends InternalAggregation {
             && Objects.equals(sortOrder, that.sortOrder)
             && Objects.equals(size, that.size);
 
+    }
+
+    @Override
+    public Map<String, Object> geoJSONGeometry() {
+        final List<double[]> coordinates = new ArrayList<>();
+        for (int i = 0; i < line.length; i++) {
+            int x = (int) (line[i] >> 32);
+            int y = (int) line[i];
+            coordinates.add(new double[] {
+                roundDegrees(GeoEncodingUtils.decodeLongitude(x)),
+                roundDegrees(GeoEncodingUtils.decodeLatitude(y))
+            });
+        }
+        final Map<String, Object> geoJSON = new HashMap<>();
+        geoJSON.put("type", "LineString");
+        geoJSON.put("coordinates", coordinates.toArray());
+        return geoJSON;
     }
 }

@@ -88,4 +88,27 @@ public class NodeTests extends RestClientTestCase {
                 assertFalse(node.equals(new Node(host, node.getBoundHosts(), node.getName(),
                 node.getVersion(), node.getRoles(), singletonMap("bort", singletonList("bing")))));
     }
+
+    public void testDataRole(){
+        Roles roles = new Roles(new TreeSet<>(Arrays.asList("data_hot")));
+        assertTrue(roles.hasDataHotRole());
+        assertTrue(roles.canContainData());
+        roles = new Roles(new TreeSet<>(Arrays.asList("data_warm")));
+        assertTrue(roles.hasDataWarmRole());
+        assertTrue(roles.canContainData());
+        roles = new Roles(new TreeSet<>(Arrays.asList("data_cold")));
+        assertTrue(roles.hasDataColdRole());
+        assertTrue(roles.canContainData());
+        roles = new Roles(new TreeSet<>(Arrays.asList("data_frozen")));
+        assertTrue(roles.hasDataFrozenRole());
+        assertTrue(roles.canContainData());
+        roles = new Roles(new TreeSet<>(Arrays.asList("data_content")));
+        assertTrue(roles.hasDataContentRole());
+        assertTrue(roles.canContainData());
+        roles = new Roles(new TreeSet<>(Arrays.asList("data")));
+        assertTrue(roles.hasDataRole());
+        assertTrue(roles.canContainData());
+        roles = new Roles(new TreeSet<>(Arrays.asList("data_foo")));
+        assertTrue(roles.canContainData());
+    }
 }

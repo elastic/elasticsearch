@@ -197,7 +197,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder parse(String name,
+                                    Map<String, Object> node,
+                                    MappingParserContext parserContext)
+            throws MapperParsingException {
             ObjectMapper.Builder builder = new Builder(name, parserContext.indexVersionCreated());
             parseNested(name, node, builder);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -212,17 +215,15 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         @SuppressWarnings({"unchecked", "rawtypes"})
-        protected static boolean parseObjectOrDocumentTypeProperties(String fieldName, Object fieldNode, ParserContext parserContext,
+        protected static boolean parseObjectOrDocumentTypeProperties(String fieldName,
+                                                                     Object fieldNode,
+                                                                     MappingParserContext parserContext,
                                                                      ObjectMapper.Builder builder) {
             if (fieldName.equals("dynamic")) {
                 String value = fieldNode.toString();
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
                 }  else if (value.equalsIgnoreCase("runtime")) {
-                    if (parserContext.supportsDynamicRuntimeMappings() == false) {
-                        throw new IllegalArgumentException("unable to set dynamic:runtime as there is " +
-                            "no registered dynamic runtime fields builder");
-                    }
                     builder.dynamic(Dynamic.RUNTIME);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
@@ -282,7 +283,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
         }
 
-        protected static void parseProperties(ObjectMapper.Builder objBuilder, Map<String, Object> propsNode, ParserContext parserContext) {
+        protected static void parseProperties(ObjectMapper.Builder objBuilder,
+                                              Map<String, Object> propsNode,
+                                              MappingParserContext parserContext) {
             Iterator<Map.Entry<String, Object>> iterator = propsNode.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();

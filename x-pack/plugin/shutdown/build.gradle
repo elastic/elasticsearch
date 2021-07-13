@@ -1,0 +1,30 @@
+import org.elasticsearch.gradle.VersionProperties
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+    name 'x-pack-shutdown'
+    description 'Elasticsearch Expanded Pack Plugin - Shutdown'
+    classname 'org.elasticsearch.xpack.shutdown.ShutdownPlugin'
+    extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-shutdown'
+
+dependencies {
+    compileOnly project(path: xpackModule('core'))
+    testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+addQaCheckDependencies()
+
+testClusters.all {
+  testDistribution = 'default'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
+    setting 'es.shutdown_feature_flag_enabled', 'true'
+  }
+  keystore 'bootstrap.password', 'x-pack-test-password'
+  user username: "x_pack_rest_user", password: "x-pack-test-password"
+}

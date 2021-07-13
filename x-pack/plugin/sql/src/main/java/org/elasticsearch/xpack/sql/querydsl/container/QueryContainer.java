@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -77,7 +77,7 @@ public class QueryContainer {
 
     // scalar function processors - recorded as functions get folded;
     // at scrolling, their inputs (leaves) get updated
-    private final AttributeMap<Pipe> scalarFunctions;
+    private AttributeMap<Pipe> scalarFunctions;
 
     private final Map<String, Sort> sort;
     private final int limit;
@@ -182,10 +182,12 @@ public class QueryContainer {
      */
     public BitSet columnMask(List<Attribute> columns) {
         BitSet mask = new BitSet(fields.size());
-        aliasName(columns.get(0));
+        if (columns.size() > 0) {
+            aliasName(columns.get(0));
+        }
 
         for (Attribute column : columns) {
-            Expression expression = aliases.getOrDefault(column, column);
+            Expression expression = aliases.resolve(column, column);
 
             // find the column index
             String id = Expressions.id(expression);
@@ -338,7 +340,7 @@ public class QueryContainer {
                 SqlDataTypes.format(attr.field().getDataType()),
                 SqlDataTypes.isFromDocValuesOnly(attr.field().getDataType()));
 
-        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(), attr.parent().name());
+        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(), attr.nestedParent().name());
 
         return new Tuple<>(
                 new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
@@ -375,7 +377,11 @@ public class QueryContainer {
 
     // replace function/operators's input with references
     private Tuple<QueryContainer, FieldExtraction> resolvedTreeComputingRef(ScalarFunction function, Attribute attr) {
-        Pipe proc = scalarFunctions.computeIfAbsent(attr, v -> function.asPipe());
+        Pipe proc = null;
+        if ((proc = scalarFunctions.resolve(attr)) == null) {
+            proc = function.asPipe();
+            scalarFunctions = AttributeMap.builder(scalarFunctions).put(attr, proc).build();
+        }
 
         // find the processor inputs (Attributes) and convert them into references
         // no need to promote them to the top since the container doesn't have to be aware
@@ -407,14 +413,14 @@ public class QueryContainer {
     }
 
     public QueryContainer addColumn(Attribute attr) {
-        Expression expression = aliases.getOrDefault(attr, attr);
+        Expression expression = aliases.resolve(attr, attr);
         Tuple<QueryContainer, FieldExtraction> tuple = asFieldExtraction(attr);
         return tuple.v1().addColumn(tuple.v2(), Expressions.id(expression));
     }
 
     private Tuple<QueryContainer, FieldExtraction> asFieldExtraction(Attribute attr) {
         // resolve it Expression
-        Expression expression = aliases.getOrDefault(attr, attr);
+        Expression expression = aliases.resolve(attr, attr);
 
         if (expression instanceof FieldAttribute) {
             FieldAttribute fa = (FieldAttribute) expression;

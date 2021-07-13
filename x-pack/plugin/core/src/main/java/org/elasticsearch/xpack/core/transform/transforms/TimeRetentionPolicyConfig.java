@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,6 +40,7 @@ public class TimeRetentionPolicyConfig implements RetentionPolicyConfig {
         ConstructingObjectParser<TimeRetentionPolicyConfig, Void> parser = new ConstructingObjectParser<>(NAME, lenient, args -> {
             String field = (String) args[0];
             TimeValue maxAge = (TimeValue) args[1];
+
             return new TimeRetentionPolicyConfig(field, maxAge);
         });
         parser.declareString(constructorArg(), TransformField.FIELD);
@@ -74,10 +75,18 @@ public class TimeRetentionPolicyConfig implements RetentionPolicyConfig {
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         if (maxAge.getSeconds() < MIN_AGE_SECONDS) {
             validationException = addValidationError(
-                "retention_policy.time.max_age must be more than " + MIN_AGE_SECONDS + "s, found [" + maxAge + "]",
+                "retention_policy.time.max_age must be greater than " + MIN_AGE_SECONDS + "s, found [" + maxAge + "]",
                 validationException
             );
         }
+
+        if (maxAge.compareTo(TimeValue.MAX_VALUE) > 0) {
+            validationException = addValidationError(
+                "retention_policy.time.max_age must not be greater than [" + TimeValue.MAX_VALUE + "]",
+                validationException
+            );
+        }
+
         return validationException;
     }
 

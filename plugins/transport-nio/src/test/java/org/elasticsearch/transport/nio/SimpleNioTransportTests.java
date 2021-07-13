@@ -10,7 +10,7 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -83,27 +83,22 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
             (IOUtils.LINUX || IOUtils.MAC_OS_X) &&
                 JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0);
         try (MockTransportService serviceC = buildService("TS_C", Version.CURRENT, Settings.EMPTY);
-             MockTransportService serviceD = buildService("TS_D", Version.CURRENT, Settings.EMPTY)) {
-            serviceC.start();
-            serviceC.acceptIncomingRequests();
-            serviceD.start();
-            serviceD.acceptIncomingRequests();
+             MockTransportService serviceD = buildService("TS_D", Version.CURRENT, Settings.EMPTY);
+             Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), TestProfiles.LIGHT_PROFILE)) {
 
-            try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), TestProfiles.LIGHT_PROFILE)) {
-                assertThat(connection, instanceOf(StubbableTransport.WrappedConnection.class));
-                Transport.Connection conn = ((StubbableTransport.WrappedConnection) connection).getConnection();
-                assertThat(conn, instanceOf(TcpTransport.NodeChannels.class));
-                TcpTransport.NodeChannels nodeChannels = (TcpTransport.NodeChannels) conn;
-                for (TcpChannel channel : nodeChannels.getChannels()) {
-                    assertFalse(channel.isServerChannel());
-                    checkDefaultKeepAliveOptions(channel);
-                }
+            assertThat(connection, instanceOf(StubbableTransport.WrappedConnection.class));
+            Transport.Connection conn = ((StubbableTransport.WrappedConnection) connection).getConnection();
+            assertThat(conn, instanceOf(TcpTransport.NodeChannels.class));
+            TcpTransport.NodeChannels nodeChannels = (TcpTransport.NodeChannels) conn;
+            for (TcpChannel channel : nodeChannels.getChannels()) {
+                assertFalse(channel.isServerChannel());
+                checkDefaultKeepAliveOptions(channel);
+            }
 
-                assertThat(serviceD.getOriginalTransport(), instanceOf(TcpTransport.class));
-                for (TcpChannel channel : getAcceptedChannels((TcpTransport) serviceD.getOriginalTransport())) {
-                    assertTrue(channel.isServerChannel());
-                    checkDefaultKeepAliveOptions(channel);
-                }
+            assertThat(serviceD.getOriginalTransport(), instanceOf(TcpTransport.class));
+            for (TcpChannel channel : getAcceptedChannels((TcpTransport) serviceD.getOriginalTransport())) {
+                assertTrue(channel.isServerChannel());
+                checkDefaultKeepAliveOptions(channel);
             }
         }
     }

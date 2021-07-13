@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.net.InetSocketAddress;
@@ -66,8 +66,6 @@ public class AzureStorageService {
      */
     public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(MAX_BLOB_SIZE , ByteSizeUnit.BYTES);
 
-    // see ModelHelper.BLOB_DEFAULT_MAX_SINGLE_UPLOAD_SIZE
-    private static final long DEFAULT_MAX_SINGLE_UPLOAD_SIZE = new ByteSizeValue(256, ByteSizeUnit.MB).getBytes();
     private static final long DEFAULT_UPLOAD_BLOCK_SIZE = DEFAULT_BLOCK_SIZE.getBytes();
 
     // 'package' for testing
@@ -121,11 +119,6 @@ public class AzureStorageService {
     // non-static, package private for testing
     long getUploadBlockSize() {
         return DEFAULT_UPLOAD_BLOCK_SIZE;
-    }
-
-    // non-static, package private for testing
-    long getSizeThresholdForMultiBlockUpload() {
-        return DEFAULT_MAX_SINGLE_UPLOAD_SIZE;
     }
 
     int getMaxReadRetries(String clientName) {

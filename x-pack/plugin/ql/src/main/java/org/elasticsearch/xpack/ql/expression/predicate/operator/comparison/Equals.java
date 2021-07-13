@@ -48,4 +48,9 @@ public class Equals extends BinaryComparison implements Negatable<BinaryComparis
     public BinaryComparison reverse() {
         return this;
     }
+
+    @Override
+    protected boolean isCommutative() {
+        return true;
+    }
 }

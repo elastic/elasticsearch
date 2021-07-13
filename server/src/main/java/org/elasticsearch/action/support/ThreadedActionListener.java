@@ -18,26 +18,25 @@ import org.elasticsearch.threadpool.ThreadPool;
 /**
  * An action listener that wraps another action listener and threading its execution.
  */
-public final class ThreadedActionListener<Response> implements ActionListener<Response> {
+public final class ThreadedActionListener<Response> extends ActionListener.Delegating<Response, Response> {
 
     private final Logger logger;
     private final ThreadPool threadPool;
     private final String executor;
-    private final ActionListener<Response> listener;
     private final boolean forceExecution;
 
     public ThreadedActionListener(Logger logger, ThreadPool threadPool, String executor, ActionListener<Response> listener,
                                   boolean forceExecution) {
+        super(listener);
         this.logger = logger;
         this.threadPool = threadPool;
         this.executor = executor;
-        this.listener = listener;
         this.forceExecution = forceExecution;
     }
 
     @Override
     public void onResponse(final Response response) {
-        threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
+        threadPool.executor(executor).execute(new ActionRunnable<>(delegate) {
             @Override
             public boolean isForceExecution() {
                 return forceExecution;
@@ -60,12 +59,12 @@ public final class ThreadedActionListener<Response> implements ActionListener<Re
 
             @Override
             protected void doRun() throws Exception {
-                listener.onFailure(e);
+                delegate.onFailure(e);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to execute failure callback on [{}]", listener), e);
+                logger.warn(() -> new ParameterizedMessage("failed to execute failure callback on [{}]", delegate), e);
             }
         });
     }

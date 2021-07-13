@@ -6,10 +6,15 @@
  */
 package org.elasticsearch.xpack.datastreams.mapper;
 
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataMapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
@@ -20,6 +25,8 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase {
 
@@ -144,5 +151,31 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             b.endObject();
         })));
         assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] has disallowed attributes: [store]"));
+    }
+
+    public void testValidateDefaultIgnoreMalformed() throws Exception {
+        Settings indexSettings = Settings.builder().put(FieldMapper.IGNORE_MALFORMED_SETTING.getKey(), true).build();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(Version.CURRENT, indexSettings, () -> true, timestampMapping(true, b -> {
+                b.startObject("@timestamp");
+                b.field("type", "date");
+                b.endObject();
+            }))
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("data stream timestamp field [@timestamp] has disallowed [ignore_malformed] attribute specified")
+        );
+
+        MapperService mapperService = createMapperService(Version.CURRENT, indexSettings, () -> true, timestampMapping(true, b -> {
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.field("ignore_malformed", false);
+            b.endObject();
+        }));
+        assertThat(mapperService, notNullValue());
+        assertThat(mapperService.documentMapper().mappers().getMapper("@timestamp"), notNullValue());
+        assertThat(((DateFieldMapper) mapperService.documentMapper().mappers().getMapper("@timestamp")).getIgnoreMalformed(), is(false));
     }
 }

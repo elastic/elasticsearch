@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ql.expression.predicate.logical;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
@@ -30,7 +31,7 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
-    protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
+    protected TypeResolution resolveInputType(Expression e, ParamOrdinal paramOrdinal) {
         return isBoolean(e, sourceText(), paramOrdinal);
     }
 
@@ -43,5 +44,10 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     public Nullability nullable() {
         // Cannot fold null due to 3vl, constant folding will do any possible folding.
         return Nullability.UNKNOWN;
+    }
+
+    @Override
+    protected boolean isCommutative() {
+        return true;
     }
 }

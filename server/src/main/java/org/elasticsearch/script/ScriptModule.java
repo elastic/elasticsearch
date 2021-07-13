@@ -18,6 +18,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -27,9 +28,12 @@ import java.util.stream.Stream;
  */
 public class ScriptModule {
 
+    public static final Set<ScriptContext<?>> RUNTIME_FIELDS_CONTEXTS = Set.of(BooleanFieldScript.CONTEXT, DateFieldScript.CONTEXT,
+        DoubleFieldScript.CONTEXT, LongFieldScript.CONTEXT, StringFieldScript.CONTEXT, GeoPointFieldScript.CONTEXT, IpFieldScript.CONTEXT);
+
     public static final Map<String, ScriptContext<?>> CORE_CONTEXTS;
     static {
-        CORE_CONTEXTS = Stream.of(
+        CORE_CONTEXTS = Stream.concat(Stream.of(
             FieldScript.CONTEXT,
             AggregationScript.CONTEXT,
             ScoreScript.CONTEXT,
@@ -46,13 +50,14 @@ public class ScriptModule {
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
             TemplateScript.CONTEXT,
+            TemplateScript.INGEST_CONTEXT,
             MovingFunctionScript.CONTEXT,
             ScriptedMetricAggContexts.InitScript.CONTEXT,
             ScriptedMetricAggContexts.MapScript.CONTEXT,
             ScriptedMetricAggContexts.CombineScript.CONTEXT,
             ScriptedMetricAggContexts.ReduceScript.CONTEXT,
             IntervalFilterScript.CONTEXT
-        ).collect(Collectors.toMap(c -> c.name, Function.identity()));
+        ), RUNTIME_FIELDS_CONTEXTS.stream()).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 
     public final Map<String, ScriptEngine> engines;

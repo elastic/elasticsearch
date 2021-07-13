@@ -12,38 +12,33 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Iterator;
 import java.util.function.Consumer;
 
-class RetryListener implements RejectAwareActionListener<ScrollableHitSource.Response> {
+class RetryListener extends ActionListener.Delegating<ScrollableHitSource.Response, ScrollableHitSource.Response>
+        implements RejectAwareActionListener<ScrollableHitSource.Response> {
     private final Logger logger;
     private final Iterator<TimeValue> retries;
     private final ThreadPool threadPool;
     private final Consumer<RejectAwareActionListener<ScrollableHitSource.Response>> retryScrollHandler;
-    private final ActionListener<ScrollableHitSource.Response> delegate;
     private int retryCount = 0;
 
     RetryListener(Logger logger, ThreadPool threadPool, BackoffPolicy backoffPolicy,
-                          Consumer<RejectAwareActionListener<ScrollableHitSource.Response>> retryScrollHandler,
-                          ActionListener<ScrollableHitSource.Response> delegate) {
+                  Consumer<RejectAwareActionListener<ScrollableHitSource.Response>> retryScrollHandler,
+                  ActionListener<ScrollableHitSource.Response> delegate) {
+        super(delegate);
         this.logger = logger;
         this.threadPool = threadPool;
         this.retries = backoffPolicy.iterator();
         this.retryScrollHandler = retryScrollHandler;
-        this.delegate = delegate;
     }
 
     @Override
     public void onResponse(ScrollableHitSource.Response response) {
         delegate.onResponse(response);
-    }
-
-    @Override
-    public void onFailure(Exception e) {
-        delegate.onFailure(e);
     }
 
     @Override

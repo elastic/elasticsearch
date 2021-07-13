@@ -10,11 +10,11 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -104,24 +104,27 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             return stopTimeout;
         }
 
-        public void setStopTimeout(TimeValue stopTimeout) {
+        public Request setStopTimeout(TimeValue stopTimeout) {
             this.stopTimeout = ExceptionsHelper.requireNonNull(stopTimeout, TIMEOUT.getPreferredName());
+            return this;
         }
 
         public boolean isForce() {
             return force;
         }
 
-        public void setForce(boolean force) {
+        public Request setForce(boolean force) {
             this.force = force;
+            return this;
         }
 
         public boolean allowNoMatch() {
             return allowNoMatch;
         }
 
-        public void setAllowNoMatch(boolean allowNoMatch) {
+        public Request setAllowNoMatch(boolean allowNoMatch) {
             this.allowNoMatch = allowNoMatch;
+            return this;
         }
 
         @Override

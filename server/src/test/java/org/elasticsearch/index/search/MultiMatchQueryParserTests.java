@@ -77,6 +77,10 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
                 "                        \"last\": {\n" +
                 "                            \"type\":\"text\",\n" +
                 "                            \"analyzer\":\"standard\"\n" +
+                "                        }," +
+                "                        \"nickname\": {\n" +
+                "                            \"type\":\"text\",\n" +
+                "                            \"analyzer\":\"whitespace\"\n" +
                 "                        }" +
                 "                   }" +
                 "            }\n" +
@@ -260,7 +264,7 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
 
     }
 
-    public void testMultiMatchCrossFieldsWithSynonymsPhrase() throws IOException {
+    public void testCrossFieldsWithSynonymsPhrase() throws IOException {
         SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
             randomInt(20),
             0,
@@ -304,6 +308,30 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
                 BooleanClause.Occur.SHOULD
             )
             .build();
+        assertEquals(expected, query);
+    }
+
+    public void testCrossFieldsWithAnalyzerGroups() throws IOException {
+        SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
+            randomInt(20), 0, null, () -> 0L, null, emptyMap());
+
+        Map<String, Float> fieldNames = new HashMap<>();
+        fieldNames.put("name.first", 1.0f);
+        fieldNames.put("name.last", 1.0f);
+        fieldNames.put("name.nickname", 1.0f);
+
+        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext);
+        parser.setTieBreaker(0.3f);
+        Query query = parser.parse(MultiMatchQueryBuilder.Type.CROSS_FIELDS, fieldNames, "Robert", null);
+
+        Term[] terms = new Term[]{
+            new Term("name.first", "robert"),
+            new Term("name.last", "robert")};
+        float[] boosts = new float[] {1.0f, 1.0f};
+
+        DisjunctionMaxQuery expected = new DisjunctionMaxQuery(Arrays.asList(
+                BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 0.3f),
+                new TermQuery(new Term("name.nickname", "Robert"))), 0.3f);
         assertEquals(expected, query);
     }
 

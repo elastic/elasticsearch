@@ -8,19 +8,15 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.geo.GeometryFormat;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Geometry;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.text.ParseException;
-import java.util.Collections;
+import java.util.function.Consumer;
 
 public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry> {
     private final GeometryParser geometryParser;
@@ -30,34 +26,21 @@ public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry>
     }
 
     @Override
-    public Geometry parse(XContentParser parser) throws IOException, ParseException {
-        return geometryParser.parse(parser);
-    }
-
-    @Override
-    public Object format(Geometry value, String format) {
-        return geometryParser.geometryFormat(format).toXContentAsObject(value);
-    }
-
-    @Override
-    public Object parseAndFormatObject(Object value, String format) {
-        try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-            Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
-            parser.nextToken(); // start object
-            parser.nextToken(); // field name
-            parser.nextToken(); // field value
-
-            GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(parser);
-            if (geometryFormat.name().equals(format)) {
-                return value;
+    public void parse(
+        XContentParser parser,
+        CheckedConsumer<Geometry, IOException> consumer,
+        Consumer<Exception> onMalformed
+    ) throws IOException {
+        try {
+            if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    parse(parser, consumer, onMalformed);
+                }
+            } else {
+                consumer.accept(geometryParser.parse(parser));
             }
-
-            Geometry geometry = geometryFormat.fromXContent(parser);
-            return format(geometry, format);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } catch (ParseException e) {
-            throw new RuntimeException(e);
+        } catch (ParseException | ElasticsearchParseException | IllegalArgumentException e) {
+            onMalformed.accept(e);
         }
     }
 }

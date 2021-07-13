@@ -15,20 +15,20 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Request;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetDatafeedStatsAction extends BaseRestHandler {
 
    @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_stats"),
-            new Route(GET, MachineLearning.BASE_PATH + "datafeeds/_stats")
+            new Route(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stats"),
+            new Route(GET, BASE_PATH + "datafeeds/_stats")
         );
     }
 
@@ -45,7 +45,7 @@ public class RestGetDatafeedStatsAction extends BaseRestHandler {
         }
         Request request = new Request(datafeedId);
         if (restRequest.hasParam(Request.ALLOW_NO_DATAFEEDS)) {
-            LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, Request.ALLOW_NO_DATAFEEDS, Request.ALLOW_NO_MATCH);
+            LoggingDeprecationHandler.INSTANCE.logRenamedField(null, () -> null, Request.ALLOW_NO_DATAFEEDS, Request.ALLOW_NO_MATCH);
         }
         request.setAllowNoMatch(
             restRequest.paramAsBoolean(

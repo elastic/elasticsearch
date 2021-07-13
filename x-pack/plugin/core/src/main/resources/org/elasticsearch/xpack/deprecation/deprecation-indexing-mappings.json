@@ -53,7 +53,7 @@
     }
   },
   "_meta": {
-    "description": "default mappings for ES deprecation logs index template installed by x-pack",
+    "description": "default mappings for Stack deprecation logs index template installed by x-pack",
     "managed": true
   },
   "version": ${xpack.deprecation.indexing.template.version}

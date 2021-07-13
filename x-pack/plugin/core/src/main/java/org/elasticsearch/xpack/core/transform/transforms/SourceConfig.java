@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,11 +43,11 @@ public class SourceConfig implements Writeable, ToXContentObject {
     public static final ConstructingObjectParser<SourceConfig, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<SourceConfig, Void> LENIENT_PARSER = createParser(true);
 
+    @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<SourceConfig, Void> createParser(boolean lenient) {
         ConstructingObjectParser<SourceConfig, Void> parser = new ConstructingObjectParser<>("data_frame_config_source",
             lenient,
             args -> {
-                @SuppressWarnings("unchecked")
                 String[] index = ((List<String>)args[0]).toArray(new String[0]);
                 // default handling: if the user does not specify a query, we default to match_all
                 QueryConfig queryConfig = args[1] == null ? QueryConfig.matchAll() : (QueryConfig) args[1];
@@ -124,8 +125,8 @@ public class SourceConfig implements Writeable, ToXContentObject {
             .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    public boolean isValid() {
-        return queryConfig.isValid();
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        return queryConfig.validate(validationException);
     }
 
     public boolean requiresRemoteCluster() {

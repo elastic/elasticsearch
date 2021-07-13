@@ -83,7 +83,7 @@ public final class FieldAliasMapper extends Mapper {
             throw new MapperParsingException("Invalid [path] value [" + path + "] for field alias [" +
                 name() + "]: an alias cannot refer to itself.");
         }
-        if (mappers.fieldTypes().get(path) == null) {
+        if (mappers.fieldTypesLookup().get(path) == null) {
             throw new MapperParsingException("Invalid [path] value [" + path + "] for field alias [" +
                 name() + "]: an alias must refer to an existing field in the mappings.");
         }
@@ -110,7 +110,7 @@ public final class FieldAliasMapper extends Mapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
             FieldAliasMapper.Builder builder = new FieldAliasMapper.Builder(name);
             Object pathField = node.remove(Names.PATH);

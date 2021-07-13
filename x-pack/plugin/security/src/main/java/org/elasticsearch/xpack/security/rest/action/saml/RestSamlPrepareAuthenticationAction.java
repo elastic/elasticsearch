@@ -7,7 +7,8 @@
 package org.elasticsearch.xpack.security.rest.action.saml;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticati
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationResponse;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -51,15 +51,9 @@ public class RestSamlPrepareAuthenticationAction extends SamlBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(
-            new ReplacedRoute(POST, "/_security/saml/prepare",
-                POST, "/_xpack/security/saml/prepare")
+        return List.of(
+            Route.builder(POST, "/_security/saml/prepare")
+                .replaces(POST, "/_xpack/security/saml/prepare", RestApiVersion.V_7).build()
         );
     }
 

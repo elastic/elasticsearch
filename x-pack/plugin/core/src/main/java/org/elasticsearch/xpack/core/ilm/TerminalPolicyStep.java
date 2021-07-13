@@ -17,4 +17,10 @@ public class TerminalPolicyStep extends Step {
     TerminalPolicyStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
     }
+
+    @Override
+    public boolean isRetryable() {
+        // this is marker step so it doesn't make sense to be retryable
+        return false;
+    }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
@@ -59,6 +60,7 @@ import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.PutTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
@@ -89,13 +91,14 @@ import org.elasticsearch.client.ml.inference.TrainedModelConfigTests;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
+import org.elasticsearch.client.ml.job.config.JobTests;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.JobUpdateTests;
 import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.config.MlFilterTests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -119,7 +122,9 @@ import static org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfigUpda
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.IsNull.nullValue;
 
 public class MLRequestConvertersTests extends ESTestCase {
@@ -386,11 +391,24 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_match"));
     }
 
-    public void testPreviewDatafeed() {
+    public void testPreviewDatafeed() throws IOException {
         PreviewDatafeedRequest datafeedRequest = new PreviewDatafeedRequest("datafeed_1");
         Request request = MLRequestConverters.previewDatafeed(datafeedRequest);
-        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/datafeeds/" + datafeedRequest.getDatafeedId() + "/_preview", request.getEndpoint());
+        assertThat(request.getEntity(), is(nullValue()));
+
+        datafeedRequest = new PreviewDatafeedRequest(
+            DatafeedConfigTests.createRandom(),
+            randomBoolean() ? null : JobTests.createRandomizedJob()
+        );
+        request = MLRequestConverters.previewDatafeed(datafeedRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/datafeeds/_preview", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            PreviewDatafeedRequest parsedDatafeedRequest = PreviewDatafeedRequest.PARSER.apply(parser, null);
+            assertThat(parsedDatafeedRequest, equalTo(datafeedRequest));
+        }
     }
 
     public void testDeleteForecast() {
@@ -963,6 +981,52 @@ public class MLRequestConvertersTests extends ESTestCase {
             TrainedModelConfig parsedTrainedModelConfig = TrainedModelConfig.PARSER.apply(parser, null).build();
             assertThat(parsedTrainedModelConfig, equalTo(trainedModelConfig));
         }
+    }
+
+    public void testPutTrainedModelAlias() throws IOException {
+        PutTrainedModelAliasRequest putTrainedModelAliasRequest = new PutTrainedModelAliasRequest(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomBoolean() ? null : randomBoolean()
+        );
+
+        Request request = MLRequestConverters.putTrainedModelAlias(putTrainedModelAliasRequest);
+
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertThat(
+            request.getEndpoint(),
+            equalTo(
+                "/_ml/trained_models/"
+                    + putTrainedModelAliasRequest.getModelId()
+                    + "/model_aliases/"
+                    + putTrainedModelAliasRequest.getModelAlias()
+            )
+        );
+        if (putTrainedModelAliasRequest.getReassign() != null) {
+            assertThat(request.getParameters().get("reassign"), equalTo(putTrainedModelAliasRequest.getReassign().toString()));
+        } else {
+            assertThat(request.getParameters(), not(hasKey("reassign")));
+        }
+    }
+
+    public void testDeleteTrainedModelAlias() throws IOException {
+        DeleteTrainedModelAliasRequest deleteTrainedModelAliasRequest = new DeleteTrainedModelAliasRequest(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10)
+        );
+
+        Request request = MLRequestConverters.deleteTrainedModelAlias(deleteTrainedModelAliasRequest);
+
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertThat(
+            request.getEndpoint(),
+            equalTo(
+                "/_ml/trained_models/"
+                    + deleteTrainedModelAliasRequest.getModelId()
+                    + "/model_aliases/"
+                    + deleteTrainedModelAliasRequest.getModelAlias()
+            )
+        );
     }
 
     public void testPutFilter() throws IOException {

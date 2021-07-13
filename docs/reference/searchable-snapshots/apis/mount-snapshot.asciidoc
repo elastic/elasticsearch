@@ -49,13 +49,17 @@ Defaults to `false`.
 
 `storage`::
 +
-experimental::[]
-+
-(Optional, string) Selects the kind of local storage used to accelerate
-searches of the mounted index. If `full_copy`, each node holding a shard of the
-searchable snapshot index makes a full copy of the shard to its local storage.
-If `shared_cache`, the shard uses the
-<<searchable-snapshots-shared-cache,shared cache>>. Defaults to `full_copy`.
+--
+(Optional, string)
+<<searchable-snapshot-mount-storage-options,Mount option>> for the
+{search-snap} index. Possible values are:
+
+`full_copy` (Default):::
+<<fully-mounted,Fully mounted index>>.
+
+`shared_cache`:::
+<<partially-mounted,Partially mounted index>>.
+--
 
 [[searchable-snapshots-api-mount-request-body]]
 ==== {api-request-body-title}

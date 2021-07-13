@@ -9,11 +9,11 @@ package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.test.ESTestCase;
@@ -55,8 +55,12 @@ public class TaskExecutorTests extends ESTestCase {
 
     @Before
     public void setUpExecutor() {
-        threadExecutor = EsExecutors.newSinglePrioritizing(getClass().getName() + "/" + getTestName(),
-            daemonThreadFactory(Settings.EMPTY, "test_thread"), threadPool.getThreadContext(), threadPool.scheduler());
+        threadExecutor = EsExecutors.newSinglePrioritizing(
+            getClass().getName() + "/" + getTestName(),
+            daemonThreadFactory(Settings.EMPTY, "test_thread"),
+            threadPool.getThreadContext(),
+            threadPool.scheduler(),
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
     }
 
     @After

@@ -1,0 +1,57 @@
+{
+  "xpack-watcher.execute_watch":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-execute-watch.html",
+      "description":"Forces the execution of a stored watch."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"],
+      "content_type": ["application/vnd.elasticsearch+json;compatible-with=7"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/watcher/watch/{id}/_execute",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"Watch ID"
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        },
+        {
+          "path":"/_xpack/watcher/watch/_execute",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        }
+      ]
+    },
+    "params":{
+      "debug":{
+        "type":"boolean",
+        "description":"indicates whether the watch should execute in debug mode",
+        "required":false
+      }
+    },
+    "body":{
+      "description":"Execution control",
+      "required":false
+    }
+  }
+}

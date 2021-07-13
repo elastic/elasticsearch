@@ -33,17 +33,17 @@ Each of the commands accepts a query string parameter `v` to turn on
 verbose output. For example:
 
 [source,console]
---------------------------------------------------
-GET /_cat/master?v=true
---------------------------------------------------
+----
+GET _cat/master?v=true
+----
 
 Might respond with:
 
 [source,txt]
---------------------------------------------------
+----
 id                     host      ip        node
 u_n93zwxThWHi1PDBJAGAg 127.0.0.1 127.0.0.1 u_n93zw
---------------------------------------------------
+----
 // TESTRESPONSE[s/u_n93zw(xThWHi1PDBJAGAg)?/.+/ non_json]
 
 [discrete]
@@ -54,19 +54,19 @@ Each of the commands accepts a query string parameter `help` which will
 output its available columns. For example:
 
 [source,console]
---------------------------------------------------
-GET /_cat/master?help
---------------------------------------------------
+----
+GET _cat/master?help
+----
 
 Might respond with:
 
 [source,txt]
---------------------------------------------------
+----
 id   |   | node id
 host | h | host name
 ip   |   | ip address
 node | n | node name
---------------------------------------------------
+----
 // TESTRESPONSE[s/[|]/[|]/ non_json]
 
 NOTE: `help` is not supported if any optional url parameter is used.
@@ -82,16 +82,16 @@ Each of the commands accepts a query string parameter `h` which forces
 only those columns to appear. For example:
 
 [source,console]
---------------------------------------------------
-GET /_cat/nodes?h=ip,port,heapPercent,name
---------------------------------------------------
+----
+GET _cat/nodes?h=ip,port,heapPercent,name
+----
 
 Responds with:
 
 [source,txt]
---------------------------------------------------
+----
 127.0.0.1 9300 27 sLBaIGK
---------------------------------------------------
+----
 // TESTRESPONSE[s/9300 27 sLBaIGK/\\d+ \\d+ .+/ non_json]
 
 You can also request multiple columns using simple wildcards like
@@ -103,38 +103,38 @@ with `queue`.
 ==== Numeric formats
 
 Many commands provide a few types of numeric output, either a byte, size
-or a time value.  By default, these types are human-formatted,
-for example, `3.5mb` instead of `3763212`.  The human values are not
+or a time value. By default, these types are human-formatted,
+for example, `3.5mb` instead of `3763212`. The human values are not
 sortable numerically, so in order to operate on these values where
 order is important, you can change it.
 
 Say you want to find the largest index in your cluster (storage used
-by all the shards, not number of documents).  The `/_cat/indices` API
-is ideal.  You only need to add three things to the API request:
+by all the shards, not number of documents). The `/_cat/indices` API
+is ideal. You only need to add three things to the API request:
 
 . The `bytes` query string parameter with a value of `b` to get byte-level resolution.
-. The `s` (sort) parameter with a value of `store.size:desc` to sort the output
-by shard storage in descending order.
+. The `s` (sort) parameter with a value of `store.size:desc` and a comma with `index:asc` to sort the output
+by shard storage descending order and then index name in ascending order.
 . The `v` (verbose) parameter to include column headings in the response.
 
 [source,console]
---------------------------------------------------
-GET /_cat/indices?bytes=b&s=store.size:desc&v=true
---------------------------------------------------
+----
+GET _cat/indices?bytes=b&s=store.size:desc,index:asc&v=true
+----
 // TEST[setup:my_index_huge]
 // TEST[s/^/PUT my-index-000002\n{"settings": {"number_of_replicas": 0}}\n/]
+// TEST[s/s=store\.size:desc,index:asc/s=index:asc/]
 
 The API returns the following response:
 
 [source,txt]
---------------------------------------------------
+----
 health status index            uuid                   pri rep docs.count docs.deleted store.size pri.store.size
 yellow open   my-index-000001  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0      72171         72171
 green  open   my-index-000002  nYFWZEO7TUiOjLQXBaYJpA   1   0          0            0        230          230
---------------------------------------------------
+----
 // TESTRESPONSE[s/72171|230/\\d+/]
 // TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ non_json]
-// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/51619"]
 
 If you want to change the <<time-units,time units>>, use `time` parameter.
 
@@ -146,7 +146,7 @@ If you want to change the <<byte-units,byte units>>, use `bytes` parameter.
 ==== Response as text, json, smile, yaml or cbor
 
 [source,sh]
---------------------------------------------------
+----
 % curl 'localhost:9200/_cat/indices?format=json&pretty'
 [
   {
@@ -161,7 +161,7 @@ If you want to change the <<byte-units,byte units>>, use `bytes` parameter.
     "store.size": "650b"
   }
 ]
---------------------------------------------------
+----
 // NOTCONSOLE
 
 Currently supported formats (for the `?format=` parameter):
@@ -176,7 +176,7 @@ All formats above are supported, the GET parameter takes precedence over the hea
 For example:
 
 [source,sh]
---------------------------------------------------
+----
 % curl '192.168.56.10:9200/_cat/indices?pretty' -H "Accept: application/json"
 [
   {
@@ -191,7 +191,7 @@ For example:
     "store.size": "650b"
   }
 ]
---------------------------------------------------
+----
 // NOTCONSOLE
 
 [discrete]
@@ -208,21 +208,20 @@ For example, with a sort string `s=column1,column2:desc,column3`, the table will
 sorted in ascending order by column1, in descending order by column2, and in ascending
 order by column3.
 
-[source,sh]
---------------------------------------------------
+[source,console]
+----
 GET _cat/templates?v=true&s=order:desc,index_patterns
---------------------------------------------------
-//CONSOLE
+----
 
 returns:
 
 [source,txt]
---------------------------------------------------
+----
 name                  index_patterns order version
 pizza_pepperoni       [*pepperoni*]  2
 sushi_california_roll [*avocado*]    1     1
 pizza_hawaiian        [*pineapples*] 1
---------------------------------------------------
+----
 
 include::cat/alias.asciidoc[]
 

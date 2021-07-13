@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.rollup.job;
 
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -46,6 +46,7 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
     private static final ParseField CURRENT_POSITION = new ParseField("current_position");
     private static final ParseField UPGRADED_DOC_ID = new ParseField("upgraded_doc_id"); // This can be removed in 9.0
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RollupJobStatus, Void> PARSER =
             new ConstructingObjectParser<>(NAME,
                     args -> new RollupJobStatus((IndexerState) args[0], (HashMap<String, Object>) args[1]));

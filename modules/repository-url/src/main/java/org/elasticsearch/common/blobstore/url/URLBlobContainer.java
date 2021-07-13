@@ -8,7 +8,8 @@
 
 package org.elasticsearch.common.blobstore.url;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -20,12 +21,13 @@ import java.io.BufferedInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URL;
 import java.nio.file.NoSuchFileException;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -93,7 +95,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
      * This operation is not supported by URLBlobContainer
      */
     @Override
-    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
+    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) {
         throw new UnsupportedOperationException("URL repository is read only");
     }
 
@@ -107,17 +109,25 @@ public class URLBlobContainer extends AbstractBlobContainer {
         try {
             return new BufferedInputStream(getInputStream(new URL(path, name)), blobStore.bufferSizeInBytes());
         } catch (FileNotFoundException fnfe) {
-            throw new NoSuchFileException("[" + name + "] blob not found");
+            throw new NoSuchFileException("blob object [" + name + "] not found");
         }
     }
 
     @Override
     public InputStream readBlob(String blobName, long position, long length) throws IOException {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
+    }
+
+    @Override
+    public void writeBlob(String blobName,
+                          boolean failIfAlreadyExists,
+                          boolean atomic,
+                          CheckedConsumer<OutputStream, IOException> writer) throws IOException {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 

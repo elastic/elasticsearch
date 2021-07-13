@@ -9,7 +9,6 @@
 
 Updates an existing {dfanalytics-job}.
 
-beta::[]
 
 [[ml-update-dfanalytics-request]]
 == {api-request-title}
@@ -20,21 +19,19 @@ beta::[]
 [[ml-update-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-built-in roles and privileges:
+Requires the following privileges:
 
-* `machine_learning_admin`
+* cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this 
+  privilege)
 * source indices: `read`, `view_index_metadata`
 * destination index: `read`, `create_index`, `manage` and `index`
-  
-For more information, see <<built-in-roles>>, <<security-privileges>>, and
-{ml-docs-setup-privileges}.
 
 NOTE: The {dfanalytics-job} remembers which roles the user who updated it had at
 the time of the update. When you start the job, it performs the analysis using
 those same roles. If you provide
 <<http-clients-secondary-authorization,secondary authorization headers>>, 
 those credentials are used instead.
+
 
 [[ml-update-dfanalytics-desc]]
 == {api-description-title}
@@ -78,12 +75,7 @@ functionality other than the analysis itself.
 
 `model_memory_limit`::
 (Optional, string)
-The approximate maximum amount of memory resources that are permitted for 
-analytical processing. The default value for {dfanalytics-jobs} is `1gb`. If 
-your `elasticsearch.yml` file contains an `xpack.ml.max_model_memory_limit` 
-setting, an error occurs when you try to create {dfanalytics-jobs} that have 
-`model_memory_limit` values greater than that setting. For more information, see 
-<<ml-settings>>.
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]
 
 [[ml-update-dfanalytics-example]]
 == {api-examples-title}

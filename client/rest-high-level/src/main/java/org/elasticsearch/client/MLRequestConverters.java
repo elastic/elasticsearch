@@ -28,6 +28,7 @@ import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
@@ -62,6 +63,7 @@ import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.PutTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
@@ -324,14 +326,18 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request previewDatafeed(PreviewDatafeedRequest previewDatafeedRequest) {
-        String endpoint = new EndpointBuilder()
+    static Request previewDatafeed(PreviewDatafeedRequest previewDatafeedRequest) throws IOException {
+        EndpointBuilder builder = new EndpointBuilder()
             .addPathPartAsIs("_ml")
-            .addPathPartAsIs("datafeeds")
-            .addPathPart(previewDatafeedRequest.getDatafeedId())
-            .addPathPartAsIs("_preview")
-            .build();
-        return new Request(HttpGet.METHOD_NAME, endpoint);
+            .addPathPartAsIs("datafeeds");
+        String endpoint = previewDatafeedRequest.getDatafeedId() != null ?
+            builder.addPathPart(previewDatafeedRequest.getDatafeedId()).addPathPartAsIs("_preview").build() :
+            builder.addPathPartAsIs("_preview").build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        if (previewDatafeedRequest.getDatafeedId() == null) {
+            request.setEntity(createEntity(previewDatafeedRequest, REQUEST_BODY_CONTENT_TYPE));
+        }
+        return request;
     }
 
     static Request deleteForecast(DeleteForecastRequest deleteForecastRequest) {
@@ -855,6 +861,32 @@ final class MLRequestConverters {
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putTrainedModelRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
+    }
+
+    static Request putTrainedModelAlias(PutTrainedModelAliasRequest putTrainedModelAliasRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "trained_models")
+            .addPathPart(putTrainedModelAliasRequest.getModelId())
+            .addPathPartAsIs("model_aliases")
+            .addPathPart(putTrainedModelAliasRequest.getModelAlias())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (putTrainedModelAliasRequest.getReassign() != null) {
+            params.putParam(PutTrainedModelAliasRequest.REASSIGN, Boolean.toString(putTrainedModelAliasRequest.getReassign()));
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request deleteTrainedModelAlias(DeleteTrainedModelAliasRequest deleteTrainedModelAliasRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "trained_models")
+            .addPathPart(deleteTrainedModelAliasRequest.getModelId())
+            .addPathPartAsIs("model_aliases")
+            .addPathPart(deleteTrainedModelAliasRequest.getModelAlias())
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 
     static Request putFilter(PutFilterRequest putFilterRequest) throws IOException {

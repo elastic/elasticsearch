@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -48,14 +47,10 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         mergeResults = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            includeUnmapped = in.readBoolean();
-        } else {
-            includeUnmapped = false;
-        }
-        indexFilter = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
-        nowInMillis = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalLong() : null;
-        runtimeFields = in.getVersion().onOrAfter(Version.V_7_12_0) ? in.readMap() : Collections.emptyMap();
+        includeUnmapped = in.readBoolean();
+        indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        nowInMillis = in.readOptionalLong();
+        runtimeFields = in.readMap();
     }
 
     public FieldCapabilitiesRequest() {
@@ -87,16 +82,10 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeBoolean(mergeResults);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeBoolean(includeUnmapped);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeOptionalNamedWriteable(indexFilter);
-            out.writeOptionalLong(nowInMillis);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeMap(runtimeFields);
-        }
+        out.writeBoolean(includeUnmapped);
+        out.writeOptionalNamedWriteable(indexFilter);
+        out.writeOptionalLong(nowInMillis);
+        out.writeMap(runtimeFields);
     }
 
     @Override
@@ -155,6 +144,11 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
+    }
+
+    @Override
+    public boolean allowsRemoteIndices() {
+        return true;
     }
 
     @Override

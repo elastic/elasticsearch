@@ -9,7 +9,6 @@
 
 Instantiates a {dfanalytics-job}.
 
-beta::[]
 
 [[ml-put-dfanalytics-request]]
 == {api-request-title}
@@ -20,16 +19,13 @@ beta::[]
 [[ml-put-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-built-in roles and privileges:
 
-* `machine_learning_admin`
+Requires the following privileges:
+
+* cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this 
+  privilege)
 * source indices: `read`, `view_index_metadata`
 * destination index: `read`, `create_index`, `manage` and `index`
-
-For more information, see <<built-in-roles>>, <<security-privileges>>, and
-{ml-docs-setup-privileges}.
-
 
 NOTE: The {dfanalytics-job} remembers which roles the user who created it had at
 the time of creation. When you start the job, it performs the analysis using
@@ -86,7 +82,7 @@ one of the following types of analysis: {classification}, {oldetection}, or
 `classification`:::
 (Required^*^, object)
 The configuration information necessary to perform
-{ml-docs}/dfa-classification.html[{classification}].
+{ml-docs}/ml-dfa-classification.html[{classification}].
 +
 TIP: Advanced parameters are for fine-tuning {classanalysis}. They are set
 automatically by hyperparameter optimization to give the minimum validation
@@ -172,11 +168,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-multi]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-multi-proc]
 =======
 
-`ngram_encoding`::::
+`n_gram_encoding`::::
 (object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram]
 +
-.Properties of `ngram_encoding`
+.Properties of `n_gram_encoding`
 [%collapsible%open]
 =======
 `feature_prefix`::::
@@ -267,9 +263,9 @@ a large number of categories, there could be a significant effect on the size of
 +
 --
 NOTE: To use the
-{ml-docs}/ml-dfanalytics-evaluate.html#ml-dfanalytics-class-aucroc[AUC ROC evaluation method],
-`num_top_classes` must be set to `-1` or a value greater than or equal to the
-total number of categories.
+{ml-docs}/ml-dfa-classification.html#ml-dfanalytics-class-aucroc[AUC ROC] 
+evaluation method, `num_top_classes` must be set to `-1` or a value greater than 
+or equal to the total number of categories.
 
 --
 
@@ -304,7 +300,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=training-percent]
 `outlier_detection`:::
 (Required^*^, object)
 The configuration information necessary to perform
-{ml-docs}/dfa-outlier-detection.html[{oldetection}]:
+{ml-docs}/ml-dfa-finding-outliers.html#dfa-outlier-detection[{oldetection}]:
 +
 .Properties of `outlier_detection`
 [%collapsible%open]
@@ -338,7 +334,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 `regression`:::
 (Required^*^, object)
 The configuration information necessary to perform
-{ml-docs}/dfa-regression.html[{regression}].
+{ml-docs}/ml-dfa-regression.html[{regression}].
 +
 TIP: Advanced parameters are for fine-tuning {reganalysis}. They are set
 automatically by hyperparameter optimization to give the minimum validation
@@ -395,8 +391,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=lambda]
 (Optional, string)
 The loss function used during {regression}. Available options are `mse` (mean
 squared error), `msle` (mean squared logarithmic error),  `huber` (Pseudo-Huber
-loss). Defaults to `mse`. Refer to
-{ml-docs}/dfa-regression.html#dfa-regression-lossfunction[Loss functions for {regression} analyses]
+loss). Defaults to `mse`.
+Refer to
+{ml-docs}/ml-dfa-regression.html#dfa-regression-lossfunction[Loss functions for {regression} analyses]
 to learn more.
 
 `loss_function_parameter`::::
@@ -462,8 +459,8 @@ may contain documents that don't have an {olscore}.
 * {regression-cap} supports fields that are numeric, `boolean`, `text`,
 `keyword`, and `ip`. It is also tolerant of missing values. Fields that are
 supported are included in the analysis, other fields are ignored. Documents
-where included fields contain  an array with two or more values are also
-ignored. Documents in the `dest` index  that don’t contain a results field are
+where included fields contain an array with two or more values are also
+ignored. Documents in the `dest` index that don’t contain a results field are
 not included in the {reganalysis}.
 * {classification-cap} supports fields that are numeric, `boolean`, `text`,
 `keyword`, and `ip`. It is also tolerant of missing values. Fields that are
@@ -471,7 +468,7 @@ supported are included in the analysis, other fields are ignored. Documents
 where included fields contain an array with two or more values are also ignored.
 Documents in the `dest` index that don’t contain a results field are not
 included in the {classanalysis}. {classanalysis-cap} can be improved by mapping
-ordinal variable values to a  single number. For example, in case of age ranges,
+ordinal variable values to a single number. For example, in case of age ranges,
 you can model the values as "0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
 
 If `analyzed_fields` is not set, only the relevant fields will be included. For
@@ -513,17 +510,12 @@ functionality other than the analysis itself.
 
 `model_memory_limit`::
 (Optional, string)
-The approximate maximum amount of memory resources that are permitted for
-analytical processing. The default value for {dfanalytics-jobs} is `1gb`. If
-your `elasticsearch.yml` file contains an `xpack.ml.max_model_memory_limit`
-setting, an error occurs when you try to create {dfanalytics-jobs} that have
-`model_memory_limit` values greater than that setting. For more information, see
-<<ml-settings>>.
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]
 
 `source`::
 (object)
 The configuration of how to source the analysis data. It requires an `index`.
-Optionally, `query` and `_source` may be specified.
+Optionally, `query`, `runtime_mappings`, and `_source` may be specified.
 +
 .Properties of `source`
 [%collapsible%open]
@@ -542,6 +534,10 @@ This value corresponds to the query object in an {es} search POST body. All the
 options that are supported by {es} can be used, as this object is passed
 verbatim to {es}. By default, this property has the following value:
 `{"match_all": {}}`.
+
+`runtime_mappings`:::
+(Optional, object) Definitions of runtime fields that will become part of the
+mapping of the destination index.
 
 `_source`:::
 (Optional, object) Specify `includes` and/or `excludes` patterns to select which

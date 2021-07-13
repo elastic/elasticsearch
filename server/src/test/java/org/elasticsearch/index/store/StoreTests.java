@@ -47,7 +47,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
@@ -77,6 +77,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongUnaryOperator;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
@@ -157,7 +158,7 @@ public class StoreTests extends ESTestCase {
         BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
         long length = indexInput.length();
         IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetadata("foo1.bar", length, checksum,
-            MIN_SUPPORTED_LUCENE_VERSION), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+            MIN_SUPPORTED_LUCENE_VERSION.toString()), dir.createOutput("foo1.bar", IOContext.DEFAULT));
         while (length > 0) {
             if (random().nextInt(10) == 0) {
                 verifyingOutput.writeByte(indexInput.readByte());
@@ -190,7 +191,7 @@ public class StoreTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexOutput verifyingOutput =
             new Store.LuceneVerifyingIndexOutput(new StoreFileMetadata("foo.bar", 0, Store.digestToString(0),
-                MIN_SUPPORTED_LUCENE_VERSION),
+                MIN_SUPPORTED_LUCENE_VERSION.toString()),
                 dir.createOutput("foo1.bar", IOContext.DEFAULT));
         try {
             Store.verify(verifyingOutput);
@@ -220,7 +221,7 @@ public class StoreTests extends ESTestCase {
         BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
         long length = indexInput.length();
         IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetadata("foo1.bar", length, checksum,
-            MIN_SUPPORTED_LUCENE_VERSION), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+            MIN_SUPPORTED_LUCENE_VERSION.toString()), dir.createOutput("foo1.bar", IOContext.DEFAULT));
         length -= 8; // we write the checksum in the try / catch block below
         while (length > 0) {
             if (random().nextInt(10) == 0) {
@@ -275,7 +276,7 @@ public class StoreTests extends ESTestCase {
         Directory dir = newDirectory();
         int length = scaledRandomIntBetween(10, 1024);
         IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetadata("foo1.bar", length, "",
-            MIN_SUPPORTED_LUCENE_VERSION), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+            MIN_SUPPORTED_LUCENE_VERSION.toString()), dir.createOutput("foo1.bar", IOContext.DEFAULT));
         try {
             while (length > 0) {
                 verifyingOutput.writeByte((byte) random().nextInt());
@@ -334,7 +335,7 @@ public class StoreTests extends ESTestCase {
             try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
                 String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                 assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
-                assertThat(meta.writtenBy(), equalTo(Version.LATEST));
+                assertThat(meta.writtenBy(), equalTo(Version.LATEST.toString()));
                 if (meta.name().endsWith(".si") || meta.name().startsWith("segments_")) {
                     assertThat(meta.hash().length, greaterThan(0));
                 }
@@ -452,7 +453,7 @@ public class StoreTests extends ESTestCase {
     public void assertDeleteContent(Store store, Directory dir) throws IOException {
         deleteContent(store.directory());
         assertThat(Arrays.toString(store.directory().listAll()), store.directory().listAll().length, equalTo(0));
-        assertThat(store.stats(0L).sizeInBytes(), equalTo(0L));
+        assertThat(store.stats(0L, LongUnaryOperator.identity()).sizeInBytes(), equalTo(0L));
         assertThat(dir.listAll().length, equalTo(0));
     }
 
@@ -737,19 +738,24 @@ public class StoreTests extends ESTestCase {
             assertTrue("expected extraFS file but got: " + extraFiles, extraFiles.startsWith("extra"));
             initialStoreSize += store.directory().fileLength(extraFiles);
         }
+        final long localStoreSizeDelta = randomLongBetween(-initialStoreSize, initialStoreSize);
         final long reservedBytes =  randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES :randomLongBetween(0L, Integer.MAX_VALUE);
-        StoreStats stats = store.stats(reservedBytes);
-        assertEquals(initialStoreSize, stats.getSize().getBytes());
+        StoreStats stats = store.stats(reservedBytes, size -> size + localStoreSizeDelta);
+        assertEquals(initialStoreSize, stats.totalDataSetSize().getBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta, stats.getSize().getBytes());
         assertEquals(reservedBytes, stats.getReservedSize().getBytes());
 
         stats.add(null);
-        assertEquals(initialStoreSize, stats.getSize().getBytes());
+        assertEquals(initialStoreSize, stats.totalDataSetSize().getBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta, stats.getSize().getBytes());
         assertEquals(reservedBytes, stats.getReservedSize().getBytes());
 
-        final long otherStatsBytes = randomLongBetween(0L, Integer.MAX_VALUE);
+        final long otherStatsDataSetBytes = randomLongBetween(0L, Integer.MAX_VALUE);
+        final long otherStatsLocalBytes = randomLongBetween(0L, Integer.MAX_VALUE);
         final long otherStatsReservedBytes = randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES :randomLongBetween(0L, Integer.MAX_VALUE);
-        stats.add(new StoreStats(otherStatsBytes, otherStatsReservedBytes));
-        assertEquals(initialStoreSize + otherStatsBytes, stats.getSize().getBytes());
+        stats.add(new StoreStats(otherStatsLocalBytes, otherStatsDataSetBytes, otherStatsReservedBytes));
+        assertEquals(initialStoreSize + otherStatsDataSetBytes, stats.totalDataSetSize().getBytes());
+        assertEquals(initialStoreSize + otherStatsLocalBytes + localStoreSizeDelta, stats.getSize().getBytes());
         assertEquals(Math.max(reservedBytes, 0L) + Math.max(otherStatsReservedBytes, 0L), stats.getReservedSize().getBytes());
 
         Directory dir = store.directory();
@@ -764,8 +770,9 @@ public class StoreTests extends ESTestCase {
         }
 
         assertTrue(numNonExtraFiles(store) > 0);
-        stats = store.stats(0L);
-        assertEquals(stats.getSizeInBytes(), length + initialStoreSize);
+        stats = store.stats(0L, size -> size + localStoreSizeDelta);
+        assertEquals(initialStoreSize + length, stats.totalDataSetSize().getBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta + length, stats.getSizeInBytes());
 
         deleteContent(store.directory());
         IOUtils.close(store);
@@ -821,9 +828,9 @@ public class StoreTests extends ESTestCase {
 
     protected Store.MetadataSnapshot createMetadataSnapshot() {
         StoreFileMetadata storeFileMetadata1 =
-            new StoreFileMetadata("segments", 1, "666", MIN_SUPPORTED_LUCENE_VERSION);
+            new StoreFileMetadata("segments", 1, "666", MIN_SUPPORTED_LUCENE_VERSION.toString());
         StoreFileMetadata storeFileMetadata2 =
-            new StoreFileMetadata("no_segments", 1, "666", MIN_SUPPORTED_LUCENE_VERSION);
+            new StoreFileMetadata("no_segments", 1, "666", MIN_SUPPORTED_LUCENE_VERSION.toString());
         Map<String, StoreFileMetadata> storeFileMetadataMap = new HashMap<>();
         storeFileMetadataMap.put(storeFileMetadata1.name(), storeFileMetadata1);
         storeFileMetadataMap.put(storeFileMetadata2.name(), storeFileMetadata2);

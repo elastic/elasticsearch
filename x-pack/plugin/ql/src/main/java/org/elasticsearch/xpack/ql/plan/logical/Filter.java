@@ -64,4 +64,12 @@ public class Filter extends UnaryPlan {
         return Objects.equals(condition, other.condition)
                 && Objects.equals(child(), other.child());
     }
+
+    public Filter with(Expression condition) {
+        return new Filter(source(), child(), condition);
+    }
+
+    public Filter with(LogicalPlan child, Expression condition) {
+        return new Filter(source(), child, condition);
+    }
 }

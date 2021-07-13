@@ -30,7 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -96,10 +96,10 @@ public class RestIndicesAction extends AbstractCatAction {
                 }
             });
 
-            sendGetSettingsRequest(indices, indicesOptions, masterNodeTimeout, client, new ActionListener<>() {
+            sendGetSettingsRequest(indices, indicesOptions, masterNodeTimeout, client, new ActionListener.Delegating<>(listener) {
                 @Override
                 public void onResponse(final GetSettingsResponse getSettingsResponse) {
-                    final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, listener);
+                    final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, delegate);
                     groupedListener.onResponse(getSettingsResponse);
 
                     // The list of indices that will be returned is determined by the indices returned from the Get Settings call.
@@ -122,11 +122,6 @@ public class RestIndicesAction extends AbstractCatAction {
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
                     sendClusterHealthRequest(indices, subRequestIndicesOptions, masterNodeTimeout, client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    listener.onFailure(e);
                 }
             });
         };
@@ -199,7 +194,7 @@ public class RestIndicesAction extends AbstractCatAction {
 
     private GroupedActionListener<ActionResponse> createGroupedListener(final RestRequest request, final int size,
                                                                         final ActionListener<Table> listener) {
-        return new GroupedActionListener<>(new ActionListener<>() {
+        return new GroupedActionListener<>(new ActionListener.Delegating<>(listener) {
             @Override
             public void onResponse(final Collection<ActionResponse> responses) {
                 try {
@@ -219,15 +214,10 @@ public class RestIndicesAction extends AbstractCatAction {
                     Map<String, IndexStats> indicesStats = statsResponse.getIndices();
 
                     Table responseTable = buildTable(request, indicesSettings, indicesHealths, indicesStats, indicesStates);
-                    listener.onResponse(responseTable);
+                    delegate.onResponse(responseTable);
                 } catch (Exception e) {
                     onFailure(e);
                 }
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                listener.onFailure(e);
             }
         }, size);
     }

@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 
 import java.util.ArrayList;
@@ -187,7 +187,7 @@ public class IncrementalClusterStateWriter {
 
     // exposed for tests
     static Set<Index> getRelevantIndices(ClusterState state) {
-        assert state.nodes().getLocalNode().isDataNode();
+        assert state.nodes().getLocalNode().canContainData();
         final RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
         if (newRoutingNode == null) {
             throw new IllegalStateException("cluster state does not contain this node - cannot write index meta state");

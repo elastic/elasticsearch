@@ -1,20 +1,3 @@
-ifdef::permanently-unreleased-branch[]
-
-[role="xpack"]
-[testenv="basic"]
-[[rollup-get-job]]
-=== Get legacy {rollup-jobs} API
-++++
-<titleabbrev>Get legacy job</titleabbrev>
-++++
-
-include::put-job.asciidoc[tag=legacy-rollup-admon]
-
-Gets the configuration, stats, and status of legacy {rollup-jobs}.
-
-endif::[]
-ifndef::permanently-unreleased-branch[]
-
 [role="xpack"]
 [testenv="basic"]
 [[rollup-get-job]]
@@ -26,8 +9,6 @@ ifndef::permanently-unreleased-branch[]
 Retrieves the configuration, stats, and status of {rollup-jobs}.
 
 experimental[]
-
-endif::[]
 
 [[rollup-get-job-request]]
 ==== {api-request-title}
@@ -94,7 +75,7 @@ rollup documents. When in this state, any subsequent cron interval triggers will
 be ignored because the job is already active with the prior trigger.
 - `abort` is a transient state, which is usually not witnessed by the user. It
 is used if the task needs to be shut down for some reason (job has been deleted,
-an unrecoverable error has been encountered, etc).  Shortly after the `abort`
+an unrecoverable error has been encountered, etc). Shortly after the `abort`
 state is set, the job will remove itself from the cluster.
 ====
 

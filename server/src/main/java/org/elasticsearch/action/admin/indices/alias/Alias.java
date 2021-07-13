@@ -9,8 +9,8 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -76,6 +76,14 @@ public class Alias implements Writeable, ToXContentFragment {
      */
     public String name() {
         return name;
+    }
+
+    /**
+      Modify the alias name only
+     */
+    public Alias name(String name){
+        this.name = name;
+        return this;
     }
 
     /**

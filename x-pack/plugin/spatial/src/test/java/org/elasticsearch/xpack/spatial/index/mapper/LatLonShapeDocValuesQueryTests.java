@@ -73,8 +73,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
                 GeometryTestUtils::randomPolygon
             );
             Geometry geometry = geometryFunc.apply(false);
-            geometry = indexer.prepareForIndexing(geometry);
-            List<IndexableField> fields = indexer.indexShape(null, geometry);
+            List<IndexableField> fields = indexer.indexShape(geometry);
             for (IndexableField field : fields) {
                 doc.add(field);
             }
@@ -116,8 +115,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         for (int id = 0; id < numDocs; id++) {
             Document doc = new Document();
             Geometry geometry = GeometryTestUtils.randomGeometryWithoutCircle(randomIntBetween(1, 5), false);
-            geometry = indexer.prepareForIndexing(geometry);
-            List<IndexableField> fields = indexer.indexShape(null, geometry);
+            List<IndexableField> fields = indexer.indexShape(geometry);
             for (IndexableField field : fields) {
                 doc.add(field);
             }

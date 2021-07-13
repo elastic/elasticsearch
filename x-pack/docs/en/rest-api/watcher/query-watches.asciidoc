@@ -37,7 +37,7 @@ This API supports the following fields:
 
 | `size`            | no       | 10       | The number of hits to return. Needs to be non-negative.
 
-| `query`           | no       | null     | Optional, <<query-dsl,query>> filter  watches to be returned.
+| `query`           | no       | null     | Optional, <<query-dsl,query>> filter watches to be returned.
 
 | `sort`            | no       | null     | Optional <<search-request-sort,sort definition>>.
 

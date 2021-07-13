@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -51,10 +51,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -77,9 +77,9 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), License.LicenseType.TRIAL.getTypeName())
             .build();
     }
@@ -574,7 +574,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         );
 
         internalCluster().fullRestart();
-        ensureStableCluster(2);
+        ensureGreen();
         // maybe recreate the repository
         if (randomBoolean()) {
             deleteRepository(repositoryName);
@@ -594,13 +594,8 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             () -> client().admin().cluster().prepareCreateSnapshot(repositoryName, snapshotName + "2").setWaitForCompletion(true).get()
         );
         assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
-        GetSnapshotsResponse getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
-        assertThat(getSnapshotResponse.getSuccessfulResponses().keySet(), empty());
-        assertThat(getSnapshotResponse.getFailedResponses().keySet(), contains(repositoryName));
-        assertThat(
-            getSnapshotResponse.getFailedResponses().get(repositoryName).getCause().getMessage(),
-            containsString("repository password is incorrect")
-        );
+        e = expectThrows(RepositoryException.class, () -> client().admin().cluster().prepareGetSnapshots(repositoryName).get());
+        assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
         e = expectThrows(
             RepositoryException.class,
             () -> client().admin().cluster().prepareRestoreSnapshot(repositoryName, snapshotName).setWaitForCompletion(true).get()
@@ -617,11 +612,10 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             goodPassword
         );
         internalCluster().fullRestart();
-        ensureStableCluster(2);
+        ensureGreen();
         // ensure get snapshot works
-        getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
-        assertThat(getSnapshotResponse.getFailedResponses().keySet(), empty());
-        assertThat(getSnapshotResponse.getSuccessfulResponses().keySet(), contains(repositoryName));
+        GetSnapshotsResponse getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
+        assertThat(getSnapshotResponse.getSnapshots(), hasSize(1));
     }
 
     public void testSnapshotFailsForMasterFailoverWithWrongPassword() throws Exception {
@@ -769,7 +763,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
                 .prepareGetSnapshots(repository)
                 .setSnapshots(snapshotName)
                 .get()
-                .getSnapshots(repository);
+                .getSnapshots();
             assertThat(snapshotInfos.size(), equalTo(1));
             if (snapshotInfos.get(0).state().completed()) {
                 // Make sure that snapshot clean up operations are finished

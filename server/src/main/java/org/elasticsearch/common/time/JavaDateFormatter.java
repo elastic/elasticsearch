@@ -166,7 +166,7 @@ class JavaDateFormatter implements DateFormatter {
 
         try {
             return doParse(input);
-        } catch (DateTimeParseException e) {
+        } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
         }
     }

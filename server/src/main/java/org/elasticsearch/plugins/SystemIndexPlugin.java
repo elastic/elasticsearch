@@ -8,8 +8,15 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -30,6 +37,10 @@ public interface SystemIndexPlugin extends ActionPlugin {
         return Collections.emptyList();
     }
 
+    default Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
+        return Collections.emptyList();
+    }
+
     /**
      * @return The name of the feature, as used for specifying feature states in snapshot creation and restoration.
      */
@@ -41,12 +52,34 @@ public interface SystemIndexPlugin extends ActionPlugin {
     String getFeatureDescription();
 
     /**
-     * Returns a list of index patterns for "associated indices": indices which depend on this plugin's system indices, but are not
+     * Returns a list of descriptors for "associated indices": indices which depend on this plugin's system indices, but are not
      * themselves system indices.
      *
-     * @return A list of index patterns which depend on the contents of this plugin's system indices, but are not themselves system indices
+     * @return A list of descriptors of indices which depend on the contents of this plugin's system indices, but are not themselves system
+     * indices
      */
-    default Collection<String> getAssociatedIndexPatterns() {
+    default Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
         return Collections.emptyList();
+    }
+
+    /**
+     * Cleans up the state of the feature by deleting system indices and associated indices.
+     * Override to do more for cleanup (e.g. cancelling tasks).
+     * @param clusterService Cluster service to provide cluster state
+     * @param client A client, for executing actions
+     * @param listener Listener for post-cleanup result
+     */
+    default void cleanUpFeature(
+        ClusterService clusterService, Client client,
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener) {
+
+        SystemIndices.Feature.cleanUpFeature(
+            getSystemIndexDescriptors(clusterService.getSettings()),
+            getAssociatedIndexDescriptors(),
+            getFeatureName(),
+            clusterService,
+            client,
+            listener
+        );
     }
 }

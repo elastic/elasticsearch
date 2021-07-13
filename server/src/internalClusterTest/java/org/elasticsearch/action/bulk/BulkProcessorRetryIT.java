@@ -10,7 +10,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -34,10 +34,10 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "test";
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         //Have very low pool and queue sizes to overwhelm internal pools easily
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 // don't mess with this one! It's quite sensitive to a low queue size
                 // (see also ThreadedActionListener which is happily spawning threads even when we already got rejected)
                 //.put("thread_pool.listener.queue_size", 1)
@@ -85,7 +85,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                 responses.add(failure);
                 latch.countDown();
             }
-        }).setBulkActions(1)
+        }, "BulkProcssorRetryIT").setBulkActions(1)
                  // zero means that we're in the sync case, more means that we're in the async case
                 .setConcurrentRequests(randomIntBetween(0, 100))
                 .setBackoffPolicy(internalPolicy)

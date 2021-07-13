@@ -6,13 +6,13 @@
 <titleabbrev>{infer-cap} bucket</titleabbrev>
 ++++
 
-beta::[]
 
 A parent pipeline aggregation which loads a pre-trained model and performs 
 {infer} on the collated result fields from the parent bucket aggregation.
 
 To use the {infer} bucket aggregation, you need to have the same security
-privileges that are required for using the <<get-trained-models>>.
+privileges that are required for using the 
+<<get-trained-models,get trained models API>>.
 
 [[inference-bucket-agg-syntax]]
 ==== Syntax
@@ -37,7 +37,7 @@ A `inference` aggregation looks like this in isolation:
 }
 --------------------------------------------------
 // NOTCONSOLE
-<1> The ID of model to use.
+<1> The unique identifier or alias for the trained model.
 <2> The optional inference config which overrides the model's default settings
 <3> Map the value of `avg_agg` to the model's input field `avg_cost`
 
@@ -47,7 +47,7 @@ A `inference` aggregation looks like this in isolation:
 [options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
-| `model_id`         | The ID of the model to load and infer against       | Required  | -
+| `model_id`         | The ID or alias for the trained model.      | Required  | -
 | `inference_config` | Contains the inference type and its options. There are two types: <<inference-agg-regression-opt,`regression`>> and <<inference-agg-classification-opt,`classification`>>  | Optional | -
 | `buckets_path`     | Defines the paths to the input aggregations and maps the aggregation names to the field names expected by the model.
 See <<buckets-path-syntax>> for more details | Required       | -
@@ -181,5 +181,5 @@ GET kibana_sample_data_logs/_search
 
 <1> A composite bucket aggregation that aggregates the data by `client_ip`.
 <2> A series of metrics and bucket sub-aggregations.
-<3> {infer-cap} bucket aggregation that contains the model ID and maps the
+<3> {infer-cap} bucket aggregation that specifies the trained model and maps the
 aggregation names to the model's input fields.

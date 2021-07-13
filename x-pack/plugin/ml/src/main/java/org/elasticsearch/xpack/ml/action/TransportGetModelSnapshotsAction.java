@@ -17,12 +17,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
-
-import java.util.stream.Collectors;
 
 public class TransportGetModelSnapshotsAction extends HandledTransportAction<GetModelSnapshotsAction.Request,
         GetModelSnapshotsAction.Response> {
@@ -74,16 +70,7 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
             request.getSort(),
             request.getDescOrder(),
             request.getSnapshotId(),
-            page -> listener.onResponse(new GetModelSnapshotsAction.Response(clearQuantiles(page))),
+            page -> listener.onResponse(new GetModelSnapshotsAction.Response(page)),
             listener::onFailure);
-    }
-
-    public static QueryPage<ModelSnapshot> clearQuantiles(QueryPage<ModelSnapshot> page) {
-        if (page.results() == null) {
-            return page;
-        }
-        return new QueryPage<>(page.results().stream().map(snapshot ->
-                new ModelSnapshot.Builder(snapshot).setQuantiles(null).build())
-                .collect(Collectors.toList()), page.count(), page.getResultsField());
     }
 }

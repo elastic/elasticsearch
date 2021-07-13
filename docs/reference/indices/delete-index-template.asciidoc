@@ -33,6 +33,10 @@ DELETE /_index_template/my-index-template
 
 `DELETE /_index_template/<index-template>`
 
+The provided <index-template> may contain multiple template names separated by a comma.
+If multiple template names are specified then there is no wildcard support and the
+provided names should match completely with existing templates.
+
 [[delete-template-api-prereqs]]
 ==== {api-prereq-title}
 
@@ -44,8 +48,8 @@ privilege>> to use this API.
 ==== {api-description-title}
 
 Use the delete index template API to delete one or more index templates.
-Index templates define <<index-modules-settings,settings>>, <<mapping,mappings>>, 
-and <<indices-aliases,aliases>> that can be applied automatically to new indices. 
+Index templates define <<index-modules-settings,settings>>, <<mapping,mappings>>,
+and <<alias,aliases>> that can be applied automatically to new indices.
 
 
 [[delete-template-api-path-params]]

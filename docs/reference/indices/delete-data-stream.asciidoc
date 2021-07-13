@@ -6,7 +6,7 @@
 ++++
 
 Deletes one or more <<data-streams,data streams>> and their backing
-indices. See <<delete-a-data-stream>>.
+indices. See <<delete-data-stream>>.
 
 ////
 [source,console]

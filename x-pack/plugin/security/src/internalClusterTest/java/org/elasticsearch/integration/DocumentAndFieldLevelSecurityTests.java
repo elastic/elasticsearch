@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -32,7 +31,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -105,9 +103,9 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
                 .build();
     }
@@ -461,10 +459,10 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     private static void assertExpectedFields(FieldCapabilitiesResponse fieldCapabilitiesResponse, String... expectedFields) {
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>(fieldCapabilitiesResponse.get());
-        Set<String> builtInMetadataFields = IndicesModule.getBuiltInMetadataFields();
-        for (String field : builtInMetadataFields) {
-            Map<String, FieldCapabilities> remove = responseMap.remove(field);
-            assertNotNull(" expected field [" + field + "] not found", remove);
+        for (String field : fieldCapabilitiesResponse.get().keySet()) {
+            if (fieldCapabilitiesResponse.isMetadataField(field)) {
+                assertNotNull(" expected field [" + field + "] not found", responseMap.remove(field));
+            }
         }
         for (String field : expectedFields) {
             Map<String, FieldCapabilities> remove = responseMap.remove(field);
@@ -475,11 +473,12 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     private static void assertExpectedFields(Map<String, GetFieldMappingsResponse.FieldMappingMetadata> actual,
                                             String... expectedFields) {
-        Set<String> builtInMetadataFields = IndicesModule.getBuiltInMetadataFields();
         Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fields = new HashMap<>(actual);
-        for (String field : builtInMetadataFields) {
-            GetFieldMappingsResponse.FieldMappingMetadata fieldMappingMetadata = fields.remove(field);
-            assertNotNull(" expected field [" + field + "] not found", fieldMappingMetadata);
+        for (String field : actual.keySet()) {
+            // best effort to remove metadata fields
+            if (field.startsWith("_")) {
+                assertNotNull(" expected field [" + field + "] not found", fields.remove(field));
+            }
         }
         for (String field : expectedFields) {
             GetFieldMappingsResponse.FieldMappingMetadata fieldMappingMetadata = fields.remove(field);

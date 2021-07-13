@@ -579,7 +579,7 @@ modulo(process.args_count, -6)                      // returns 4
 modulo(process.args_count, 0.5)                     // returns 0
 
 // process.parent.args_count = 6
-add(process.args_count, process.parent.args_count)  // returns 4
+modulo(process.args_count, process.parent.args_count)  // returns 4
 
 // null handling
 modulo(null, 5)                                     // returns null
@@ -654,7 +654,7 @@ multiply(<factor, <factor>)
 +
 --
 (Required, integer or float or `null`)
-Factor to multiply.  If `null`, the function returns `null`.
+Factor to multiply. If `null`, the function returns `null`.
 
 Two factors are required. No more than two factors can be provided.
 
@@ -1022,76 +1022,3 @@ If using a field as the argument, this parameter supports only
 <<number,`numeric`>> field data types.
 
 *Returns:* integer, float, or `null`
-
-[discrete]
-[[eql-fn-wildcard]]
-=== `wildcard`
-
-Returns `true` if a source string matches one or more provided wildcard
-expressions. Matching is case-sensitive by default.
-
-*Example*
-[source,eql]
-----
-// The * wildcard matches zero or more characters.
-// process.name = "regsvr32.exe"
-wildcard(process.name, "*regsvr32*")                // returns true
-wildcard(process.name, "*Regsvr32*")                // returns false
-wildcard(process.name, "*regsvr32*", "*explorer*")  // returns true
-wildcard(process.name, "*explorer*")                // returns false
-wildcard(process.name, "*explorer*", "*scrobj*")    // returns false
-
-// Make matching case-insensitive
-wildcard~(process.name, "*Regsvr32*")                // returns true
-
-// The ? wildcard matches exactly one character.
-// process.name = "regsvr32.exe"
-wildcard(process.name, "regsvr32.e?e")                  // returns true
-wildcard(process.name, "regsvr32.e?e", "e?plorer.exe")  // returns true
-wildcard(process.name, "regsvr32.exe?")                 // returns false
-wildcard(process.name, "e?plorer.exe")                  // returns false
-wildcard(process.name, "e?plorer.exe", "scrob?.dll")    // returns false
-
-// empty strings
-wildcard("", "*start*")                             // returns false
-wildcard("", "*")                                   // returns true
-wildcard("", "?")                                   // returns false
-wildcard("", "")                                    // returns true
-
-// null handling
-wildcard(null, "*regsvr32*")                        // returns null
-wildcard(process.name, null)                        // returns null
-----
-
-*Syntax*
-[source,txt]
-----
-wildcard(<source>, <wildcard_exp>[, ...])
-----
-
-*Parameters*
-
-`<source>`::
-+
---
-(Required, string)
-Source string. If `null`, the function returns `null`.
-
-If using a field as the argument, this parameter supports only the following
-field data types:
-
-* A type in the <<keyword,`keyword`>> family
-* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
---
-
-`<wildcard_exp>`::
-+
---
-(Required{multi-arg-ref}, string)
-Wildcard expression used to match the source string. The `*` wildcard matches
-zero or more characters. The `?` wildcard matches exactly one character.
-
-If `null`, the function returns `null`. Fields are not supported as arguments.
---
-
-*Returns:* boolean

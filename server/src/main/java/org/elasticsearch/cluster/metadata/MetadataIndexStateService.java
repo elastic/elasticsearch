@@ -49,7 +49,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -132,18 +132,6 @@ public class MetadataIndexStateService {
         final Index[] concreteIndices = request.indices();
         if (concreteIndices == null || concreteIndices.length == 0) {
             throw new IllegalArgumentException("Index name is required");
-        }
-        List<String> writeIndices = new ArrayList<>();
-        SortedMap<String, IndexAbstraction> lookup = clusterService.state().metadata().getIndicesLookup();
-        for (Index index : concreteIndices) {
-            IndexAbstraction ia = lookup.get(index.getName());
-            if (ia != null && ia.getParentDataStream() != null && ia.getParentDataStream().getWriteIndex().getIndex().equals(index)) {
-                writeIndices.add(index.getName());
-            }
-        }
-        if (writeIndices.size() > 0) {
-            throw new IllegalArgumentException("cannot close the following data stream write indices [" +
-                Strings.collectionToCommaDelimitedString(writeIndices) + "]");
         }
 
         clusterService.submitStateUpdateTask("add-block-index-to-close " + Arrays.toString(concreteIndices),
@@ -565,22 +553,15 @@ public class MetadataIndexStateService {
             if (request.ackTimeout() != null) {
                 shardRequest.timeout(request.ackTimeout());
             }
-            client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(ReplicationResponse replicationResponse) {
-                    final TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest =
-                        new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, false, parentTaskId);
-                    if (request.ackTimeout() != null) {
-                        shardRequest.timeout(request.ackTimeout());
-                    }
-                    client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest, listener);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest,
+                    listener.delegateFailure((delegate, replicationResponse) -> {
+                        final TransportVerifyShardBeforeCloseAction.ShardRequest req =
+                                new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, false, parentTaskId);
+                        if (request.ackTimeout() != null) {
+                            req.timeout(request.ackTimeout());
+                        }
+                        client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, req, delegate);
+                    }));
         }
     }
 
@@ -662,7 +643,9 @@ public class MetadataIndexStateService {
 
                     private void processIfFinished() {
                         if (countDown.countDown()) {
-                            onResponse.accept(new AddBlockResult(index, results.toArray(new AddBlockShardResult[results.length()])));
+                            AddBlockResult result = new AddBlockResult(index, results.toArray(new AddBlockShardResult[results.length()]));
+                            logger.debug("result of applying block to index {}: {}", index, result);
+                            onResponse.accept(result);
                         }
                     }
                 });
@@ -894,7 +877,6 @@ public class MetadataIndexStateService {
                     logger.debug("verification of shards before blocking {} failed [{}]", index, result);
                     continue;
                 }
-                final IndexMetadata indexMetadata = metadata.getSafe(index);
                 final ClusterBlock tempBlock = blockedIndices.get(index);
                 assert tempBlock != null;
                 assert tempBlock.uuid() != null;

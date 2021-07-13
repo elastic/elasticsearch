@@ -19,24 +19,27 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Response for {@link TransportFieldCapabilitiesIndexAction}.
+ * Response for shard level operation in {@link TransportFieldCapabilitiesAction}.
  */
 public class FieldCapabilitiesIndexResponse extends ActionResponse implements Writeable {
     private final String indexName;
     private final Map<String, IndexFieldCapabilities> responseMap;
     private final boolean canMatch;
+    private final transient Version originVersion;
 
     FieldCapabilitiesIndexResponse(String indexName, Map<String, IndexFieldCapabilities> responseMap, boolean canMatch) {
         this.indexName = indexName;
         this.responseMap = responseMap;
         this.canMatch = canMatch;
+        this.originVersion = Version.CURRENT;
     }
 
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
         super(in);
         this.indexName = in.readString();
         this.responseMap = in.readMap(StreamInput::readString, IndexFieldCapabilities::new);
-        this.canMatch = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readBoolean() : true;
+        this.canMatch = in.readBoolean();
+        this.originVersion = in.getVersion();
     }
 
     /**
@@ -65,13 +68,15 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
         return responseMap.get(field);
     }
 
+    Version getOriginVersion() {
+        return originVersion;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(indexName);
         out.writeMap(responseMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeBoolean(canMatch);
-        }
+        out.writeBoolean(canMatch);
     }
 
     @Override

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,9 +41,40 @@ public class BucketHelpers {
      *
      * "insert_zeros": empty buckets will be filled with zeros for all metrics
      * "skip": empty buckets will simply be ignored
+     * "keep_values": for empty buckets the values provided by the metrics will still be used if they are available
      */
     public enum GapPolicy implements Writeable {
-        INSERT_ZEROS((byte) 0, "insert_zeros"), SKIP((byte) 1, "skip");
+        INSERT_ZEROS((byte) 0, "insert_zeros", false) {
+            @Override
+            public Double processValue(long docCount, Double value) {
+                if (Double.isInfinite(value) || Double.isNaN(value) || docCount == 0) {
+                    return 0.0;
+                } else {
+                    return value;
+                }
+            }
+        },
+
+        SKIP((byte) 1, "skip", true) {
+            @Override
+            public Double processValue(long docCount, Double value) {
+                if (Double.isInfinite(value) || docCount == 0) {
+                    return Double.NaN;
+                } else {
+                    return value;
+                }
+            }
+        },
+
+        KEEP_VALUES((byte) 2, "keep_values", true) {
+            public Double processValue(long docCount, Double value) {
+                if (Double.isInfinite(value) || Double.isNaN(value)) {
+                    return Double.NaN;
+                } else {
+                    return value;
+                }
+            }
+        };
 
         /**
          * Parse a string GapPolicy into the byte enum
@@ -76,10 +107,12 @@ public class BucketHelpers {
 
         private final byte id;
         private final ParseField parseField;
+        public final boolean isSkippable;
 
-        GapPolicy(byte id, String name) {
+        GapPolicy(byte id, String name, boolean isSkippable) {
             this.id = id;
             this.parseField = new ParseField(name);
+            this.isSkippable = isSkippable;
         }
 
         /**
@@ -113,6 +146,8 @@ public class BucketHelpers {
         public String getName() {
             return parseField.getPreferredName();
         }
+
+        public abstract Double processValue(long docCount, Double value);
     }
 
     /**
@@ -161,18 +196,12 @@ public class BucketHelpers {
                     throw formatResolutionError(agg, aggPathAsList, propertyValue);
                 }
                 // doc count never has missing values so gap policy doesn't apply here
-                boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));
-                if (Double.isInfinite(value) || Double.isNaN(value) || (bucket.getDocCount() == 0 && !isDocCountProperty)) {
-                    switch (gapPolicy) {
-                    case INSERT_ZEROS:
-                        return 0.0;
-                    case SKIP:
-                    default:
-                        return Double.NaN;
-                    }
-                } else {
+                if (aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0))) {
                     return value;
+                } else {
+                    return gapPolicy.processValue(bucket.getDocCount(), value);
                 }
+
             }
         } catch (InvalidAggregationPathException e) {
             return null;

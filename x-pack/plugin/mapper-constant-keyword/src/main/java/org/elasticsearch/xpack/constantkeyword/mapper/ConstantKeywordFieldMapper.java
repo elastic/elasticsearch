@@ -8,6 +8,7 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -28,21 +29,24 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
+import org.elasticsearch.xpack.core.termsenum.action.TermCount;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -141,6 +145,27 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 : lookup -> List.of(value);
         }
 
+
+
+        @Override
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+            throws IOException {
+            boolean matches = caseInsensitive ?
+                value.toLowerCase(Locale.ROOT).startsWith(string.toLowerCase(Locale.ROOT)) :
+                value.startsWith(string);
+            if (matches == false) {
+                return null;
+            }
+            if (searchAfter != null) {
+                if (searchAfter.compareTo(value) >= 0) {
+                    // The constant value is before the searchAfter value so must be ignored
+                    return null;
+                }
+            }
+            int docCount = queryShardContext.searcher().getIndexReader().maxDoc();
+            return new SimpleTermCountEnum(new TermCount(value, docCount));
+        }
+
         @Override
         protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
             if (value == null) {
@@ -232,14 +257,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            XContentParser parser = context.parser();
-            value =  parser.textOrNull();
-        }
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        XContentParser parser = context.parser();
+        final String value = parser.textOrNull();
 
         if (value == null) {
             throw new IllegalArgumentException("[constant_keyword] field [" + name() + "] doesn't accept [null] values");

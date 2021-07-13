@@ -10,11 +10,11 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -212,7 +212,10 @@ public class DateHistogramValuesSourceBuilder
      *  {@code null} then it means that the interval is expressed as a fixed
      *  {@link TimeValue} and may be accessed via {@link #getIntervalAsFixed()} ()}. */
     public DateHistogramInterval getIntervalAsCalendar() {
-        return dateHistogramInterval.getAsCalendarInterval();
+        if (dateHistogramInterval.getIntervalType().equals(DateIntervalWrapper.IntervalTypeEnum.CALENDAR)) {
+            return dateHistogramInterval.getAsCalendarInterval();
+        }
+        return null;
     }
 
     /**
@@ -220,7 +223,10 @@ public class DateHistogramValuesSourceBuilder
      * the interval cannot be parsed as a fixed time.
      */
     public DateHistogramInterval getIntervalAsFixed() {
-        return dateHistogramInterval.getAsFixedInterval();
+        if (dateHistogramInterval.getIntervalType().equals(DateIntervalWrapper.IntervalTypeEnum.FIXED)) {
+            return dateHistogramInterval.getAsFixedInterval();
+        }
+        return null;
     }
 
     /**

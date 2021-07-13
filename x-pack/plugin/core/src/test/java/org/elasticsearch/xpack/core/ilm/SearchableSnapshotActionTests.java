@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
@@ -23,12 +23,12 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
 
     @Override
     public void testToSteps() {
-        String phase = randomAlphaOfLengthBetween(1, 10);
+        String phase = randomBoolean() ? randomFrom(TimeseriesLifecycleType.ORDERED_VALID_PHASES) : randomAlphaOfLengthBetween(1, 10);
         SearchableSnapshotAction action = createTestInstance();
         StepKey nextStepKey = new StepKey(phase, randomAlphaOfLengthBetween(1, 5), randomAlphaOfLengthBetween(1, 5));
 
-        List<Step> steps = action.toSteps(null, phase, nextStepKey);
-        assertThat(steps.size(), is(action.isForceMergeIndex() ? 17 : 15));
+        List<Step> steps = action.toSteps(null, phase, nextStepKey, null);
+        assertThat(steps.size(), is(action.isForceMergeIndex() ? 18 : 16));
 
         List<StepKey> expectedSteps = action.isForceMergeIndex() ? expectedStepKeysWithForceMerge(phase) :
             expectedStepKeysNoForceMerge(phase);
@@ -48,39 +48,39 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         assertThat(steps.get(12).getKey(), is(expectedSteps.get(12)));
         assertThat(steps.get(13).getKey(), is(expectedSteps.get(13)));
         assertThat(steps.get(14).getKey(), is(expectedSteps.get(14)));
+        assertThat(steps.get(15).getKey(), is(expectedSteps.get(15)));
 
         if (action.isForceMergeIndex()) {
-            assertThat(steps.get(15).getKey(), is(expectedSteps.get(15)));
             assertThat(steps.get(16).getKey(), is(expectedSteps.get(16)));
+            assertThat(steps.get(17).getKey(), is(expectedSteps.get(17)));
             AsyncActionBranchingStep branchStep = (AsyncActionBranchingStep) steps.get(8);
             assertThat(branchStep.getNextKeyOnIncompleteResponse(), is(expectedSteps.get(7)));
+            validateWaitForDataTierStep(phase, steps, 9, 10);
         } else {
             AsyncActionBranchingStep branchStep = (AsyncActionBranchingStep) steps.get(6);
             assertThat(branchStep.getNextKeyOnIncompleteResponse(), is(expectedSteps.get(5)));
+            validateWaitForDataTierStep(phase, steps, 7, 8);
+        }
+    }
+
+    private void validateWaitForDataTierStep(String phase, List<Step> steps, int waitForDataTierStepIndex, int mountStepIndex) {
+        WaitForDataTierStep waitForDataTierStep = (WaitForDataTierStep) steps.get(waitForDataTierStepIndex);
+        if (phase.equals(TimeseriesLifecycleType.HOT_PHASE)) {
+            assertThat(waitForDataTierStep.tierPreference(), equalTo(DataTier.DATA_HOT));
+        } else {
+            MountSnapshotStep mountStep = (MountSnapshotStep) steps.get(mountStepIndex);
+            assertThat(waitForDataTierStep.tierPreference(), equalTo(mountStep.getStorage().defaultDataTiersPreference()));
         }
     }
 
     public void testPrefixAndStorageTypeDefaults() {
-        SearchableSnapshotAction action = new SearchableSnapshotAction("repo", randomBoolean(), null);
+        SearchableSnapshotAction action = new SearchableSnapshotAction("repo", randomBoolean());
         StepKey nonFrozenKey = new StepKey(randomFrom("hot", "warm", "cold", "delete"), randomAlphaOfLength(5), randomAlphaOfLength(5));
         StepKey frozenKey = new StepKey("frozen", randomAlphaOfLength(5), randomAlphaOfLength(5));
 
-        assertThat(action.getStorageType(), equalTo(null));
         assertThat(action.getConcreteStorageType(nonFrozenKey), equalTo(MountSearchableSnapshotRequest.Storage.FULL_COPY));
         assertThat(action.getRestoredIndexPrefix(nonFrozenKey), equalTo(SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX));
 
-        assertThat(action.getConcreteStorageType(frozenKey), equalTo(MountSearchableSnapshotRequest.Storage.SHARED_CACHE));
-        assertThat(action.getRestoredIndexPrefix(frozenKey), equalTo(SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX));
-
-        action = new SearchableSnapshotAction("repo", randomBoolean(), MountSearchableSnapshotRequest.Storage.FULL_COPY);
-        assertThat(action.getConcreteStorageType(nonFrozenKey), equalTo(MountSearchableSnapshotRequest.Storage.FULL_COPY));
-        assertThat(action.getRestoredIndexPrefix(nonFrozenKey), equalTo(SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX));
-        assertThat(action.getConcreteStorageType(frozenKey), equalTo(MountSearchableSnapshotRequest.Storage.FULL_COPY));
-        assertThat(action.getRestoredIndexPrefix(frozenKey), equalTo(SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX));
-
-        action = new SearchableSnapshotAction("repo", randomBoolean(), MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
-        assertThat(action.getConcreteStorageType(nonFrozenKey), equalTo(MountSearchableSnapshotRequest.Storage.SHARED_CACHE));
-        assertThat(action.getRestoredIndexPrefix(nonFrozenKey), equalTo(SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX));
         assertThat(action.getConcreteStorageType(frozenKey), equalTo(MountSearchableSnapshotRequest.Storage.SHARED_CACHE));
         assertThat(action.getRestoredIndexPrefix(frozenKey), equalTo(SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX));
     }
@@ -96,6 +96,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
             new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME),
             new StepKey(phase, NAME, CleanupSnapshotStep.NAME),
             new StepKey(phase, NAME, CreateSnapshotStep.NAME),
+            new StepKey(phase, NAME, WaitForDataTierStep.NAME),
             new StepKey(phase, NAME, MountSnapshotStep.NAME),
             new StepKey(phase, NAME, WaitForIndexColorStep.NAME),
             new StepKey(phase, NAME, CopyExecutionStateStep.NAME),
@@ -115,6 +116,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
             new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME),
             new StepKey(phase, NAME, CleanupSnapshotStep.NAME),
             new StepKey(phase, NAME, CreateSnapshotStep.NAME),
+            new StepKey(phase, NAME, WaitForDataTierStep.NAME),
             new StepKey(phase, NAME, MountSnapshotStep.NAME),
             new StepKey(phase, NAME, WaitForIndexColorStep.NAME),
             new StepKey(phase, NAME, CopyExecutionStateStep.NAME),
@@ -123,20 +125,6 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
             new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME),
             new StepKey(phase, NAME, DeleteStep.NAME),
             new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME));
-    }
-
-    @Nullable
-    public static MountSearchableSnapshotRequest.Storage randomStorageType() {
-        if (randomBoolean()) {
-            // null is the same as a full copy, it just means it was not specified
-            if (randomBoolean()) {
-                return null;
-            } else {
-                return MountSearchableSnapshotRequest.Storage.FULL_COPY;
-            }
-        } else {
-            return MountSearchableSnapshotRequest.Storage.SHARED_CACHE;
-        }
     }
 
     @Override
@@ -160,6 +148,6 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
     }
 
     static SearchableSnapshotAction randomInstance() {
-        return new SearchableSnapshotAction(randomAlphaOfLengthBetween(5, 10), randomBoolean(), randomStorageType());
+        return new SearchableSnapshotAction(randomAlphaOfLengthBetween(5, 10), randomBoolean());
     }
 }

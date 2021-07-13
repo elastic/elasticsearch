@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -21,11 +22,12 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
@@ -39,9 +41,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -54,7 +58,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -63,12 +67,18 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_CLUSTERS_TOO_OLD;
 
 /* This class extends from TransportMasterNodeAction for cluster state observing purposes.
  The stop datafeed api also redirect the elected master node.
@@ -80,6 +90,7 @@ import java.util.function.Predicate;
  */
 public class TransportStartDatafeedAction extends TransportMasterNodeAction<StartDatafeedAction.Request, NodeAcknowledgedResponse> {
 
+    private static final Version COMPOSITE_AGG_SUPPORT = Version.V_7_13_0;
     private static final Logger logger = LogManager.getLogger(TransportStartDatafeedAction.class);
 
     private final Client client;
@@ -177,7 +188,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         // Verify data extractor factory can be created, then start persistent task
         Consumer<Job> createDataExtractor = job -> {
-                if (RemoteClusterLicenseChecker.containsRemoteIndex(params.getDatafeedIndices())) {
+            final List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices());
+                if (remoteIndices.isEmpty() == false) {
                     final RemoteClusterLicenseChecker remoteClusterLicenseChecker =
                             new RemoteClusterLicenseChecker(client, XPackLicenseState::isMachineLearningAllowedForOperationMode);
                     remoteClusterLicenseChecker.checkRemoteClusterLicenses(
@@ -196,6 +208,16 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                                     RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices()),
                                                     clusterService.getNodeName())));
                                         } else {
+                                            final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
+                                            List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
+                                                remoteClusterService.getRegisteredRemoteClusterNames(),
+                                                remoteIndices
+                                            );
+                                            checkRemoteClusterVersions(
+                                                datafeedConfigHolder.get(),
+                                                remoteAliases,
+                                                (cn) -> remoteClusterService.getConnection(cn).getVersion()
+                                            );
                                             createDataExtractor(job, datafeedConfigHolder.get(), params, waitForTaskListener);
                                         }
                                     },
@@ -232,6 +254,21 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                         params.setJobId(datafeedConfig.getJobId());
                         params.setIndicesOptions(datafeedConfig.getIndicesOptions());
                         datafeedConfigHolder.set(datafeedConfig);
+                        if (datafeedConfig.hasCompositeAgg(xContentRegistry)) {
+                            if (state.nodes()
+                                .mastersFirstStream()
+                                .filter(MachineLearning::isMlNode)
+                                .map(DiscoveryNode::getVersion)
+                                .anyMatch(COMPOSITE_AGG_SUPPORT::after)) {
+                                listener.onFailure(ExceptionsHelper.badRequestException(
+                                    "cannot start datafeed [{}] as [{}] requires all machine learning nodes to be at least version [{}]",
+                                    datafeedConfig.getId(),
+                                    "composite aggs",
+                                    COMPOSITE_AGG_SUPPORT
+                                ));
+                                return;
+                            }
+                        }
                         jobConfigProvider.getJob(datafeedConfig.getJobId(), jobListener);
                     } catch (Exception e) {
                         listener.onFailure(e);
@@ -241,6 +278,33 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         );
 
         datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), datafeedListener);
+    }
+
+    static void checkRemoteClusterVersions(DatafeedConfig config,
+                                           List<String> remoteClusters,
+                                           Function<String, Version> clusterVersionSupplier) {
+        Optional<Tuple<Version, String>> minVersionAndReason = config.minRequiredClusterVersion();
+        if (minVersionAndReason.isPresent() == false) {
+            return;
+        }
+        final String reason = minVersionAndReason.get().v2();
+        final Version minVersion = minVersionAndReason.get().v1();
+
+        List<String> clustersTooOld = remoteClusters.stream()
+            .filter(cn -> clusterVersionSupplier.apply(cn).before(minVersion))
+            .collect(Collectors.toList());
+        if (clustersTooOld.isEmpty()) {
+            return;
+        }
+
+        throw ExceptionsHelper.badRequestException(
+            Messages.getMessage(
+                REMOTE_CLUSTERS_TOO_OLD,
+                minVersion.toString(),
+                reason,
+                Strings.collectionToCommaDelimitedString(clustersTooOld)
+            )
+        );
     }
 
     /** Creates {@link DataExtractorFactory} solely for the purpose of validation i.e. verifying that it can be created. */
@@ -353,18 +417,22 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     public static class StartDatafeedPersistentTasksExecutor extends PersistentTasksExecutor<StartDatafeedAction.DatafeedParams> {
-        private final DatafeedManager datafeedManager;
+        private final DatafeedRunner datafeedRunner;
         private final IndexNameExpressionResolver resolver;
 
-        public StartDatafeedPersistentTasksExecutor(DatafeedManager datafeedManager, IndexNameExpressionResolver resolver) {
+        public StartDatafeedPersistentTasksExecutor(DatafeedRunner datafeedRunner, IndexNameExpressionResolver resolver) {
             super(MlTasks.DATAFEED_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
-            this.datafeedManager = datafeedManager;
+            this.datafeedRunner = datafeedRunner;
             this.resolver = resolver;
         }
 
         @Override
         public PersistentTasksCustomMetadata.Assignment getAssignment(StartDatafeedAction.DatafeedParams params,
+                                                                      Collection<DiscoveryNode> candidateNodes,
                                                                       ClusterState clusterState) {
+            // 'candidateNodes' is not actually used here because the assignment for the task is
+            // already filtered elsewhere (JobNodeSelector), this is only finding the node a task
+            // has already been assigned to.
             return new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedId(), params.getJobId(),
                     params.getDatafeedIndices(), params.getIndicesOptions()).selectNode();
         }
@@ -393,8 +461,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 datafeedTask.markAsCompleted();
                 return;
             }
-            datafeedTask.datafeedManager = datafeedManager;
-            datafeedManager.run(datafeedTask,
+            datafeedTask.datafeedRunner = datafeedRunner;
+            datafeedRunner.run(datafeedTask,
                     (error) -> {
                         if (error != null) {
                             datafeedTask.markAsFailed(error);
@@ -419,7 +487,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         private final long startTime;
         private final Long endTime;
         /* only pck protected for testing */
-        volatile DatafeedManager datafeedManager;
+        volatile DatafeedRunner datafeedRunner;
 
         DatafeedTask(long id, String type, String action, TaskId parentTaskId, StartDatafeedAction.DatafeedParams params,
                      Map<String, String> headers) {
@@ -462,15 +530,25 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         public void stop(String reason, TimeValue timeout) {
-            if (datafeedManager != null) {
-                datafeedManager.stopDatafeed(this, reason, timeout);
+            if (datafeedRunner != null) {
+                datafeedRunner.stopDatafeed(this, reason, timeout);
             }
         }
 
         public void isolate() {
-            if (datafeedManager != null) {
-                datafeedManager.isolateDatafeed(getAllocationId());
+            if (datafeedRunner != null) {
+                datafeedRunner.isolateDatafeed(getAllocationId());
             }
+        }
+
+        public Optional<GetDatafeedRunningStateAction.Response.RunningState> getRunningState() {
+            if (datafeedRunner == null) {
+                return Optional.empty();
+            }
+            return Optional.of(new GetDatafeedRunningStateAction.Response.RunningState(
+                this.endTime == null,
+                datafeedRunner.finishedLookBack(this)
+            ));
         }
     }
 

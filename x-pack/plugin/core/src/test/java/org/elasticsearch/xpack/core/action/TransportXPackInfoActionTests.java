@@ -43,6 +43,7 @@ import static org.mockito.Mockito.when;
 
 public class TransportXPackInfoActionTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testDoExecute() throws Exception {
 
         LicenseService licenseService = mock(LicenseService.class);
@@ -54,7 +55,6 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             FeatureSet featureSet = new FeatureSet(randomAlphaOfLength(5), randomBoolean(), randomBoolean());
             featureSets.put(infoAction, featureSet);
             stub(client.executeLocally(eq(infoAction), any(ActionRequest.class), any(ActionListener.class))).toAnswer(answer -> {
-                @SuppressWarnings("unchecked")
                 var listener = (ActionListener<XPackInfoFeatureResponse>)answer.getArguments()[2];
                 listener.onResponse(new XPackInfoFeatureResponse(featureSet));
                 return null;

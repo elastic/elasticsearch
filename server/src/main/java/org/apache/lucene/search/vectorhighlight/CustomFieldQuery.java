@@ -18,6 +18,7 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.XCombinedFieldQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -72,6 +73,11 @@ public class CustomFieldQuery extends FieldQuery {
             // This statement should be removed when https://issues.apache.org/jira/browse/LUCENE-7484 is merged.
             SynonymQuery synQuery = (SynonymQuery) sourceQuery;
             for (Term term : synQuery.getTerms()) {
+                flatten(new TermQuery(term), reader, flatQueries, boost);
+            }
+        } else if (sourceQuery instanceof XCombinedFieldQuery) {
+            XCombinedFieldQuery combinedFieldQuery = (XCombinedFieldQuery) sourceQuery;
+            for (Term term : combinedFieldQuery.getTerms()) {
                 flatten(new TermQuery(term), reader, flatQueries, boost);
             }
         } else if (sourceQuery instanceof ESToParentBlockJoinQuery) {

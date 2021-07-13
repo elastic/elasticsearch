@@ -63,8 +63,8 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         // we are randomly running a large number of nodes in these tests so we limit the number of worker threads
         // since the default of 2 * CPU count might use up too much direct memory for thread-local direct buffers for each node's
         // transport threads

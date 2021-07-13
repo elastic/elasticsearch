@@ -12,9 +12,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexSettings;
@@ -752,14 +752,10 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             if (randomBoolean()) {
                 retentionLeases = replicationTracker.getRetentionLeases();
             } else {
-                final Tuple<Boolean, RetentionLeases> tuple = replicationTracker.getRetentionLeases(false);
-                assertFalse(tuple.v1());
-                retentionLeases = tuple.v2();
+                retentionLeases = replicationTracker.getRetentionLeases(false);
             }
         } else {
-            final Tuple<Boolean, RetentionLeases> tuple = replicationTracker.getRetentionLeases(true);
-            assertTrue(tuple.v1());
-            retentionLeases = tuple.v2();
+            retentionLeases = replicationTracker.getRetentionLeases(true);
         }
         assertThat(retentionLeases.primaryTerm(), equalTo(primaryTerm));
         assertThat(retentionLeases.version(), equalTo(version));

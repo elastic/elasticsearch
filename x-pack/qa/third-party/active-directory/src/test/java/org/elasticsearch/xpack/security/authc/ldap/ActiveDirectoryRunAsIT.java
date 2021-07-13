@@ -39,9 +39,9 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         useLegacyBindPassword = randomBoolean();
-        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         switch (realmConfig) {
             case AD:
                 builder.put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".bind_dn", "ironman@ad.test.elasticsearch.com")

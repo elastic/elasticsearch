@@ -172,22 +172,31 @@ Response:
 
 ==== Script
 
-Range aggregation accepts a `script` parameter. This parameter allows to defined an inline `script` that
-will be executed during aggregation execution.
+If the data in your documents doesn't exactly match what you'd like to aggregate,
+use a <<runtime,runtime field>>. For example, if you need to
+apply a particular currency conversion rate:
 
-The following example shows how to use an `inline` script with the `painless` script language and no script parameters:
-
-[source,console,id=range-aggregation-script-example]
---------------------------------------------------
+[source,console,id=range-aggregation-runtime-field-example]
+----
 GET /_search
 {
+  "runtime_mappings": {
+    "price.euros": {
+      "type": "double",
+      "script": {
+        "source": """
+          emit(doc['price'].value * params.conversion_rate)
+        """,
+        "params": {
+          "conversion_rate": 0.835526591
+        }
+      }
+    }
+  },
   "aggs": {
     "price_ranges": {
       "range": {
-        "script": {
-          "lang": "painless",
-          "source": "doc['price'].value"
-        },
+        "field": "price.euros",
         "ranges": [
           { "to": 100 },
           { "from": 100, "to": 200 },
@@ -197,108 +206,41 @@ GET /_search
     }
   }
 }
---------------------------------------------------
-
-It is also possible to use stored scripts. Here is a simple stored script:
-
-[source,console,id=range-aggregation-stored-script-example]
---------------------------------------------------
-POST /_scripts/convert_currency
-{
-  "script": {
-    "lang": "painless",
-    "source": "doc[params.field].value * params.conversion_rate"
-  }
-}
---------------------------------------------------
+----
 // TEST[setup:sales]
-
-And this new stored script can be used in the range aggregation like this:
-
-[source,console]
---------------------------------------------------
-GET /_search
-{
-  "aggs": {
-    "price_ranges": {
-      "range": {
-        "script": {
-          "id": "convert_currency",       <1>
-          "params": {                     <2>
-            "field": "price",
-            "conversion_rate": 0.835526591
-          }
-        },
-        "ranges": [
-          { "from": 0, "to": 100 },
-          { "from": 100 }
-        ]
-      }
-    }
-  }
-}
---------------------------------------------------
 // TEST[s/GET \/_search/GET \/_search\?filter_path=aggregations/]
-// TEST[continued]
-<1> Id of the stored script
-<2> Parameters to use when executing the stored script
 
 //////////////////////////
 
 [source,console-result]
---------------------------------------------------
+----
 {
   "aggregations": {
     "price_ranges": {
       "buckets": [
         {
-          "key": "0.0-100.0",
-          "from": 0.0,
+          "key": "*-100.0",
           "to": 100.0,
           "doc_count": 2
         },
         {
-          "key": "100.0-*",
+          "key": "100.0-200.0",
           "from": 100.0,
+          "to": 200.0,
           "doc_count": 5
+        },
+        {
+          "key": "200.0-*",
+          "from": 200.0,
+          "doc_count": 0
         }
       ]
     }
   }
 }
---------------------------------------------------
+----
 
 //////////////////////////
-
-==== Value Script
-
-Lets say the product prices are in USD but we would like to get the price ranges in EURO. We can use value script to convert the prices prior the aggregation (assuming conversion rate of 0.8)
-
-[source,console,id=range-aggregation-value-script-example]
---------------------------------------------------
-GET /sales/_search
-{
-  "aggs": {
-    "price_ranges": {
-      "range": {
-        "field": "price",
-        "script": {
-          "source": "_value * params.conversion_rate",
-          "params": {
-            "conversion_rate": 0.8
-          }
-        },
-        "ranges": [
-          { "to": 35 },
-          { "from": 35, "to": 70 },
-          { "from": 70 }
-        ]
-      }
-    }
-  }
-}
---------------------------------------------------
-// TEST[setup:sales]
 
 ==== Sub Aggregations
 
@@ -382,3 +324,103 @@ Response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
+[[search-aggregations-bucket-range-aggregation-histogram-fields]]
+==== Histogram fields
+
+Running a range aggregation over histogram fields computes the total number of counts for each configured range.
+
+This is done without interpolating between the histogram field values. Consequently, it is possible to have a range
+that is "in-between" two histogram values. The resulting range bucket would have a zero doc count.
+
+Here is an example, executing a range aggregation against the following index that stores pre-aggregated histograms
+with latency metrics (in milliseconds) for different networks:
+
+[source,console]
+--------------------------------------------------
+PUT metrics_index/_doc/1
+{
+  "network.name" : "net-1",
+  "latency_histo" : {
+      "values" : [1, 3, 8, 12, 15],
+      "counts" : [3, 7, 23, 12, 6]
+   }
+}
+
+PUT metrics_index/_doc/2
+{
+  "network.name" : "net-2",
+  "latency_histo" : {
+      "values" : [1, 6, 8, 12, 14],
+      "counts" : [8, 17, 8, 7, 6]
+   }
+}
+
+POST /metrics_index/_search?size=0&filter_path=aggregations
+{
+  "aggs": {
+    "latency_ranges": {
+      "range": {
+        "field": "latency_histo",
+        "ranges": [
+          {"to": 2},
+          {"from": 2, "to": 3},
+          {"from": 3, "to": 10},
+          {"from": 10}
+        ]
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+
+The `range` aggregation will sum the counts of each range computed based on the `values` and
+return the following output:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "aggregations": {
+    "latency_ranges": {
+      "buckets": [
+        {
+          "key": "*-2.0",
+          "to": 2,
+          "doc_count": 11
+        },
+        {
+          "key": "2.0-3.0",
+          "from": 2,
+          "to": 3,
+          "doc_count": 0
+        },
+        {
+          "key": "3.0-10.0",
+          "from": 3,
+          "to": 10,
+          "doc_count": 55
+        },
+        {
+          "key": "10.0-*",
+          "from": 10,
+          "doc_count": 31
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[skip:test not setup]
+
+[IMPORTANT]
+========
+Range aggregation is a bucket aggregation, which partitions documents into buckets rather than calculating metrics over fields like
+metrics aggregations do. Each bucket represents a collection of documents which sub-aggregations can run on.
+On the other hand, a histogram field is a pre-aggregated field representing multiple values inside a single field:
+buckets of numerical data and a count of items/documents for each bucket. This mismatch between the range aggregations expected input
+(expecting raw documents) and the histogram field (that provides summary information) limits the outcome of the aggregation
+to only the doc counts for each bucket.
+
+
+**Consequently, when executing a range aggregation over a histogram field, no sub-aggregations are allowed.**
+========

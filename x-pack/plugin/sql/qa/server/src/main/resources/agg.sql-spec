@@ -322,6 +322,8 @@ aggMinWithAlias
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g ORDER BY gender;
 aggMinOnDateTime
 SELECT gender, MIN(birth_date) m FROM "test_emp" GROUP BY gender ORDER BY gender;
+aggMinOnNull
+SELECT MIN(languages) AS min FROM test_emp WHERE languages IS NULL;
 aggMinOnDateTimeCastAsDate
 SELECT gender, YEAR(CAST(MIN(birth_date) AS DATE)) m FROM "test_emp" GROUP BY gender ORDER BY gender;
 
@@ -340,6 +342,10 @@ aggMinWithMultipleHavingBetween
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g HAVING m BETWEEN 10 AND 99999 ORDER BY g LIMIT 1;
 aggMinWithMultipleHavingOnAliasAndFunction
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 AND MIN(emp_no) < 99999 ORDER BY gender;
+aggMinWithHavingOnIntegralDivision
+SELECT MIN(salary)/100 AS min FROM test_emp HAVING min <= 253;
+aggMinWithHavingAndNull
+SELECT MIN(languages) AS min FROM test_emp GROUP BY languages HAVING min < 2;
 
 aggMinWithHavingGroupMultiGroupBy
 SELECT gender g, languages l, MIN(emp_no) m FROM "test_emp" GROUP BY g, l HAVING MIN(emp_no) > 10 ORDER BY gender, languages;
@@ -380,6 +386,8 @@ aggMaxWithAlias
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g ORDER BY gender;
 aggMaxOnDateTime
 SELECT gender, MAX(birth_date) m FROM "test_emp" GROUP BY gender ORDER BY gender;
+aggMaxOnNull
+SELECT MAX(languages) AS max FROM test_emp WHERE languages IS NULL;
 aggMaxOnDateTimeCastAsDate
 SELECT gender, YEAR(CAST(MAX(birth_date) AS DATE)) m FROM "test_emp" GROUP BY gender ORDER BY gender;
 aggAvgAndMaxWithLikeFilter
@@ -400,6 +408,10 @@ aggMaxWithMultipleHavingBetweenWithLimit
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m BETWEEN 10 AND 99999 ORDER BY g LIMIT 1;
 aggMaxWithMultipleHavingOnAliasAndFunction
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 AND MAX(emp_no) < 99999 ORDER BY gender;
+aggMaxWithHavingOnIntegralDivision
+SELECT MAX(salary)/100 AS max FROM test_emp HAVING max > 749;
+aggMaxWithHavingAndNull
+SELECT MAX(languages) AS max FROM test_emp GROUP BY languages HAVING max < 2;
 
 // SUM
 aggSumImplicitWithCast
@@ -418,6 +430,8 @@ aggSumWithCastAndCountWithFilterAndLimit
 SELECT gender g, CAST(SUM(emp_no) AS BIGINT) s, COUNT(1) c FROM "test_emp" WHERE emp_no > 10000 GROUP BY g ORDER BY g LIMIT 1;
 aggSumWithAlias
 SELECT gender g, CAST(SUM(emp_no) AS BIGINT) s FROM "test_emp" GROUP BY g ORDER BY gender;
+aggSumOnNull
+SELECT SUM(languages) AS sum FROM test_emp WHERE languages IS NULL;
 
 // Conditional SUM
 aggSumWithHaving
@@ -434,6 +448,11 @@ aggSumWithMultipleHavingBetweenWithLimit
 SELECT gender g, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY g HAVING s BETWEEN 10 AND 10000000 ORDER BY g LIMIT 1;
 aggSumWithMultipleHavingOnAliasAndFunction
 SELECT gender g, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY g HAVING s > 10 AND SUM(emp_no) > 10000000 ORDER BY gender;
+aggSumWithHavingOnIntegralDivision
+SELECT SUM(salary)/100 AS sum FROM test_emp HAVING sum <= 48248;
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/71582
+aggSumWithHavingOnNull-Ignore
+SELECT SUM(languages) AS sum FROM test_emp GROUP BY languages HAVING sum < 20 ORDER BY sum;
 
 // AVG
 aggAvgImplicitWithCast
@@ -595,6 +614,8 @@ selectLangGroupByLangHavingNotEquality
 SELECT languages, COUNT(*) c FROM test_emp GROUP BY languages HAVING NOT COUNT(*) = 1 ORDER BY languages DESC;
 selectLangGroupByLangHavingDifferent
 SELECT languages, COUNT(*) c FROM test_emp GROUP BY languages HAVING COUNT(*) <> 1 ORDER BY languages DESC;
+selectNullValueLangWithAgg
+SELECT MAX(languages) AS max FROM test_emp GROUP BY languages HAVING max < 2;
 
 
 // filter with IN
@@ -602,6 +623,16 @@ aggMultiWithHavingUsingInAndNullHandling
 SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g HAVING max IN(74999, null, 74600) ORDER BY gender;
 aggMultiGroupByMultiWithHavingUsingInAndNullHandling
 SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g, languages HAVING max IN (74500, null, 74600) ORDER BY gender, languages;
+
+// aggs filtering with integral types
+maxIntegralAggFiltering
+SELECT MAX(salary)/100 AS max FROM test_emp HAVING max > 749;
+minIntegralAggFiltering
+SELECT MIN(salary)/100 AS min FROM test_emp HAVING min <= 253;
+sumIntegralAggFiltering
+SELECT SUM(salary)/100 AS sum FROM test_emp HAVING sum <= 48248;
+nullIntegralAggFiltering
+SELECT MAX(languages) AS max FROM test_emp GROUP BY languages HAVING max < 2;
 
 // group by with literal
 implicitGroupByWithLiteral

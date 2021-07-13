@@ -63,7 +63,7 @@ class Initializer {
 
         // short circuit if the object has no injections
         if (instance == null
-                || (injectionPoints.isEmpty() && !injector.membersInjectorStore.hasTypeListeners())) {
+                || (injectionPoints.isEmpty() && injector.membersInjectorStore.hasTypeListeners() == false)) {
             return Initializables.of(instance);
         }
 

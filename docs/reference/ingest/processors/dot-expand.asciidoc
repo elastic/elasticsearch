@@ -6,15 +6,16 @@
 
 Expands a field with dots into an object field. This processor allows fields
 with dots in the name to be accessible by other processors in the pipeline.
-Otherwise these <<accessing-data-in-pipelines,fields>> can't be accessed by any processor.
+Otherwise these fields can't be accessed by any processor.
 
 [[dot-expander-options]]
 .Dot Expand Options
 [options="header"]
 |======
-| Name     | Required  | Default  | Description
-| `field`  | yes       | -        | The field to expand into an object field
-| `path`   | no        | -        | The field that contains the field to expand. Only required if the field to expand is part another object field, because the `field` option can only understand leaf fields.
+| Name      | Required  | Default  | Description
+| `field`   | yes       | -        | The field to expand into an object field. If set to `*`, all top-level fields will be expanded.
+| `path`    | no        | -        | The field that contains the field to expand. Only required if the field to expand is part another object field, because the `field` option can only understand leaf fields.
+| `override`| no        | false    | Controls the behavior when there is already an existing nested object that conflicts with the expanded field. When `false`, the processor will merge conflicts by combining the old and the new values into an array. When `true`, the value from the expanded field will overwrite the existing value.
 include::common-options.asciidoc[]
 |======
 
@@ -79,6 +80,73 @@ is transformed by the `dot_expander` processor into:
 --------------------------------------------------
 // NOTCONSOLE
 
+Contrast that with when the `override` option is set to `true`.
+
+[source,js]
+--------------------------------------------------
+{
+  "dot_expander": {
+    "field": "foo.bar",
+    "override": true
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+In that case, the value of the expanded field overrides the value of the nested object.
+
+[source,js]
+--------------------------------------------------
+{
+  "foo" : {
+    "bar" : "value2"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+'''
+
+The value of `field` can also be set to a `*` to expand all top-level dotted field names:
+
+[source,js]
+--------------------------------------------------
+{
+  "dot_expander": {
+    "field": "*"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The dot expand processor would turn this document:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo.bar" : "value",
+  "baz.qux" : "value"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+into:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo" : {
+    "bar" : "value"
+  },
+  "baz" : {
+    "qux" : "value"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+'''
+
 If any field outside of the leaf field conflicts with a pre-existing field of the same name,
 then that field needs to be renamed first.
 
@@ -105,7 +173,7 @@ pipeline should be used:
     {
       "rename" : {
         "field" : "foo",
-        "target_field" : "foo.bar""
+        "target_field" : "foo.bar"
       }
     },
     {

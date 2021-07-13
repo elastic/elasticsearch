@@ -10,7 +10,7 @@ import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -44,9 +44,9 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     protected static final String ALL_MONITORING_INDICES = MONITORING_INDICES_PREFIX + "*";
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL)
 //                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
 //                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)

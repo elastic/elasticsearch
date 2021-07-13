@@ -27,14 +27,14 @@ public abstract class MetadataFieldMapper extends FieldMapper {
 
         @Override
         MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
-                                               ParserContext parserContext) throws MapperParsingException;
+                                               MappingParserContext parserContext) throws MapperParsingException;
 
         /**
          * Get the default {@link MetadataFieldMapper} to use, if nothing had to be parsed.
          *
          * @param parserContext context that may be useful to build the field like analyzers
          */
-        MetadataFieldMapper getDefault(ParserContext parserContext);
+        MetadataFieldMapper getDefault(MappingParserContext parserContext);
     }
 
     /**
@@ -61,43 +61,43 @@ public abstract class MetadataFieldMapper extends FieldMapper {
      */
     public static class FixedTypeParser implements TypeParser {
 
-        final Function<ParserContext, MetadataFieldMapper> mapperParser;
+        final Function<MappingParserContext, MetadataFieldMapper> mapperParser;
 
-        public FixedTypeParser(Function<ParserContext, MetadataFieldMapper> mapperParser) {
+        public FixedTypeParser(Function<MappingParserContext, MetadataFieldMapper> mapperParser) {
             this.mapperParser = mapperParser;
         }
 
         @Override
-        public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(name + " is not configurable");
         }
 
         @Override
-        public MetadataFieldMapper getDefault(ParserContext parserContext) {
+        public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
             return mapperParser.apply(parserContext);
         }
     }
 
     public static class ConfigurableTypeParser implements TypeParser {
 
-        final Function<ParserContext, MetadataFieldMapper> defaultMapperParser;
-        final Function<ParserContext, Builder> builderFunction;
+        final Function<MappingParserContext, MetadataFieldMapper> defaultMapperParser;
+        final Function<MappingParserContext, Builder> builderFunction;
 
-        public ConfigurableTypeParser(Function<ParserContext, MetadataFieldMapper> defaultMapperParser,
-                                      Function<ParserContext, Builder> builderFunction) {
+        public ConfigurableTypeParser(Function<MappingParserContext, MetadataFieldMapper> defaultMapperParser,
+                                      Function<MappingParserContext, Builder> builderFunction) {
             this.defaultMapperParser = defaultMapperParser;
             this.builderFunction = builderFunction;
         }
 
         @Override
-        public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
             Builder builder = builderFunction.apply(parserContext);
             builder.parse(name, parserContext, node);
             return builder;
         }
 
         @Override
-        public MetadataFieldMapper getDefault(ParserContext parserContext) {
+        public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
             return defaultMapperParser.apply(parserContext);
         }
     }
@@ -145,28 +145,27 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             return builder;
         }
         builder.startObject(simpleName());
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        getMergeBuilder().toXContent(builder, includeDefaults);
+        getMergeBuilder().toXContent(builder, params);
         return builder.endObject();
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         throw new MapperParsingException("Field [" + name() + "] is a metadata field and cannot be added inside"
             + " a document. Use the index API request parameters.");
     }
 
     /**
-     * Called before {@link FieldMapper#parse(ParseContext)} on the {@link RootObjectMapper}.
+     * Called before {@link FieldMapper#parse(DocumentParserContext)} on the {@link RootObjectMapper}.
      */
-    public void preParse(ParseContext context) throws IOException {
+    public void preParse(DocumentParserContext context) throws IOException {
         // do nothing
     }
 
     /**
-     * Called after {@link FieldMapper#parse(ParseContext)} on the {@link RootObjectMapper}.
+     * Called after {@link FieldMapper#parse(DocumentParserContext)} on the {@link RootObjectMapper}.
      */
-    public void postParse(ParseContext context) throws IOException {
+    public void postParse(DocumentParserContext context) throws IOException {
         // do nothing
     }
 

@@ -15,6 +15,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -63,7 +64,8 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         prefix = ip + "/16";
         assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16), ft.termQuery(prefix, null));
 
-        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, true, null, Collections.emptyMap());
+        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, true,
+            null, null, Collections.emptyMap(), false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.termQuery("::1", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -166,7 +168,8 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                         InetAddresses.forString("2001:db8::")),
                 ft.rangeQuery("::ffff:c0a8:107", "2001:db8::", true, true, null, null, null, null));
 
-        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, true, null, Collections.emptyMap());
+        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, true,
+            null, null, Collections.emptyMap(), false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.rangeQuery("::1", "2001::", true, true, null, null, null, null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -174,12 +177,12 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper
-            = new IpFieldMapper.Builder("field", true, Version.CURRENT).build(new ContentPath()).fieldType();
+            = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, Version.CURRENT).build(new ContentPath()).fieldType();
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8::2:1"));
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1"));
         assertEquals(List.of("::1"), fetchSourceValue(mapper, "0:0:0:0:0:0:0:1"));
 
-        MappedFieldType nullValueMapper = new IpFieldMapper.Builder("field", true, Version.CURRENT)
+        MappedFieldType nullValueMapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, Version.CURRENT)
             .nullValue("2001:db8:0:0:0:0:2:7")
             .build(new ContentPath())
             .fieldType();

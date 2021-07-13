@@ -10,19 +10,22 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.After;
 import org.junit.Before;
 
@@ -40,6 +43,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BulkProcessorTests extends ESTestCase {
 
@@ -94,6 +102,56 @@ public class BulkProcessorTests extends ESTestCase {
         assertNull(threadPool.getThreadContext().getHeader(headerKey));
         assertNull(threadPool.getThreadContext().getTransient(transientKey));
         bulkProcessor.close();
+    }
+
+    public void testRetry() throws Exception {
+        final int maxAttempts = between(1, 3);
+        final AtomicInteger attemptRef = new AtomicInteger();
+
+        final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {
+            final int attempt = attemptRef.incrementAndGet();
+            assertThat(attempt, lessThanOrEqualTo(maxAttempts));
+            if (attempt != 1) {
+                assertThat(Thread.currentThread().getName(), containsString("[BulkProcessorTests-retry-scheduler]"));
+            }
+
+            if (attempt == maxAttempts) {
+                listener.onFailure(new ElasticsearchException("final failure"));
+            } else {
+                listener.onFailure(new RemoteTransportException("remote", new EsRejectedExecutionException("retryable failure")));
+            }
+        };
+
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                fail("afterBulk should not return success");
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                assertThat(failure, instanceOf(ElasticsearchException.class));
+                assertThat(failure.getMessage(), equalTo("final failure"));
+                countDownLatch.countDown();
+            }
+        };
+
+        try (BulkProcessor bulkProcessor = BulkProcessor
+                .builder(consumer, listener, "BulkProcessorTests")
+                .setBackoffPolicy(BackoffPolicy.constantBackoff(TimeValue.ZERO, Integer.MAX_VALUE))
+                .build()) {
+            bulkProcessor.add(new IndexRequest());
+            bulkProcessor.flush();
+            assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
+        }
+
+        assertThat(attemptRef.get(), equalTo(maxAttempts));
     }
 
     public void testConcurrentExecutions() throws Exception {

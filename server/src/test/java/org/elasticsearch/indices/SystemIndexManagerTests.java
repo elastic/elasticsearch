@@ -72,7 +72,7 @@ public class SystemIndexManagerTests extends ESTestCase {
         .setOrigin("FAKE_ORIGIN")
         .build();
 
-    private static final SystemIndices.Feature FEATURE = new SystemIndices.Feature("a test feature", List.of(DESCRIPTOR));
+    private static final SystemIndices.Feature FEATURE = new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR));
 
     private Client client;
 
@@ -81,7 +81,7 @@ public class SystemIndexManagerTests extends ESTestCase {
         client = mock(Client.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        when(threadPool.generic()).thenReturn(EsExecutors.newDirectExecutorService());
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(Settings.EMPTY);
     }
@@ -101,8 +101,8 @@ public class SystemIndexManagerTests extends ESTestCase {
             .build();
 
         SystemIndices systemIndices = new SystemIndices(Map.of(
-            "index 1", new SystemIndices.Feature("index 1 feature", List.of(d1)),
-            "index 2", new SystemIndices.Feature("index 2 feature", List.of(d2))));
+            "index 1", new SystemIndices.Feature("index 1", "index 1 feature", List.of(d1)),
+            "index 2", new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
@@ -139,8 +139,8 @@ public class SystemIndexManagerTests extends ESTestCase {
             .build();
 
         SystemIndices systemIndices = new SystemIndices(Map.of(
-            "index 1", new SystemIndices.Feature("index 1 feature", List.of(d1)),
-            "index 2", new SystemIndices.Feature("index 2 feature", List.of(d2))));;
+            "index 1", new SystemIndices.Feature("index 1", "index 1 feature", List.of(d1)),
+            "index 2", new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))));;
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
@@ -211,6 +211,19 @@ public class SystemIndexManagerTests extends ESTestCase {
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(Strings.toString(getMappings("1.0.0")));
+        markShardsAvailable(clusterStateBuilder);
+
+        assertThat(manager.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE));
+    }
+
+    /**
+     * Check that the manager will try to upgrade indices where the version in the metadata is null or absent.
+     */
+    public void testManagerProcessesIndicesWithNullVersionMetadata() {
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
+
+        final ClusterState.Builder clusterStateBuilder = createClusterState(Strings.toString(getMappings(null)));
         markShardsAvailable(clusterStateBuilder);
 
         assertThat(manager.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE));

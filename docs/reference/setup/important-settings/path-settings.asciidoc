@@ -1,33 +1,28 @@
 [[path-settings]]
 [discrete]
-=== Path settings
+==== Path settings
+
+{es} writes the data you index to indices and data streams to a `data`
+directory. {es} writes its own application logs, which contain information about
+cluster health and operations, to a `logs` directory.
 
 For <<targz,macOS `.tar.gz`>>, <<targz,Linux `.tar.gz`>>, and
-<<zip-windows,Windows `.zip`>> installations, {es} writes data and logs to the
-respective `data` and `logs` subdirectories of `$ES_HOME` by default.
-However, files in `$ES_HOME` risk deletion during an upgrade.
+<<zip-windows,Windows `.zip`>> installations, `data` and `logs` are
+subdirectories of `$ES_HOME` by default. However, files in `$ES_HOME` risk
+deletion during an upgrade.
 
 In production, we strongly recommend you set the `path.data` and `path.logs` in
-`elasticsearch.yml` to locations outside of `$ES_HOME`.
+`elasticsearch.yml` to locations outside of `$ES_HOME`. <<docker,Docker>>,
+<<deb,Debian>>, <<rpm,RPM>>, <<brew,macOS Homebrew>>, and <<windows,Windows
+`.msi`>> installations write data and log to locations outside of `$ES_HOME` by
+default.
 
-TIP: <<docker,Docker>>, <<deb,Debian>>, <<rpm,RPM>>, <<brew,macOS Homebrew>>,
-and <<windows,Windows `.msi`>> installations write data and log to locations
-outside of `$ES_HOME` by default.
+IMPORTANT: To avoid errors, only {es} should open files in the `path.data`
+directory. Exclude the `path.data` directory from other services that may open
+and lock its files, such as antivirus or backup programs.
 
 Supported `path.data` and `path.logs` values vary by platform:
 
 include::{es-repo-dir}/tab-widgets/code.asciidoc[]
 
 include::{es-repo-dir}/tab-widgets/customize-data-log-path-widget.asciidoc[]
-
-If needed, you can specify multiple paths in `path.data`. {es} stores the node's
-data across all provided paths but keeps each shard's data on the same path.
-
-WARNING: {es} does not balance shards across a node's data paths. High disk
-usage in a single path can trigger a <<disk-based-shard-allocation,high disk
-usage watermark>> for the entire node. If triggered, {es} will not add shards to
-the node, even if the node’s other paths have available disk space. If you need
-additional disk space, we recommend you add a new node rather than additional
-data paths. 
-
-include::{es-repo-dir}/tab-widgets/multi-data-path-widget.asciidoc[]

@@ -13,15 +13,18 @@ import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -29,18 +32,22 @@ import static org.hamcrest.Matchers.equalTo;
 public class GrantApiKeyRequestTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
-        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("api-key", List.of(), null, null);
+        final Map<String, Object> apiKeyMetadata = CreateApiKeyRequestTests.randomMetadata();
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("api-key", List.of(), null, null,
+            apiKeyMetadata);
         final GrantApiKeyRequest.Grant grant = GrantApiKeyRequest.Grant.passwordGrant("kamala.khan", "JerseyGirl!".toCharArray());
         final GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest(grant, createApiKeyRequest);
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         grantApiKeyRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
         final String output = Strings.toString(builder);
+        final String apiKeyMetadataString = apiKeyMetadata == null ? ""
+            : ",\"metadata\":" + XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON).utf8ToString();
         assertThat(output, equalTo(
             "{" +
                 "\"grant_type\":\"password\"," +
                 "\"username\":\"kamala.khan\"," +
                 "\"password\":\"JerseyGirl!\"," +
-                "\"api_key\":{\"name\":\"api-key\",\"role_descriptors\":{}}" +
+                "\"api_key\":{\"name\":\"api-key\",\"role_descriptors\":{}" + apiKeyMetadataString + "}" +
                 "}"));
     }
 
@@ -61,7 +68,8 @@ public class GrantApiKeyRequestTests extends ESTestCase {
         final TimeValue expiration = randomBoolean() ? null : TimeValue.timeValueHours(randomIntBetween(4, 100));
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
 
-        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy,
+            CreateApiKeyRequestTests.randomMetadata());
         final GrantApiKeyRequest.Grant grant = randomBoolean()
             ? GrantApiKeyRequest.Grant.passwordGrant(randomAlphaOfLength(8), randomAlphaOfLengthBetween(6, 12).toCharArray())
             : GrantApiKeyRequest.Grant.accessTokenGrant(randomAlphaOfLength(24));
@@ -89,7 +97,8 @@ public class GrantApiKeyRequestTests extends ESTestCase {
             apiKeyRequest.getName(),
             apiKeyRequest.getRoles().stream().map(r -> Role.builder().clone(r).build()).collect(Collectors.toUnmodifiableList()),
             apiKeyRequest.getExpiration(),
-            apiKeyRequest.getRefreshPolicy()
+            apiKeyRequest.getRefreshPolicy(),
+            apiKeyRequest.getMetadata()
         );
     }
 
@@ -106,7 +115,8 @@ public class GrantApiKeyRequestTests extends ESTestCase {
                         randomAlphaOfLengthBetween(10, 15),
                         original.getApiKeyRequest().getRoles(),
                         original.getApiKeyRequest().getExpiration(),
-                        original.getApiKeyRequest().getRefreshPolicy()
+                        original.getApiKeyRequest().getRefreshPolicy(),
+                        original.getApiKeyRequest().getMetadata()
                     )
                 );
             case 2:
@@ -115,17 +125,28 @@ public class GrantApiKeyRequestTests extends ESTestCase {
                         original.getApiKeyRequest().getName(),
                         List.of(), // No role limits
                         original.getApiKeyRequest().getExpiration(),
-                        original.getApiKeyRequest().getRefreshPolicy()
+                        original.getApiKeyRequest().getRefreshPolicy(),
+                        original.getApiKeyRequest().getMetadata()
                     )
                 );
             case 3:
+                return new GrantApiKeyRequest(original.getGrant(),
+                    new CreateApiKeyRequest(
+                        original.getApiKeyRequest().getName(),
+                        original.getApiKeyRequest().getRoles(),
+                        original.getApiKeyRequest().getExpiration(),
+                        original.getApiKeyRequest().getRefreshPolicy(),
+                        randomValueOtherThan(original.getApiKeyRequest().getMetadata(), CreateApiKeyRequestTests::randomMetadata)
+                    )
+                );
             default:
                 return new GrantApiKeyRequest(original.getGrant(),
                     new CreateApiKeyRequest(
                         original.getApiKeyRequest().getName(),
                         original.getApiKeyRequest().getRoles(),
                         TimeValue.timeValueMinutes(randomIntBetween(10, 120)),
-                        original.getApiKeyRequest().getRefreshPolicy()
+                        original.getApiKeyRequest().getRefreshPolicy(),
+                        original.getApiKeyRequest().getMetadata()
                     )
                 );
         }

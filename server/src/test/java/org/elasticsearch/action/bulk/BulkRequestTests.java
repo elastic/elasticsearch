@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -319,5 +320,57 @@ public class BulkRequestTests extends ESTestCase {
         bulkRequestWithNewLine.add(bulkActionWithNewLine.getBytes(StandardCharsets.UTF_8), 0, bulkActionWithNewLine.length(), null,
                 XContentType.JSON);
         assertEquals(3, bulkRequestWithNewLine.numberOfActions());
+    }
+
+    public void testDynamicTemplates() throws Exception {
+        BytesArray data = new BytesArray(
+            "{ \"index\":{\"_index\":\"test\",\"dynamic_templates\":{\"baz\":\"t1\", \"foo.bar\":\"t2\"}}}\n" +
+            "{ \"field1\" : \"value1\" }\n" +
+
+            "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\" } }\n" +
+
+            "{ \"create\" : {\"_index\":\"test\",\"dynamic_templates\":{\"bar\":\"t1\"}}}\n" +
+            "{ \"field1\" : \"value3\" }\n" +
+
+            "{ \"create\" : {\"dynamic_templates\":{\"foo.bar\":\"xyz\"}}}\n" +
+            "{ \"field1\" : \"value3\" }\n" +
+
+            "{ \"index\" : {\"dynamic_templates\":{}}\n" +
+            "{ \"field1\" : \"value3\" }\n"
+        );
+        BulkRequest bulkRequest = new BulkRequest().add(data, null, XContentType.JSON);
+        assertThat(bulkRequest.requests, hasSize(5));
+        assertThat(((IndexRequest) bulkRequest.requests.get(0)).getDynamicTemplates(),
+            equalTo(Map.of("baz", "t1", "foo.bar", "t2")));
+        assertThat(((IndexRequest) bulkRequest.requests.get(2)).getDynamicTemplates(),
+            equalTo(Map.of("bar", "t1")));
+        assertThat(((IndexRequest) bulkRequest.requests.get(3)).getDynamicTemplates(),
+            equalTo(Map.of("foo.bar", "xyz")));
+        assertThat(((IndexRequest) bulkRequest.requests.get(4)).getDynamicTemplates(),
+            equalTo(Map.of()));
+    }
+
+    public void testInvalidDynamicTemplates() {
+        BytesArray deleteWithDynamicTemplates = new BytesArray(
+            "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\", \"dynamic_templates\":{\"baz\":\"t1\"}} }\n");
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+            () -> new BulkRequest().add(deleteWithDynamicTemplates, null, XContentType.JSON));
+        assertThat(error.getMessage(), equalTo("Delete request in line [1] does not accept dynamic_templates"));
+
+        BytesArray updateWithDynamicTemplates = new BytesArray(
+            "{ \"update\" : {\"dynamic_templates\":{\"foo.bar\":\"xyz\"}}}\n" +
+            "{ \"field1\" : \"value3\" }\n");
+        error = expectThrows(IllegalArgumentException.class,
+            () -> new BulkRequest().add(updateWithDynamicTemplates, null, XContentType.JSON));
+        assertThat(error.getMessage(), equalTo("Update request in line [2] does not accept dynamic_templates"));
+
+        BytesArray invalidDynamicTemplates = new BytesArray(
+            "{ \"index\":{\"_index\":\"test\",\"dynamic_templates\":[]}\n" +
+            "{ \"field1\" : \"value1\" }\n"
+        );
+        error = expectThrows(IllegalArgumentException.class,
+            () -> new BulkRequest().add(invalidDynamicTemplates, null, XContentType.JSON));
+        assertThat(error.getMessage(), equalTo("Malformed action/metadata line [1], " +
+            "expected a simple value for field [dynamic_templates] but found [START_ARRAY]"));
     }
 }

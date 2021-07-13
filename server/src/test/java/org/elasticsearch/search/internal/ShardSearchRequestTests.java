@@ -13,12 +13,14 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,15 +33,19 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchSortValuesAndFormatsTests;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ShardSearchRequestTests extends AbstractSearchTestCase {
     private static final IndexMetadata BASE_METADATA = IndexMetadata.builder("test").settings(Settings.builder()
@@ -146,7 +152,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertEquals(orig.searchType(), copy.searchType());
         assertEquals(orig.shardId(), copy.shardId());
         assertEquals(orig.numberOfShards(), copy.numberOfShards());
-        assertEquals(orig.cacheKey(), copy.cacheKey());
+        assertEquals(orig.cacheKey(null), copy.cacheKey(null));
         assertNotSame(orig, copy);
         assertEquals(orig.getAliasFilter(), copy.getAliasFilter());
         assertEquals(orig.indexBoost(), copy.indexBoost(), 0.0f);
@@ -179,5 +185,33 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
                 return parseInnerQueryBuilder(parser);
             }
         }, indexMetadata, aliasNames);
+    }
+
+    public void testChannelVersion() throws Exception {
+        ShardSearchRequest request = createShardSearchRequest();
+        Version channelVersion = Version.CURRENT;
+        assertThat(request.getChannelVersion(), equalTo(channelVersion));
+        int iterations = between(0, 5);
+        // New version
+        for (int i = 0; i < iterations; i++) {
+            Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
+            channelVersion = Version.min(channelVersion, version);
+            assertThat(request.getChannelVersion(), equalTo(channelVersion));
+            if (randomBoolean()) {
+                request = new ShardSearchRequest(request);
+            }
+        }
+    }
+
+    public void testWillCallRequestCacheKeyDifferentiators() throws IOException {
+        final ShardSearchRequest shardSearchRequest = createShardSearchRequest();
+        final AtomicBoolean invoked = new AtomicBoolean(false);
+        final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> differentiator = (r, o) -> {
+            assertThat(r, sameInstance(shardSearchRequest));
+            invoked.set(true);
+        };
+        shardSearchRequest.cacheKey(differentiator);
+        assertThat(invoked.get(), is(true));
     }
 }

@@ -19,16 +19,14 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.HashMap;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
@@ -51,11 +49,11 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
                 .put(index("baz"), true)
                 .put(index("source", "source_multi"), true)
                 .put(index("source2", "source_multi"), true)).build();
-    private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER =
-        new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+    private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER = TestIndexNameExpressionResolver.newInstance();
     private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), INDEX_NAME_EXPRESSION_RESOLVER,
-            new SystemIndices(new HashMap<>()));
+        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), INDEX_NAME_EXPRESSION_RESOLVER,
+        EmptySystemIndices.INSTANCE
+    );
 
     private final BytesReference query = new BytesArray("{ \"foo\" : \"bar\" }");
 

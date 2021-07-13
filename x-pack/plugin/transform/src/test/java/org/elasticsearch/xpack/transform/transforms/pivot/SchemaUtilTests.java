@@ -214,6 +214,7 @@ public class SchemaUtilTests extends ESTestCase {
         return new FieldCapabilities(
             name,
             type,
+            false,
             true,
             true,
             Strings.EMPTY_ARRAY,

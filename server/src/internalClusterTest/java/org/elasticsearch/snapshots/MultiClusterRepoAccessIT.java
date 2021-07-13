@@ -42,22 +42,41 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
     @Before
     public void startSecondCluster() throws IOException, InterruptedException {
         repoPath = randomRepoPath();
-        secondCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, 0,
-                0, "second_cluster", new NodeConfigurationSource() {
-            @Override
-            public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder().put(MultiClusterRepoAccessIT.this.nodeSettings(nodeOrdinal))
+        secondCluster = new InternalTestCluster(
+            randomLong(),
+            createTempDir(),
+            true,
+            true,
+            0,
+            0,
+            "second_cluster",
+            new NodeConfigurationSource() {
+                @Override
+                public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+                    return Settings.builder()
+                        .put(MultiClusterRepoAccessIT.this.nodeSettings(nodeOrdinal, otherSettings))
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
-                        .put(Environment.PATH_REPO_SETTING.getKey(), repoPath).build();
-            }
+                        .put(Environment.PATH_REPO_SETTING.getKey(), repoPath)
+                        .build();
+                }
 
-            @Override
-            public Path nodeConfigPath(int nodeOrdinal) {
-                return null;
-            }
-        }, 0, "leader", Arrays.asList(ESIntegTestCase.TestSeedPlugin.class,
-                MockHttpTransport.TestPlugin.class, MockTransportService.TestPlugin.class,
-                MockNioTransportPlugin.class, InternalSettingsPlugin.class, MockRepository.Plugin.class), Function.identity());
+                @Override
+                public Path nodeConfigPath(int nodeOrdinal) {
+                    return null;
+                }
+            },
+            0,
+            "leader",
+            Arrays.asList(
+                ESIntegTestCase.TestSeedPlugin.class,
+                MockHttpTransport.TestPlugin.class,
+                MockTransportService.TestPlugin.class,
+                MockNioTransportPlugin.class,
+                InternalSettingsPlugin.class,
+                MockRepository.Plugin.class
+            ),
+            Function.identity()
+        );
         secondCluster.beforeTest(random());
     }
 
@@ -83,21 +102,38 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs("test-idx-3", randomIntBetween(1, 100));
         createFullSnapshot(repoNameOnFirstCluster, "snap-3");
 
-        secondCluster.client().admin().cluster().preparePutRepository(repoNameOnSecondCluster).setType("fs")
-                .setSettings(Settings.builder().put("location", repoPath)).get();
+        secondCluster.client()
+            .admin()
+            .cluster()
+            .preparePutRepository(repoNameOnSecondCluster)
+            .setType("fs")
+            .setSettings(Settings.builder().put("location", repoPath))
+            .get();
         secondCluster.client().admin().cluster().prepareDeleteSnapshot(repoNameOnSecondCluster, "snap-1").get();
         secondCluster.client().admin().cluster().prepareDeleteSnapshot(repoNameOnSecondCluster, "snap-2").get();
 
-        final SnapshotException sne = expectThrows(SnapshotException.class, () ->
-                client().admin().cluster().prepareCreateSnapshot(repoNameOnFirstCluster, "snap-4").setWaitForCompletion(true)
-                        .execute().actionGet());
+        final SnapshotException sne = expectThrows(
+            SnapshotException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareCreateSnapshot(repoNameOnFirstCluster, "snap-4")
+                .setWaitForCompletion(true)
+                .execute()
+                .actionGet()
+        );
         assertThat(sne.getMessage(), containsString("failed to update snapshot in repository"));
         final RepositoryException cause = (RepositoryException) sne.getCause();
-        assertThat(cause.getMessage(), containsString("[" + repoNameOnFirstCluster +
-                "] concurrent modification of the index-N file, expected current generation [2] but it was not found in the repository."
-                + " The last cluster to write to this repository was ["
-                + secondCluster.client().admin().cluster().prepareState().get().getState().metadata().clusterUUID()
-                + "] at generation [4]."));
+        assertThat(
+            cause.getMessage(),
+            containsString(
+                "["
+                    + repoNameOnFirstCluster
+                    + "] concurrent modification of the index-N file, expected current generation [2] but it was not found in "
+                    + "the repository. The last cluster to write to this repository was ["
+                    + secondCluster.client().admin().cluster().prepareState().get().getState().metadata().clusterUUID()
+                    + "] at generation [4]."
+            )
+        );
         assertAcked(client().admin().cluster().prepareDeleteRepository(repoNameOnFirstCluster).get());
         createRepository(repoNameOnFirstCluster, "fs", repoPath);
         createFullSnapshot(repoNameOnFirstCluster, "snap-5");
@@ -111,28 +147,73 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
         createIndexWithRandomDocs("test-idx-1", randomIntBetween(1, 100));
         createFullSnapshot(repoName, "snap-1");
-        final String repoUuid = client().admin().cluster().prepareGetRepositories(repoName).get().repositories()
-                .stream().filter(r -> r.name().equals(repoName)).findFirst().orElseThrow().uuid();
+        final String repoUuid = client().admin()
+            .cluster()
+            .prepareGetRepositories(repoName)
+            .get()
+            .repositories()
+            .stream()
+            .filter(r -> r.name().equals(repoName))
+            .findFirst()
+            .orElseThrow()
+            .uuid();
 
         secondCluster.startMasterOnlyNode();
         secondCluster.startDataOnlyNode();
-        assertAcked(secondCluster.client().admin().cluster().preparePutRepository(repoName)
+        assertAcked(
+            secondCluster.client()
+                .admin()
+                .cluster()
+                .preparePutRepository(repoName)
                 .setType("fs")
-                .setSettings(Settings.builder().put("location", repoPath).put(READONLY_SETTING_KEY, true)));
-        assertThat(secondCluster.client().admin().cluster().prepareGetRepositories(repoName).get().repositories()
-                .stream().filter(r -> r.name().equals(repoName)).findFirst().orElseThrow().uuid(), equalTo(repoUuid));
+                .setSettings(Settings.builder().put("location", repoPath).put(READONLY_SETTING_KEY, true))
+        );
+        assertThat(
+            secondCluster.client()
+                .admin()
+                .cluster()
+                .prepareGetRepositories(repoName)
+                .get()
+                .repositories()
+                .stream()
+                .filter(r -> r.name().equals(repoName))
+                .findFirst()
+                .orElseThrow()
+                .uuid(),
+            equalTo(repoUuid)
+        );
 
         assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
         IOUtils.rm(internalCluster().getCurrentMasterNodeInstance(Environment.class).resolveRepoFile(repoPath.toString()));
         createRepository(repoName, "fs", repoPath);
         createFullSnapshot(repoName, "snap-1");
 
-        final String newRepoUuid = client().admin().cluster().prepareGetRepositories(repoName).get().repositories()
-                .stream().filter(r -> r.name().equals(repoName)).findFirst().orElseThrow().uuid();
+        final String newRepoUuid = client().admin()
+            .cluster()
+            .prepareGetRepositories(repoName)
+            .get()
+            .repositories()
+            .stream()
+            .filter(r -> r.name().equals(repoName))
+            .findFirst()
+            .orElseThrow()
+            .uuid();
         assertThat(newRepoUuid, not(equalTo((repoUuid))));
 
         secondCluster.client().admin().cluster().prepareGetSnapshots(repoName).get(); // force another read of the repo data
-        assertThat(secondCluster.client().admin().cluster().prepareGetRepositories(repoName).get().repositories()
-                .stream().filter(r -> r.name().equals(repoName)).findFirst().orElseThrow().uuid(), equalTo(newRepoUuid));
+        assertThat(
+            secondCluster.client()
+                .admin()
+                .cluster()
+                .prepareGetRepositories(repoName)
+                .get()
+                .repositories()
+                .stream()
+                .filter(r -> r.name().equals(repoName))
+                .findFirst()
+                .orElseThrow()
+                .uuid(),
+            equalTo(newRepoUuid)
+        );
     }
 }

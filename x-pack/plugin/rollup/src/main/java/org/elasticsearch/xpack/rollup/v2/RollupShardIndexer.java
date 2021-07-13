@@ -38,7 +38,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -232,7 +232,7 @@ class RollupShardIndexer {
                 numSent.addAndGet(-items);
             }
         };
-        return BulkProcessor.builder(client::bulk, listener)
+        return BulkProcessor.builder(client::bulk, listener, "rollup-shard-indexer")
             .setBulkActions(10000)
             .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.MB))
             // execute the bulk request on the same thread

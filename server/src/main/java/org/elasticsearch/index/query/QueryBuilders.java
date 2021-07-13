@@ -101,6 +101,16 @@ public final class QueryBuilders {
     }
 
     /**
+     * Creates a combined fields query for the provided field names and text.
+     *
+     * @param text       The query text (to be analyzed).
+     * @param fieldNames The field names.
+     */
+    public static CombinedFieldsQueryBuilder combinedFieldsQuery(Object text, String... fieldNames) {
+        return new CombinedFieldsQueryBuilder(text, fieldNames);
+    }
+
+    /**
      * A query to boost scores based on their proximity to the given origin for date, date_nanos and geo_point field types.
      * @param name The field name
      * @param origin The origin of the distance calculation. Can be a long, string or {@link GeoPoint}, depending on field type.
@@ -635,7 +645,7 @@ public final class QueryBuilders {
      */
     @Deprecated
     public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape) throws IOException {
-        return new GeoShapeQueryBuilder(name, shape);
+        return new GeoShapeQueryBuilder(name, shape.buildGeometry());
     }
 
     public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId) {

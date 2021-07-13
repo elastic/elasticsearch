@@ -10,12 +10,12 @@ package org.elasticsearch.client.indices.rollover;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxSinglePrimarySizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -111,12 +111,12 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
     /**
      * Adds a size-based condition to check if the size of the largest primary shard is at least <code>size</code>.
      */
-    public RolloverRequest addMaxSinglePrimarySizeCondition(ByteSizeValue size) {
-        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition = new MaxSinglePrimarySizeCondition(size);
-        if (this.conditions.containsKey(maxSinglePrimarySizeCondition.name())) {
-            throw new IllegalArgumentException(maxSinglePrimarySizeCondition + " condition is already set");
+    public RolloverRequest addMaxPrimaryShardSizeCondition(ByteSizeValue size) {
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(size);
+        if (this.conditions.containsKey(maxPrimaryShardSizeCondition.name())) {
+            throw new IllegalArgumentException(maxPrimaryShardSizeCondition + " condition is already set");
         }
-        this.conditions.put(maxSinglePrimarySizeCondition.name(), maxSinglePrimarySizeCondition);
+        this.conditions.put(maxPrimaryShardSizeCondition.name(), maxPrimaryShardSizeCondition);
         return this;
     }
 

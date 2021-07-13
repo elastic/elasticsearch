@@ -19,9 +19,7 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.util.stream.Stream;
 
@@ -45,9 +43,9 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
         final User authUser = runAsUser == null ? null : runAsUser.authenticatedUser();
         if (authUser == null) {
             listener.onFailure(new ElasticsearchSecurityException("did not find an authenticated user"));
-        } else if (SystemUser.is(authUser) || XPackUser.is(authUser)) {
+        } else if (User.isInternal(authUser)) {
             listener.onFailure(new IllegalArgumentException("user [" + authUser.principal() + "] is internal"));
-        } else if (SystemUser.is(runAsUser) || XPackUser.is(runAsUser)) {
+        } else if (User.isInternal(runAsUser)) {
             listener.onFailure(new IllegalArgumentException("user [" + runAsUser.principal() + "] is internal"));
         } else {
             final User user = authentication.getUser();

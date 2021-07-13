@@ -43,10 +43,10 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     public void testSeparateTiers() {
-        NodeStats hotStats = fakeStats(DataTier.DATA_HOT_NODE_ROLE);
-        NodeStats coldStats = fakeStats(DataTier.DATA_COLD_NODE_ROLE);
-        NodeStats warmStats = fakeStats(DataTier.DATA_WARM_NODE_ROLE);
-        NodeStats warmStats2 = fakeStats(DataTier.DATA_WARM_NODE_ROLE);
+        NodeStats hotStats = fakeStats(DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
+        NodeStats coldStats = fakeStats(DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
+        NodeStats warmStats = fakeStats(DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
+        NodeStats warmStats2 = fakeStats(DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
 
         NodesStatsResponse nodesStats = new NodesStatsResponse(new ClusterName("cluster"),
             Arrays.asList(hotStats, coldStats, warmStats, warmStats2), Collections.emptyList());

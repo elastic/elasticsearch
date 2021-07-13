@@ -52,4 +52,21 @@ public final class MappingVisitor {
         }
     }
 
+    public static void visitRuntimeMapping(Map<String, ?> mapping, BiConsumer<String, Map<String, ?>> runtimeFieldMappingConsumer) {
+        Object runtimeObject = mapping.get("runtime");
+        if (runtimeObject instanceof Map == false) {
+            return;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, ?> runtimeMappings = (Map<String, ?>) runtimeObject;
+        for (String runtimeFieldName : runtimeMappings.keySet()) {
+            Object runtimeFieldMappingObject = runtimeMappings.get(runtimeFieldName);
+            if (runtimeFieldMappingObject instanceof Map == false) {
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, ?> runtimeFieldMapping = (Map<String, ?>) runtimeFieldMappingObject;
+            runtimeFieldMappingConsumer.accept(runtimeFieldName, runtimeFieldMapping);
+        }
+    }
 }

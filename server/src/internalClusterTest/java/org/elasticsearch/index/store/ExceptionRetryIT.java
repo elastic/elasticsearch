@@ -71,7 +71,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         Client client = internalCluster().coordOnlyNodeClient();
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
-        NodeStats unluckyNode = randomFrom(nodeStats.getNodes().stream().filter((s) -> s.getNode().isDataNode())
+        NodeStats unluckyNode = randomFrom(nodeStats.getNodes().stream().filter((s) -> s.getNode().canContainData())
             .collect(Collectors.toList()));
         assertAcked(client().admin().indices().prepareCreate("index").setSettings(Settings.builder()
             .put("index.number_of_replicas", 1)

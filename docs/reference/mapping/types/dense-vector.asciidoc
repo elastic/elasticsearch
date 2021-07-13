@@ -10,9 +10,8 @@ A `dense_vector` field stores dense vectors of float values.
 The maximum number of dimensions that can be in a vector should
 not exceed 2048. A `dense_vector` field is a single-valued field.
 
-These vectors can be used for <<vector-functions,document scoring>>.
-For example, a document score can represent a distance between
-a given query vector and the indexed document vector.
+`dense_vector` fields do not support querying, sorting or aggregating. They can
+only be accessed in scripts through the dedicated <<vector-functions,vector functions>>.
 
 You index a dense vector as an array of floats.
 
@@ -47,8 +46,4 @@ PUT my-index-000001/_doc/2
 
 --------------------------------------------------
 
-<1> dims—the number of dimensions in the vector, required parameter.
-
-Internally, each document's dense vector is encoded as a binary
-doc value. Its size in bytes is equal to
-`4 * dims + 4`, where `dims`—the number of the vector's dimensions.
+<1> dims – the number of dimensions in the vector, required parameter.

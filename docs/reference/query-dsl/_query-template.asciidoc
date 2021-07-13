@@ -1,5 +1,5 @@
 ////
-This is a template for query DSL reference documentation.
+This is a template for Query DSL reference documentation.
 
 To document a new query type, copy this file, remove comments like this, and
 replace "sample" with the appropriate query name.

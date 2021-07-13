@@ -30,11 +30,13 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -49,6 +51,11 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.BYTE;
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.DOUBLE;
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.INTEGER;
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.LONG;
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.SHORT;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -74,10 +81,10 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
-                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.BYTE, false, true).build(contentPath).fieldType(),
-                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.SHORT, false, true).build(contentPath).fieldType(),
-                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.INTEGER, false, true).build(contentPath).fieldType(),
-                new NumberFieldMapper.Builder("long", NumberFieldMapper.NumberType.LONG, false, true).build(contentPath).fieldType()
+                new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true).build(contentPath).fieldType(),
+                new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true).build(contentPath).fieldType(),
+                new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true).build(contentPath).fieldType(),
+                new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true).build(contentPath).fieldType()
                 )) {
             ifdService.clear();
             fd = ifdService.getForField(mapper, "test", () -> {
@@ -86,7 +93,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             assertTrue(fd instanceof SortedNumericIndexFieldData);
         }
 
-        final MappedFieldType floatMapper = new NumberFieldMapper.Builder("float", NumberFieldMapper.NumberType.FLOAT, false, true)
+        final MappedFieldType floatMapper = new NumberFieldMapper.Builder("float", NumberType.FLOAT, ScriptCompiler.NONE, false, true)
                 .build(contentPath).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper, "test", () -> {
@@ -94,7 +101,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         });
         assertTrue(fd instanceof SortedNumericIndexFieldData);
 
-        final MappedFieldType doubleMapper = new NumberFieldMapper.Builder("double", NumberFieldMapper.NumberType.DOUBLE, false, true)
+        final MappedFieldType doubleMapper
+            = new NumberFieldMapper.Builder("double", DOUBLE, ScriptCompiler.NONE, false, true)
                 .build(contentPath).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper, "test", () -> {
@@ -301,19 +309,19 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRequireDocValuesOnLongs() {
-        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG));
-        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG,
-            true, false, false, false, null, Collections.emptyMap()));
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", LONG));
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", LONG,
+            true, false, false, false, null, Collections.emptyMap(), null, false));
     }
 
     public void testRequireDocValuesOnDoubles() {
-        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE));
-        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE,
-            true, false, false, false, null, Collections.emptyMap()));
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberType.DOUBLE));
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberType.DOUBLE,
+            true, false, false, false, null, Collections.emptyMap(), null, false));
     }
 
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
-        doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, Collections.emptyMap()));
+        doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap()));
     }
 }

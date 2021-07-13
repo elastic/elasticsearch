@@ -1,51 +1,48 @@
 [[indices-get-alias]]
-=== Get index alias API
+=== Get alias API
 ++++
-<titleabbrev>Get index alias</titleabbrev>
+<titleabbrev>Get alias</titleabbrev>
 ++++
 
-Returns information about one or more index aliases.
-
-include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
+Retrieves information for one or more <<alias,aliases>>.
 
 [source,console]
 ----
-GET /my-index-000001/_alias/alias1
+GET my-data-stream/_alias/my-alias
 ----
-// TEST[setup:my_index]
-// TEST[s/^/PUT my-index-000001\/_alias\/alias1\n/]
-
+// TEST[setup:my_data_stream]
+// TEST[s/^/PUT my-data-stream\/_alias\/my-alias\n/]
+// TEST[teardown:data_stream_cleanup]
 
 [[get-alias-api-request]]
 ==== {api-request-title}
 
-`GET /_alias`
+`GET _alias/<alias>`
 
-`GET /_alias/<alias>`
+`GET _alias`
 
-`GET /<index>/_alias/<alias>`
+`GET <target>/_alias/<alias>`
 
 [[get-alias-api-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the
 `view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
-for the index alias. If you specify an index, you must also have
-`view_index_metadata` or `manage` index privilege for the index.
-
+for the alias. If you specify a target, you must also have `view_index_metadata`
+or `manage` index privilege for the target.
 
 [[get-alias-api-path-params]]
 ==== {api-path-parms-title}
 
 `<alias>`::
-(Optional, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias]
-+
-To retrieve information for all index aliases,
-use a value of `_all` or `*`.
+(Optional, string) Comma-separated list of aliases to retrieve. Supports
+wildcards (`*`). To retrieve all aliases, omit this parameter or use `*` or
+`_all`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
-
+`<target>`::
+(Optional, string) Comma-separated list of data streams or indices used to limit
+the request. Supports wildcards (`*`). To target all data streams and indices,
+omit this parameter or use `*` or `_all`.
 
 [[get-alias-api-query-params]]
 ==== {api-query-parms-title}
@@ -59,133 +56,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 Defaults to `all`.
 
 `ignore_unavailable`::
-(Optional, Boolean)
-If `false`, requests that include a missing index in the `<index>` argument
-return an error. Defaults to `false`.
+(Optional, Boolean) If `false`, requests that include a missing data stream or
+index in the `<target>` return an error. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
-
-
-[[get-alias-api-example]]
-==== {api-examples-title}
-
-[[get-alias-api-all-ex]]
-===== Get all aliases for an index
-
-You can add index aliases during index creation
-using a <<indices-create-index,create index API>> request.
-
-The following create index API request creates the `logs_20302801` index
-with two aliases:
-
-* `current_day`
-* `2030`, which only returns documents
-in the `logs_20302801` index
-with a `year` field value of `2030`
-
-[source,console]
---------------------------------------------------
-PUT /logs_20302801
-{
-  "aliases" : {
-    "current_day" : {},
-    "2030" : {
-      "filter" : {
-          "term" : {"year" : 2030 }
-      }
-    }
-  }
-}
---------------------------------------------------
-
-The following get index alias API request returns all aliases
-for the index `logs_20302801`:
-
-[source,console]
---------------------------------------------------
-GET /logs_20302801/_alias/*
---------------------------------------------------
-// TEST[continued]
-
-The API returns the following response:
-
-[source,console-result]
---------------------------------------------------
-{
- "logs_20302801" : {
-   "aliases" : {
-    "current_day" : {
-    },
-     "2030" : {
-       "filter" : {
-         "term" : {
-           "year" : 2030
-         }
-       }
-     }
-   }
- }
-}
---------------------------------------------------
-
-
-[[get-alias-api-named-ex]]
-===== Get a specific alias
-
-The following index alias API request returns the `2030` alias:
-
-[source,console]
---------------------------------------------------
-GET /_alias/2030
---------------------------------------------------
-// TEST[continued]
-
-The API returns the following response:
-
-[source,console-result]
---------------------------------------------------
-{
-  "logs_20302801" : {
-    "aliases" : {
-      "2030" : {
-        "filter" : {
-          "term" : {
-            "year" : 2030
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-
-
-[[get-alias-api-wildcard-ex]]
-===== Get aliases based on a wildcard
-
-The following index alias API request returns any alias that begin with `20`:
-
-[source,console]
---------------------------------------------------
-GET /_alias/20*
---------------------------------------------------
-// TEST[continued]
-
-The API returns the following response:
-
-[source,console-result]
---------------------------------------------------
-{
-  "logs_20302801" : {
-    "aliases" : {
-      "2030" : {
-        "filter" : {
-          "term" : {
-            "year" : 2030
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------------------------

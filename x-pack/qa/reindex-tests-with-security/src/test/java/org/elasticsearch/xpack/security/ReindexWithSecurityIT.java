@@ -14,7 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -33,7 +33,6 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.util.Collections;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -80,18 +79,18 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
         createIndicesWithRandomAliases("test1", "test2", "test3");
 
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        BulkByScrollResponse response = restClient.deleteByQuery((DeleteByQueryRequest) new DeleteByQueryRequest()
+        BulkByScrollResponse response = restClient.deleteByQuery(new DeleteByQueryRequest()
             .setQuery(QueryBuilders.matchAllQuery())
             .indices("test1", "test2"), RequestOptions.DEFAULT);
         assertNotNull(response);
 
-        response = restClient.deleteByQuery((DeleteByQueryRequest) new DeleteByQueryRequest()
+        response = restClient.deleteByQuery(new DeleteByQueryRequest()
             .setQuery(QueryBuilders.matchAllQuery())
             .indices("test*"), RequestOptions.DEFAULT);
         assertNotNull(response);
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> restClient.deleteByQuery((DeleteByQueryRequest) new DeleteByQueryRequest()
+                () -> restClient.deleteByQuery(new DeleteByQueryRequest()
                     .setQuery(QueryBuilders.matchAllQuery())
                     .indices("test1", "index1"), RequestOptions.DEFAULT));
         assertThat(e.getMessage(), containsString("no such index [index1]"));

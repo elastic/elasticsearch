@@ -28,11 +28,9 @@ import java.util.stream.Collectors;
 public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
 
-    // The stack template registry should remain at version 0. This is because templates and
-    // policies will be changed by the ingest manager once they exist, and ES should only ever put
-    // the template in place if it does not exist. If this were incremented we could accidentally
-    // overwrite a template or policy changed by the ingest manager.
-    public static final int REGISTRY_VERSION = 0;
+    // The stack template registry version. This number must be incremented when we make changes
+    // to built-in templates.
+    public static final int REGISTRY_VERSION = 1;
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
     public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
@@ -44,6 +42,16 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     private final ClusterService clusterService;
     private volatile boolean stackTemplateEnabled;
+
+    // General mappings conventions for any data that ends up in a data stream
+    public static final String DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "data-streams-mappings";
+
+    public static final IndexTemplateConfig DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE = new IndexTemplateConfig(
+        DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+        "/data-streams-mappings.json",
+        REGISTRY_VERSION,
+        TEMPLATE_VERSION_VARIABLE
+    );
 
     //////////////////////////////////////////////////////////
     // Logs components (for matching logs-*-* indices)
@@ -179,6 +187,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     protected List<IndexTemplateConfig> getComponentTemplateConfigs() {
         if (stackTemplateEnabled) {
             return Arrays.asList(
+                DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE,
                 LOGS_MAPPINGS_COMPONENT_TEMPLATE,
                 LOGS_SETTINGS_COMPONENT_TEMPLATE,
                 METRICS_MAPPINGS_COMPONENT_TEMPLATE,

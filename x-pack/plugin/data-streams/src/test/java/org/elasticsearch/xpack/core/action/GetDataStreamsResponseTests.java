@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.cluster.DataStreamTestHelper;
-import org.elasticsearch.xpack.core.action.GetDataStreamAction.Response;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.action.GetDataStreamAction.Response;
 
 import java.util.ArrayList;
 import java.util.List;

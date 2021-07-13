@@ -9,7 +9,7 @@ formula:
 The default value used for `_routing` is the document's <<mapping-id-field,`_id`>>.
 
 Custom routing patterns can be implemented by specifying a custom `routing`
-value per document.  For instance:
+value per document. For instance:
 
 [source,console]
 ------------------------------
@@ -48,7 +48,7 @@ appropriate backing index for the stream.
 
 ==== Searching with custom routing
 
-Custom routing can reduce the impact of searches.  Instead of having to fan
+Custom routing can reduce the impact of searches. Instead of having to fan
 out a search request to all the shards in an index, the request can be sent to
 just the shard that matches the specific routing value (or values):
 
@@ -74,7 +74,7 @@ whenever <<docs-index_,indexing>>, <<docs-get,getting>>,
 <<docs-delete,deleting>>, or <<docs-update,updating>> a document.
 
 Forgetting the routing value can lead to a document being indexed on more than
-one shard.  As a safeguard, the `_routing` field can be configured to make a
+one shard. As a safeguard, the `_routing` field can be configured to make a
 custom `routing` value required for all CRUD operations:
 
 [source,console]

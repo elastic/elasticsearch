@@ -7,7 +7,8 @@
 package org.elasticsearch.xpack.security.rest.action.saml;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionRe
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionResponse;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -35,10 +35,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
 
     static final ObjectParser<SamlInvalidateSessionRequest, RestSamlInvalidateSessionAction> PARSER =
-            new ObjectParser<>("saml_invalidate_session", SamlInvalidateSessionRequest::new);
+        new ObjectParser<>("saml_invalidate_session", SamlInvalidateSessionRequest::new);
 
     static {
-        PARSER.declareString(SamlInvalidateSessionRequest::setQueryString, new ParseField("queryString"));
+        PARSER.declareString(SamlInvalidateSessionRequest::setQueryString, new ParseField("query_string", "queryString"));
         PARSER.declareString(SamlInvalidateSessionRequest::setAssertionConsumerServiceURL, new ParseField("acs"));
         PARSER.declareString(SamlInvalidateSessionRequest::setRealmName, new ParseField("realm"));
     }
@@ -49,15 +49,9 @@ public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(
-            new ReplacedRoute(POST, "/_security/saml/invalidate",
-                POST, "/_xpack/security/saml/invalidate")
+        return List.of(
+            Route.builder(POST, "/_security/saml/invalidate")
+                .replaces(POST, "/_xpack/security/saml/invalidate", RestApiVersion.V_7).build()
         );
     }
 
@@ -71,17 +65,17 @@ public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
         try (XContentParser parser = request.contentParser()) {
             final SamlInvalidateSessionRequest invalidateRequest = PARSER.parse(parser, this);
             return channel -> client.execute(SamlInvalidateSessionAction.INSTANCE, invalidateRequest,
-                    new RestBuilderListener<SamlInvalidateSessionResponse>(channel) {
-                        @Override
-                        public RestResponse buildResponse(SamlInvalidateSessionResponse resp, XContentBuilder builder) throws Exception {
-                            builder.startObject();
-                            builder.field("realm", resp.getRealmName());
-                            builder.field("invalidated", resp.getCount());
-                            builder.field("redirect", resp.getRedirectUrl());
-                            builder.endObject();
-                            return new BytesRestResponse(RestStatus.OK, builder);
-                        }
-                    });
+                new RestBuilderListener<SamlInvalidateSessionResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(SamlInvalidateSessionResponse resp, XContentBuilder builder) throws Exception {
+                        builder.startObject();
+                        builder.field("realm", resp.getRealmName());
+                        builder.field("invalidated", resp.getCount());
+                        builder.field("redirect", resp.getRedirectUrl());
+                        builder.endObject();
+                        return new BytesRestResponse(RestStatus.OK, builder);
+                    }
+                });
         }
     }
 

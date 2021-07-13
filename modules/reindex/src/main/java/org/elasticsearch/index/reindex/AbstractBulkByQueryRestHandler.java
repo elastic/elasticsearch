@@ -10,8 +10,10 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -21,6 +23,7 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Rest handler for reindex actions that accepts a search request like Update-By-Query or Delete-By-Query
@@ -41,7 +44,10 @@ public abstract class AbstractBulkByQueryRestHandler<
         SearchRequest searchRequest = internal.getSearchRequest();
 
         try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, namedWriteableRegistry, size -> failOnSizeSpecified());
+            IntConsumer sizeConsumer = restRequest.getRestApiVersion() == RestApiVersion.V_7 ?
+                size -> setMaxDocsFromSearchSize(internal, size) :
+                size -> failOnSizeSpecified();
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, namedWriteableRegistry, sizeConsumer);
         }
 
         searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));
@@ -86,5 +92,10 @@ public abstract class AbstractBulkByQueryRestHandler<
 
     private static void failOnSizeSpecified() {
         throw new IllegalArgumentException("invalid parameter [size], use [max_docs] instead");
+    }
+
+    private void setMaxDocsFromSearchSize(Request request, int size) {
+        LoggingDeprecationHandler.INSTANCE.logRenamedField(null, null, "size", "max_docs", true);
+        setMaxDocsValidateIdentical(request, size);
     }
 }

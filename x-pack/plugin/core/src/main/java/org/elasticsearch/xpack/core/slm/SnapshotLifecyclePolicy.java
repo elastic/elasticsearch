@@ -8,18 +8,17 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -97,11 +96,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         this.schedule = in.readString();
         this.repository = in.readString();
         this.configuration = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
-        } else {
-            this.retentionPolicy = SnapshotRetentionConfiguration.EMPTY;
-        }
+        this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
     }
 
     public String getId() {
@@ -263,9 +258,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         out.writeString(this.schedule);
         out.writeString(this.repository);
         out.writeMap(this.configuration);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeOptionalWriteable(this.retentionPolicy);
-        }
+        out.writeOptionalWriteable(this.retentionPolicy);
     }
 
     @Override

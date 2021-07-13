@@ -49,16 +49,16 @@ Discontinue use of the `index.force_memory_term_dictionary` index setting.
 Requests that include this setting will return an error.
 ====
 
-.The put index template API's `template` parameter has been removed.
+.The create or update index template API's `template` parameter has been removed.
 [%collapsible]
 ====
 *Details* +
-In 6.0, we deprecated the `template` parameter in put index template requests
-in favor of using `index_patterns`. Support for the `template` parameter is now
-removed in 8.0.
+In 6.0, we deprecated the `template` parameter in create or update index
+template requests in favor of using `index_patterns`. Support for the `template`
+parameter is now removed in 8.0.
 
 *Impact* +
-Use the {ref}/indices-templates-v1.html[put index template API]'s
+Use the {ref}/indices-templates-v1.html[create or update index template API]'s
 `index_patterns` parameter. Requests that include the `template` parameter will
 return an error.
 ====

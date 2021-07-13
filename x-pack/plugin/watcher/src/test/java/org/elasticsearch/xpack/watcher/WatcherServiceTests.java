@@ -47,6 +47,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
@@ -64,7 +65,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -78,8 +78,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class WatcherServiceTests extends ESTestCase {
-
-    private final ExecutorService executorService = EsExecutors.newDirectExecutorService();
 
     private final Client client = mock(Client.class);
 
@@ -98,7 +96,7 @@ public class WatcherServiceTests extends ESTestCase {
         WatchParser parser = mock(WatchParser.class);
 
         WatcherService service = new WatcherService(Settings.EMPTY, triggerService, triggeredWatchStore,
-                executionService, parser, client, executorService) {
+                executionService, parser, client, EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             @Override
             void stopExecutor() {
             }
@@ -122,7 +120,7 @@ public class WatcherServiceTests extends ESTestCase {
         ExecutionService executionService = mock(ExecutionService.class);
         WatchParser parser = mock(WatchParser.class);
         WatcherService service = new WatcherService(Settings.EMPTY, triggerService, triggeredWatchStore,
-                executionService, parser, client, executorService) {
+                executionService, parser, client, EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             @Override
             void stopExecutor() {
             }
@@ -235,14 +233,14 @@ public class WatcherServiceTests extends ESTestCase {
         when(watch.trigger()).thenReturn(trigger);
         when(watch.id()).thenReturn(id);
         when(watch.condition()).thenReturn(InternalAlwaysCondition.INSTANCE);
-        ExecutableNoneInput noneInput = new ExecutableNoneInput();
+        ExecutableInput noneInput = new ExecutableNoneInput();
         when(watch.input()).thenReturn(noneInput);
 
         triggerService.add(watch);
         assertThat(triggerService.count(), is(1L));
 
         WatcherService service = new WatcherService(Settings.EMPTY, triggerService, mock(TriggeredWatchStore.class),
-            mock(ExecutionService.class), mock(WatchParser.class), client, executorService) {
+            mock(ExecutionService.class), mock(WatchParser.class), client, EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             @Override
             void stopExecutor() {
             }
@@ -259,7 +257,7 @@ public class WatcherServiceTests extends ESTestCase {
         ExecutionService executionService = mock(ExecutionService.class);
         TriggerService triggerService = mock(TriggerService.class);
         WatcherService service = new WatcherService(Settings.EMPTY, triggerService, mock(TriggeredWatchStore.class),
-            executionService, mock(WatchParser.class), client, executorService) {
+            executionService, mock(WatchParser.class), client, EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             @Override
             void stopExecutor() {
             }
@@ -276,6 +274,6 @@ public class WatcherServiceTests extends ESTestCase {
 
     private static DiscoveryNode newNode() {
         return new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            DiscoveryNodeRole.roles(), Version.CURRENT);
     }
 }

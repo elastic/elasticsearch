@@ -22,10 +22,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -89,8 +89,6 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -111,9 +109,9 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     private TimeWarp timeWarp;
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
                 .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
                 // we do this by default in core, but for watcher this isn't needed and only adds noise.
@@ -478,12 +476,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             GetComposableIndexTemplateAction.Response response = client().execute(GetComposableIndexTemplateAction.INSTANCE,
                 new GetComposableIndexTemplateAction.Request(HISTORY_TEMPLATE_NAME)).get();
             assertThat("[" + HISTORY_TEMPLATE_NAME + "] is missing", response.indexTemplates().size(), equalTo(1));
-            response = client().execute(GetComposableIndexTemplateAction.INSTANCE,
-                new GetComposableIndexTemplateAction.Request(TRIGGERED_TEMPLATE_NAME)).get();
-            assertThat("[" + TRIGGERED_TEMPLATE_NAME + "] is missing", response.indexTemplates().size(), equalTo(1));
-            response = client().execute(GetComposableIndexTemplateAction.INSTANCE,
-                new GetComposableIndexTemplateAction.Request(WATCHES_TEMPLATE_NAME)).get();
-            assertThat("[" + WATCHES_TEMPLATE_NAME + "] is missing", response.indexTemplates().size(), equalTo(1));
         });
     }
 

@@ -43,11 +43,11 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
      private static String CURVE;
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/private_" + CURVE + ".pem");
         final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/certificate_" + CURVE + ".pem");
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal).filter(s -> s.startsWith("xpack.security.transport.ssl") == false))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings).filter(s -> s.startsWith("xpack.security.transport.ssl") == false))
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.key", keyPath)
             .put("xpack.security.transport.ssl.certificate", certPath)

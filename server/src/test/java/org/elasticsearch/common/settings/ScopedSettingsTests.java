@@ -13,7 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
@@ -26,9 +26,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -257,6 +259,58 @@ public class ScopedSettingsTests extends ESTestCase {
 
         service.validate(Settings.builder().put("foo.test.name", "test").put("foo.test.bar", 7).build(), true);
         service.validate(Settings.builder().put("fallback.test.name", "test").put("foo.test.bar", 7).build(), true);
+    }
+
+    public void testValidateValue() {
+        final boolean nodeSetting = randomBoolean();
+        final String prefix = nodeSetting ? "" : "index.";
+        final Property scopeProperty = nodeSetting ? Property.NodeScope : Property.IndexScope;
+        final Setting.Validator<String> baseValidator = s -> {
+            if (s.length() > 1) {
+                throw new IllegalArgumentException("too long");
+            }
+        };
+        final Setting<String> baseSetting = Setting.simpleString(prefix + "foo.base", baseValidator,
+            Property.Dynamic, scopeProperty);
+        final Setting.Validator<String> dependingValidator = new Setting.Validator<String>() {
+            @Override
+            public void validate(String value) {
+            }
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (Objects.equals(value, settings.get(baseSetting)) == false) {
+                    throw new IllegalArgumentException("must have same value");
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(baseSetting).iterator();
+            }
+        };
+        final Setting<String> dependingSetting = Setting.simpleString(prefix + "foo.depending", dependingValidator, scopeProperty);
+
+        final AbstractScopedSettings service = nodeSetting ? new ClusterSettings(Settings.EMPTY, Set.of(baseSetting, dependingSetting)) :
+            new IndexScopedSettings(Settings.EMPTY, Set.of(baseSetting, dependingSetting));
+
+        service.validate(Settings.builder().put(baseSetting.getKey(), "1").put(dependingSetting.getKey(), 1).build(), true);
+        service.validate(Settings.builder().put(dependingSetting.getKey(), "1").build(), false);
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.validate(Settings.builder().put(dependingSetting.getKey(), "1").build(), true));
+        assertThat(e.getMessage(), equalTo("must have same value"));
+
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.validate(Settings.builder().put(baseSetting.getKey(), "2").put(dependingSetting.getKey(), "1").build(), true));
+        assertThat(e2.getMessage(), equalTo("must have same value"));
+
+        service.validate(Settings.builder().put(baseSetting.getKey(), "22").build(), false);
+        final IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.validate(Settings.builder().put(baseSetting.getKey(), "22").build(), true));
+        assertThat(e3.getMessage(), equalTo("too long"));
     }
 
     public void testTupleAffixUpdateConsumer() {
@@ -850,16 +904,16 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate(Settings.builder().put("index.store.type", "boom").put("index.number_of_replicas", true).build(), false));
+            settings.validate(Settings.builder().put("index.store.type", "boom").put("index.number_of_replicas", true).build(), true));
         assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate("index.number_of_replicas", Settings.builder().put("index.number_of_replicas", "true").build(), false));
+            settings.validate("index.number_of_replicas", Settings.builder().put("index.number_of_replicas", "true").build(), true));
         assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
             settings.validate("index.similarity.boolean.type", Settings.builder().put("index.similarity.boolean.type", "mine").build(),
-                false));
+                true));
         assertEquals("illegal value for [index.similarity.boolean] cannot redefine built-in similarity", e.getMessage());
     }
 
@@ -967,7 +1021,7 @@ public class ScopedSettingsTests extends ESTestCase {
             IllegalArgumentException ex =
                 expectThrows(
                     IllegalArgumentException.class,
-                    () -> settings.validate(Settings.builder().put("logger._root", "boom").build(), false));
+                    () -> settings.validate(Settings.builder().put("logger._root", "boom").build(), true));
             assertEquals("Unknown level constant [BOOM].", ex.getMessage());
             assertEquals(level, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());

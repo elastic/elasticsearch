@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
@@ -18,6 +17,8 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class InstantiatingObjectParserTests extends ESTestCase {
 
@@ -217,4 +218,23 @@ public class InstantiatingObjectParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Annotated constructor doesn't have 2 arguments in the class"));
     }
 
+    public void testDoubleDeclarationThrowsException() throws IOException {
+        class DoubleFieldDeclaration {
+            private int intField;
+
+            DoubleFieldDeclaration(int intField) {
+                this.intField = intField;
+            }
+        }
+
+        InstantiatingObjectParser.Builder<DoubleFieldDeclaration, Void> builder =
+            InstantiatingObjectParser.builder("double_declaration", DoubleFieldDeclaration.class);
+        builder.declareInt(constructorArg(), new ParseField("name"));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> builder.declareInt(constructorArg(), new ParseField("name")));
+
+        assertThat(exception, instanceOf(IllegalArgumentException.class));
+        assertThat(exception.getMessage(), startsWith("Parser already registered for name=[name]"));
+    }
 }

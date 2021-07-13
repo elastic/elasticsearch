@@ -16,6 +16,8 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
@@ -31,11 +33,19 @@ public class DataFrameAnalyticsSourceTests extends AbstractXContentTestCase<Data
                 generateRandomStringArray(10, 10, false, false),
                 generateRandomStringArray(10, 10, false, false));
         }
-
+        Map<String, Object> runtimeMappings = null;
+        if (randomBoolean()) {
+            runtimeMappings = new HashMap<>();
+            Map<String, Object> runtimeField = new HashMap<>();
+            runtimeField.put("type", "keyword");
+            runtimeField.put("script", "");
+            runtimeMappings.put(randomAlphaOfLength(10), runtimeField);
+        }
         return DataFrameAnalyticsSource.builder()
             .setIndex(generateRandomStringArray(10, 10, false, false))
             .setQueryConfig(randomBoolean() ? null : randomQueryConfig())
             .setSourceFiltering(sourceFiltering)
+            .setRuntimeMappings(runtimeMappings)
             .build();
     }
 

@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,13 +63,12 @@ public class Retry {
         return future;
     }
 
-    static class RetryHandler implements ActionListener<BulkResponse> {
+    static class RetryHandler extends ActionListener.Delegating<BulkResponse, BulkResponse> {
         private static final RestStatus RETRY_STATUS = RestStatus.TOO_MANY_REQUESTS;
         private static final Logger logger = LogManager.getLogger(RetryHandler.class);
 
         private final Scheduler scheduler;
         private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
-        private final ActionListener<BulkResponse> listener;
         private final Iterator<TimeValue> backoff;
         // Access only when holding a client-side lock, see also #addResponses()
         private final List<BulkItemResponse> responses = new ArrayList<>();
@@ -81,9 +80,9 @@ public class Retry {
 
         RetryHandler(BackoffPolicy backoffPolicy, BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
                      ActionListener<BulkResponse> listener, Scheduler scheduler) {
+            super(listener);
             this.backoff = backoffPolicy.iterator();
             this.consumer = consumer;
-            this.listener = listener;
             this.scheduler = scheduler;
             // in contrast to System.currentTimeMillis(), nanoTime() uses a monotonic clock under the hood
             this.startTimestampNanos = System.nanoTime();
@@ -112,7 +111,7 @@ public class Retry {
                 retry(currentBulkRequest);
             } else {
                 try {
-                    listener.onFailure(e);
+                    super.onFailure(e);
                 } finally {
                     if (retryCancellable != null) {
                         retryCancellable.cancel();
@@ -157,7 +156,7 @@ public class Retry {
 
         private void finishHim() {
             try {
-                listener.onResponse(getAccumulatedResponse());
+                delegate.onResponse(getAccumulatedResponse());
             } finally {
                 if (retryCancellable != null) {
                     retryCancellable.cancel();

@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -23,7 +23,7 @@ import java.util.Objects;
 public class ShrinkAction implements LifecycleAction, ToXContentObject {
     public static final String NAME = "shrink";
     private static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
-    private static final ParseField MAX_SINGLE_PRIMARY_SIZE = new ParseField("max_single_primary_size");
+    private static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
 
     private static final ConstructingObjectParser<ShrinkAction, Void> PARSER =
         new ConstructingObjectParser<>(NAME, true, a -> new ShrinkAction((Integer) a[0], (ByteSizeValue) a[1]));
@@ -31,29 +31,29 @@ public class ShrinkAction implements LifecycleAction, ToXContentObject {
     static {
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUMBER_OF_SHARDS_FIELD);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SINGLE_PRIMARY_SIZE.getPreferredName()),
-            MAX_SINGLE_PRIMARY_SIZE, ObjectParser.ValueType.STRING);
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_PRIMARY_SHARD_SIZE.getPreferredName()),
+            MAX_PRIMARY_SHARD_SIZE, ObjectParser.ValueType.STRING);
     }
 
     private Integer numberOfShards;
-    private ByteSizeValue maxSinglePrimarySize;
+    private ByteSizeValue maxPrimaryShardSize;
 
     public static ShrinkAction parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    public ShrinkAction(@Nullable Integer numberOfShards, ByteSizeValue maxSinglePrimarySize) {
-        if (numberOfShards != null && maxSinglePrimarySize != null) {
-            throw new IllegalArgumentException("Cannot set both [number_of_shards] and [max_single_primary_size]");
+    public ShrinkAction(@Nullable Integer numberOfShards, ByteSizeValue maxPrimaryShardSize) {
+        if (numberOfShards != null && maxPrimaryShardSize != null) {
+            throw new IllegalArgumentException("Cannot set both [number_of_shards] and [max_primary_shard_size]");
         }
-        if (numberOfShards == null && maxSinglePrimarySize == null) {
-            throw new IllegalArgumentException("Either [number_of_shards] or [max_single_primary_size] must be set");
+        if (numberOfShards == null && maxPrimaryShardSize == null) {
+            throw new IllegalArgumentException("Either [number_of_shards] or [max_primary_shard_size] must be set");
         }
-        if (maxSinglePrimarySize != null) {
-            if (maxSinglePrimarySize.getBytes() <= 0) {
-                throw new IllegalArgumentException("[max_single_primary_size] must be greater than 0");
+        if (maxPrimaryShardSize != null) {
+            if (maxPrimaryShardSize.getBytes() <= 0) {
+                throw new IllegalArgumentException("[max_primary_shard_size] must be greater than 0");
             }
-            this.maxSinglePrimarySize = maxSinglePrimarySize;
+            this.maxPrimaryShardSize = maxPrimaryShardSize;
         } else {
             if (numberOfShards <= 0) {
                 throw new IllegalArgumentException("[" + NUMBER_OF_SHARDS_FIELD.getPreferredName() + "] must be greater than 0");
@@ -66,8 +66,8 @@ public class ShrinkAction implements LifecycleAction, ToXContentObject {
         return numberOfShards;
     }
 
-    ByteSizeValue getMaxSinglePrimarySize() {
-        return maxSinglePrimarySize;
+    ByteSizeValue getMaxPrimaryShardSize() {
+        return maxPrimaryShardSize;
     }
 
     @Override
@@ -81,8 +81,8 @@ public class ShrinkAction implements LifecycleAction, ToXContentObject {
         if (numberOfShards != null) {
             builder.field(NUMBER_OF_SHARDS_FIELD.getPreferredName(), numberOfShards);
         }
-        if (maxSinglePrimarySize != null) {
-            builder.field(MAX_SINGLE_PRIMARY_SIZE.getPreferredName(), maxSinglePrimarySize);
+        if (maxPrimaryShardSize != null) {
+            builder.field(MAX_PRIMARY_SHARD_SIZE.getPreferredName(), maxPrimaryShardSize);
         }
         builder.endObject();
         return builder;
@@ -95,12 +95,12 @@ public class ShrinkAction implements LifecycleAction, ToXContentObject {
         ShrinkAction that = (ShrinkAction) o;
 
         return Objects.equals(numberOfShards, that.numberOfShards) &&
-            Objects.equals(maxSinglePrimarySize, that.maxSinglePrimarySize);
+            Objects.equals(maxPrimaryShardSize, that.maxPrimaryShardSize);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numberOfShards, maxSinglePrimarySize);
+        return Objects.hash(numberOfShards, maxPrimaryShardSize);
     }
 
     @Override

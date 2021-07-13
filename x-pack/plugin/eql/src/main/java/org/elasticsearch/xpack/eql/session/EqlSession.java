@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.eql.session;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;
-import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.optimizer.Optimizer;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
@@ -39,10 +39,11 @@ public class EqlSession {
     private final Analyzer analyzer;
     private final Optimizer optimizer;
     private final Planner planner;
+    private final CircuitBreaker circuitBreaker;
 
     public EqlSession(Client client, EqlConfiguration cfg, IndexResolver indexResolver, PreAnalyzer preAnalyzer, PostAnalyzer postAnalyzer,
                       FunctionRegistry functionRegistry, Verifier verifier, Optimizer optimizer, Planner planner,
-                      PlanExecutor planExecutor) {
+                      CircuitBreaker circuitBreaker) {
 
         this.client = new ParentTaskAssigningClient(client, cfg.getTaskId());
         this.configuration = cfg;
@@ -52,6 +53,7 @@ public class EqlSession {
         this.analyzer = new Analyzer(cfg, functionRegistry, verifier);
         this.optimizer = optimizer;
         this.planner = planner;
+        this.circuitBreaker = circuitBreaker;
     }
 
     public Client client() {
@@ -64,6 +66,10 @@ public class EqlSession {
 
     public EqlConfiguration configuration() {
         return configuration;
+    }
+
+    public CircuitBreaker circuitBreaker() {
+        return circuitBreaker;
     }
 
     public void eql(String eql, ParserParams params, ActionListener<Results> listener) {
@@ -101,7 +107,7 @@ public class EqlSession {
             listener.onFailure(new TaskCancelledException("cancelled"));
             return;
         }
-        indexResolver.resolveAsMergedMapping(indexWildcard, null, configuration.indicesOptions(),
+        indexResolver.resolveAsMergedMapping(indexWildcard, null, configuration.indicesOptions(), configuration.runtimeMappings(),
             map(listener, r -> preAnalyzer.preAnalyze(parsed, r))
         );
     }

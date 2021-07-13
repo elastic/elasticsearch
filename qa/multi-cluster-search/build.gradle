@@ -6,10 +6,10 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
@@ -25,6 +25,7 @@ testClusters {
     'remote-cluster' {
         numberOfNodes = 2
         setting 'node.roles', '[data,ingest,master]'
+        setting 'xpack.security.enabled', 'false'
     }
 }
 
@@ -38,12 +39,11 @@ testClusters.matching { it.name == "mixedClusterTest"}.configureEach {
   setting 'cluster.remote.my_remote_cluster.seeds',
     { "\"${testClusters.'remote-cluster'.getAllTransportPortURI().get(0)}\"" }
   setting 'cluster.remote.connections_per_cluster', '1'
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.register("integTest") {
   dependsOn "mixedClusterTest"
 }
-
-tasks.named("test").configure { enabled = false }// no unit tests for multi-cluster-search, only integration tests
 
 tasks.named("check").configure { dependsOn("integTest") }

@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Settings settings;
         try {
             final String samlIdpEntityId = "urn:idp:entity";
@@ -54,7 +54,7 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
             final Path jwkSet = createTempFile("jwkset", "json");
             OpenIdConnectTestCase.writeJwkSetToFile(jwkSet);
 
-            final Settings existingSettings = super.nodeSettings(nodeOrdinal);
+            final Settings existingSettings = super.nodeSettings(nodeOrdinal, otherSettings);
             MockSecureSettings mockSecureSettings =
                 (MockSecureSettings) Settings.builder().put(existingSettings).getSecureSettings();
             mockSecureSettings.setString("xpack.security.authc.realms.oidc.oidc1.rp.client_secret", randomAlphaOfLength(12));

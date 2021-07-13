@@ -8,17 +8,17 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.test.ESTestCase;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.elasticsearch.ingest.common.ConvertProcessor.Type;
@@ -305,6 +305,77 @@ public class ConvertProcessorTests extends ESTestCase {
         } catch(Exception e) {
             assertThat(e.getMessage(), equalTo("[" + fieldValue + "] is not a boolean value, cannot convert to boolean"));
         }
+    }
+
+    public void testConvertIpV4() throws Exception {
+        // valid ipv4 address
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        String targetField = randomValueOtherThan(fieldName, () -> RandomDocumentPicks.randomFieldName(random()));
+        String validIpV4 = "192.168.1.1";
+        ingestDocument.setFieldValue(fieldName, validIpV4);
+
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, targetField, Type.IP, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(targetField, String.class), equalTo(validIpV4));
+
+        // invalid ipv4 address
+        IngestDocument ingestDocument2 = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        fieldName = RandomDocumentPicks.randomFieldName(random());
+        targetField = randomValueOtherThan(fieldName, () -> RandomDocumentPicks.randomFieldName(random()));
+        String invalidIpV4 = "192.168.1.256";
+        ingestDocument2.setFieldValue(fieldName, invalidIpV4);
+
+        Processor processor2 = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, targetField, Type.IP, false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor2.execute(ingestDocument2));
+        assertThat(e.getMessage(), containsString("'" + invalidIpV4 + "' is not an IP string literal."));
+    }
+
+    public void testConvertIpV6() throws Exception {
+        // valid ipv6 address
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        String targetField = randomValueOtherThan(fieldName, () -> RandomDocumentPicks.randomFieldName(random()));
+        String validIpV6 = "2001:db8:3333:4444:5555:6666:7777:8888";
+        ingestDocument.setFieldValue(fieldName, validIpV6);
+
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, targetField, Type.IP, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(targetField, String.class), equalTo(validIpV6));
+
+        // invalid ipv6 address
+        IngestDocument ingestDocument2 = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        fieldName = RandomDocumentPicks.randomFieldName(random());
+        targetField = randomValueOtherThan(fieldName, () -> RandomDocumentPicks.randomFieldName(random()));
+        String invalidIpV6 = "2001:db8:3333:4444:5555:6666:7777:88888";
+        ingestDocument2.setFieldValue(fieldName, invalidIpV6);
+
+        Processor processor2 = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, targetField, Type.IP, false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor2.execute(ingestDocument2));
+        assertThat(e.getMessage(), containsString("'" + invalidIpV6 + "' is not an IP string literal."));
+    }
+
+    public void testConvertIpList() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        int numItems = randomIntBetween(1, 10);
+        List<String> fieldValue = new ArrayList<>();
+        List<String> expectedList = new ArrayList<>();
+        for (int j = 0; j < numItems; j++) {
+            String value;
+            if (randomBoolean()) {
+                // ipv4 value
+                value = "192.168.1." + randomIntBetween(0, 255);
+            } else {
+                // ipv6 value
+                value = "2001:db8:3333:4444:5555:6666:7777:" + Long.toString(randomLongBetween(0, 65535), 16);
+            }
+            fieldValue.add(value);
+            expectedList.add(value);
+        }
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.IP, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
     }
 
     public void testConvertString() throws Exception {

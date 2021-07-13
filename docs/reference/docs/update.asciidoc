@@ -191,7 +191,7 @@ POST test/_update/1
 // TEST[continued]
 
 Instead of updating the document, you can also change the operation that is
-executed from within the script.  For example, this request deletes the doc if
+executed from within the script. For example, this request deletes the doc if
 the `tags` field contains `green`, otherwise it does nothing (`noop`):
 
 [source,console]
@@ -285,7 +285,7 @@ POST test/_update/1
 ===== Upsert
 
 If the document does not already exist, the contents of the `upsert` element
-are inserted as a new document.  If the document exists, the
+are inserted as a new document. If the document exists, the
 `script` is executed:
 
 [source,console]

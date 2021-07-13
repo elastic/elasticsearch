@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
@@ -23,16 +23,18 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'path.repo', repo.absolutePath
 }
 
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
 tasks.named("integTest").configure {
   doFirst {
     project.delete(repo)
     repo.mkdirs()
   }
-  if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'oss'))) {
-    systemProperty 'tests.rest.blacklist', [
-      'cat.templates/10_basic/No templates',
-      'cat.templates/10_basic/Sort templates',
-      'cat.templates/10_basic/Multiple template',
-    ].join(',')
-  }
+  systemProperty 'tests.rest.blacklist', [
+    'cat.templates/10_basic/No templates',
+    'cat.templates/10_basic/Sort templates',
+    'cat.templates/10_basic/Multiple template',
+  ].join(',')
 }

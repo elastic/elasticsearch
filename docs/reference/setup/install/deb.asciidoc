@@ -157,7 +157,7 @@ include::sysconfig-file.asciidoc[]
 
 NOTE: Distributions that use `systemd` require that system resource limits be
 configured via `systemd` rather than via the `/etc/sysconfig/elasticsearch`
-file.  See <<systemd>> for more information.
+file. See <<systemd>> for more information.
 
 [[deb-layout]]
 ==== Directory layout of Debian package
@@ -192,13 +192,13 @@ locations for a Debian-based system:
 
 | data
   | The location of the data files of each index / shard allocated
-    on the node. Can hold multiple locations.
+    on the node.
   | /var/lib/elasticsearch
   | path.data
 
 | jdk
   | The bundled Java Development Kit used to run Elasticsearch. Can
-    be overridden by setting the `JAVA_HOME` environment variable
+    be overridden by setting the `ES_JAVA_HOME` environment variable
     in `/etc/default/elasticsearch`.
   | /usr/share/elasticsearch/jdk
  d|

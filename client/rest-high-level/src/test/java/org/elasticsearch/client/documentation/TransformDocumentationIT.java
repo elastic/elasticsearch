@@ -49,7 +49,7 @@ import org.elasticsearch.client.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -268,6 +268,10 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setDelay(TimeValue.timeValueSeconds(120))
                 .build()) // <4>
             .setDescription("This is my updated transform") // <5>
+            .setRetentionPolicyConfig(TimeRetentionPolicyConfig.builder()
+                .setField("time-field")
+                .setMaxAge(TimeValue.timeValueDays(30))
+                .build()) // <6>
             .build();
         // end::update-transform-config
 

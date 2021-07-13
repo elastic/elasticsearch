@@ -7,11 +7,11 @@
 JSON doesn't have a date data type, so dates in Elasticsearch can either be:
 
 * strings containing formatted dates, e.g. `"2015-01-01"` or `"2015/01/01 12:10:30"`.
-* a long number representing _milliseconds-since-the-epoch_.
-* an integer representing _seconds-since-the-epoch_.
+* a number representing _milliseconds-since-the-epoch_.
+* a number representing _seconds-since-the-epoch_ (<<date-epoch-seconds, configuration>>).
 
-NOTE: Values for _milliseconds-since-the-epoch_ and _seconds-since-the-epoch_
-must be non-negative. Use a formatted date to represent dates before 1970.
+NOTE: Values for _milliseconds-since-the-epoch_ must be non-negative. Use a
+formatted date to represent dates before 1970.
 
 Internally, dates are converted to UTC (if the time-zone is specified) and
 stored as a long number representing milliseconds-since-the-epoch.
@@ -26,7 +26,11 @@ supplied as a long in the JSON document.
 Date formats can be customised, but if no `format` is specified then it uses
 the default:
 
+[source,js]
+----
     "strict_date_optional_time||epoch_millis"
+----
+// NOTCONSOLE
 
 This means that it will accept dates with optional timestamps, which conform
 to the formats supported by <<strict-date-time,`strict_date_optional_time`>>
@@ -34,7 +38,7 @@ or milliseconds-since-the-epoch.
 
 For instance:
 
-[source,console]
+[source,console,id=date-example]
 --------------------------------------------------
 PUT my-index-000001
 {
@@ -68,15 +72,25 @@ GET my-index-000001/_search
 <4> This document uses milliseconds-since-the-epoch.
 <5> Note that the `sort` values that are returned are all in milliseconds-since-the-epoch.
 
+[WARNING]
+====
+Dates
+// tag::decimal-warning[]
+will accept numbers with a decimal point like `{"date": 1618249875.123456}`
+but there are some cases ({es-issue}70085[#70085]) where we'll lose precision
+on those dates so should avoid them.
+// end::decimal-warning[]
+====
+
 [[multiple-date-formats]]
 ==== Multiple date formats
 
 Multiple formats can be specified by separating them with `||` as a separator.
-Each format will be tried in turn until a matching format is found.  The first
+Each format will be tried in turn until a matching format is found. The first
 format will be used to convert the _milliseconds-since-the-epoch_ value back
 into a string.
 
-[source,console]
+[source,console,id=date-format-example]
 --------------------------------------------------
 PUT my-index-000001
 {
@@ -106,7 +120,7 @@ The following parameters are accepted by `date` fields:
 
 <<mapping-date-format,`format`>>::
 
-    The date format(s) that can be parsed.  Defaults to
+    The date format(s) that can be parsed. Defaults to
     `strict_date_optional_time||epoch_millis`.
 
 `locale`::
@@ -118,7 +132,8 @@ The following parameters are accepted by `date` fields:
 <<ignore-malformed,`ignore_malformed`>>::
 
     If `true`, malformed numbers are ignored. If `false` (default), malformed
-    numbers throw an exception and reject the whole document.
+    numbers throw an exception and reject the whole document.  Note that this
+    cannot be set if the `script` parameter is used.
 
 <<mapping-index,`index`>>::
 
@@ -127,8 +142,30 @@ The following parameters are accepted by `date` fields:
 <<null-value,`null_value`>>::
 
     Accepts a date value in one of the configured +format+'s as the field
-    which is substituted for any explicit `null` values.  Defaults to `null`,
-    which means the field is treated as missing.
+    which is substituted for any explicit `null` values. Defaults to `null`,
+    which means the field is treated as missing.  Note that this cannot be
+    set of the `script` parameter is used.
+
+
+`on_script_error`::
+
+    Defines what to do if the script defined by the `script` parameter
+    throws an error at indexing time. Accepts `fail` (default), which
+    will cause the entire document to be rejected, and `continue`, which
+    will register the field in the document's
+    <<mapping-ignored-field,`_ignored`>> metadata field and continue
+    indexing. This parameter can only be set if the `script` field is
+    also set.
+
+`script`::
+
+    If this parameter is set, then the field will index values generated
+    by this script, rather than reading the values directly from the
+    source. If a value is set for this field on the input document, then
+    the document will be rejected with an error.
+    Scripts are in the same format as their
+    <<runtime-mapping-fields,runtime equivalent>>, and should emit
+    long-valued timestamps.
 
 <<mapping-store,`store`>>::
 
@@ -139,3 +176,55 @@ The following parameters are accepted by `date` fields:
 <<mapping-field-meta,`meta`>>::
 
     Metadata about the field.
+
+
+[[date-epoch-seconds]]
+==== Epoch seconds
+
+If you need to send dates as _seconds-since-the-epoch_ then make sure the
+`format` lists `epoch_second`:
+
+[source,console,id=date-epoch-seconds-example]
+----
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "date": {
+        "type":   "date",
+        "format": "strict_date_optional_time||epoch_second"
+      }
+    }
+  }
+}
+
+PUT my-index-000001/_doc/example?refresh
+{ "date": 1618321898 }
+
+POST my-index-000001/_search
+{
+  "fields": [ {"field": "date"}],
+  "_source": false
+}
+----
+// TEST[s/_search/_search?filter_path=hits.hits/]
+
+Which will reply with a date like:
+
+[source,console-result]
+----
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "example",
+        "_index": "my-index-000001",
+        "_score": 1.0,
+        "fields": {
+          "date": ["2021-04-13T13:51:38.000Z"]
+        }
+      }
+    ]
+  }
+}
+----

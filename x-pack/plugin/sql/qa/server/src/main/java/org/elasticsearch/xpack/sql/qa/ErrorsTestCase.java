@@ -18,8 +18,6 @@ public interface ErrorsTestCase {
 
     void testSelectColumnFromMissingIndex() throws Exception;
 
-    void testSelectFromEmptyIndex() throws Exception;
-
     void testSelectColumnFromEmptyIndex() throws Exception;
 
     void testSelectMissingField() throws Exception;
@@ -33,8 +31,6 @@ public interface ErrorsTestCase {
     void testSelectGroupByScore() throws Exception;
 
     void testSelectScoreSubField() throws Exception;
-
-    void testSelectScoreInScalar() throws Exception;
 
     void testHardLimitForSortOnAggregate() throws Exception;
 }

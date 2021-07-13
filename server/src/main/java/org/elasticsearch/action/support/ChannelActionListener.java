@@ -39,4 +39,9 @@ public final class ChannelActionListener<
     public void onFailure(Exception e) {
         TransportChannel.sendErrorResponse(channel, actionName, request, e);
     }
+
+    @Override
+    public String toString() {
+        return "ChannelActionListener{" + channel + "}{" + request + "}{" + actionName + "}";
+    }
 }

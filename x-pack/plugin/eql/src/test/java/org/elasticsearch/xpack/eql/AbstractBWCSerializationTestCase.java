@@ -17,12 +17,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.Version.getDeclaredVersions;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.EQL_GA_VERSION;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToXContent> extends AbstractSerializingTestCase<T> {
 
     private static final List<Version> ALL_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
-    private static Version EQL_GA_VERSION = Version.V_7_10_0;
 
     private static List<Version> getAllBWCVersions(Version version) {
         return ALL_VERSIONS.stream().filter(v -> v.onOrAfter(EQL_GA_VERSION) && v.before(version) && version.isCompatible(v)).collect(
@@ -30,6 +30,8 @@ public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToX
     }
 
     private static final List<Version> DEFAULT_BWC_VERSIONS = getAllBWCVersions(Version.CURRENT);
+
+    protected abstract T mutateInstanceForVersion(T instance, Version version);
 
     public final void testBwcSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
@@ -42,7 +44,7 @@ public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToX
 
     protected final void assertBwcSerialization(T testInstance, Version version) throws IOException {
         T deserializedInstance = copyInstance(testInstance, version);
-        assertOnBWCObject(testInstance, deserializedInstance, version);
+        assertOnBWCObject(mutateInstanceForVersion(testInstance, version), deserializedInstance, version);
     }
 
     protected void assertOnBWCObject(T testInstance, T bwcDeserializedObject, Version version) {

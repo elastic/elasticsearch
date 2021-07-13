@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -21,20 +21,19 @@ import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction.Request;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction.Response;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestStopDatafeedAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
-            new Route(POST, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_stop")
+        return List.of(
+            new Route(POST, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stop")
         );
     }
 
@@ -60,7 +59,7 @@ public class RestStopDatafeedAction extends BaseRestHandler {
                 request.setForce(restRequest.paramAsBoolean(Request.FORCE.getPreferredName(), request.isForce()));
             }
             if (restRequest.hasParam(Request.ALLOW_NO_DATAFEEDS)) {
-                LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(
+                LoggingDeprecationHandler.INSTANCE.logRenamedField(
                     null, () -> null, Request.ALLOW_NO_DATAFEEDS, Request.ALLOW_NO_MATCH.getPreferredName());
             }
             request.setAllowNoMatch(

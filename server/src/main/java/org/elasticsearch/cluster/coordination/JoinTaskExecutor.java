@@ -62,7 +62,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         @Override
         public String toString() {
-            return node != null ? node + " " + reason : reason;
+            if (node == null) {
+                return reason;
+            }
+
+            final StringBuilder stringBuilder = new StringBuilder();
+            node.appendDescriptionWithoutAttributes(stringBuilder);
+            stringBuilder.append(' ').append(reason);
+            return stringBuilder.toString();
         }
 
         public boolean isBecomeMasterTask() {
@@ -114,8 +121,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         Version minClusterNodeVersion = newState.nodes().getMinNodeVersion();
         Version maxClusterNodeVersion = newState.nodes().getMaxNodeVersion();
-        // we only enforce major version transitions on a fully formed clusters
-        final boolean enforceMajorVersion = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
+        // if the cluster is not fully-formed then the min version is not meaningful
+        final boolean enforceVersionBarrier = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
         // processing any joins
         Map<String, String> joiniedNodeNameIds = new HashMap<>();
         for (final Task joinTask : joiningNodes) {
@@ -126,8 +133,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             } else {
                 final DiscoveryNode node = joinTask.node();
                 try {
-                    if (enforceMajorVersion) {
-                        ensureMajorVersionBarrier(node.getVersion(), minClusterNodeVersion);
+                    if (enforceVersionBarrier) {
+                        ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
                     }
                     ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
                     // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
@@ -178,7 +185,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                 }
             }
 
-            return results.build(allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build()));
+            final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build());
+            assert enforceVersionBarrier == false
+                || updatedState.nodes().getMinNodeVersion().onOrAfter(currentState.nodes().getMinNodeVersion())
+                : "min node version decreased from [" + currentState.nodes().getMinNodeVersion() + "] to ["
+                + updatedState.nodes().getMinNodeVersion() + "]";
+            return results.build(updatedState);
         } else {
             // we must return a new cluster state instance to force publishing. This is important
             // for the joining node to finalize its join and set us as a master
@@ -286,15 +298,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     }
 
     /**
-     * ensures that the joining node's major version is equal or higher to the minClusterNodeVersion. This is needed
-     * to ensure that if the master is already fully operating under the new major version, it doesn't go back to mixed
+     * ensures that the joining node's version is equal or higher to the minClusterNodeVersion. This is needed
+     * to ensure that if the master is already fully operating under the new version, it doesn't go back to mixed
      * version mode
      **/
-    public static void ensureMajorVersionBarrier(Version joiningNodeVersion, Version minClusterNodeVersion) {
-        final byte clusterMajor = minClusterNodeVersion.major;
-        if (joiningNodeVersion.major < clusterMajor) {
-            throw new IllegalStateException("node version [" + joiningNodeVersion + "] is not supported. " +
-                "All nodes in the cluster are of a higher major [" + clusterMajor + "].");
+    public static void ensureVersionBarrier(Version joiningNodeVersion, Version minClusterNodeVersion) {
+        if (joiningNodeVersion.before(minClusterNodeVersion)) {
+            throw new IllegalStateException("node version [" + joiningNodeVersion +
+                "] may not join a cluster comprising only nodes of version [" + minClusterNodeVersion + "] or greater");
         }
     }
 

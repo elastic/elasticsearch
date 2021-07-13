@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -18,22 +19,27 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Response;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 
 public class TransportGetTrainedModelsAction extends HandledTransportAction<Request, Response> {
 
     private final TrainedModelProvider provider;
+    private final ClusterService clusterService;
     @Inject
     public TransportGetTrainedModelsAction(TransportService transportService,
                                            ActionFilters actionFilters,
+                                           ClusterService clusterService,
                                            TrainedModelProvider trainedModelProvider) {
         super(GetTrainedModelsAction.NAME, transportService, actionFilters, GetTrainedModelsAction.Request::new);
         this.provider = trainedModelProvider;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -41,7 +47,7 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
 
         Response.Builder responseBuilder = Response.builder();
 
-        ActionListener<Tuple<Long, Set<String>>> idExpansionListener = ActionListener.wrap(
+        ActionListener<Tuple<Long, Map<String, Set<String>>>> idExpansionListener = ActionListener.wrap(
             totalAndIds -> {
                 responseBuilder.setTotalCount(totalAndIds.v1());
 
@@ -58,8 +64,10 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                 }
 
                 if (request.getIncludes().isIncludeModelDefinition()) {
+                    Map.Entry<String, Set<String>> modelIdAndAliases = totalAndIds.v2().entrySet().iterator().next();
                     provider.getTrainedModel(
-                        totalAndIds.v2().iterator().next(),
+                        modelIdAndAliases.getKey(),
+                        modelIdAndAliases.getValue(),
                         request.getIncludes(),
                         ActionListener.wrap(
                             config -> listener.onResponse(responseBuilder.setModels(Collections.singletonList(config)).build()),
@@ -80,11 +88,11 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
             },
             listener::onFailure
         );
-
         provider.expandIds(request.getResourceId(),
             request.isAllowNoResources(),
             request.getPageParams(),
             new HashSet<>(request.getTags()),
+            ModelAliasMetadata.fromState(clusterService.state()),
             idExpansionListener);
     }
 

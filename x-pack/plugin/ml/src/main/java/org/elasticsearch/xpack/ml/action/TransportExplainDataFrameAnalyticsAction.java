@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -102,7 +102,7 @@ public class TransportExplainDataFrameAnalyticsAction
         // added.  We know the ML plugin is enabled on the current node, because this code is in it!
         DiscoveryNode localNode = clusterService.localNode();
         boolean isMlNode = MachineLearning.isMlNode(localNode);
-        if (isMlNode || localNode.isMasterNode() || localNode.isDataNode() || localNode.isIngestNode()) {
+        if (isMlNode || localNode.isMasterNode() || localNode.canContainData() || localNode.isIngestNode()) {
             if (isMlNode == false) {
                 logger.debug("estimating data frame analytics memory on non-ML node");
             }

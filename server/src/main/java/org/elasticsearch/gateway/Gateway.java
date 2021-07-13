@@ -37,7 +37,7 @@ public class Gateway {
         this.client = client;
     }
 
-    public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
+    public void performStateRecovery(final GatewayStateRecoveredListener listener) {
         final String[] nodesIds = clusterService.state().nodes().getMasterNodes().keys().toArray(String.class);
         logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
         var request = new TransportNodesListGatewayMetaState.Request(nodesIds);

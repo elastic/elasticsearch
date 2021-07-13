@@ -157,7 +157,7 @@ The size of the interval that the analysis is aggregated into, typically between
 `5m` and `1h`. The default value is `5m`. If the {anomaly-job} uses a {dfeed}
 with {ml-docs}/ml-configuring-aggregation.html[aggregations], this value must be
 divisible by the interval of the date histogram aggregation. For more
-information, see {ml-docs}/ml-buckets.html[Buckets].
+information, see {ml-docs}/ml-ad-finding-anomalies.html#ml-ad-bucket-span[Bucket span].
 end::bucket-span[]
 
 tag::bucket-span-results[]
@@ -229,7 +229,7 @@ end::categorization-analyzer[]
 
 tag::categorization-examples-limit[]
 The maximum number of examples stored per category in memory and in the results
-data store. The default value is 4.  If you increase this value, more examples
+data store. The default value is 4. If you increase this value, more examples
 are available, however it requires that you have more storage available. If you
 set this value to `0`, no examples are stored.
 +
@@ -335,7 +335,8 @@ end::custom-preprocessor[]
 tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
 operate. For example, a rule may dictate to the detector conditions under which
-results should be skipped. For more examples, see
+results should be skipped. {kib} refers to custom rules as _job rules_. For more 
+examples, see
 {ml-docs}/ml-configuring-detector-custom-rules.html[Customizing detectors with custom rules].
 end::custom-rules[]
 
@@ -410,7 +411,7 @@ of the most recent snapshot for this job. Valid values range from `0` to
 `model_snapshot_retention_days`. For new jobs, the default value is `1`. For
 jobs created before version 7.8.0, the default value matches
 `model_snapshot_retention_days`. For more information, refer to
-{ml-docs}/ml-model-snapshots.html[Model snapshots].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-model-snapshots[Model snapshots].
 end::daily-model-snapshot-retention-after-days[]
 
 tag::data-description[]
@@ -560,7 +561,7 @@ end::dfas-downsample-factor[]
 tag::dfas-early-stopping-enabled[]
 Advanced configuration option.
 Specifies whether the training process should finish if it is not finding any
-better perfoming models. If disabled, the training process can take significantly
+better performing models. If disabled, the training process can take significantly
 longer and the chance of finding a better performing model is unremarkable.
 By default, early stoppping is enabled.
 end::dfas-early-stopping-enabled[]
@@ -578,15 +579,15 @@ candidate split.
 end::dfas-feature-bag-fraction[]
 
 tag::dfas-feature-processors[]
-Advanced configuration option.
-A collection of feature preprocessors that modify one or more included fields.
-The analysis uses the resulting one or more features instead of the
-original document field. Multiple `feature_processors` entries can refer to the
-same document fields. Automatic categorical 
-{ml-docs}/ml-feature-encoding.html[feature encoding] still occurs for the fields 
-that are unprocessed by a custom processor or that have categorical values.
-Only use this if you want to override the automatic feature encoding of the 
-specified fields. Refer to 
+Advanced configuration option. A collection of feature preprocessors that modify 
+one or more included fields. The analysis uses the resulting one or more 
+features instead of the original document field. However, these features are 
+ephemeral; they are not stored in the destination index. Multiple 
+`feature_processors` entries can refer to the same document fields. Automatic 
+categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs 
+for the fields that are unprocessed by a custom processor or that have
+categorical values. Use this property only if you want to override the automatic 
+feature encoding of the specified fields. Refer to 
 {ml-docs}/ml-feature-processors.html[{dfanalytics} feature processors] to learn 
 more.
 end::dfas-feature-processors[]
@@ -619,8 +620,8 @@ The ordered array of custom processors to execute. Must be more than 1.
 end::dfas-feature-processors-multi-proc[]
 
 tag::dfas-feature-processors-ngram[]
-The configuration information necessary to perform ngram encoding. Features 
-written out by this encoder have the following name format: 
+The configuration information necessary to perform n-gram encoding. Features 
+created by this encoder have the following name format: 
 `<feature_prefix>.<ngram><string position>`. For example, if the 
 `feature_prefix` is `f`, the feature name for the second unigram in a string is 
 `f.11`.
@@ -635,18 +636,18 @@ The name of the text field to encode.
 end::dfas-feature-processors-ngram-field[]
 
 tag::dfas-feature-processors-ngram-length[]
-Specifies the length of the ngram substring. Defaults to `50`. Must be greater 
+Specifies the length of the n-gram substring. Defaults to `50`. Must be greater 
 than `0`.
 end::dfas-feature-processors-ngram-length[]
 
 tag::dfas-feature-processors-ngram-ngrams[]
-Specifies which ngrams to gather. It’s an array of integer values where the 
+Specifies which n-grams to gather. It’s an array of integer values where the 
 minimum value is 1, and a maximum value is 5.
 end::dfas-feature-processors-ngram-ngrams[]
 
 tag::dfas-feature-processors-ngram-start[]
-Specifies the zero-indexed start of the ngram substring. Negative values are 
-allowed for encoding ngram of string suffixes. Defaults to `0`.
+Specifies the zero-indexed start of the n-gram substring. Negative values are 
+allowed for encoding n-grams of string suffixes. Defaults to `0`.
 end::dfas-feature-processors-ngram-start[]
 
 tag::dfas-feature-processors-one-hot[]
@@ -773,8 +774,7 @@ working with both over and by fields, then you can set `exclude_frequent` to
 end::exclude-frequent[]
 
 tag::exclude-interim-results[]
-If `true`, the output excludes interim results. By default, interim results are
-included.
+If `true`, the output excludes interim results. Defaults to `false`, which means interim results are included.
 end::exclude-interim-results[]
 
 tag::failed-category-count[]
@@ -863,8 +863,8 @@ An array of index names. Wildcards are supported. For example:
 `["it_ops_metrics", "server*"]`.
 +
 --
-NOTE: If any indices are in remote clusters then `node.remote_cluster_client`
-must not be set to `false` on any {ml} nodes.
+NOTE: If any indices are in remote clusters then the {ml} nodes need to have the 
+`remote_cluster_client` role.
 
 --
 end::indices[]
@@ -1101,6 +1101,11 @@ the forest. The maximum value is 2000. By default, this value is calculated
 during hyperparameter optimization.
 end::max-trees[]
 
+tag::max-trees-trained-models[]
+The maximum number of decision trees in the forest. The maximum value is 2000. 
+By default, this value is calculated during hyperparameter optimization.
+end::max-trees-trained-models[]
+
 tag::method[]
 The method that {oldetection} uses. Available methods are `lof`, `ldof`,
 `distance_kth_nn`, `distance_knn`, and `ensemble`. The default value is
@@ -1149,15 +1154,20 @@ tag::model-id[]
 The unique identifier of the trained model.
 end::model-id[]
 
-tag::model-memory-limit[]
+tag::model-id-or-alias[]
+The unique identifier of the trained model or a model alias.
+end::model-id-or-alias[]
+
+tag::model-memory-limit-ad[]
 The approximate maximum amount of memory resources that are required for
 analytical processing. Once this limit is approached, data pruning becomes
 more aggressive. Upon exceeding this limit, new entities are not modeled. The
-default value for jobs created in version 6.1 and later is `1024mb`.
-This value will need to be increased for jobs that are expected to analyze high
-cardinality fields, but the default is set to a relatively small size to ensure
-that high resource usage is a conscious decision. The default value for jobs
-created in versions earlier than 6.1 is `4096mb`.
+default value for jobs created in version 6.1 and later is `1024mb`. If the
+`xpack.ml.max_model_memory_limit` setting has a value greater than `0` and less
+than `1024mb`, however, that value is used instead. The default value is
+relatively small to ensure that high resource usage is a conscious decision. If
+you have jobs that are expected to analyze high cardinality fields, you will
+likely need to use a higher value. 
 +
 If you specify a number instead of a string, the units are assumed to be MiB.
 Specifying a string is recommended for clarity. If you specify a byte size unit
@@ -1166,15 +1176,23 @@ it is rounded down to the closest MiB. The minimum valid value is 1 MiB. If you
 specify a value less than 1 MiB, an error occurs. For more information about
 supported byte size units, see <<byte-units>>.
 +
-If your `elasticsearch.yml` file contains an `xpack.ml.max_model_memory_limit`
-setting, an error occurs when you try to create jobs that have
-`model_memory_limit` values greater than that setting. For more information,
-see <<ml-settings>>.
-end::model-memory-limit[]
+If you specify a value for the `xpack.ml.max_model_memory_limit` setting, an
+error occurs when you try to create jobs that have `model_memory_limit` values
+greater than that setting value. For more information, see <<ml-settings>>.
+end::model-memory-limit-ad[]
 
 tag::model-memory-limit-anomaly-jobs[]
 The upper limit for model memory usage, checked on increasing values.
 end::model-memory-limit-anomaly-jobs[]
+
+tag::model-memory-limit-dfa[]
+The approximate maximum amount of memory resources that are permitted for
+analytical processing. The default value for {dfanalytics-jobs} is `1gb`. If
+you specify a value for the `xpack.ml.max_model_memory_limit` setting, an error
+occurs when you try to create jobs that have `model_memory_limit` values greater
+than that setting value. For more information, see
+<<ml-settings>>.
+end::model-memory-limit-dfa[]
 
 tag::model-memory-status[]
 The status of the mathematical models, which can have one of the following
@@ -1236,7 +1254,7 @@ snapshots for this job. It specifies the maximum period of time (in days) that
 snapshots are retained. This period is relative to the timestamp of the most
 recent snapshot for this job. The default value is `10`, which means snapshots
 ten days older than the newest snapshot are deleted. For more information, refer
-to {ml-docs}/ml-model-snapshots.html[Model snapshots].
+to {ml-docs}/ml-ad-finding-anomalies.html#ml-ad-model-snapshots[Model snapshots].
 end::model-snapshot-retention-days[]
 
 tag::model-timestamp[]
@@ -1308,11 +1326,12 @@ For open jobs only, the elapsed time for which the job has been open.
 end::open-time[]
 
 tag::out-of-order-timestamp-count[]
-The number of input documents that are out of time sequence and outside
-of the latency window. This information is applicable only when you provide data
-to the {anomaly-job} by using the <<ml-post-data,post data API>>. These out of
-order documents are  discarded, since jobs require time series data to be in
-ascending chronological order.
+The number of input documents that have a timestamp chronologically
+preceding the start of the current anomaly detection bucket offset by 
+the latency window. This information is applicable only when you provide 
+data to the {anomaly-job} by using the <<ml-post-data,post data API>>. 
+These out of order documents are discarded, since jobs require time 
+series data to be in ascending chronological order.
 end::out-of-order-timestamp-count[]
 
 tag::outlier-fraction[]
@@ -1572,11 +1591,17 @@ end::timestamp-results[]
 tag::tokenizer[]
 The name or definition of the <<analysis-tokenizers,tokenizer>> to use after
 character filters are applied. This property is compulsory if
-`categorization_analyzer` is specified as an object. Machine learning provides a
-tokenizer called `ml_classic` that tokenizes in the same way as the
-non-customizable tokenizer in older versions of the product. If you want to use
-that tokenizer but change the character or token filters, specify
-`"tokenizer": "ml_classic"` in your `categorization_analyzer`.
+`categorization_analyzer` is specified as an object. Machine learning provides
+a tokenizer called `ml_standard` that tokenizes in a way that has been
+determined to produce good categorization results on a variety of log
+file formats for logs in English. If you want to use that tokenizer but
+change the character or token filters, specify `"tokenizer": "ml_standard"`
+in your `categorization_analyzer`. Additionally, the `ml_classic` tokenizer
+is available, which tokenizes in the same way as the non-customizable
+tokenizer in old versions of the product (before 6.2). `ml_classic` was
+the default categorization tokenizer in versions 6.2 to 7.13, so if you
+need categorization identical to the default for jobs created in these
+versions, specify `"tokenizer": "ml_classic"` in your `categorization_analyzer`.
 end::tokenizer[]
 
 tag::total-by-field-count[]

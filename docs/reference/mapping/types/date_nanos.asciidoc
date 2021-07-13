@@ -18,20 +18,16 @@ back to a string depending on the date format that is associated with the field.
 Date formats can be customised, but if no `format` is specified then it uses
 the default:
 
-    "strict_date_optional_time||epoch_millis"
-
-This means that it will accept dates with optional timestamps, which conform
-to the formats supported by
-<<strict-date-time,`strict_date_optional_time`>> including up to nine second
-fractionals or milliseconds-since-the-epoch (thus losing precision on the
-nano second part). Using <<strict-date-time,`strict_date_optional_time`>> will 
-format the result up to only three second fractionals. To
-print and parse up to nine digits of resolution, use <<strict-date-time-nanos,`strict_date_optional_time_nanos`>>.
+[source,js]
+----
+    "strict_date_optional_time_nanos||epoch_millis"
+----
+// NOTCONSOLE
 
 For instance:
 
 [source,console]
---------------------------------------------------
+----
 PUT my-index-000001
 {
   "mappings": {
@@ -43,55 +39,98 @@ PUT my-index-000001
   }
 }
 
-PUT my-index-000001/_doc/1
+PUT my-index-000001/_bulk?refresh
+{ "index" : { "_id" : "1" } }
 { "date": "2015-01-01" } <2>
-
-PUT my-index-000001/_doc/2
+{ "index" : { "_id" : "2" } }
 { "date": "2015-01-01T12:10:30.123456789Z" } <3>
-
-PUT my-index-000001/_doc/3
-{ "date": 1420070400 } <4>
-
-GET my-index-000001/_search
-{
-  "sort": { "date": "asc"} <5>
-}
+{ "index" : { "_id" : "3" } }
+{ "date": 1420070400000 } <4>
 
 GET my-index-000001/_search
 {
-  "script_fields" : {
-    "my_field" : {
-      "script" : {
-        "lang" : "painless",
-        "source" : "doc['date'].value.nano" <6>
-      }
+  "sort": { "date": "asc"}, <5>
+  "runtime_mappings": {
+    "date_has_nanos": {
+      "type": "boolean",
+      "script": "emit(doc['date'].value.nano != 0)" <6>
     }
-  }
-}
-
-GET my-index-000001/_search
-{
-  "docvalue_fields" : [
+  },
+  "fields": [
     {
-      "field" : "date",
-      "format": "strict_date_time" <7>
+      "field": "date",
+      "format": "strict_date_optional_time_nanos" <7>
+    },
+    {
+      "field": "date_has_nanos"
     }
   ]
 }
---------------------------------------------------
-
+----
+// TEST[s/_search/_search?filter_path=hits.hits/]
 <1> The `date` field uses the default `format`.
 <2> This document uses a plain date.
 <3> This document includes a time.
 <4> This document uses milliseconds-since-the-epoch.
 <5> Note that the `sort` values that are returned are all in
 nanoseconds-since-the-epoch.
-<6> Access the nanosecond part of the date in a script
-<7> Use doc value fields, which can be formatted in nanosecond
-resolution
+<6> Use `.nano` in scripts to return the nanosecond component of the date.
+<7> You can specify the format when fetching data using the <<search-fields-param,`fields` parameter>>.  
+Use <<strict-date-time-nanos,`strict_date_optional_time_nanos`>> or you'll get a rounded result.
+
+////
+[source,console-result]
+----
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "1",
+        "_index": "my-index-000001",
+        "_score": null,
+        "_source": {"date": "2015-01-01"},
+        "fields": {
+          "date": ["2015-01-01T00:00:00.000Z"],
+          "date_has_nanos": [false]
+        },
+        "sort": [1420070400000000000]
+      },
+      {
+        "_id": "3",
+        "_index": "my-index-000001",
+        "_score": null,
+        "_source": {"date": 1420070400000},
+        "fields": {
+          "date": ["2015-01-01T00:00:00.000Z"],
+          "date_has_nanos": [false]
+        },
+        "sort": [1420070400000000000]
+      },
+      {
+        "_id": "2",
+        "_index": "my-index-000001",
+        "_score": null,
+        "_source": {"date": "2015-01-01T12:10:30.123456789Z"},
+        "fields": {
+          "date": ["2015-01-01T12:10:30.123456789Z"],
+          "date_has_nanos": [true]
+        },
+        "sort": [1420114230123456789]
+      }
+    ]
+  }
+}
+----
+////
 
 You can also specify multiple date formats separated by `||`. The
 same mapping parameters than with the `date` field can be used.
+
+[WARNING]
+====
+Date nanoseconds
+include::date.asciidoc[tag=decimal-warning]
+====
 
 [[date-nanos-limitations]]
 ==== Limitations

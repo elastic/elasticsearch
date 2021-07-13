@@ -13,17 +13,17 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeResponse;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.ClosePointInTimeResponse;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
@@ -128,15 +128,11 @@ public class PITAwareQueryClient extends BasicQueryClient {
     }
 
     private <Response> void openPIT(ActionListener<Response> listener, Runnable runnable) {
-        OpenPointInTimeRequest request = new OpenPointInTimeRequest(
-            indices,
-            IndexResolver.FIELD_CAPS_INDICES_OPTIONS,
-            keepAlive,
-            null,
-            null
-        );
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices)
+            .indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
+            .keepAlive(keepAlive);
         client.execute(OpenPointInTimeAction.INSTANCE, request, wrap(r -> {
-                pitId = r.getSearchContextId();
+                pitId = r.getPointInTimeId();
                 runnable.run();
             },
             listener::onFailure));

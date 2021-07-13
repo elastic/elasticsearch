@@ -1,0 +1,208 @@
+[[use-elasticsearch-for-time-series-data]]
+== Use {es} for time series data
+
+{es} offers features to help you store, manage, and search time series data,
+such as logs and metrics. Once in {es}, you can analyze and visualize your data
+using {kib} and other {stack} features.
+
+[discrete]
+[[set-up-data-tiers]]
+=== Step 1. Set up data tiers
+
+{es}'s <<index-lifecycle-management,{ilm-init}>> feature uses <<data-tiers,data
+tiers>> to automatically move older data to nodes with less expensive hardware
+as it ages. This helps improve performance and reduce storage costs.
+
+The hot and content tiers are required. The warm, cold, and frozen tiers are
+optional.
+
+Use high-performance nodes in the hot and warm tiers for faster
+indexing and faster searches on your most recent data. Use slower, less
+expensive nodes in the cold and frozen tiers to reduce costs.
+
+The content tier is not typically used for time series data. However, it's
+required to create system indices and other indices that aren't part of a data
+stream.
+
+The steps for setting up data tiers vary based on your deployment type:
+
+include::{es-repo-dir}/tab-widgets/code.asciidoc[]
+include::{es-repo-dir}/tab-widgets/data-tiers-widget.asciidoc[]
+
+[discrete]
+[[register-snapshot-repository]]
+=== Step 2. Register a snapshot repository
+
+The cold and frozen tiers can use <<searchable-snapshots,{search-snaps}>> to
+reduce local storage costs.
+
+To use {search-snaps}, you must register a supported snapshot repository. The
+steps for registering this repository vary based on your deployment type and
+storage provider:
+
+include::{es-repo-dir}/tab-widgets/snapshot-repo-widget.asciidoc[]
+
+[discrete]
+[[create-edit-index-lifecycle-policy]]
+=== Step 3. Create or edit an index lifecycle policy
+
+A <<data-streams,data stream>> stores your data across multiple backing
+indices. {ilm-init} uses an <<ilm-index-lifecycle,index lifecycle policy>> to
+automatically move these indices through your data tiers.
+
+If you use {fleet} or {agent}, edit one of {es}'s built-in lifecycle policies.
+If you use a custom application, create your own policy. In either case,
+ensure your policy:
+
+* Includes a phase for each data tier you've configured.
+* Calculates the threshold, or `min_age`, for phase transition from rollover.
+* Uses {search-snaps} in the cold and frozen phases, if wanted.
+* Includes a delete phase, if needed.
+
+include::{es-repo-dir}/tab-widgets/ilm-widget.asciidoc[]
+
+[discrete]
+[[create-ts-component-templates]]
+=== Step 4. Create component templates
+
+TIP: If you use {fleet} or {agent}, skip to <<search-visualize-your-data>>.
+{fleet} and {agent} use built-in templates to create data streams for you.
+
+If you use a custom application, you need to set up your own data stream.
+include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-component-templates]
+
+[discrete]
+[[create-ts-index-template]]
+=== Step 5. Create an index template
+
+include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-index-template]
+
+[discrete]
+[[add-data-to-data-stream]]
+=== Step 6. Add data to a data stream
+
+include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-data-stream]
+
+[discrete]
+[[search-visualize-your-data]]
+=== Step 7. Search and visualize your data
+
+To explore and search your data in {kib}, open the main menu and select
+**Discover**. See {kib}'s {kibana-ref}/discover.html[Discover documentation].
+
+Use {kib}'s **Dashboard** feature to visualize your data in a chart, table, map,
+and more. See {kib}'s {kibana-ref}/dashboard.html[Dashboard documentation].
+
+You can also search and aggregate your data using the <<search-search,search
+API>>. Use <<runtime-search-request,runtime fields>> and <<grok-basics,grok
+patterns>> to dynamically extract data from log messages and other unstructured
+content at search time.
+
+[source,console]
+----
+GET my-data-stream/_search
+{
+  "runtime_mappings": {
+    "source.ip": {
+      "type": "ip",
+      "script": """
+        String sourceip=grok('%{IPORHOST:sourceip} .*').extract(doc[ "message" ].value)?.sourceip;
+        if (sourceip != null) emit(sourceip);
+      """
+    }
+  },
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "range": {
+            "@timestamp": {
+              "gte": "now-1d/d",
+              "lt": "now/d"
+            }
+          }
+        },
+        {
+          "range": {
+            "source.ip": {
+              "gte": "192.0.2.0",
+              "lte": "192.0.2.255"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "fields": [
+    "*"
+  ],
+  "_source": false,
+  "sort": [
+    {
+      "@timestamp": "desc"
+    },
+    {
+      "source.ip": "desc"
+    }
+  ]
+}
+----
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]
+
+{es} searches are synchronous by default. Searches across frozen data, long time
+ranges, or large datasets may take longer. Use the <<submit-async-search,async
+search API>> to run searches in the background. For more search options, see
+<<search-your-data>>.
+
+[source,console]
+----
+POST my-data-stream/_async_search
+{
+  "runtime_mappings": {
+    "source.ip": {
+      "type": "ip",
+      "script": """
+        String sourceip=grok('%{IPORHOST:sourceip} .*').extract(doc[ "message" ].value)?.sourceip;
+        if (sourceip != null) emit(sourceip);
+      """
+    }
+  },
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "range": {
+            "@timestamp": {
+              "gte": "now-2y/d",
+              "lt": "now/d"
+            }
+          }
+        },
+        {
+          "range": {
+            "source.ip": {
+              "gte": "192.0.2.0",
+              "lte": "192.0.2.255"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "fields": [
+    "*"
+  ],
+  "_source": false,
+  "sort": [
+    {
+      "@timestamp": "desc"
+    },
+    {
+      "source.ip": "desc"
+    }
+  ]
+}
+----
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]

@@ -18,10 +18,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -149,6 +149,10 @@ public class MlDailyMaintenanceService implements Releasable {
         try {
             if (MlMetadata.getMlMetadata(clusterService.state()).isUpgradeMode()) {
                 LOGGER.warn("skipping scheduled [ML] maintenance tasks because upgrade mode is enabled");
+                return;
+            }
+            if (MlMetadata.getMlMetadata(clusterService.state()).isResetMode()) {
+                LOGGER.warn("skipping scheduled [ML] maintenance tasks because machine learning feature reset is in progress");
                 return;
             }
             LOGGER.info("triggering scheduled [ML] maintenance tasks");

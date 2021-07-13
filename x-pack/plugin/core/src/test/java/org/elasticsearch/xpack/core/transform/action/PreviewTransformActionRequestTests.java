@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class PreviewTransformActionRequestTests extends AbstractSerializingTransformTestCase<Request> {
 
@@ -60,13 +62,65 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
         return new Request(config);
     }
 
+    public void testParsingOverwritesIdField() throws IOException {
+        testParsingOverwrites(
+            "",
+            "\"dest\": {"
+                + "\"index\": \"bar\","
+                + "\"pipeline\": \"baz\""
+                + "},",
+            "transform-preview",
+            "bar",
+            "baz"
+        );
+    }
+
+    public void testParsingOverwritesDestField() throws IOException {
+        testParsingOverwrites(
+            "\"id\": \"bar\",",
+            "",
+            "bar",
+            "unused-transform-preview-index",
+            null
+        );
+    }
+
+    public void testParsingOverwritesIdAndDestIndexFields() throws IOException {
+        testParsingOverwrites(
+            "",
+            "\"dest\": {"
+                + "\"pipeline\": \"baz\""
+            + "},",
+            "transform-preview",
+            "unused-transform-preview-index",
+            "baz"
+        );
+    }
+
     public void testParsingOverwritesIdAndDestFields() throws IOException {
-        // id & dest fields will be set by the parser
+        testParsingOverwrites(
+            "",
+            "",
+            "transform-preview",
+            "unused-transform-preview-index",
+            null
+        );
+    }
+
+    private void testParsingOverwrites(
+        String transformIdJson,
+        String destConfigJson,
+        String expectedTransformId,
+        String expectedDestIndex,
+        String expectedDestPipeline
+    ) throws IOException {
         BytesArray json = new BytesArray(
             "{ "
-                + "\"source\":{"
-                + "   \"index\":\"foo\", "
+                + transformIdJson
+                + "\"source\": {"
+                + "   \"index\": \"foo\", "
                 + "   \"query\": {\"match_all\": {}}},"
+                + destConfigJson
                 + "\"pivot\": {"
                 + "\"group_by\": {\"destination-field2\": {\"terms\": {\"field\": \"term-field\"}}},"
                 + "\"aggs\": {\"avg_response\": {\"avg\": {\"field\": \"responsetime\"}}}"
@@ -83,8 +137,9 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
         ) {
 
             Request request = Request.fromXContent(parser);
-            assertEquals("transform-preview", request.getConfig().getId());
-            assertEquals("unused-transform-preview-index", request.getConfig().getDestination().getIndex());
+            assertThat(request.getConfig().getId(), is(equalTo(expectedTransformId)));
+            assertThat(request.getConfig().getDestination().getIndex(), is(equalTo(expectedDestIndex)));
+            assertThat(request.getConfig().getDestination().getPipeline(), is(equalTo(expectedDestPipeline)));
         }
     }
 }

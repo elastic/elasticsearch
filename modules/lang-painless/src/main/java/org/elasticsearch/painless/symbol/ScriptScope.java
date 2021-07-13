@@ -49,7 +49,7 @@ public class ScriptScope extends Decorator {
         this.compilerSettings = Objects.requireNonNull(compilerSettings);
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
         this.scriptName = Objects.requireNonNull(scriptName);
-        this.scriptSource = Objects.requireNonNull(scriptName);
+        this.scriptSource = Objects.requireNonNull(scriptSource);
 
         staticConstants.put("$NAME", scriptName);
         staticConstants.put("$SOURCE", scriptSource);

@@ -89,4 +89,4 @@ accepts the following parameters:
             or searchable, but will still appear in the `_source` field of returned hits. These fields will not be added
             to the mapping, and new fields must be added explicitly.
 `strict`::  If new fields are detected, an exception is thrown and the document
-            is rejected. New fields  must be explicitly added to the mapping.
+            is rejected. New fields must be explicitly added to the mapping.

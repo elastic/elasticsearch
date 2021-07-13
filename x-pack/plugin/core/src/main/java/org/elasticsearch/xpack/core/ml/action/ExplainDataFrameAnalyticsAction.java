@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -37,6 +37,7 @@ public class ExplainDataFrameAnalyticsAction extends ActionType<ExplainDataFrame
         public static final ParseField FIELD_SELECTION = new ParseField("field_selection");
         public static final ParseField MEMORY_ESTIMATION = new ParseField("memory_estimation");
 
+        @SuppressWarnings({ "unchecked"})
         static final ConstructingObjectParser<Response, Void> PARSER =
             new ConstructingObjectParser<>(
                 TYPE.getPreferredName(),

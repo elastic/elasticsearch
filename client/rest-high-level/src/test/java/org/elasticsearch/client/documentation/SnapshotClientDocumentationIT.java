@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -37,9 +38,9 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
@@ -616,7 +617,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-snapshots-execute
 
         // tag::get-snapshots-response
-        List<SnapshotInfo> snapshotsInfos = response.getSnapshots(repositoryName);
+        List<SnapshotInfo> snapshotsInfos = response.getSnapshots();
         SnapshotInfo snapshotInfo = snapshotsInfos.get(0);
         RestStatus restStatus = snapshotInfo.status(); // <1>
         SnapshotId snapshotId = snapshotInfo.snapshotId(); // <2>
@@ -787,6 +788,83 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             // tag::delete-snapshot-execute-async
             client.snapshot().deleteAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::delete-snapshot-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testCloneSnapshot() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        createTestRepositories();
+        createTestIndex();
+        createTestSnapshots();
+
+        String sourceSnapshotName = snapshotName;
+        String targetSnapshotName = snapshotName + "_clone";
+        String[] indices = new String[]{indexName};
+
+        // tag::clone-snapshot-request
+        CloneSnapshotRequest request = new CloneSnapshotRequest(repositoryName, sourceSnapshotName, targetSnapshotName, indices);
+        // end::clone-snapshot-request
+
+        // tag::clone-snapshot-request-indices
+        request.indices("test_index"); // <1>
+        // end::clone-snapshot-request-indices
+
+        // tag::clone-snapshot-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::clone-snapshot-request-masterTimeout
+
+        // tag::clone-snapshot-request-index-settings
+        request.indicesOptions(new IndicesOptions(
+            EnumSet.of(IndicesOptions.Option.IGNORE_UNAVAILABLE),  // <1>
+            EnumSet.of(
+                IndicesOptions.WildcardStates.OPEN,
+                IndicesOptions.WildcardStates.CLOSED,
+                IndicesOptions.WildcardStates.HIDDEN))
+        );
+        // end::clone-snapshot-request-index-settings
+
+        // tag::clone-snapshot-execute
+        AcknowledgedResponse response = client.snapshot().clone(request, RequestOptions.DEFAULT);
+        // end::clone-snapshot-execute
+
+        // tag::clone-snapshot-response
+        boolean acknowledged = response.isAcknowledged();  // <1>
+        // end::clone-snapshot-response
+        assertTrue(acknowledged);
+    }
+
+    public void testCloneSnapshotAsync() throws InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            String targetSnapshot = snapshotName + "_clone";
+            CloneSnapshotRequest request = new CloneSnapshotRequest(repositoryName, snapshotName, targetSnapshot, new String[]{indexName});
+
+            // tag::clone-snapshot-execute-listener
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::clone-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::clone-snapshot-execute-async
+            client.snapshot().cloneAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::clone-snapshot-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

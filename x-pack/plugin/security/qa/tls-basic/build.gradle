@@ -1,10 +1,10 @@
 apply plugin: 'elasticsearch.java-rest-test'
 
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('security'))))
-  testImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 if (BuildParams.inFipsJvm){
@@ -12,7 +12,7 @@ if (BuildParams.inFipsJvm){
   tasks.named("javaRestTest").configure{enabled = false }
 }
 
-testClusters.javaRestTest {
+testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
 
@@ -24,6 +24,7 @@ testClusters.javaRestTest {
 
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'basic'
+  setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'true'
   setting 'xpack.security.http.ssl.certificate', 'http.crt'
   setting 'xpack.security.http.ssl.key', 'http.key'
@@ -34,4 +35,5 @@ testClusters.javaRestTest {
   setting 'xpack.security.transport.ssl.key', 'transport.key'
   setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
   setting 'xpack.security.transport.ssl.certificate_authorities', 'ca.crt'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
 }

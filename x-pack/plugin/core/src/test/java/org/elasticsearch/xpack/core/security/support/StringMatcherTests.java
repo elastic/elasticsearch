@@ -45,7 +45,8 @@ public class StringMatcherTests extends ESTestCase {
 
     public void testUnicodeWildcard() throws Exception {
         // Lucene automatons don't work correctly on strings with high surrogates
-        final String prefix = randomValueOtherThanMany(StringMatcherTests::hasHighSurrogate,
+        final String prefix = randomValueOtherThanMany(
+            s -> StringMatcherTests.hasHighSurrogate(s) || s.contains("\\") || s.startsWith("/"),
             () -> randomRealisticUnicodeOfLengthBetween(3, 5));
         final StringMatcher matcher = StringMatcher.of(prefix + "*");
         for (int i = 0; i < 10; i++) {

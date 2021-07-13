@@ -17,9 +17,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class BooleanFieldMapperTests extends MapperTestCase {
 
@@ -150,7 +151,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             b.field("bool3", true);
         }));
 
-        Document doc = parsedDoc.rootDoc();
+        LuceneDocument doc = parsedDoc.rootDoc();
         IndexableField[] fields = doc.getFields("bool1");
         assertEquals(2, fields.length);
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
@@ -161,5 +162,31 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         fields = doc.getFields("bool3");
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
         assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        switch (between(0, 3)) {
+            case 0:
+                return randomBoolean();
+            case 1:
+                return randomBoolean() ? "true" : "false";
+            case 2:
+                return randomBoolean() ? "true" : "";
+            case 3:
+                return randomBoolean() ? "true" : null;
+            default:
+                throw new IllegalStateException();
+        }
+    }
+
+    public void testScriptAndPrecludedParameters() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "boolean");
+            b.field("script", "test");
+            b.field("null_value", true);
+        })));
+        assertThat(e.getMessage(),
+            equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
     }
 }

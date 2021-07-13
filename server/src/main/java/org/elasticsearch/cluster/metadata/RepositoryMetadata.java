@@ -84,7 +84,7 @@ public class RepositoryMetadata implements Writeable {
     /**
      * Return the repository UUID, if set and known. The repository UUID is stored in the repository and typically populated here when the
      * repository is registered or when we write to it. It may not be set if the repository is maintaining support for versions before
-     * {@link SnapshotsService#REPOSITORY_UUID_IN_REPO_DATA_VERSION}. It may not be known if the repository was registered with {@code
+     * {@link SnapshotsService#UUIDS_IN_REPO_DATA_VERSION}. It may not be known if the repository was registered with {@code
      * ?verify=false} and has had no subsequent writes. Consumers may, if desired, try and fill in a missing value themselves by retrieving
      * the {@link RepositoryData} and calling {@link org.elasticsearch.repositories.RepositoriesService#updateRepositoryUuidInMetadata}.
      *
@@ -129,7 +129,7 @@ public class RepositoryMetadata implements Writeable {
 
     public RepositoryMetadata(StreamInput in) throws IOException {
         name = in.readString();
-        if (in.getVersion().onOrAfter(SnapshotsService.REPOSITORY_UUID_IN_REPO_DATA_VERSION)) {
+        if (in.getVersion().onOrAfter(SnapshotsService.UUIDS_IN_REPO_DATA_VERSION)) {
             uuid = in.readString();
         } else {
             uuid = RepositoryData.MISSING_UUID;
@@ -148,7 +148,7 @@ public class RepositoryMetadata implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        if (out.getVersion().onOrAfter(SnapshotsService.REPOSITORY_UUID_IN_REPO_DATA_VERSION)) {
+        if (out.getVersion().onOrAfter(SnapshotsService.UUIDS_IN_REPO_DATA_VERSION)) {
             out.writeString(uuid);
         }
         out.writeString(type);
@@ -194,6 +194,10 @@ public class RepositoryMetadata implements Writeable {
     }
 
     public RepositoryMetadata withUuid(String uuid) {
+        return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration);
+    }
+
+    public RepositoryMetadata withSettings(Settings settings) {
         return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration);
     }
 }

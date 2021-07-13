@@ -27,7 +27,7 @@ POST /my-index-000001/_forcemerge
 
 * If the {es} {security-features} are enabled, you must have the `maintenance`
 or `manage` <<privileges-list-indices,index privilege>> for the target data
-stream, index, or index alias.
+stream, index, or alias.
 
 [[forcemerge-api-desc]]
 ==== {api-description-title}
@@ -65,26 +65,26 @@ You can force merge multiple indices with a single request by targeting:
 
 * One or more data streams that contain multiple backing indices
 * Multiple indices
-* One or more index aliases that point to multiple indices
+* One or more aliases
 * All data streams and indices in a cluster
 
-Multi-index operations are executed one shard at a
-time per node. Force merge makes the storage for the shard being merged
-temporarily increase, up to double its size in case `max_num_segments` parameter
-is set to `1`, as all segments need to be rewritten into a new one.
+Each targeted shard is force-merged separately using <<modules-threadpool,the
+`force_merge` threadpool>>. By default each node only has a single
+`force_merge` thread which means that the shards on that node are force-merged
+one at a time. If you expand the `force_merge` threadpool on a node then it
+will force merge its shards in parallel.
 
+Force merge makes the storage for the shard being merged temporarily
+increase, up to double its size in case `max_num_segments` parameter is set to
+`1`, as all segments need to be rewritten into a new one.
 
 [[forcemerge-api-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
-
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[forcemerge-api-query-params]]
 ==== {api-query-parms-title}

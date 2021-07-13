@@ -240,6 +240,18 @@ Total size of all shards assigned to selected nodes.
 (integer)
 Total size, in bytes, of all shards assigned to selected nodes.
 
+`total_data_set_size`::
+(<<byte-units, byte units>>)
+Total data set size of all shards assigned to selected nodes.
+This includes the size of shards not stored fully on the nodes, such as the
+cache for <<partially-mounted,partially mounted indices>>.
+
+`total_data_set_size_in_bytes`::
+(integer)
+Total data set size, in bytes, of all shards assigned to selected nodes.
+This includes the size of shards not stored fully on the nodes, such as the
+cache for <<partially-mounted,partially mounted indices>>.
+
 `reserved`::
 (<<byte-units,byte value>>)
 A prediction of how much larger the shard stores will eventually grow due to
@@ -492,6 +504,112 @@ Number of fields mapped to the field data type in selected nodes.
 `index_count`::
 (integer)
 Number of indices containing a mapping of the field data type in selected nodes.
+
+`script_count`::
+(integer)
+Number of fields that declare a script.
+
+`lang`::
+(array of strings)
+Script languages used for the optional scripts
+
+`lines_max`::
+(integer)
+Maximum number of lines for a single field script
+
+`lines_total`::
+(integer)
+Total number of lines for the scripts
+
+`chars_max`::
+(integer)
+Maximum number of characters for a single field script
+
+`chars_total`::
+(integer)
+Total number of characters for the scripts
+
+`source_max`::
+(integer)
+Maximum number of accesses to _source for a single field script
+
+`source_total`::
+(integer)
+Total number of accesses to _source for the scripts
+
+`doc_max`::
+(integer)
+Maximum number of accesses to doc_values for a single field script
+
+`doc_total`::
+(integer)
+Total number of accesses to doc_values for the scripts
+======
+
+`runtime_field_types`::
+(array of objects)
+Contains statistics about <<runtime-mapping-fields, runtime field data types>> used in selected
+nodes.
++
+.Properties of `runtime_field_types` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Field data type used in selected nodes.
+
+`count`::
+(integer)
+Number of runtime fields mapped to the field data type in selected nodes.
+
+`index_count`::
+(integer)
+Number of indices containing a mapping of the runtime field data type in selected nodes.
+
+`scriptless_count`::
+(integer)
+Number of runtime fields that don't declare a script.
+
+`shadowed_count`::
+(integer)
+Number of runtime fields that shadow an indexed field.
+
+`lang`::
+(array of strings)
+Script languages used for the runtime fields scripts
+
+`lines_max`::
+(integer)
+Maximum number of lines for a single runtime field script
+
+`lines_total`::
+(integer)
+Total number of lines for the scripts that define the current runtime field data type
+
+`chars_max`::
+(integer)
+Maximum number of characters for a single runtime field script
+
+`chars_total`::
+(integer)
+Total number of characters for the scripts that define the current runtime field data type
+
+`source_max`::
+(integer)
+Maximum number of accesses to _source for a single runtime field script
+
+`source_total`::
+(integer)
+Total number of accesses to _source for the scripts that define the current runtime field data type
+
+`doc_max`::
+(integer)
+Maximum number of accesses to doc_values for a single runtime field script
+
+`doc_total`::
+(integer)
+Total number of accesses to doc_values for the scripts that define the current runtime field data type
+
 ======
 =====
 
@@ -1172,6 +1290,8 @@ The API returns the following response:
       "store": {
          "size": "16.2kb",
          "size_in_bytes": 16684,
+         "total_data_set_size": "16.2kb",
+         "total_data_set_size_in_bytes": 16684,
          "reserved": "0b",
          "reserved_in_bytes": 0
       },
@@ -1220,7 +1340,8 @@ The API returns the following response:
          "file_sizes": {}
       },
       "mappings": {
-        "field_types": []
+        "field_types": [],
+        "runtime_field_types": []
       },
       "analysis": {
         "char_filter_types": [],
@@ -1363,6 +1484,7 @@ The API returns the following response:
 // TESTRESPONSE[s/"count": \{[^\}]*\}/"count": $body.$_path/]
 // TESTRESPONSE[s/"packaging_types": \[[^\]]*\]/"packaging_types": $body.$_path/]
 // TESTRESPONSE[s/"field_types": \[[^\]]*\]/"field_types": $body.$_path/]
+// TESTRESPONSE[s/"runtime_field_types": \[[^\]]*\]/"runtime_field_types": $body.$_path/]
 // TESTRESPONSE[s/: true|false/: $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]

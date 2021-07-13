@@ -11,13 +11,13 @@ import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplai
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.DataTierMigrationRoutedStep;
@@ -67,8 +67,8 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
@@ -80,15 +80,15 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
     }
 
     public static Settings hotNode(final Settings settings) {
-        return onlyRole(settings, DataTier.DATA_HOT_NODE_ROLE);
+        return onlyRole(settings, DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
     }
 
     public static Settings warmNode(final Settings settings) {
-        return onlyRole(settings, DataTier.DATA_WARM_NODE_ROLE);
+        return onlyRole(settings, DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
     }
 
     public static Settings coldNode(final Settings settings) {
-        return onlyRole(settings, DataTier.DATA_COLD_NODE_ROLE);
+        return onlyRole(settings, DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
     }
 
     public void testIndexDataTierMigration() throws Exception {

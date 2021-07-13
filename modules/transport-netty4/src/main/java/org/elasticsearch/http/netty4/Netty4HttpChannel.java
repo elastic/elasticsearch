@@ -10,7 +10,7 @@ package org.elasticsearch.http.netty4;
 
 import io.netty.channel.Channel;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.concurrent.CompletableContext;
+import org.elasticsearch.core.CompletableContext;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;

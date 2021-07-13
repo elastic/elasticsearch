@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -84,7 +84,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     @Override
     protected void doStart() {
         final ClusterService clusterService = indicesService.clusterService();
-        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+        if (DiscoveryNode.canContainData(clusterService.getSettings())) {
             clusterService.addListener(this);
         }
     }
@@ -92,7 +92,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     @Override
     protected void doStop() {
         final ClusterService clusterService = indicesService.clusterService();
-        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+        if (DiscoveryNode.canContainData(clusterService.getSettings())) {
             ongoingRecoveries.awaitEmpty();
             indicesService.clusterService().removeListener(this);
         }

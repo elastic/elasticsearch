@@ -13,10 +13,10 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -92,12 +92,12 @@ final class IndexShardOperationPermits implements Closeable {
         delayOperations();
         threadPool.executor(executor).execute(new AbstractRunnable() {
 
-            final RunOnce released = new RunOnce(() -> releaseDelayedOperations());
+            final Releasable released = Releasables.releaseOnce(() -> releaseDelayedOperations());
 
             @Override
             public void onFailure(final Exception e) {
                 try {
-                    released.run(); // resume delayed operations as soon as possible
+                    released.close(); // resume delayed operations as soon as possible
                 } finally {
                     onAcquired.onFailure(e);
                 }
@@ -106,13 +106,7 @@ final class IndexShardOperationPermits implements Closeable {
             @Override
             protected void doRun() throws Exception {
                 final Releasable releasable = acquireAll(timeout, timeUnit);
-                onAcquired.onResponse(() -> {
-                    try {
-                        releasable.close();
-                    } finally {
-                        released.run();
-                    }
-                });
+                onAcquired.onResponse(() -> Releasables.close(releasable, released));
             }
         });
     }
@@ -135,11 +129,11 @@ final class IndexShardOperationPermits implements Closeable {
             }
         }
         if (semaphore.tryAcquire(TOTAL_PERMITS, timeout, timeUnit)) {
-            final RunOnce release = new RunOnce(() -> {
+            final Releasable release = Releasables.releaseOnce(() -> {
                 assert semaphore.availablePermits() == 0;
                 semaphore.release(TOTAL_PERMITS);
             });
-            return release::run;
+            return release;
         } else {
             throw new TimeoutException("timeout while blocking operations");
         }
@@ -215,7 +209,7 @@ final class IndexShardOperationPermits implements Closeable {
                     final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
                     final ActionListener<Releasable> wrappedListener;
                     if (executorOnDelay != null) {
-                        wrappedListener = ActionListener.delegateFailure(new ContextPreservingActionListener<>(contextSupplier, onAcquired),
+                        wrappedListener = new ContextPreservingActionListener<>(contextSupplier, onAcquired).delegateFailure(
                             (l, r) -> threadPool.executor(executorOnDelay).execute(new ActionRunnable<>(l) {
                                 @Override
                                 public boolean isForceExecution() {

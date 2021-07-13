@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.DropProcessor;
@@ -70,14 +70,20 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
                 entry(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService)),
                 entry(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory()),
                 entry(JsonProcessor.TYPE, new JsonProcessor.Factory()),
-                entry(KeyValueProcessor.TYPE, new KeyValueProcessor.Factory()),
+                entry(KeyValueProcessor.TYPE, new KeyValueProcessor.Factory(parameters.scriptService)),
                 entry(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory()),
                 entry(BytesProcessor.TYPE, new BytesProcessor.Factory()),
                 entry(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService)),
                 entry(DissectProcessor.TYPE, new DissectProcessor.Factory()),
                 entry(DropProcessor.TYPE, new DropProcessor.Factory()),
                 entry(HtmlStripProcessor.TYPE, new HtmlStripProcessor.Factory()),
-                entry(CsvProcessor.TYPE, new CsvProcessor.Factory()));
+                entry(CsvProcessor.TYPE, new CsvProcessor.Factory()),
+                entry(UriPartsProcessor.TYPE, new UriPartsProcessor.Factory()),
+                entry(NetworkDirectionProcessor.TYPE, new NetworkDirectionProcessor.Factory(parameters.scriptService)),
+                entry(CommunityIdProcessor.TYPE, new CommunityIdProcessor.Factory()),
+                entry(FingerprintProcessor.TYPE, new FingerprintProcessor.Factory()),
+                entry(RegisteredDomainProcessor.TYPE, new RegisteredDomainProcessor.Factory())
+            );
     }
 
     @Override

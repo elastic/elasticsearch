@@ -9,9 +9,8 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -139,7 +138,7 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
         b.endObject();
         String mediaType = XContentType.VND_JSON.toParsedMediaType()
             .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME,
-                String.valueOf(RestApiCompatibleVersion.minimumSupported().major)));
+                String.valueOf(RestApiVersion.minimumSupported().major)));
         List<String> mediaTypeList = Collections.singletonList(mediaType);
 
         RestRequest restRequest2 = new FakeRestRequest.Builder(compatibleRegistry)

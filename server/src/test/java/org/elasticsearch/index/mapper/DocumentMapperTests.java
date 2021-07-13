@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -56,22 +57,21 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertThat(stage1.mappers().getMapper("age"), nullValue());
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
         // but merged should
-        IndexSettings indexSettings = createIndexSettings(Version.CURRENT, Settings.EMPTY);
-        IndexAnalyzers indexAnalyzers = createIndexAnalyzers(indexSettings);
-        DocumentMapper mergedMapper = new DocumentMapper(indexSettings, indexAnalyzers, null, merged);
+        DocumentParser documentParser = new DocumentParser(null, null, null, null);
+        DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged);
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
     }
 
     public void testMergeObjectDynamic() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> { }));
-        assertNull(mapper.root().dynamic());
+        assertNull(mapper.mapping().getRoot().dynamic());
 
         DocumentMapper withDynamicMapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
-        assertThat(withDynamicMapper.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
+        assertThat(withDynamicMapper.mapping().getRoot().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
 
         Mapping merged = MapperService.mergeMappings(mapper, withDynamicMapper.mapping(), MergeReason.MAPPING_UPDATE);
-        assertThat(merged.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
+        assertThat(merged.getRoot().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
     }
 
     public void testMergeObjectAndNested() throws Exception {
@@ -220,17 +220,17 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
     public void testMergeMeta() throws IOException {
         DocumentMapper initMapper = createDocumentMapper(topMapping(b -> b.startObject("_meta").field("foo", "bar").endObject()));
-        assertThat(initMapper.meta().get("foo"), equalTo("bar"));
+        assertThat(initMapper.mapping().getMeta().get("foo"), equalTo("bar"));
 
         DocumentMapper updatedMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
 
         Mapping merged = MapperService.mergeMappings(initMapper, updatedMapper.mapping(), MergeReason.MAPPING_UPDATE);
-        assertThat(merged.meta.get("foo"), equalTo("bar"));
+        assertThat(merged.getMeta().get("foo"), equalTo("bar"));
 
         updatedMapper
             = createDocumentMapper(topMapping(b -> b.startObject("_meta").field("foo", "new_bar").endObject()));
         merged = MapperService.mergeMappings(initMapper, updatedMapper.mapping(), MergeReason.MAPPING_UPDATE);
-        assertThat(merged.meta.get("foo"), equalTo("new_bar"));
+        assertThat(merged.getMeta().get("foo"), equalTo("new_bar"));
     }
 
     public void testMergeMetaForIndexTemplate() throws IOException {
@@ -250,11 +250,11 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
         Map<String, Object> expected = Map.of("field", "value",
             "object", Map.of("field1", "value1", "field2", "value2"));
-        assertThat(initMapper.meta(), equalTo(expected));
+        assertThat(initMapper.mapping().getMeta(), equalTo(expected));
 
         DocumentMapper updatedMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
         Mapping merged = MapperService.mergeMappings(initMapper, updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE);
-        assertThat(merged.meta, equalTo(expected));
+        assertThat(merged.getMeta(), equalTo(expected));
 
         updatedMapper = createDocumentMapper(topMapping(b -> {
             b.startObject("_meta");
@@ -273,6 +273,31 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
         expected = Map.of("field", "value",
             "object", Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
-        assertThat(merged.meta, equalTo(expected));
+        assertThat(merged.getMeta(), equalTo(expected));
+    }
+
+    public void testEmptyDocumentMapper() {
+        MapperService mapperService = createMapperService(Version.CURRENT, Settings.EMPTY, () -> false);
+        DocumentMapper documentMapper = DocumentMapper.createEmpty(mapperService);
+        assertEquals("{\"_doc\":{}}", Strings.toString(documentMapper.mapping()));
+        assertTrue(documentMapper.mappers().hasMappings());
+        assertNotNull(documentMapper.idFieldMapper());
+        assertNotNull(documentMapper.sourceMapper());
+        assertNotNull(documentMapper.IndexFieldMapper());
+        assertEquals(10, documentMapper.mappers().getMapping().getMetadataMappersMap().size());
+        assertEquals(10, documentMapper.mappers().getMatchingFieldNames("*").size());
+    }
+
+    public void testTooManyDimensionFields() {
+        // By default no more than 16 dimensions per document are supported
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(mapping(b -> {
+            for (int i = 0; i < 17; i++) {
+                b.startObject("field" + i)
+                    .field("type", randomFrom("ip", "keyword", "long", "integer", "byte", "short"))
+                    .field("dimension", true)
+                    .endObject();
+            }
+        })));
+        assertThat(e.getMessage(), containsString("Limit of total dimension fields [16] has been exceeded"));
     }
 }

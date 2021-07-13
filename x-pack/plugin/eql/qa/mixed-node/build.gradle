@@ -1,16 +1,16 @@
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
-apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-test'
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 dependencies {
   testImplementation project(':x-pack:qa')
-  testImplementation(project(xpackModule('ql:test')))
+  testImplementation(project(xpackModule('ql:test-fixtures')))
   testImplementation project(path: xpackModule('eql'), configuration: 'default')
 }
 
@@ -32,7 +32,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
       setting 'xpack.security.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
       setting 'xpack.ml.enabled', 'false'
-	  setting 'xpack.eql.enabled', 'true'
+      setting 'xpack.eql.enabled', 'true'
       setting 'xpack.license.self_generated.type', 'trial'
       // for debugging purposes
       // setting 'logger.org.elasticsearch.xpack.eql.plugin.TransportEqlSearchAction', 'TRACE'

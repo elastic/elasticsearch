@@ -12,18 +12,15 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpStatus;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.xpack.core.ml.MlConfigIndex;
-import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
@@ -34,7 +31,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -49,7 +45,6 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -86,21 +81,28 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     /**
      * Waits for Machine Learning and Transform templates to be created by the {@link MetadataUpgrader}
      */
-    private void waitForTemplates() throws Exception {
+    private void waitForTemplates() {
         if (installTemplates()) {
-            List<String> templates = new ArrayList<>();
-            templates.addAll(
-                Arrays.asList(
-                    NotificationsIndex.NOTIFICATIONS_INDEX,
-                    AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
-                    AnomalyDetectorsIndex.jobResultsIndexPrefix(),
-                    TransformInternalIndexConstants.AUDIT_INDEX
-                ));
+            List<String> templates = Arrays.asList(
+                NotificationsIndex.NOTIFICATIONS_INDEX,
+                AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
+                AnomalyDetectorsIndex.jobResultsIndexPrefix()
+            );
 
             for (String template : templates) {
-                awaitCallApi("indices.exists_template", singletonMap("name", template), emptyList(),
-                        response -> true,
-                        () -> "Exception when waiting for [" + template + "] template to be created");
+                awaitCallApi("indices.exists_index_template", singletonMap("name", template), emptyList(),
+                    response -> true,
+                    () -> "Exception when waiting for [" + template + "] template to be created");
+            }
+
+            List<String> legacyTemplates = Collections.singletonList(
+                TransformInternalIndexConstants.AUDIT_INDEX
+            );
+
+            for (String legacyTemplate : legacyTemplates) {
+                awaitCallApi("indices.exists_template", singletonMap("name", legacyTemplate), emptyList(),
+                    response -> true,
+                    () -> "Exception when waiting for [" + legacyTemplate + "] legacy template to be created");
             }
         }
     }

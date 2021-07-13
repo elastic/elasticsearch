@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.transform.chain;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
@@ -150,8 +150,8 @@ public class ChainTransform implements Transform {
             return this;
         }
 
-        public Builder add(Transform.Builder... transforms) {
-            for (Transform.Builder transform: transforms) {
+        public Builder add(Transform.Builder<?>... transforms) {
+            for (Transform.Builder<?> transform: transforms) {
                 this.transforms.add(transform.build());
             }
             return this;

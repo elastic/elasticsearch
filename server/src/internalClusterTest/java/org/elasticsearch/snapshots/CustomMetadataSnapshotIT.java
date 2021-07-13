@@ -12,13 +12,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.test.TestCustomMetadata;
@@ -57,8 +57,10 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
             metadataBuilder.putCustom(NonSnapshottableMetadata.TYPE, new NonSnapshottableMetadata("before_snapshot_ns"));
             metadataBuilder.putCustom(SnapshottableGatewayMetadata.TYPE, new SnapshottableGatewayMetadata("before_snapshot_s_gw"));
             metadataBuilder.putCustom(NonSnapshottableGatewayMetadata.TYPE, new NonSnapshottableGatewayMetadata("before_snapshot_ns_gw"));
-            metadataBuilder.putCustom(SnapshotableGatewayNoApiMetadata.TYPE,
-                    new SnapshotableGatewayNoApiMetadata("before_snapshot_s_gw_noapi"));
+            metadataBuilder.putCustom(
+                SnapshotableGatewayNoApiMetadata.TYPE,
+                new SnapshotableGatewayNoApiMetadata("before_snapshot_s_gw_noapi")
+            );
             builder.metadata(metadataBuilder);
             return builder.build();
         });
@@ -94,8 +96,12 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository("test-repo-2", "fs", tempDir);
 
         logger.info("--> restore snapshot");
-        clusterAdmin().prepareRestoreSnapshot("test-repo-2", "test-snap").setRestoreGlobalState(true).setIndices("-*")
-                .setWaitForCompletion(true).execute().actionGet();
+        clusterAdmin().prepareRestoreSnapshot("test-repo-2", "test-snap")
+            .setRestoreGlobalState(true)
+            .setIndices("-*")
+            .setWaitForCompletion(true)
+            .execute()
+            .actionGet();
 
         logger.info("--> make sure old repository wasn't restored");
         assertRequestBuilderThrows(clusterAdmin().prepareGetRepositories("test-repo"), RepositoryMissingException.class);
@@ -107,10 +113,14 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
         Metadata metadata = clusterState.getMetadata();
         assertThat(((SnapshottableMetadata) metadata.custom(SnapshottableMetadata.TYPE)).getData(), equalTo("before_snapshot_s"));
         assertThat(((NonSnapshottableMetadata) metadata.custom(NonSnapshottableMetadata.TYPE)).getData(), equalTo("after_snapshot_ns"));
-        assertThat(((SnapshottableGatewayMetadata) metadata.custom(SnapshottableGatewayMetadata.TYPE)).getData(),
-                equalTo("before_snapshot_s_gw"));
-        assertThat(((NonSnapshottableGatewayMetadata) metadata.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(),
-                equalTo("after_snapshot_ns_gw"));
+        assertThat(
+            ((SnapshottableGatewayMetadata) metadata.custom(SnapshottableGatewayMetadata.TYPE)).getData(),
+            equalTo("before_snapshot_s_gw")
+        );
+        assertThat(
+            ((NonSnapshottableGatewayMetadata) metadata.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(),
+            equalTo("after_snapshot_ns_gw")
+        );
 
         logger.info("--> restart all nodes");
         internalCluster().fullRestart();
@@ -122,16 +132,22 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
         metadata = clusterState.getMetadata();
         assertThat(metadata.custom(SnapshottableMetadata.TYPE), nullValue());
         assertThat(metadata.custom(NonSnapshottableMetadata.TYPE), nullValue());
-        assertThat(((SnapshottableGatewayMetadata) metadata.custom(SnapshottableGatewayMetadata.TYPE)).getData(),
-                equalTo("before_snapshot_s_gw"));
-        assertThat(((NonSnapshottableGatewayMetadata) metadata.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(),
-                equalTo("after_snapshot_ns_gw"));
+        assertThat(
+            ((SnapshottableGatewayMetadata) metadata.custom(SnapshottableGatewayMetadata.TYPE)).getData(),
+            equalTo("before_snapshot_s_gw")
+        );
+        assertThat(
+            ((NonSnapshottableGatewayMetadata) metadata.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(),
+            equalTo("after_snapshot_ns_gw")
+        );
         // Shouldn't be returned as part of API response
         assertThat(metadata.custom(SnapshotableGatewayNoApiMetadata.TYPE), nullValue());
         // But should still be in state
         metadata = internalCluster().getInstance(ClusterService.class).state().metadata();
-        assertThat(((SnapshotableGatewayNoApiMetadata) metadata.custom(SnapshotableGatewayNoApiMetadata.TYPE)).getData(),
-                equalTo("before_snapshot_s_gw_noapi"));
+        assertThat(
+            ((SnapshotableGatewayNoApiMetadata) metadata.custom(SnapshotableGatewayNoApiMetadata.TYPE)).getData(),
+            equalTo("before_snapshot_s_gw_noapi")
+        );
     }
 
     public static class TestCustomMetadataPlugin extends Plugin {
@@ -143,25 +159,48 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
             registerBuiltinWritables();
         }
 
-        private <T extends Metadata.Custom> void registerMetadataCustom(String name, Writeable.Reader<T> reader,
-                                                                        Writeable.Reader<NamedDiff> diffReader,
-                                                                        CheckedFunction<XContentParser, T, IOException> parser) {
+        private <T extends Metadata.Custom> void registerMetadataCustom(
+            String name,
+            Writeable.Reader<T> reader,
+            Writeable.Reader<NamedDiff> diffReader,
+            CheckedFunction<XContentParser, T, IOException> parser
+        ) {
             namedWritables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, name, reader));
             namedWritables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, name, diffReader));
             namedXContents.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(name), parser));
         }
 
         private void registerBuiltinWritables() {
-            registerMetadataCustom(SnapshottableMetadata.TYPE, SnapshottableMetadata::readFrom,
-                    SnapshottableMetadata::readDiffFrom, SnapshottableMetadata::fromXContent);
-            registerMetadataCustom(NonSnapshottableMetadata.TYPE, NonSnapshottableMetadata::readFrom,
-                    NonSnapshottableMetadata::readDiffFrom, NonSnapshottableMetadata::fromXContent);
-            registerMetadataCustom(SnapshottableGatewayMetadata.TYPE, SnapshottableGatewayMetadata::readFrom,
-                    SnapshottableGatewayMetadata::readDiffFrom, SnapshottableGatewayMetadata::fromXContent);
-            registerMetadataCustom(NonSnapshottableGatewayMetadata.TYPE, NonSnapshottableGatewayMetadata::readFrom,
-                    NonSnapshottableGatewayMetadata::readDiffFrom, NonSnapshottableGatewayMetadata::fromXContent);
-            registerMetadataCustom(SnapshotableGatewayNoApiMetadata.TYPE, SnapshotableGatewayNoApiMetadata::readFrom,
-                    NonSnapshottableGatewayMetadata::readDiffFrom, SnapshotableGatewayNoApiMetadata::fromXContent);
+            registerMetadataCustom(
+                SnapshottableMetadata.TYPE,
+                SnapshottableMetadata::readFrom,
+                SnapshottableMetadata::readDiffFrom,
+                SnapshottableMetadata::fromXContent
+            );
+            registerMetadataCustom(
+                NonSnapshottableMetadata.TYPE,
+                NonSnapshottableMetadata::readFrom,
+                NonSnapshottableMetadata::readDiffFrom,
+                NonSnapshottableMetadata::fromXContent
+            );
+            registerMetadataCustom(
+                SnapshottableGatewayMetadata.TYPE,
+                SnapshottableGatewayMetadata::readFrom,
+                SnapshottableGatewayMetadata::readDiffFrom,
+                SnapshottableGatewayMetadata::fromXContent
+            );
+            registerMetadataCustom(
+                NonSnapshottableGatewayMetadata.TYPE,
+                NonSnapshottableGatewayMetadata::readFrom,
+                NonSnapshottableGatewayMetadata::readDiffFrom,
+                NonSnapshottableGatewayMetadata::fromXContent
+            );
+            registerMetadataCustom(
+                SnapshotableGatewayNoApiMetadata.TYPE,
+                SnapshotableGatewayNoApiMetadata::readFrom,
+                NonSnapshottableGatewayMetadata::readDiffFrom,
+                SnapshotableGatewayNoApiMetadata::fromXContent
+            );
         }
 
         @Override

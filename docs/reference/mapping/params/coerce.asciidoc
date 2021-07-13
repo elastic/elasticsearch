@@ -1,9 +1,9 @@
 [[coerce]]
 === `coerce`
 
-Data is not always clean.  Depending on how it is produced a number might be
+Data is not always clean. Depending on how it is produced a number might be
 rendered in the JSON body as a true JSON number, e.g. `5`, but it might also
-be rendered as a string, e.g. `"5"`.  Alternatively, a number that should be
+be rendered as a string, e.g. `"5"`. Alternatively, a number that should be
 an integer might instead be rendered as a floating point, e.g. `5.0`, or even
 `"5.0"`.
 
@@ -48,7 +48,7 @@ PUT my-index-000001/_doc/2
 <2> This document will be rejected because coercion is disabled.
 
 TIP: The `coerce` setting value can be updated on existing fields
-using the <<indices-put-mapping,PUT mapping API>>.
+using the <<indices-put-mapping,update mapping API>>.
 
 [[coerce-setting]]
 ==== Index-level default

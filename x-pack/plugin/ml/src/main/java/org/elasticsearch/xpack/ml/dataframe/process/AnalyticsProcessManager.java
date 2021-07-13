@@ -177,7 +177,9 @@ public class AnalyticsProcessManager {
             writeHeaderRecord(dataExtractor, process, task);
             writeDataRows(dataExtractor, process, task);
             process.writeEndOfDataMessage();
+            LOGGER.debug(() -> new ParameterizedMessage("[{}] Flushing input stream", processContext.config.getId()));
             process.flushStream();
+            LOGGER.debug(() -> new ParameterizedMessage("[{}] Flushing input stream completed", processContext.config.getId()));
 
             restoreState(config, process, hasState);
 
@@ -324,10 +326,16 @@ public class AnalyticsProcessManager {
             processContext.process.get().close();
             LOGGER.info("[{}] Closed process", configId);
         } catch (Exception e) {
-            LOGGER.error("[" + configId + "] Error closing data frame analyzer process", e);
-            String errorMsg = new ParameterizedMessage(
-                "[{}] Error closing data frame analyzer process [{}]", configId, e.getMessage()).getFormattedMessage();
-            processContext.setFailureReason(errorMsg);
+            if (task.isStopping()) {
+                LOGGER.debug(() -> new ParameterizedMessage(
+                    "[{}] Process closing was interrupted by kill request due to the task being stopped", configId), e);
+                LOGGER.info("[{}] Closed process", configId);
+            } else {
+                LOGGER.error("[" + configId + "] Error closing data frame analyzer process", e);
+                String errorMsg = new ParameterizedMessage(
+                    "[{}] Error closing data frame analyzer process [{}]", configId, e.getMessage()).getFormattedMessage();
+                processContext.setFailureReason(errorMsg);
+            }
         }
     }
 

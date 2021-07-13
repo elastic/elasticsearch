@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.security.rest.action.user;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -49,21 +49,15 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new ReplacedRoute(GET, "/_security/user/{username}/_has_privileges",
-                GET, "/_xpack/security/user/{username}/_has_privileges"),
-            new ReplacedRoute(POST, "/_security/user/{username}/_has_privileges",
-                POST, "/_xpack/security/user/{username}/_has_privileges"),
-            new ReplacedRoute(GET, "/_security/user/_has_privileges",
-                GET, "/_xpack/security/user/_has_privileges"),
-            new ReplacedRoute(POST, "/_security/user/_has_privileges",
-                POST, "/_xpack/security/user/_has_privileges")
+            Route.builder(GET, "/_security/user/{username}/_has_privileges")
+                .replaces(GET, "/_xpack/security/user/{username}/_has_privileges", RestApiVersion.V_7).build(),
+            Route.builder(POST, "/_security/user/{username}/_has_privileges")
+                .replaces(POST, "/_xpack/security/user/{username}/_has_privileges", RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_security/user/_has_privileges")
+                .replaces(GET, "/_xpack/security/user/_has_privileges", RestApiVersion.V_7).build(),
+            Route.builder(POST, "/_security/user/_has_privileges")
+                .replaces(POST, "/_xpack/security/user/_has_privileges", RestApiVersion.V_7).build()
         );
     }
 
@@ -81,7 +75,9 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
         final Tuple<XContentType, BytesReference> content = request.contentOrSourceParam();
         final String username = getUsername(request);
         if (username == null) {
-            return restChannel -> { throw new ElasticsearchSecurityException("there is no authenticated user"); };
+            return restChannel -> {
+                throw new ElasticsearchSecurityException("there is no authenticated user");
+            };
         }
         HasPrivilegesRequestBuilder requestBuilder = new HasPrivilegesRequestBuilder(client).source(username, content.v2(), content.v1());
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {

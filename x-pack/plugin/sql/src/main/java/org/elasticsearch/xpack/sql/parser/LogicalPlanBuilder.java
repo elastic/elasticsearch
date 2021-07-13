@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SetQuantifierContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TableNameContext;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
+import org.elasticsearch.xpack.sql.plan.logical.Having;
 import org.elasticsearch.xpack.sql.plan.logical.Join;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
@@ -154,7 +155,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         // HAVING
         if (ctx.having != null) {
-            query = new Filter(source(ctx.having), query, expression(ctx.having));
+            query = new Having(source(ctx.having), query, expression(ctx.having));
         }
 
         if (ctx.setQuantifier() != null && ctx.setQuantifier().DISTINCT() != null) {

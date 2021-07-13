@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -92,13 +92,13 @@ public class MoveAllocationCommand implements AllocationCommand {
 
         boolean found = false;
         RoutingNode fromRoutingNode = allocation.routingNodes().node(fromDiscoNode.getId());
-        if (fromRoutingNode == null && fromDiscoNode.isDataNode() == false) {
+        if (fromRoutingNode == null && fromDiscoNode.canContainData() == false) {
             throw new IllegalArgumentException("[move_allocation] can't move [" + index + "][" + shardId + "] from "
                 + fromDiscoNode + " to " + toDiscoNode + ": source [" +  fromDiscoNode.getName()
                 + "] is not a data node.");
         }
         RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.getId());
-        if (toRoutingNode == null && toDiscoNode.isDataNode() == false) {
+        if (toRoutingNode == null && toDiscoNode.canContainData() == false) {
             throw new IllegalArgumentException("[move_allocation] can't move [" + index + "][" + shardId + "] from "
                 + fromDiscoNode + " to " + toDiscoNode + ": source [" +  toDiscoNode.getName()
                 + "] is not a data node.");

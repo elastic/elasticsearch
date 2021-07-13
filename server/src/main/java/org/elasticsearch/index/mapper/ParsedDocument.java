@@ -9,11 +9,14 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -28,18 +31,67 @@ public class ParsedDocument {
 
     private final String routing;
 
-    private final List<Document> documents;
+    private final List<LuceneDocument> documents;
 
     private BytesReference source;
     private XContentType xContentType;
 
     private Mapping dynamicMappingsUpdate;
 
+    /**
+     * Create a no-op tombstone document
+     * @param reason    the reason for the no-op
+     */
+    public static ParsedDocument noopTombstone(String reason) {
+        LuceneDocument document = new LuceneDocument();
+        SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone();
+        seqIdFields.addFields(document);
+        Field versionField = VersionFieldMapper.versionField();
+        document.add(versionField);
+        // Store the reason of a noop as a raw string in the _source field
+        final BytesRef byteRef = new BytesRef(reason);
+        document.add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
+        return new ParsedDocument(
+            versionField,
+            seqIdFields,
+            "",
+            null,
+            Collections.singletonList(document),
+            new BytesArray("{}"),
+            XContentType.JSON,
+            null
+        );
+    }
+
+    /**
+     * Create a delete tombstone document, which will be used in soft-update methods.
+     * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
+     * @param id    the id of the deleted document
+     */
+    public static ParsedDocument deleteTombstone(String id) {
+        LuceneDocument document = new LuceneDocument();
+        SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone();
+        seqIdFields.addFields(document);
+        Field versionField = VersionFieldMapper.versionField();
+        document.add(versionField);
+        document.add(IdFieldMapper.idField(id));
+        return new ParsedDocument(
+            versionField,
+            seqIdFields,
+            id,
+            null,
+            Collections.singletonList(document),
+            new BytesArray("{}"),
+            XContentType.JSON,
+            null
+        );
+    }
+
     public ParsedDocument(Field version,
                           SeqNoFieldMapper.SequenceIDFields seqID,
                           String id,
                           String routing,
-                          List<Document> documents,
+                          List<LuceneDocument> documents,
                           BytesReference source,
                           XContentType xContentType,
                           Mapping dynamicMappingsUpdate) {
@@ -67,26 +119,15 @@ public class ParsedDocument {
         this.seqID.primaryTerm.setLongValue(primaryTerm);
     }
 
-    /**
-     * Makes the processing document as a tombstone document rather than a regular document.
-     * Tombstone documents are stored in Lucene index to represent delete operations or Noops.
-     */
-    ParsedDocument toTombstone() {
-        assert docs().size() == 1 : "Tombstone should have a single doc [" + docs() + "]";
-        this.seqID.tombstoneField.setLongValue(1);
-        rootDoc().add(this.seqID.tombstoneField);
-        return this;
-    }
-
     public String routing() {
         return this.routing;
     }
 
-    public Document rootDoc() {
+    public LuceneDocument rootDoc() {
         return documents.get(documents.size() - 1);
     }
 
-    public List<Document> docs() {
+    public List<LuceneDocument> docs() {
         return this.documents;
     }
 

@@ -8,61 +8,20 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import java.util.Set;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
-
 public class DiscoveryNodeRoleTests extends ESTestCase {
 
-    public void testDiscoveryNodeSetPossibleRolesRejectsDuplicateRoleNames() {
-        final IllegalStateException e = expectThrows(
-                IllegalStateException.class,
-                () -> DiscoveryNode.setAdditionalRoles(Set.of(
-                        new DiscoveryNodeRole("foo", "f") {
-
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
-
-                        },
-                        new DiscoveryNodeRole("foo", "f") {
-
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
-
-                        })));
-        assertThat(e, hasToString(containsString("Duplicate key")));
+    public void testRolesIsImmutable() {
+        expectThrows(UnsupportedOperationException.class, () -> DiscoveryNodeRole.roles().add(DiscoveryNodeRole.DATA_ROLE));
     }
 
-    public void testDiscoveryNodeSetPossibleRolesRejectsDuplicateRoleNameAbbreviations() {
-        final IllegalStateException e = expectThrows(
-                IllegalStateException.class,
-                () -> DiscoveryNode.setAdditionalRoles(Set.of(
-                        new DiscoveryNodeRole("foo_1", "f") {
-
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
-
-                        },
-                        new DiscoveryNodeRole("foo_2", "f") {
-
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
-
-                        })));
-        assertThat(e, hasToString(containsString("Duplicate key")));
+    public void testRoleNamesIsImmutable() {
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> DiscoveryNodeRole.roleNames().add(DiscoveryNodeRole.DATA_ROLE.roleName())
+        );
     }
 
     public void testDiscoveryNodeRoleEqualsHashCode() {
@@ -93,7 +52,7 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
     }
 
     public void testUnknownRoleIsDistinctFromKnownRoles() {
-        for (DiscoveryNodeRole buildInRole : DiscoveryNodeRole.BUILT_IN_ROLES) {
+        for (DiscoveryNodeRole buildInRole : DiscoveryNodeRole.roles()) {
             final DiscoveryNodeRole.UnknownRole unknownDataRole = new DiscoveryNodeRole.UnknownRole(
                 buildInRole.roleName(),
                 buildInRole.roleNameAbbreviation(),

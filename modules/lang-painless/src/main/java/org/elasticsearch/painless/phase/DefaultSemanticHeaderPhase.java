@@ -69,6 +69,7 @@ public class DefaultSemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope>
             typeParameters.add(paramType);
         }
 
-        functionTable.addFunction(functionName, returnType, typeParameters, userFunctionNode.isInternal(), userFunctionNode.isStatic());
+        functionTable.addMangledFunction(functionName, returnType, typeParameters, userFunctionNode.isInternal(),
+                userFunctionNode.isStatic());
     }
 }

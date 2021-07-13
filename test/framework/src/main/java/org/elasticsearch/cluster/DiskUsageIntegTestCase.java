@@ -12,8 +12,8 @@ import org.apache.lucene.mockfile.FilterFileStore;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -76,7 +76,7 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Path dataPath = fileSystemProvider.getRootDir().resolve("node-" + nodeOrdinal);
         try {
             Files.createDirectories(dataPath);
@@ -85,14 +85,14 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
         }
         fileSystemProvider.addTrackedPath(dataPath);
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(Environment.PATH_DATA_SETTING.getKey(), dataPath)
             .put(FsService.ALWAYS_REFRESH_SETTING.getKey(), true)
             .build();
     }
 
     public TestFileStore getTestFileStore(String nodeName) {
-        return fileSystemProvider.getTestFileStore(internalCluster().getInstance(Environment.class, nodeName).dataFiles()[0]);
+        return fileSystemProvider.getTestFileStore(internalCluster().getInstance(Environment.class, nodeName).dataFile());
     }
 
     protected static class TestFileStore extends FilterFileStore {

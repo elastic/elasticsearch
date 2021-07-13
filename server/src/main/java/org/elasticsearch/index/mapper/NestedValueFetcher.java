@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.fetch.subphase.FieldFetcher;
@@ -42,7 +43,7 @@ public class NestedValueFetcher implements ValueFetcher {
         List<Object> nestedEntriesToReturn = new ArrayList<>();
         Map<String, Object> filteredSource = new HashMap<>();
         Map<String, Object> stub = createSourceMapStub(filteredSource);
-        List<?> nestedValues = XContentMapValues.extractNestedValue(nestedFieldPath, lookup.source());
+        List<?> nestedValues = XContentMapValues.extractNestedSources(nestedFieldPath, lookup.source());
         if (nestedValues == null) {
             return Collections.emptyList();
         }
@@ -79,5 +80,10 @@ public class NestedValueFetcher implements ValueFetcher {
             next = newMap;
         }
         return next;
+    }
+
+    @Override
+    public void setNextReader(LeafReaderContext context) {
+        this.nestedFieldFetcher.setNextReader(context);
     }
 }

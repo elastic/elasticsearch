@@ -13,14 +13,13 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +27,17 @@ import java.util.Map;
 import java.util.function.Function;
 
 public class XContentMapValues {
+    /**
+     * Maximum number of states allowed in the two automata that we use to
+     * perform the map filtering. This about a megabyte or so worth of
+     * automata. That's about eight thousand long-ish source paths. That's
+     * <strong>heavy</strong> but it shouldn't knock over the node or
+     * anything.
+     * <p>
+     * For what it is worth, 50,000 states is way, way, way too many to
+     * visualize.
+     */
+    private static final int MAX_DETERMINIZED_STATES = 50_000;
 
     /**
      * Extracts raw values (string, int, and so on) based on the path provided returning all of them
@@ -61,7 +71,9 @@ public class XContentMapValues {
                 } else if (currentValue instanceof List) {
                     extractRawValues(values, (List) currentValue, pathElements, nextIndex);
                 } else {
-                    values.add(currentValue);
+                    if (nextIndex == pathElements.length) {
+                        values.add(currentValue);
+                    }
                 }
             }
             if (nextIndex == pathElements.length) {
@@ -112,13 +124,14 @@ public class XContentMapValues {
     }
 
     /**
-     * For the provided nested path, return its value in the xContent map.
+     * For the provided nested path, return its source maps from the parent xContent map.
      *
      * @param nestedPath the nested field value's path in the map.
+     * @param map        the parent source map
      *
-     * @return the list associated with the path in the map or {@code null} if the path does not exits.
+     * @return a list of source maps or {@code null} if the path does not exist.
      */
-    public static List<?> extractNestedValue(String nestedPath, Map<?, ?> map) {
+    public static List<Map<?, ?>> extractNestedSources(String nestedPath, Map<?, ?> map) {
         Object extractedValue = XContentMapValues.extractValue(nestedPath, map);
         List<?> nestedParsedSource = null;
         if (extractedValue != null) {
@@ -128,12 +141,32 @@ public class XContentMapValues {
             } else if (extractedValue instanceof Map) {
                 // nested field has an object value in the _source. This just means the nested field has just one inner object,
                 // which is valid, but uncommon.
-                nestedParsedSource = Collections.singletonList(extractedValue);
+                return Collections.singletonList((Map<?, ?>)extractedValue);
             } else {
-                throw new IllegalStateException("extracted source isn't an object or an array");
+                throw new IllegalStateException("Cannot extract nested source from path [" + nestedPath +
+                    "]: got [" + extractedValue + "]");
             }
         }
-        return nestedParsedSource;
+        if (nestedParsedSource == null) {
+            return null;
+        }
+        // In some circumstances, we can end up with arrays of arrays of nested objects.  A nested
+        // source should always be a Map, so we iterate down through the arrays to pull out the
+        // leaf maps
+        List<Map<?, ?>> flattenedSource = new ArrayList<>();
+        extractObjects(nestedParsedSource, flattenedSource);
+        return flattenedSource;
+    }
+
+    private static void extractObjects(List<?> source, List<Map<?, ?>> extracted) {
+        for (Object object : source) {
+            if (object instanceof Map) {
+                extracted.add((Map<?, ?>) object);
+            }
+            else if (object instanceof List) {
+                extractObjects((List<?>) object, extracted);
+            }
+        }
     }
 
     /**
@@ -241,7 +274,7 @@ public class XContentMapValues {
         } else {
             Automaton includeA = Regex.simpleMatchToAutomaton(includes);
             includeA = makeMatchDotsInFieldNames(includeA);
-            include = new CharacterRunAutomaton(includeA);
+            include = new CharacterRunAutomaton(includeA, MAX_DETERMINIZED_STATES);
         }
 
         Automaton excludeA;
@@ -251,7 +284,7 @@ public class XContentMapValues {
             excludeA = Regex.simpleMatchToAutomaton(excludes);
             excludeA = makeMatchDotsInFieldNames(excludeA);
         }
-        CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA);
+        CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA, MAX_DETERMINIZED_STATES);
 
         // NOTE: We cannot use Operations.minus because of the special case that
         // we want all sub properties to match as soon as an object matches
@@ -266,9 +299,15 @@ public class XContentMapValues {
      *  For instance, if the original simple regex is `foo`, this will translate
      *  it into `foo` OR `foo.*`. */
     private static Automaton makeMatchDotsInFieldNames(Automaton automaton) {
-        return Operations.union(
-                automaton,
-                Operations.concatenate(Arrays.asList(automaton, Automata.makeChar('.'), Automata.makeAnyString())));
+        /*
+         * We presume `automaton` is quite large compared to the mechanisms
+         * to match the trailing `.*` bits so we duplicate it only once.
+         */
+        Automaton tail = Operations.union(
+            Automata.makeEmptyString(),
+            Operations.concatenate(Automata.makeChar('.'), Automata.makeAnyString())
+        );
+        return Operations.concatenate(automaton, tail);
     }
 
     private static int step(CharacterRunAutomaton automaton, String key, int state) {

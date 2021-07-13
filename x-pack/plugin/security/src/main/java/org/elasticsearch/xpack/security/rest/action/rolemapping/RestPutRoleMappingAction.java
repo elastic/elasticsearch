@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -39,15 +39,11 @@ public class RestPutRoleMappingAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new ReplacedRoute(POST, "/_security/role_mapping/{name}", POST, "/_xpack/security/role_mapping/{name}"),
-            new ReplacedRoute(PUT, "/_security/role_mapping/{name}", PUT, "/_xpack/security/role_mapping/{name}")
+            Route.builder(POST, "/_security/role_mapping/{name}")
+                .replaces(POST, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_security/role_mapping/{name}")
+                .replaces(PUT, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7).build()
         );
     }
 
@@ -63,11 +59,11 @@ public class RestPutRoleMappingAction extends SecurityBaseRestHandler {
             .source(name, request.requiredContent(), request.getXContentType())
             .setRefreshPolicy(request.param("refresh"));
         return channel -> requestBuilder.execute(
-                new RestBuilderListener<>(channel) {
-                    @Override
-                    public RestResponse buildResponse(PutRoleMappingResponse response, XContentBuilder builder) throws Exception {
-                        return new BytesRestResponse(RestStatus.OK, builder.startObject().field("role_mapping", response).endObject());
-                    }
-                });
+            new RestBuilderListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(PutRoleMappingResponse response, XContentBuilder builder) throws Exception {
+                    return new BytesRestResponse(RestStatus.OK, builder.startObject().field("role_mapping", response).endObject());
+                }
+            });
     }
 }

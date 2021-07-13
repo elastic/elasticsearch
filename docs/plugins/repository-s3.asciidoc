@@ -222,12 +222,17 @@ Note that some storage systems claim to be S3-compatible without correctly
 supporting the full S3 API. The `repository-s3` plugin requires full
 compatibility with S3. In particular it must support the same set of API
 endpoints, return the same errors in case of failures, and offer a consistency
-model no weaker than S3's when accessed concurrently by multiple nodes. If you
-wish to use another storage system with the `repository-s3` plugin then you
-will need to work with the supplier of the storage system to address any
-incompatibilities you encounter. Incompatible error codes and consistency
-models may be particularly hard to track down since errors and consistency
-failures are usually rare and hard to reproduce.
+model no weaker than S3's when accessed concurrently by multiple nodes.
+Incompatible error codes and consistency models may be particularly hard to
+track down since errors and consistency failures are usually rare and hard to
+reproduce.
+
+You can perform some basic checks of the suitability of your storage system
+using the {ref}/repo-analysis-api.html[repository analysis API]. If this API
+does not complete successfully, or indicates poor performance, then your
+storage system is not fully compatible with AWS S3 and therefore unsuitable for
+use as a snapshot repository. You will need to work with the supplier of your
+storage system to address any incompatibilities you encounter.
 
 [[repository-s3-repository]]
 ==== Repository Settings
@@ -265,10 +270,9 @@ bucket naming rules].
 
 `base_path`::
 
-    Specifies the path within bucket to repository data. Defaults to value of
-    `repositories.s3.base_path` or to root directory if not set.  Previously,
-    the base_path could take a leading `/` (forward slash).  However, this has
-    been deprecated and setting the base_path now should omit the leading `/`.
+    Specifies the path to the repository data within its bucket. Defaults to an
+    empty string, meaning that the repository is at the root of the bucket. The
+    value of this setting should not start or end with a `/`.
 
 `chunk_size`::
 
@@ -299,8 +303,8 @@ include::repository-shared-settings.asciidoc[]
     setting a buffer size lower than `5mb` is not allowed since it will prevent
     the use of the Multipart API and may result in upload errors. It is also not
     possible to set a buffer size greater than `5gb` as it is the maximum upload
-    size allowed by S3. Defaults to the minimum between `100mb` and `5%` of the
-    heap size.
+    size allowed by S3. Defaults to `100mb` or `5%` of JVM heap, whichever is
+    smaller.
 
 `canned_acl`::
 
@@ -308,7 +312,7 @@ include::repository-shared-settings.asciidoc[]
     https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl[S3
     canned ACLs] : `private`, `public-read`, `public-read-write`,
     `authenticated-read`, `log-delivery-write`, `bucket-owner-read`,
-    `bucket-owner-full-control`. Defaults to `private`.  You could specify a
+    `bucket-owner-full-control`. Defaults to `private`. You could specify a
     canned ACL using the `canned_acl` setting. When the S3 repository creates
     buckets and objects, it adds the canned ACL into the buckets and objects.
 
@@ -320,8 +324,8 @@ include::repository-shared-settings.asciidoc[]
     Changing this setting on an existing repository only affects the
     storage class for newly created objects, resulting in a mixed usage of
     storage classes. Additionally, S3 Lifecycle Policies can be used to manage
-    the storage class of existing objects.  Due to the extra complexity with the
-    Glacier class lifecycle, it is not currently supported by the plugin.  For
+    the storage class of existing objects. Due to the extra complexity with the
+    Glacier class lifecycle, it is not currently supported by the plugin. For
     more information about the different classes, see
     https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS
     Storage Classes Guide]
@@ -331,9 +335,9 @@ documented below is considered deprecated, and will be removed in a future
 version.
 
 In addition to the above settings, you may also specify all non-secure client
-settings in the repository settings.  In this case, the client settings found in
+settings in the repository settings. In this case, the client settings found in
 the repository settings will be merged with those of the named client used by
-the repository.  Conflicts between client and repository settings are resolved
+the repository. Conflicts between client and repository settings are resolved
 by the repository settings taking precedence over client settings.
 
 For example:

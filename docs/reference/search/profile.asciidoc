@@ -176,7 +176,7 @@ The API returns the following result:
 
 <1> Search results are returned, but were omitted here for brevity.
 
-Even for a simple query, the response is relatively complicated.  Let's break it 
+Even for a simple query, the response is relatively complicated. Let's break it 
 down piece-by-piece before moving to more complex examples.
 
 
@@ -221,18 +221,18 @@ aggregation execution.
 Because a search request may be executed against one or more shards in an index, 
 and a search may cover one or more indices, the top level element in the profile 
 response is an array of `shard` objects. Each shard object lists its `id` which 
-uniquely identifies the shard.  The ID's format is 
+uniquely identifies the shard. The ID's format is 
 `[nodeID][indexName][shardID]`.
 
 The profile itself may consist of one or more "searches", where a search is a 
-query executed against the underlying Lucene index.  Most search requests 
+query executed against the underlying Lucene index. Most search requests 
 submitted by the user will only execute a single `search` against the Lucene 
 index. But occasionally multiple searches will be executed, such as including a 
 global aggregation (which needs to execute a secondary "match_all" query for the 
 global context).
 
 Inside each `search` object there will be two arrays of profiled information:
-a `query` array and a `collector` array.  Alongside the `search` object is an 
+a `query` array and a `collector` array. Alongside the `search` object is an 
 `aggregations` object that contains the profile information for the 
 aggregations. In the future, more sections may be added, such as `suggest`, 
 `highlight`, etc.
@@ -250,12 +250,12 @@ human readable timing information (e.g. `"time": "391,9ms"`, `"time": "123.3micr
 [NOTE]
 =======================================
 The details provided by the Profile API directly expose Lucene class names and concepts, which means
-that complete interpretation of the results require fairly advanced knowledge of Lucene.  This
+that complete interpretation of the results require fairly advanced knowledge of Lucene. This
 page attempts to give a crash-course in how Lucene executes queries so that you can use the Profile API to successfully
-diagnose and debug queries, but it is only an overview.  For complete understanding, please refer
+diagnose and debug queries, but it is only an overview. For complete understanding, please refer
 to Lucene's documentation and, in places, the code.
 
-With that said, a complete understanding is often not required to fix a slow query.  It is usually
+With that said, a complete understanding is often not required to fix a slow query. It is usually
 sufficient to see that a particular component of a query is slow, and not necessarily understand why
 the `advance` phase of that query is the cause, for example.
 =======================================
@@ -266,7 +266,7 @@ the `advance` phase of that query is the cause, for example.
 The `query` section contains detailed timing of the query tree executed by 
 Lucene on a particular shard. The overall structure of this query tree will 
 resemble your original Elasticsearch query, but may be slightly (or sometimes 
-very) different.  It will also use similar but not always identical naming. 
+very) different. It will also use similar but not always identical naming. 
 Using our previous `match` query example, let's analyze the `query` section:
 
 [source,console-result]
@@ -301,21 +301,21 @@ Using our previous `match` query example, let's analyze the `query` section:
 <1> The breakdown timings are omitted for simplicity.
 
 Based on the profile structure, we can see that our `match` query was rewritten 
-by Lucene into a BooleanQuery with two clauses (both holding a TermQuery).  The 
+by Lucene into a BooleanQuery with two clauses (both holding a TermQuery). The 
 `type` field displays the Lucene class name, and often aligns with the 
-equivalent name in Elasticsearch.  The `description` field displays the Lucene 
+equivalent name in Elasticsearch. The `description` field displays the Lucene 
 explanation text for the query, and is made available to help differentiating 
 between parts of your query (e.g. both `message:get` and `message:search` are 
 TermQuery's and would appear identical otherwise.
 
 The `time_in_nanos` field shows that this query took ~11.9ms for the entire 
-BooleanQuery to execute.  The recorded time is inclusive of all children.
+BooleanQuery to execute. The recorded time is inclusive of all children.
 
 The `breakdown` field will give detailed stats about how the time was spent, 
-we'll look at that in a moment.  Finally, the `children` array lists any 
-sub-queries that may be present.  Because we searched for two values ("get 
-search"), our BooleanQuery holds two children TermQueries.  They have identical 
-information (type, time, breakdown, etc).  Children are allowed to have their 
+we'll look at that in a moment. Finally, the `children` array lists any 
+sub-queries that may be present. Because we searched for two values ("get 
+search"), our BooleanQuery holds two children TermQueries. They have identical 
+information (type, time, breakdown, etc). Children are allowed to have their 
 own children.
 
 ===== Timing Breakdown
@@ -351,7 +351,7 @@ Lucene execution:
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
 Timings are listed in wall-clock nanoseconds and are not normalized at all. All 
-caveats about the overall `time_in_nanos` apply here.  The intention of the 
+caveats about the overall `time_in_nanos` apply here. The intention of the 
 breakdown is to give you a feel for A) what machinery in Lucene is actually 
 eating time, and B) the magnitude of differences in times between the various 
 components. Like the overall time, the breakdown is inclusive of all children 
@@ -366,20 +366,20 @@ The meaning of the stats are as follows:
 `create_weight`::
 
     A Query in Lucene must be capable of reuse across multiple IndexSearchers (think of it as the engine that
-    executes a search against a specific Lucene Index).  This puts Lucene in a tricky spot, since many queries
+    executes a search against a specific Lucene Index). This puts Lucene in a tricky spot, since many queries
     need to accumulate temporary state/statistics associated with the index it is being used against, but the
     Query contract mandates that it must be immutable.
     {empty} +
     {empty} +
     To get around this, Lucene asks each query to generate a Weight object which acts as a temporary context
-    object to hold state associated with this particular (IndexSearcher, Query) tuple.  The `weight` metric
+    object to hold state associated with this particular (IndexSearcher, Query) tuple. The `weight` metric
     shows how long this process takes
 
 `build_scorer`::
 
-    This parameter shows how long it takes to build a Scorer for the query.  A Scorer is the mechanism that
+    This parameter shows how long it takes to build a Scorer for the query. A Scorer is the mechanism that
     iterates over matching documents and generates a score per-document (e.g. how well does "foo" match the document?).
-    Note, this records the time required to generate the Scorer object, not actually score the documents.  Some
+    Note, this records the time required to generate the Scorer object, not actually score the documents. Some
     queries have faster or slower initialization of the Scorer, depending on optimizations, complexity, etc.
     {empty} +
     {empty} +
@@ -387,10 +387,10 @@ The meaning of the stats are as follows:
 
 `next_doc`::
 
-    The Lucene method `next_doc` returns Doc ID of the next document matching the query.  This statistic shows
+    The Lucene method `next_doc` returns Doc ID of the next document matching the query. This statistic shows
     the time it takes to determine which document is the next match, a process that varies considerably depending
-    on the nature of the query.   Next_doc is a specialized form of advance() which is more convenient for many
-    queries in Lucene.  It is equivalent to advance(docId() + 1)
+    on the nature of the query. Next_doc is a specialized form of advance() which is more convenient for many
+    queries in Lucene. It is equivalent to advance(docId() + 1)
 
 `advance`::
 
@@ -403,13 +403,13 @@ The meaning of the stats are as follows:
 
 `match`::
 
-    Some queries, such as phrase queries, match documents using a "two-phase" process.  First, the document is
+    Some queries, such as phrase queries, match documents using a "two-phase" process. First, the document is
     "approximately" matched, and if it matches approximately, it is checked a second time with a more rigorous
-    (and expensive) process.  The second phase verification is what the `match` statistic measures.
+    (and expensive) process. The second phase verification is what the `match` statistic measures.
     {empty} +
     {empty} +
     For example, a phrase query first checks a document approximately by ensuring all terms in the phrase are
-    present in the doc.  If all the terms are present, it then executes the second phase verification to ensure
+    present in the doc. If all the terms are present, it then executes the second phase verification to ensure
     the terms are in-order to form the phrase, which is relatively more expensive than just checking for presence
     of the terms.
     {empty} +
@@ -421,8 +421,8 @@ The meaning of the stats are as follows:
     This records the time taken to score a particular document via its Scorer
 
 `*_count`::
-    Records the number of invocations of the particular method.  For example, `"next_doc_count": 2,`
-    means the `nextDoc()` method was called on two different documents.  This can be used to help judge
+    Records the number of invocations of the particular method. For example, `"next_doc_count": 2,`
+    means the `nextDoc()` method was called on two different documents. This can be used to help judge
     how selective queries are, by comparing counts between different query components.
 
 
@@ -431,7 +431,7 @@ The meaning of the stats are as follows:
 
 The Collectors portion of the response shows high-level execution details. 
 Lucene works by defining a "Collector" which is responsible for coordinating the 
-traversal, scoring, and collection of matching documents.  Collectors are also 
+traversal, scoring, and collection of matching documents. Collectors are also 
 how a single query can record aggregation results, execute unscoped "global" 
 queries, execute post-query filters, etc.
 
@@ -455,14 +455,14 @@ Looking at the previous example:
 We see a single collector named `SimpleTopScoreDocCollector` wrapped into 
 `CancellableCollector`. `SimpleTopScoreDocCollector` is the default "scoring and 
 sorting" `Collector` used by {es}. The `reason` field attempts to give a plain 
-English description of the class name.  The `time_in_nanos` is similar to the 
+English description of the class name. The `time_in_nanos` is similar to the 
 time in the Query tree: a wall-clock time inclusive of all children. Similarly, 
 `children` lists all sub-collectors. The `CancellableCollector` that wraps 
 `SimpleTopScoreDocCollector` is used by {es} to detect if the current search was 
 cancelled and stop collecting documents as soon as it occurs.
 
 It should be noted that Collector times are **independent** from the Query 
-times.  They are calculated, combined, and normalized independently! Due to the 
+times. They are calculated, combined, and normalized independently! Due to the 
 nature of Lucene's execution, it is impossible to "merge" the times from the 
 Collectors into the Query section, so they are displayed in separate portions.
 
@@ -471,7 +471,7 @@ For reference, the various collector reasons are:
 [horizontal]
 `search_sorted`::
 
-    A collector that scores and sorts documents.  This is the most common collector and will be seen in most
+    A collector that scores and sorts documents. This is the most common collector and will be seen in most
     simple searches
 
 `search_count`::
@@ -481,27 +481,27 @@ For reference, the various collector reasons are:
 
 `search_terminate_after_count`::
 
-    A collector that terminates search execution after `n` matching documents have been found.  This is seen
+    A collector that terminates search execution after `n` matching documents have been found. This is seen
     when the `terminate_after_count` query parameter has been specified
 
 `search_min_score`::
 
-    A collector that only returns matching documents that have a score greater than `n`.  This is seen when
+    A collector that only returns matching documents that have a score greater than `n`. This is seen when
     the top-level parameter `min_score` has been specified.
 
 `search_multi`::
 
-    A collector that wraps several other collectors.  This is seen when combinations of search, aggregations,
+    A collector that wraps several other collectors. This is seen when combinations of search, aggregations,
     global aggs, and post_filters are combined in a single search.
 
 `search_timeout`::
 
-    A collector that halts execution after a specified period of time.  This is seen when a `timeout` top-level
+    A collector that halts execution after a specified period of time. This is seen when a `timeout` top-level
     parameter has been specified.
 
 `aggregation`::
 
-    A collector that Elasticsearch uses to run aggregations against the query scope.  A single `aggregation`
+    A collector that Elasticsearch uses to run aggregations against the query scope. A single `aggregation`
     collector is used to collect documents for *all* aggregations, so you will see a list of aggregations
     in the name rather.
 
@@ -515,9 +515,9 @@ For reference, the various collector reasons are:
 [[rewrite-section]]
 ===== `rewrite` Section
 
-All queries in Lucene undergo a "rewriting" process.  A query (and its 
+All queries in Lucene undergo a "rewriting" process. A query (and its 
 sub-queries) may be rewritten one or more times, and the process continues until 
-the query stops changing.  This process allows Lucene to perform optimizations, 
+the query stops changing. This process allows Lucene to perform optimizations, 
 such as removing redundant clauses, replacing one query for a more efficient 
 execution path, etc. For example a Boolean -> Boolean -> TermQuery can be 
 rewritten to a TermQuery, because all the Booleans are unnecessary in this case.
@@ -686,7 +686,7 @@ The API returns the following result:
 <1> The `"aggregations"` portion has been omitted because it will be covered in 
 the next section.
 
-As you can see, the output is significantly more verbose than before.  All the 
+As you can see, the output is significantly more verbose than before. All the 
 major portions of the query are represented:
 
 1. The first `TermQuery` (user.id:elkbee) represents the main `term` query.
@@ -705,16 +705,16 @@ verbose responses, and are not overly structured.
 
 Essentially, these queries rewrite themselves on a per-segment basis. If you 
 imagine the wildcard query `b*`, it technically can match any token that begins 
-with the letter "b".  It would be impossible to enumerate all possible 
+with the letter "b". It would be impossible to enumerate all possible 
 combinations, so Lucene rewrites the query in context of the segment being 
 evaluated, e.g., one segment may contain the tokens `[bar, baz]`, so the query 
-rewrites to a BooleanQuery combination of "bar" and "baz".  Another segment may 
+rewrites to a BooleanQuery combination of "bar" and "baz". Another segment may 
 only have the token `[bakery]`, so the query rewrites to a single TermQuery for 
 "bakery".
 
 Due to this dynamic, per-segment rewriting, the clean tree structure becomes 
 distorted and no longer follows a clean "lineage" showing how one query rewrites 
-into the next.  At present time, all we can do is apologize, and suggest you 
+into the next. At present time, all we can do is apologize, and suggest you 
 collapse the details for that query's children if it is too confusing. Luckily, 
 all the timing statistics are correct, just not the physical layout in the 
 response, so it is sufficient to just analyze the top-level MultiTermQuery and
@@ -805,7 +805,8 @@ This yields the following aggregation profile output:
             },
             "debug": {
               "total_buckets": 1,
-              "result_strategy": "long_terms"
+              "result_strategy": "long_terms",
+              "built_buckets": 1
             }
           },
           {
@@ -825,6 +826,9 @@ This yields the following aggregation profile output:
               "build_leaf_collector_count": 1,
               "post_collection": 1584,
               "post_collection_count": 1
+            },
+            "debug": {
+              "built_buckets": 1
             },
             "children": [
               {
@@ -847,7 +851,8 @@ This yields the following aggregation profile output:
                 },
                 "debug": {
                   "total_buckets": 1,
-                  "result_strategy": "long_terms"
+                  "result_strategy": "long_terms",
+                  "built_buckets": 1
                 }
               }
             ]
@@ -869,7 +874,7 @@ which comes from `my_global_agg`. That aggregation then has a child
 `NumericTermsAggregator` which comes from the second term's aggregation on `http.response.status_code`.
 
 The `time_in_nanos` field shows the time executed by each aggregation, and is 
-inclusive of all children.  While the overall time is useful, the `breakdown` 
+inclusive of all children. While the overall time is useful, the `breakdown` 
 field will give detailed stats about how the time was spent.
 
 Some aggregations may return expert `debug` information that describe features
@@ -908,7 +913,7 @@ method. For example, `"collect_count": 2` means the aggregation called the
 future use and always returns `0`.
 
 Timings are listed in wall-clock nanoseconds and are not normalized at all. All 
-caveats about the overall `time` apply here.  The intention of the breakdown is 
+caveats about the overall `time` apply here. The intention of the breakdown is 
 to give you a feel for A) what machinery in {es} is actually eating time, and B) 
 the magnitude of differences in times between the various components. Like the 
 overall time, the breakdown is inclusive of all children times.
@@ -919,7 +924,7 @@ overall time, the breakdown is inclusive of all children times.
 Like any profiler, the Profile API introduces a non-negligible overhead to 
 search execution. The act of instrumenting low-level method calls such as 
 `collect`, `advance`, and `next_doc` can be fairly expensive, since these 
-methods are called in tight loops.  Therefore, profiling should not be enabled 
+methods are called in tight loops. Therefore, profiling should not be enabled 
 in production settings by default, and should not be compared against 
 non-profiled query times. Profiling is just a diagnostic tool.
 

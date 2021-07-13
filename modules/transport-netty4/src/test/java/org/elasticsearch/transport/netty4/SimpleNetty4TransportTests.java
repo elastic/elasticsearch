@@ -10,7 +10,7 @@ package org.elasticsearch.transport.netty4;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -84,10 +84,6 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0);
         try (MockTransportService serviceC = buildService("TS_C", Version.CURRENT, Settings.EMPTY);
             MockTransportService serviceD = buildService("TS_D", Version.CURRENT, Settings.EMPTY)) {
-            serviceC.start();
-            serviceC.acceptIncomingRequests();
-            serviceD.start();
-            serviceD.acceptIncomingRequests();
 
             try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), TestProfiles.LIGHT_PROFILE)) {
                 assertThat(connection, instanceOf(StubbableTransport.WrappedConnection.class));

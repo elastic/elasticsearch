@@ -4,6 +4,12 @@
 <titleabbrev>Script</titleabbrev>
 ++++
 
+NOTE: <<runtime,Runtime fields>> provide a very similar feature that is
+      more flexible. You write a script to create field values and they
+      are available everywhere, such as <<search-fields, `fields`>>,
+      <<query-dsl, all queries>>, and <<search-aggregations, aggregations>>.
+
+
 Filters documents based on a provided <<modules-scripting-using,script>>. The
 `script` query is typically used in a <<query-filter-context,filter context>>.
 
@@ -22,17 +28,112 @@ GET /_search
     "bool": {
       "filter": {
         "script": {
-          "script": {
-            "source": "doc['num1'].value > 1",
-            "lang": "painless"
-          }
+          "script": """
+            double amount = doc['amount'].value;
+            if (doc['type'].value == 'expense') {
+              amount *= -1;
+            }
+            return amount < 10;
+          """
         }
       }
     }
   }
 }
 ----
+// TEST[setup:ledger]
+// TEST[s/_search/_search?filter_path=hits.hits&sort=amount/]
 
+////
+[source,console-result]
+----
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": $body.hits.hits.0._id,
+        "_index": $body.hits.hits.0._index,
+        "_score": null,
+        "_source": $body.hits.hits.0._source,
+        "sort": [10.0]
+      },
+      {
+        "_id": $body.hits.hits.1._id,
+        "_index": $body.hits.hits.1._index,
+        "_score": null,
+        "_source": $body.hits.hits.1._source,
+        "sort": [50.0]
+      },
+      {
+        "_id": $body.hits.hits.2._id,
+        "_index": $body.hits.hits.2._index,
+        "_score": null,
+        "_source": $body.hits.hits.2._source,
+        "sort": [50.0]
+      }
+    ]
+  }
+}
+----
+////
+
+You can achieve the same results in a search
+query by using runtime fields. Use the
+<<search-fields,`fields`>> parameter on the 
+`_search` API to fetch values as part of the
+same query:
+
+[source,console]
+----
+GET /_search
+{
+  "runtime_mappings": {
+    "amount.signed": {
+      "type": "double",
+      "script": """
+        double amount = doc['amount'].value;
+        if (doc['type'].value == 'expense') {
+          amount *= -1;
+        }
+        emit(amount);
+      """
+    }
+  },
+  "query": {
+    "bool": {
+      "filter": {
+        "range": {
+          "amount.signed": { "lt": 10 }
+        }
+      }
+    }
+  },
+  "fields": [{"field": "amount.signed"}]
+}
+----
+// TEST[setup:ledger]
+// TEST[s/_search/_search?filter_path=hits.hits.fields&sort=amount.signed:desc/]
+
+////
+[source,console-result]
+----
+{
+  "hits": {
+    "hits": [
+      {
+        "fields": {"amount.signed": [-10.0]}
+      },
+      {
+        "fields": {"amount.signed": [-50.0]}
+      },
+      {
+        "fields": {"amount.signed": [-50.0]}
+      }
+    ]
+  }
+}
+----
+////
 
 [[script-top-level-params]]
 ==== Top-level parameters for `script`

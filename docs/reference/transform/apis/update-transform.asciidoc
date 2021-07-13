@@ -18,16 +18,12 @@ Updates certain properties of a {transform}.
 [[update-transform-prereqs]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-built-in roles and privileges:
+Requires the following privileges:
 
-* `transform_admin`
-
-* `manage_transform` (the built-in `transform_admin` role has this privilege)
-* source index: `read`, `view_index_metadata`
-* destination index: `read`, `create_index`, `index`
-
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+  privilege)
+* source indices: `read`, `view_index_metadata`
+* destination index: `read`, `index`.
 
 
 [[update-transform-desc]]
@@ -172,6 +168,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transform
 (Optional, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync]
 +
+--
+NOTE: You can update these properties only if it is a continuous {transform}. You
+cannot change a batch {transform} into a continuous {transform} or vice versa.
+Instead, clone the {transform} in {kib} and add or remove the `sync` property.
+
+--
++
 .Properties of `sync`
 [%collapsible%open]
 ====
@@ -195,7 +198,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
 +
 --
 TIP: In general, it’s a good idea to use a field that contains the
-<<accessing-ingest-metadata,ingest timestamp>>. If you use a different field,
+<<access-ingest-metadata,ingest timestamp>>. If you use a different field,
 you might need to set the `delay` such that it accounts for data transmission
 delays.
 

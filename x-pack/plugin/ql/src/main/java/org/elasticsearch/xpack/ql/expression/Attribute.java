@@ -117,6 +117,11 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
+    protected Expression canonicalize() {
+        return clone(Source.EMPTY, name(), dataType(), qualifier, nullability, id(), synthetic());
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), qualifier, nullability);
     }

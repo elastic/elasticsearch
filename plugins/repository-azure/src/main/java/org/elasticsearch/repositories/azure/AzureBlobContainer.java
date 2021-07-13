@@ -12,7 +12,8 @@ import com.azure.storage.blob.models.BlobStorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -22,10 +23,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.NoSuchFileException;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class AzureBlobContainer extends AbstractBlobContainer {
 
@@ -101,17 +102,31 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void writeBlob(String blobName,
+                          boolean failIfAlreadyExists,
+                          boolean atomic,
+                          CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        blobStore.writeBlob(buildKey(blobName), failIfAlreadyExists, writer);
+    }
+
+    @Override
     public DeleteResult delete() throws IOException {
         return blobStore.deleteBlobDirectory(keyPath);
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
-        List<String> blobsWithFullPath = blobNames.stream()
-            .map(this::buildKey)
-            .collect(Collectors.toList());
+    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+        blobStore.deleteBlobs(new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return blobNames.hasNext();
+            }
 
-        blobStore.deleteBlobList(blobsWithFullPath);
+            @Override
+            public String next() {
+                return buildKey(blobNames.next());
+            }
+        });
     }
 
     @Override

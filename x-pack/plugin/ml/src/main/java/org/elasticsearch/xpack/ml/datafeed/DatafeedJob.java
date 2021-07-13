@@ -13,9 +13,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -287,11 +287,7 @@ class DatafeedJob {
      *         otherwise <code>false</code> is returned
      */
     public boolean stop() {
-        if (running.compareAndSet(true, false)) {
-            return true;
-        } else {
-            return false;
-        }
+        return running.compareAndSet(true, false);
     }
 
     public boolean isRunning() {
@@ -345,7 +341,10 @@ class DatafeedJob {
                 DataCounts counts;
                 try (InputStream in = extractedData.get()) {
                     counts = postData(in, XContentType.JSON);
-                    LOGGER.trace("[{}] Processed another {} records", jobId, counts.getProcessedRecordCount());
+                    LOGGER.trace(() -> new ParameterizedMessage("[{}] Processed another {} records with latest timestamp [{}]",
+                        jobId,
+                        counts.getProcessedRecordCount(),
+                        counts.getLatestRecordTimeStamp()));
                     timingStatsReporter.reportDataCounts(counts);
                 } catch (Exception e) {
                     if (e instanceof InterruptedException) {
@@ -354,7 +353,7 @@ class DatafeedJob {
                     if (isIsolated) {
                         return;
                     }
-                LOGGER.error(new ParameterizedMessage("[{}] error while posting data", jobId), e);
+                    LOGGER.error(new ParameterizedMessage("[{}] error while posting data", jobId), e);
 
                     // a conflict exception means the job state is not open any more.
                     // we should therefore stop the datafeed.

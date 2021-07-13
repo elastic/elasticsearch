@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.analytics.topmetrics;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -58,7 +58,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
         registry.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
-            TopMetricsAggregator.GlobalOrdsValues::new,
+            TopMetricsAggregator.SegmentOrdsValues::new,
             false
         );
     }

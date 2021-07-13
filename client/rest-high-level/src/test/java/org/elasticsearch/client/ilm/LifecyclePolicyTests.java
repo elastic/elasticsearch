@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ilm;
 
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -194,7 +194,7 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
     }
 
     public static LifecyclePolicy createRandomPolicy(String lifecycleName) {
-        List<String> phaseNames = randomSubsetOf(Arrays.asList("hot", "warm", "cold", "delete"));
+        List<String> phaseNames = Arrays.asList("hot", "warm", "cold", "delete");
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
         Function<String, Set<String>> validActions = (phase) ->  {
             switch (phase) {
@@ -247,8 +247,11 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
                 default:
                     throw new IllegalArgumentException("invalid action [" + action + "]");
             }};
+        TimeValue prev = null;
         for (String phase : phaseNames) {
-            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+            TimeValue after = prev == null ? TimeValue.parseTimeValue(randomTimeValue(0, 10000, "s", "m", "h", "d"), "test_after") :
+                TimeValue.timeValueSeconds(prev.seconds() + randomIntBetween(60, 600));
+            prev = after;
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<String> actionNames;
             if (allowEmptyActions.apply(phase)) {

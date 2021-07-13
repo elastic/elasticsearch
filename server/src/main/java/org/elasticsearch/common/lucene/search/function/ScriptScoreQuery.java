@@ -146,14 +146,13 @@ public class ScriptScoreQuery extends Query {
                 final ScoreScript scoreScript = scriptBuilder.newInstance(context);
                 scoreScript._setIndexName(indexName);
                 scoreScript._setShard(shardId);
-                scoreScript._setIndexVersion(indexVersion);
                 return scoreScript;
             }
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                // If minScore is not null, then matches depend on statistics of the top-level reader.
-                return minScore == null;
+                // the sub-query should be cached independently when the score is not needed
+                return false;
             }
         };
     }

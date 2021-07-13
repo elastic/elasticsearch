@@ -3,10 +3,14 @@
     "hot": {
       "actions": {
         "rollover": {
-          "max_size": "50gb",
+          "max_primary_shard_size": "50gb",
           "max_age": "30d"
         }
       }
     }
+  },
+  "_meta": {
+    "description": "default policy for the metrics index template installed by x-pack",
+    "managed": true
   }
 }

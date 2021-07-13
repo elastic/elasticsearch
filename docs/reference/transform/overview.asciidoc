@@ -75,8 +75,6 @@ image::images/pivot-preview.png["Example of a pivot {transform} preview in {kib}
 [[latest-transform-overview]]
 == Latest {transforms}
 
-beta::[]
-
 You can use the `latest` type of {transform} to copy the most recent documents
 into a new index. You must identify one or more fields as the unique key for
 grouping your data, as well as a date field that sorts the data chronologically.

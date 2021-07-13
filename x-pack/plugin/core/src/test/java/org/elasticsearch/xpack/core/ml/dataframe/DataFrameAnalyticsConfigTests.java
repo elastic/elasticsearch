@@ -417,7 +417,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
         DataFrameAnalyticsConfig config = builder.buildForExplain();
 
-        assertThat(config.getId(), equalTo("dummy"));
+        assertThat(config.getId(), equalTo(DataFrameAnalyticsConfig.BLANK_ID));
     }
 
     public void testBuildForExplain_MissingDest() {
@@ -428,7 +428,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
         DataFrameAnalyticsConfig config = builder.buildForExplain();
 
-        assertThat(config.getDest().getIndex(), equalTo("dummy"));
+        assertThat(config.getDest().getIndex(), equalTo(DataFrameAnalyticsConfig.BLANK_DEST_INDEX));
     }
 
     public void testPreventCreateTimeInjection() throws IOException {
@@ -468,7 +468,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setVersion(Version.CURRENT)
             .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))
             .setAnalysis(regression)
             .build();
@@ -487,7 +487,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setVersion(Version.V_7_5_0)
             .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))
             .setAnalysis(regression)
             .build();
@@ -509,7 +509,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     public void testCtor_GivenMaxNumThreadsIsZero() {
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new DataFrameAnalyticsConfig.Builder()
             .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))
             .setAnalysis(new Regression("foo"))
             .setMaxNumThreads(0)
@@ -522,7 +522,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     public void testCtor_GivenMaxNumThreadsIsNegative() {
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new DataFrameAnalyticsConfig.Builder()
             .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))
             .setAnalysis(new Regression("foo"))
             .setMaxNumThreads(randomIntBetween(Integer.MIN_VALUE, 0))

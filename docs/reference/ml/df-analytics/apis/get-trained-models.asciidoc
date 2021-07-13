@@ -9,8 +9,6 @@
 
 Retrieves configuration information for a trained model.
 
-beta::[]
-
 
 [[ml-get-trained-models-request]]
 == {api-request-title}
@@ -29,13 +27,8 @@ beta::[]
 [[ml-get-trained-models-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-privileges:
-
-* cluster: `monitor_ml`
-
-For more information, see <<security-privileges>> and
-{ml-docs-setup-privileges}.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 
 [[ml-get-trained-models-desc]]
@@ -50,7 +43,7 @@ using a comma-separated list of model IDs or a wildcard expression.
 
 `<model_id>`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
 
 
 [[ml-get-trained-models-query-params]]
@@ -78,8 +71,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from-models]
 A comma delimited string of optional fields to include in the response body. The
 default value is empty, indicating no optional fields are included. Valid
 options are:
- - `definition`: Includes the model definition
+ - `definition`: Includes the model definition.
  - `feature_importance_baseline`: Includes the baseline for {feat-imp} values.
+ - `hyperparameters`: Includes the information about hyperparameters used to 
+    train the model. This information consists of the value, the absolute and 
+    relative importance of the hyperparameter as well as an indicator of whether 
+    it was specified by the user or tuned during hyperparameter optimization.
  - `total_feature_importance`: Includes the total {feat-imp} for the training
    data set.
 The baseline and total {feat-imp} values are returned in the `metadata` field
@@ -226,18 +223,22 @@ List of the available hyperparameters optimized during the
 [%collapsible%open]
 ======
 `absolute_importance`::::
-(Optional, double)
+(double)
 A positive number showing how much the parameter influences the variation of the 
-{ml-docs}/dfa-regression.html#dfa-regression-lossfunction[loss function]. For 
+{ml-docs}/ml-dfa-regression.html#dfa-regression-lossfunction[loss function]. For 
 hyperparameters with values that are not specified by the user but tuned during 
 hyperparameter optimization. 
+
+`max_trees`::::
+(integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees-trained-models]
 
 `name`::::
 (string)
 Name of the hyperparameter.
 
 `relative_importance`::::
-(Optional, double)
+(double)
 A number between 0 and 1 showing the proportion of influence on the variation of 
 the loss function among all tuned hyperparameters. For hyperparameters with 
 values that are not specified by the user but tuned during hyperparameter 
@@ -281,11 +282,11 @@ A collection of {feat-imp} statistics related to the training data set for this 
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-magnitude]
 
 `max`:::
-(int)
+(integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-max]
 
 `min`:::
-(int)
+(integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-min]
 
 =======

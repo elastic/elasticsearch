@@ -10,12 +10,11 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -86,7 +85,7 @@ public class InboundAggregator implements Releasable {
         ensureOpen();
         final ReleasableBytesReference releasableContent;
         if (isFirstContent()) {
-            releasableContent = ReleasableBytesReference.wrap(BytesArray.EMPTY);
+            releasableContent = ReleasableBytesReference.empty();
         } else if (contentAggregation == null) {
             releasableContent = firstContent;
         } else {

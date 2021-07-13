@@ -25,19 +25,13 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -45,13 +39,18 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
@@ -66,10 +65,8 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -101,6 +98,7 @@ public abstract class Engine implements Closeable {
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
     public static final String SEARCH_SOURCE = "search"; // TODO: Make source of search enum?
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
+    protected static final String DOC_STATS_SOURCE = "doc_stats";
 
     protected final ShardId shardId;
     protected final Logger logger;
@@ -135,7 +133,7 @@ public abstract class Engine implements Closeable {
         this.store = engineConfig.getStore();
         // we use the engine class directly here to make sure all subclasses have the same logger name
         this.logger = Loggers.getLogger(Engine.class,
-                engineConfig.getShardId());
+            engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
     }
 
@@ -177,8 +175,8 @@ public abstract class Engine implements Closeable {
         // index.refresh_interval=-1 won't see any doc stats updates at all. This change will give more accurate statistics
         // when indexing but not refreshing in general. Yet, if a refresh happens the internal searcher is refresh as well so we are
         // safe here.
-        try (Searcher searcher = acquireSearcher("docStats", SearcherScope.INTERNAL)) {
-           return docsStats(searcher.getIndexReader());
+        try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
+            return docsStats(searcher.getIndexReader());
         }
     }
 
@@ -285,12 +283,14 @@ public abstract class Engine implements Closeable {
 
     /**
      * Returns the <code>true</code> iff this engine is currently under index throttling.
+     *
      * @see #getIndexThrottleTimeInMillis()
      */
     public abstract boolean isThrottled();
 
     /**
      * Trims translog for terms below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>
+     *
      * @see Translog#trimOperations(long, long)
      */
     public abstract void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException;
@@ -548,10 +548,14 @@ public abstract class Engine implements Closeable {
 
     }
 
-    protected final GetResult getFromSearcher(Get get, Engine.Searcher searcher) throws EngineException {
+    protected final GetResult getFromSearcher(Get get, Engine.Searcher searcher, boolean uncachedLookup) throws EngineException {
         final DocIdAndVersion docIdAndVersion;
         try {
-            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
+            if (uncachedLookup) {
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersionUncached(searcher.getIndexReader(), get.uid(), true);
+            } else {
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
+            }
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
             //TODO: A better exception goes here
@@ -576,14 +580,15 @@ public abstract class Engine implements Closeable {
         if (docIdAndVersion != null) {
             // don't release the searcher on this path, it is the
             // responsibility of the caller to call GetResult.release
-            return new GetResult(searcher, docIdAndVersion, false);
+            return new GetResult(searcher, docIdAndVersion);
         } else {
             Releasables.close(searcher);
             return GetResult.NOT_EXISTS;
         }
     }
 
-    public abstract GetResult get(Get get, DocumentMapper mapper, Function<Engine.Searcher, Engine.Searcher> searcherWrapper);
+    public abstract GetResult get(Get get, MappingLookup mappingLookup, DocumentParser documentParser,
+                                  Function<Engine.Searcher, Engine.Searcher> searcherWrapper);
 
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
@@ -694,8 +699,8 @@ public abstract class Engine implements Closeable {
      * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
      * This feature requires soft-deletes enabled. If soft-deletes are disabled, this method will throw an {@link IllegalStateException}.
      */
-    public abstract Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo,
-                                                         long toSeqNo, boolean requiredFullRange) throws IOException;
+    public abstract Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo,
+                                                         boolean requiredFullRange, boolean singleConsumer) throws IOException;
 
     /**
      * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
@@ -785,86 +790,38 @@ public abstract class Engine implements Closeable {
         stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
         stats.addPointsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPointsReader()));
         stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
-
         if (includeSegmentFileSizes) {
-            // TODO: consider moving this to StoreStats
-            stats.addFileSizes(getSegmentFileSizes(segmentReader));
+            stats.addFiles(getSegmentFileSizes(segmentReader));
         }
     }
 
-    private ImmutableOpenMap<String, Long> getSegmentFileSizes(SegmentReader segmentReader) {
-        Directory directory = null;
-        SegmentCommitInfo segmentCommitInfo = segmentReader.getSegmentInfo();
-        boolean useCompoundFile = segmentCommitInfo.info.getUseCompoundFile();
-        if (useCompoundFile) {
-            try {
-                directory = engineConfig.getCodec().compoundFormat().getCompoundReader(segmentReader.directory(),
-                    segmentCommitInfo.info, IOContext.READ);
-            } catch (IOException e) {
-                logger.warn(() -> new ParameterizedMessage("Error when opening compound reader for Directory [{}] and " +
-                    "SegmentCommitInfo [{}]", segmentReader.directory(), segmentCommitInfo), e);
-
-                return ImmutableOpenMap.of();
+    private ImmutableOpenMap<String, SegmentsStats.FileStats> getSegmentFileSizes(SegmentReader segmentReader) {
+        try {
+            final ImmutableOpenMap.Builder<String, SegmentsStats.FileStats> files = ImmutableOpenMap.builder();
+            final SegmentCommitInfo segmentCommitInfo = segmentReader.getSegmentInfo();
+            for (String fileName : segmentCommitInfo.files()) {
+                String fileExtension = IndexFileNames.getExtension(fileName);
+                if (fileExtension != null) {
+                    try {
+                        long fileLength = segmentReader.directory().fileLength(fileName);
+                        files.put(fileExtension, new SegmentsStats.FileStats(fileExtension, fileLength, 1L, fileLength, fileLength));
+                    } catch (IOException ioe) {
+                        logger.warn(() ->
+                            new ParameterizedMessage("Error when retrieving file length for [{}]", fileName), ioe);
+                    } catch (AlreadyClosedException ace) {
+                        logger.warn(() ->
+                            new ParameterizedMessage("Error when retrieving file length for [{}], directory is closed", fileName), ace);
+                        return ImmutableOpenMap.of();
+                    }
+                }
             }
-        } else {
-            directory = segmentReader.directory();
+            return files.build();
+        } catch (IOException e) {
+            logger.warn(() ->
+                new ParameterizedMessage("Error when listing files for segment reader [{}] and segment info [{}]",
+                    segmentReader, segmentReader.getSegmentInfo()), e);
+            return ImmutableOpenMap.of();
         }
-
-        assert directory != null;
-
-        String[] files;
-        if (useCompoundFile) {
-            try {
-                files = directory.listAll();
-            } catch (IOException e) {
-                final Directory finalDirectory = directory;
-                logger.warn(() ->
-                    new ParameterizedMessage("Couldn't list Compound Reader Directory [{}]", finalDirectory), e);
-                return ImmutableOpenMap.of();
-            }
-        } else {
-            try {
-                files = segmentReader.getSegmentInfo().files().toArray(new String[]{});
-            } catch (IOException e) {
-                logger.warn(() ->
-                    new ParameterizedMessage("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]",
-                        segmentReader, segmentReader.getSegmentInfo()), e);
-                return ImmutableOpenMap.of();
-            }
-        }
-
-        ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder();
-        for (String file : files) {
-            String extension = IndexFileNames.getExtension(file);
-            long length = 0L;
-            try {
-                length = directory.fileLength(file);
-            } catch (NoSuchFileException | FileNotFoundException e) {
-                final Directory finalDirectory = directory;
-                logger.warn(() -> new ParameterizedMessage("Tried to query fileLength but file is gone [{}] [{}]",
-                    finalDirectory, file), e);
-            } catch (IOException e) {
-                final Directory finalDirectory = directory;
-                logger.warn(() -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]",
-                    finalDirectory, file), e);
-            }
-            if (length == 0L) {
-                continue;
-            }
-            map.put(extension, length);
-        }
-
-        if (useCompoundFile) {
-            try {
-                directory.close();
-            } catch (IOException e) {
-                final Directory finalDirectory = directory;
-                logger.warn(() -> new ParameterizedMessage("Error when closing compound reader on Directory [{}]",
-                    finalDirectory), e);
-            }
-        }
-
-        return map.build();
     }
 
     protected void writerSegmentStats(SegmentsStats stats) {
@@ -1393,7 +1350,7 @@ public abstract class Engine implements Closeable {
             return this.doc.routing();
         }
 
-        public List<Document> docs() {
+        public List<LuceneDocument> docs() {
             return this.doc.docs();
         }
 
@@ -1608,21 +1565,18 @@ public abstract class Engine implements Closeable {
         private final long version;
         private final DocIdAndVersion docIdAndVersion;
         private final Engine.Searcher searcher;
-        private final boolean fromTranslog;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null, false);
+        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null);
 
-        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher, boolean fromTranslog) {
+        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher) {
             this.exists = exists;
             this.version = version;
             this.docIdAndVersion = docIdAndVersion;
             this.searcher = searcher;
-            this.fromTranslog = fromTranslog;
-            assert fromTranslog == false || searcher.getIndexReader() instanceof TranslogLeafReader;
         }
 
-        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion, boolean fromTranslog) {
-            this(true, docIdAndVersion.version, docIdAndVersion, searcher, fromTranslog);
+        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion) {
+            this(true, docIdAndVersion.version, docIdAndVersion, searcher);
         }
 
         public boolean exists() {
@@ -1631,14 +1585,6 @@ public abstract class Engine implements Closeable {
 
         public long version() {
             return this.version;
-        }
-
-        /**
-         * Returns {@code true} iff the get was performed from a translog operation. Notes that this returns {@code false}
-         * if the get was performed on an in-memory Lucene segment created from the corresponding translog operation.
-         */
-        public boolean isFromTranslog() {
-            return fromTranslog;
         }
 
         public Engine.Searcher searcher() {
@@ -1873,4 +1819,7 @@ public abstract class Engine implements Closeable {
      */
     public abstract ShardLongFieldRange getRawFieldRange(String field) throws IOException;
 
+    public final EngineConfig getEngineConfig() {
+        return engineConfig;
+    }
 }

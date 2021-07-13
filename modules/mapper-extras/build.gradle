@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -15,6 +16,22 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get'
+    include '_common', 'cluster', 'field_caps', 'nodes', 'indices', 'index', 'search', 'get'
   }
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // index is owned by server, move these to mapper specific packages
+  ignoreClasses 'org.elasticsearch.index.query.RankFeatureQueryBuilder',
+    'org.elasticsearch.index.query.RankFeatureQueryBuilders',
+    'org.elasticsearch.index.query.SourceConfirmedTextQuery',
+    'org.elasticsearch.index.query.SourceIntervalsSource',
+    'org.elasticsearch.index.mapper.MapperExtrasPlugin',
+    'org.elasticsearch.index.mapper.MatchOnlyTextFieldMapper',
+    'org.elasticsearch.index.mapper.RankFeatureFieldMapper',
+    'org.elasticsearch.index.mapper.RankFeatureMetaFieldMapper',
+    'org.elasticsearch.index.mapper.RankFeaturesFieldMapper',
+    'org.elasticsearch.index.mapper.ScaledFloatFieldMapper',
+    'org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper',
+    'org.elasticsearch.index.mapper.TokenCountFieldMapper'
 }

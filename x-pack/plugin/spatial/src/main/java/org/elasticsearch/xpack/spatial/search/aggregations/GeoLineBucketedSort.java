@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.spatial.search.aggregations;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
@@ -53,7 +53,13 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
         }
         long start = inHeapMode(bucket) ? rootIndex : (rootIndex + getNextGatherOffset(rootIndex) + 1);
         long end = rootIndex + bucketSize;
-        return end - start;
+        long size = 0;
+        for (long index = start; index < end; index++) {
+            if (((Extra) extra).empty.isEmpty(index) == false) {
+                size += 1;
+            }
+        }
+        return size;
     }
 
     /**
@@ -70,11 +76,13 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
         }
         long start = inHeapMode(bucket) ? rootIndex : (rootIndex + getNextGatherOffset(rootIndex) + 1);
         long end = rootIndex + bucketSize;
-        double[] result = new double[(int)(end - start)];
+        double[] result = new double[(int) sizeOf(bucket)];
         int i = 0;
         for (long index = start; index < end; index++) {
-            double timestampValue = ((DoubleArray)values()).get(index);
-            result[i++] = timestampValue;
+            if (((Extra) extra).empty.isEmpty(index) == false) {
+                double timestampValue = ((DoubleArray)values()).get(index);
+                result[i++] = timestampValue;
+            }
         }
         return result;
     }
@@ -92,11 +100,13 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
         }
         long start = inHeapMode(bucket) ? rootIndex : (rootIndex + getNextGatherOffset(rootIndex) + 1);
         long end = rootIndex + bucketSize;
-        long[] result = new long[(int)(end - start)];
+        long[] result = new long[(int) sizeOf(bucket)];
         int i = 0;
         for (long index = start; index < end; index++) {
-            long geoPointValue = ((Extra) extra).values.get(index);
-            result[i++] = geoPointValue;
+            if (((Extra) extra).empty.isEmpty(index) == false) {
+                long geoPointValue = ((Extra) extra).values.get(index);
+                result[i++] = geoPointValue;
+            }
         }
         return result;
     }

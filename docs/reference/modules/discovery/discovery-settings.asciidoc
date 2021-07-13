@@ -85,6 +85,12 @@ handshake. Defaults to `30s`.
 Sets how long a node will wait after asking its peers again before considering
 the request to have failed. Defaults to `3s`.
 
+`discovery.find_peers_warning_timeout`::
+(<<static-cluster-setting,Static>>)
+Sets how long a node will attempt to discover its peers before it starts to log
+verbose messages describing why the connection attempts are failing. Defaults
+to `5m`.
+
 `discovery.seed_resolver.max_concurrent_resolvers`::
 (<<static-cluster-setting,Static>>)
 Specifies how many concurrent DNS lookups to perform when resolving the
@@ -113,7 +119,7 @@ to elect a master node.
 `cluster.election.duration`::
 (<<static-cluster-setting,Static>>)
 Sets how long each election is allowed to take before a node considers it to
-have failed and schedules a retry. This defaults to `500ms`.  Changing this
+have failed and schedules a retry. This defaults to `500ms`. Changing this
 setting from the default may cause your cluster to fail to elect a master node.
 
 `cluster.election.initial_timeout`::
@@ -202,7 +208,7 @@ cluster. This setting has three valid values:
 --
 `all`::: All operations on the node (both read and write operations) are rejected.
 This also applies for API cluster state read or write operations, like the get
-index settings, put mapping and cluster state API.
+index settings, update mapping, and cluster state API.
 
 `write`::: (default) Write operations are rejected. Read operations succeed,
 based on the last known cluster configuration. This situation may result in

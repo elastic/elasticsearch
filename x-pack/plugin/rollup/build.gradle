@@ -1,6 +1,6 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 esplugin {
   name 'x-pack-rollup'
   description 'Elasticsearch Expanded Pack Plugin - Rollup'
@@ -15,6 +15,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(path: xpackModule('analytics'))
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
+  compileOnly project(path: xpackModule('data-streams'))
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 

@@ -40,18 +40,6 @@ public abstract class JdbcErrorsTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    public void testSelectFromEmptyIndex() throws IOException, SQLException {
-        // Create an index without any types
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity("{}");
-        client().performRequest(request);
-
-        try (Connection c = esJdbc()) {
-            SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * FROM test").executeQuery());
-            assertEquals("Found 1 problem\nline 1:8: Cannot determine columns for [*]", e.getMessage());
-        }
-    }
-
     public void testSelectColumnFromEmptyIndex() throws IOException, SQLException {
         Request request = new Request("PUT", "/test");
         request.setJsonEntity("{}");
@@ -123,14 +111,6 @@ public abstract class JdbcErrorsTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    public void testSelectScoreInScalar() throws IOException, SQLException {
-        index("test", body -> body.field("foo", 1));
-        try (Connection c = esJdbc()) {
-            SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT SIN(SCORE()) FROM test").executeQuery());
-            assertThat(e.getMessage(), startsWith("Found 1 problem\nline 1:12: [SCORE()] cannot be an argument to a function"));
-        }
-    }
-
     public void testHardLimitForSortOnAggregate() throws IOException, SQLException {
         index("test", body -> body.field("a", 1).field("b", 2));
         try (Connection c = esJdbc()) {
@@ -138,7 +118,7 @@ public abstract class JdbcErrorsTestCase extends JdbcIntegrationTestCase {
                 SQLException.class,
                 () -> c.prepareStatement("SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 120000").executeQuery()
             );
-            assertEquals("The maximum LIMIT for aggregate sorting is [65535], received [120000]", e.getMessage());
+            assertEquals("The maximum LIMIT for aggregate sorting is [65536], received [120000]", e.getMessage());
         }
     }
 }

@@ -117,6 +117,12 @@ final class ProcessContext {
 
         void kill() {
             if (autodetectCommunicator == null) {
+                // Killing a connected process would also complete the persistent task if `finish` was true,
+                // so we should do the same here even though the process wasn't yet connected at the time of
+                // the kill
+                if (finish) {
+                    jobTask.markAsCompleted();
+                }
                 return;
             }
             String jobId = jobTask.getJobId();

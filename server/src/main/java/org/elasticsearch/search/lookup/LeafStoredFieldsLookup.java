@@ -25,7 +25,7 @@ import java.util.function.Function;
 import static java.util.Collections.singletonMap;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class LeafStoredFieldsLookup implements Map<Object, Object> {
+public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader;
@@ -49,7 +49,7 @@ public class LeafStoredFieldsLookup implements Map<Object, Object> {
     }
 
     @Override
-    public Object get(Object key) {
+    public FieldLookup get(Object key) {
         return loadFieldData(key.toString());
     }
 
@@ -89,12 +89,12 @@ public class LeafStoredFieldsLookup implements Map<Object, Object> {
     }
 
     @Override
-    public Object put(Object key, Object value) {
+    public FieldLookup put(Object key, FieldLookup value) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Object remove(Object key) {
+    public FieldLookup remove(Object key) {
         throw new UnsupportedOperationException();
     }
 

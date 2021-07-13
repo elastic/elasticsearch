@@ -12,7 +12,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -146,38 +146,6 @@ public class AggregationDataExtractorTests extends ESTestCase {
                 stringContainsInOrder(Arrays.asList("aggregations", "histogram", "time", "terms", "airline", "avg", "responsetime")));
     }
 
-    public void testExtractionGivenMultipleBatches() throws IOException {
-        // Each bucket is 4 key-value pairs and there are 2 terms, thus 600 buckets will be 600 * 4 * 2 = 4800
-        // key-value pairs. They should be processed in 5 batches.
-        int buckets = 600;
-        List<Histogram.Bucket> histogramBuckets = new ArrayList<>(buckets);
-        long timestamp = 1000;
-        for (int i = 0; i < buckets; i++) {
-            histogramBuckets.add(createHistogramBucket(timestamp, 3, Arrays.asList(createMax("time", timestamp),
-                    createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0)))));
-            timestamp += 1000L;
-        }
-
-        TestDataExtractor extractor = new TestDataExtractor(1000L, timestamp + 1);
-
-        SearchResponse response = createSearchResponse("time", histogramBuckets);
-        extractor.setNextResponse(response);
-
-        assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(250L));
-        assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(250L));
-        assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(250L));
-        assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(250L));
-        assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(200L));
-        assertThat(extractor.hasNext(), is(false));
-
-        assertThat(capturedSearchRequests.size(), equalTo(1));
-    }
-
     public void testExtractionGivenResponseHasNullAggs() throws IOException {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
 
@@ -246,13 +214,16 @@ public class AggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(250L));
-        assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(250L));
-        assertThat(extractor.hasNext(), is(true));
-
+        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(2400L));
+        histogramBuckets = new ArrayList<>(buckets);
+        for (int i = 0; i < buckets; i++) {
+            histogramBuckets.add(createHistogramBucket(timestamp, 3, Arrays.asList(createMax("time", timestamp),
+                createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0)))));
+            timestamp += 1000L;
+        }
+        response = createSearchResponse("time", histogramBuckets);
+        extractor.setNextResponse(response);
         extractor.cancel();
-
         assertThat(extractor.hasNext(), is(false));
         assertThat(extractor.isCancelled(), is(true));
 

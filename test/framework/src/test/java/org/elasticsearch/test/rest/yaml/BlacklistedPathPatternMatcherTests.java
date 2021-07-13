@@ -48,6 +48,9 @@ public class BlacklistedPathPatternMatcherTests extends ESTestCase {
         assertMatch("indices.get/*/10_basic\\,20_advanced/*foo*", "/suite/indices.get/all/10_basic,20_advanced/foo_bar");
     }
 
+    public void testIgnoresUnsupportedSyntax() {
+        assertMatch("indices.get/10_basic/[foo]{bar}baz?quux.", "indices.get/10_basic/[foo]{bar}baz?quux.");
+    }
 
 
     private void assertMatch(String pattern, String path) {

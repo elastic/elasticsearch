@@ -2,7 +2,7 @@
 === `_source` field
 
 The `_source` field contains the original JSON document body that was passed
-at index time.  The `_source` field itself is not indexed (and thus is not
+at index time. The `_source` field itself is not indexed (and thus is not
 searchable), but it is stored so that it can be returned when executing
 _fetch_ requests, like <<docs-get,get>> or <<search-search,search>>.
 
@@ -29,7 +29,7 @@ PUT my-index-000001
 ==================================================
 
 Users often disable the `_source` field without thinking about the
-consequences, and then live to regret it.  If the `_source` field isn't
+consequences, and then live to regret it. If the `_source` field isn't
 available then a number of features are not supported:
 
 * The <<docs-update,`update`>>, <<docs-update-by-query,`update_by_query`>>,

@@ -10,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -18,8 +17,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -56,7 +56,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                 .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
                 .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
         assertThat(assignment.getExplanation(), is(equalTo("persistent task cannot be assigned while upgrade mode is enabled.")));
     }
@@ -70,7 +70,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                 .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
                 .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
         assertThat(assignment.getExplanation(), is(emptyString()));
     }
@@ -88,14 +88,14 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                     .add(createNode(2, false, Version.CURRENT)))
                 .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
         assertThat(
             assignment.getExplanation(),
             allOf(
-                containsString("Not opening job [data_frame_id] on node [_node_name0], because this node isn't a ml node."),
-                containsString("Not opening job [data_frame_id] on node [_node_name1], because this node isn't a ml node."),
-                containsString("Not opening job [data_frame_id] on node [_node_name2], because this node isn't a ml node.")));
+                containsString("Not opening job [data_frame_id] on node [_node_name0]. Reason: This node isn't a machine learning node."),
+                containsString("Not opening job [data_frame_id] on node [_node_name1]. Reason: This node isn't a machine learning node."),
+                containsString("Not opening job [data_frame_id] on node [_node_name2]. Reason: This node isn't a machine learning node.")));
     }
 
     // Cannot assign the node because none of the existing nodes is appropriate:
@@ -114,7 +114,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                     .add(createNode(2, true, Version.V_7_9_2)))
                 .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
         assertThat(
             assignment.getExplanation(),
@@ -139,7 +139,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                     .add(createNode(0, true, Version.V_7_10_0)))
                 .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(equalTo("_node_id0")));
         assertThat(assignment.getExplanation(), is(emptyString()));
     }
@@ -165,7 +165,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             mock(DataFrameAnalyticsManager.class),
             mock(DataFrameAnalyticsAuditor.class),
             mock(MlMemoryTracker.class),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+            TestIndexNameExpressionResolver.newInstance());
     }
 
     private static DiscoveryNode createNode(int i, boolean isMlNode, Version nodeVersion) {
@@ -173,7 +173,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             "_node_name" + i,
             "_node_id" + i,
             new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i),
-            Map.of("ml.max_open_jobs", isMlNode ? "10" : "0", "ml.machine_memory", "-1"),
+            Map.of("ml.max_open_jobs", isMlNode ? "10" : "0", "ml.machine_memory", String.valueOf(ByteSizeValue.ofGb(1).getBytes())),
             Collections.emptySet(),
             nodeVersion);
     }

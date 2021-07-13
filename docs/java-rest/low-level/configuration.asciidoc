@@ -150,7 +150,7 @@ should be consulted: https://hc.apache.org/httpcomponents-asyncclient-4.1.x/ .
 
 NOTE: If your application runs under the security manager you might be subject
 to the JVM default policies of caching positive hostname resolutions
-indefinitely and negative hostname resolutions for ten seconds.  If the resolved
+indefinitely and negative hostname resolutions for ten seconds. If the resolved
 addresses of the hosts to which you are connecting the client to vary with time
 then you might want to modify the default JVM behavior. These can be modified by
 adding
@@ -184,6 +184,6 @@ whenever none of the nodes from the preferred rack is available.
 
 WARNING: Node selectors that do not consistently select the same set of nodes
 will make round-robin behaviour unpredictable and possibly unfair. The
-preference example  above is fine as it reasons about availability of nodes
+preference example above is fine as it reasons about availability of nodes
 which already affects the predictability of round-robin. Node selection should
 not depend on other external factors or round-robin will not work properly.

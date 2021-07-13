@@ -10,7 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -238,12 +238,10 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 .put("xpack.security.transport.ssl.verification_mode", "none")
                 .build();
             try (MockTransportService serviceC = buildService("TS_C", version0, settings)) {
-                serviceC.acceptIncomingRequests();
-
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
                 DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
-                    DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+                    DiscoveryNodeRole.roles(), Version.CURRENT);
 
                 new Thread(() -> {
                     try {
@@ -285,12 +283,10 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 .put("xpack.security.transport.ssl.verification_mode", "none")
                 .build();
             try (MockTransportService serviceC = buildService("TS_C", version0, settings)) {
-                serviceC.acceptIncomingRequests();
-
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
                 DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
-                    DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+                    DiscoveryNodeRole.roles(), Version.CURRENT);
 
                 ConnectTransportException connectException = expectThrows(ConnectTransportException.class,
                     () -> connectToNode(serviceC, node, TestProfiles.LIGHT_PROFILE));

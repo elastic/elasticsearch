@@ -55,7 +55,7 @@ curl http://stream.meetup.com/2/rsvps | bin/logstash -f livestream.conf
 // NOTCONSOLE
 -- 
 
-Now that you're indexing the meetup RSVPs, you can set up a watch that lets you know about events you might be interested in. For example, let's create a watch that runs every hour, looks for events that talk about about _Open Source_, and sends an email with information about the events.
+Now that you're indexing the meetup RSVPs, you can set up a watch that lets you know about events you might be interested in. For example, let's create a watch that runs every hour, looks for events that talk about _Open Source_, and sends an email with information about the events.
 
 
 To set up the watch:
@@ -145,8 +145,8 @@ To set up the watch:
   },
 -------------------------------------------------
 // NOTCONSOLE
-<1> `logstash` is the default <<indices-add-alias,index alias>> for the {ls}
-indices containing the meetup data. By default, the {ls}
+<1> `logstash` is the default <<alias,index alias>> for the {ls} indices
+containing the meetup data. By default, the {ls}
 <<index-lifecycle-management,{ilm} ({ilm-init})>> policy rolls this alias to a
 new index when the index size reaches 50GB or becomes 30 days old. For more
 information, see

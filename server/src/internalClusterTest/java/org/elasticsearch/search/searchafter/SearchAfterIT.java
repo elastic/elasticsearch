@@ -9,14 +9,20 @@
 package org.elasticsearch.search.searchafter;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
@@ -30,6 +36,9 @@ import java.util.Arrays;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -180,6 +189,80 @@ public class SearchAfterIT extends ESIntegTestCase {
             reqSize = 1;
         }
         assertSearchFromWithSortValues(INDEX_NAME, documents, reqSize);
+    }
+
+    public void testWithCustomFormatSortValueOfDateField() throws Exception {
+        final XContentBuilder mappings = jsonBuilder();
+        mappings.startObject().startObject("properties");
+        {
+            mappings.startObject("start_date");
+            mappings.field("type", "date");
+            mappings.field("format", "yyyy-MM-dd");
+            mappings.endObject();
+        }
+        {
+            mappings.startObject("end_date");
+            mappings.field("type", "date");
+            mappings.field("format", "yyyy-MM-dd");
+            mappings.endObject();
+        }
+        mappings.endObject().endObject();
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 3)))
+            .setMapping(mappings));
+
+
+        client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(new IndexRequest("test").id("1").source("start_date", "2019-03-24", "end_date", "2020-01-21"))
+            .add(new IndexRequest("test").id("2").source("start_date", "2018-04-23", "end_date", "2021-02-22"))
+            .add(new IndexRequest("test").id("3").source("start_date", "2015-01-22", "end_date", "2022-07-23"))
+            .add(new IndexRequest("test").id("4").source("start_date", "2016-02-21", "end_date", "2024-03-24"))
+            .add(new IndexRequest("test").id("5").source("start_date", "2017-01-20", "end_date", "2025-05-28"))
+            .get();
+
+        SearchResponse resp = client().prepareSearch("test")
+            .addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
+            .addSort(SortBuilders.fieldSort("end_date").setFormat("yyyy-MM-dd"))
+            .setSize(2)
+            .get();
+        assertNoFailures(resp);
+        assertThat(resp.getHits().getHits()[0].getSortValues(), arrayContaining("22/01/2015", "2022-07-23"));
+        assertThat(resp.getHits().getHits()[1].getSortValues(), arrayContaining("21/02/2016", "2024-03-24"));
+
+        resp = client().prepareSearch("test")
+            .addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
+            .addSort(SortBuilders.fieldSort("end_date").setFormat("yyyy-MM-dd"))
+            .searchAfter(new String[]{"21/02/2016", "2024-03-24"})
+            .setSize(2)
+            .get();
+        assertNoFailures(resp);
+        assertThat(resp.getHits().getHits()[0].getSortValues(), arrayContaining("20/01/2017", "2025-05-28"));
+        assertThat(resp.getHits().getHits()[1].getSortValues(), arrayContaining("23/04/2018", "2021-02-22"));
+
+        resp = client().prepareSearch("test")
+            .addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
+            .addSort(SortBuilders.fieldSort("end_date")) // it's okay because end_date has the format "yyyy-MM-dd"
+            .searchAfter(new String[]{"21/02/2016", "2024-03-24"})
+            .setSize(2)
+            .get();
+        assertNoFailures(resp);
+        assertThat(resp.getHits().getHits()[0].getSortValues(), arrayContaining("20/01/2017", 1748390400000L));
+        assertThat(resp.getHits().getHits()[1].getSortValues(), arrayContaining("23/04/2018", 1613952000000L));
+
+        SearchRequestBuilder searchRequest = client().prepareSearch("test")
+            .addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
+            .addSort(SortBuilders.fieldSort("end_date").setFormat("epoch_millis"))
+            .searchAfter(new Object[]{"21/02/2016", 1748390400000L})
+            .setSize(2);
+        assertNoFailures(searchRequest.get());
+
+        searchRequest = client().prepareSearch("test")
+            .addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
+            .addSort(SortBuilders.fieldSort("end_date").setFormat("epoch_millis")) // wrong format
+            .searchAfter(new Object[]{"21/02/2016", "23/04/2018"})
+            .setSize(2);
+        assertFailures(searchRequest, RestStatus.BAD_REQUEST,
+            containsString("failed to parse date field [23/04/2018] with format [epoch_millis]"));
     }
 
     private static class ListComparator implements Comparator<List> {

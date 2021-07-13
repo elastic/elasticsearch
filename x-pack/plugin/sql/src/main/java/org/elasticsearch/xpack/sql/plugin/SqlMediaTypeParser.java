@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.MediaTypeRegistry;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_FORMAT;
 
@@ -34,27 +36,49 @@ public class SqlMediaTypeParser {
      * isn't but there is a {@code Accept} header then we use that. If there
      * isn't then we use the {@code Content-Type} header which is required.
      */
-    public MediaType getResponseMediaType(RestRequest request, SqlQueryRequest sqlRequest) {
+    public static MediaType getResponseMediaType(RestRequest request, SqlQueryRequest sqlRequest) {
         if (Mode.isDedicatedClient(sqlRequest.requestInfo().mode())
             && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
             // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
             return XContentType.CBOR;
         } else if (request.hasParam(URL_PARAM_FORMAT)) {
-            return validateColumnarRequest(sqlRequest.columnar(),
-                MEDIA_TYPE_REGISTRY.queryParamToMediaType(request.param(URL_PARAM_FORMAT)));
+            return validateColumnarRequest(sqlRequest.columnar(), mediaTypeFromParams(request), request);
         }
 
-        if (request.getParsedAccept() != null) {
-            return request.getParsedAccept().toMediaType(MEDIA_TYPE_REGISTRY);
-        }
-        return request.getXContentType();
+        return mediaTypeFromHeaders(request);
     }
 
-    private static MediaType validateColumnarRequest(boolean requestIsColumnar, MediaType fromMediaType) {
-        if(requestIsColumnar && fromMediaType instanceof TextFormat){
+    public static MediaType getResponseMediaType(RestRequest request) {
+        return request.hasParam(URL_PARAM_FORMAT)
+            ? checkNonNullMediaType(mediaTypeFromParams(request), request)
+            : mediaTypeFromHeaders(request);
+    }
+
+    private static MediaType mediaTypeFromHeaders(RestRequest request) {
+        ParsedMediaType acceptType = request.getParsedAccept();
+        MediaType mediaType = acceptType != null ? acceptType.toMediaType(MEDIA_TYPE_REGISTRY) : request.getXContentType();
+        return checkNonNullMediaType(mediaType, request);
+    }
+
+    private static MediaType mediaTypeFromParams(RestRequest request) {
+        return MEDIA_TYPE_REGISTRY.queryParamToMediaType(request.param(URL_PARAM_FORMAT));
+    }
+
+    private static MediaType validateColumnarRequest(boolean requestIsColumnar, MediaType fromMediaType, RestRequest request) {
+        if (requestIsColumnar && fromMediaType instanceof TextFormat) {
             throw new IllegalArgumentException("Invalid use of [columnar] argument: cannot be used in combination with "
                 + "txt, csv or tsv formats");
         }
-        return fromMediaType;
+        return checkNonNullMediaType(fromMediaType, request);
+    }
+
+    private static MediaType checkNonNullMediaType(MediaType mediaType, RestRequest request) {
+        if (mediaType == null) {
+            String msg = String.format(Locale.ROOT, "Invalid request content type: Accept=[%s], Content-Type=[%s], format=[%s]",
+                request.header("Accept"), request.header("Content-Type"), request.param("format"));
+            throw new IllegalArgumentException(msg);
+        }
+
+        return mediaType;
     }
 }

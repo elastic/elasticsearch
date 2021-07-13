@@ -10,7 +10,7 @@
 experimental::[]
 
 The Get Rollup Index Capabilities API allows the user to determine if a concrete index or index pattern contains
-stored rollup jobs and data.  If it contains data stored from rollup jobs, the capabilities of those jobs
+stored rollup jobs and data. If it contains data stored from rollup jobs, the capabilities of those jobs
 are returned. The API accepts a `GetRollupIndexCapsRequest` object as a request and returns a `GetRollupIndexCapsResponse`.
 
 [id="{upid}-x-pack-{api}-request"]
@@ -40,7 +40,7 @@ include-tagged::{doc-tests-file}[x-pack-{api}-execute]
 
 The returned +{response}+ holds lists and maps of values which correspond to the capabilities
 of the rollup index/index pattern (what jobs are stored in the index, their capabilities, what
-aggregations are available, etc).  Because multiple jobs can be stored in one index, the
+aggregations are available, etc). Because multiple jobs can be stored in one index, the
 response may include several jobs with different configurations.
 
 The capabilities are essentially the same as the original job configuration, just presented in a different

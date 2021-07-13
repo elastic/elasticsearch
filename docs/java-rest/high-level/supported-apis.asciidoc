@@ -60,6 +60,7 @@ The Java High Level REST Client supports the following Search APIs:
 * <<{upid}-rank-eval>>
 * <<{upid}-explain>>
 * <<{upid}-count>>
+* <<{upid}-point-in-time>>
 
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
@@ -70,6 +71,7 @@ include::search/field-caps.asciidoc[]
 include::search/rank-eval.asciidoc[]
 include::search/explain.asciidoc[]
 include::search/count.asciidoc[]
+include::search/point-in-time.asciidoc[]
 
 [role="xpack"]
 == Async Search APIs
@@ -226,6 +228,7 @@ The Java High Level REST Client supports the following Snapshot APIs:
 * <<java-rest-high-snapshot-snapshots-status>>
 * <<java-rest-high-snapshot-delete-snapshot>>
 * <<java-rest-high-snapshot-restore-snapshot>>
+* <<java-rest-high-snapshot-clone-snapshot>>
 
 include::snapshot/get_repository.asciidoc[]
 include::snapshot/create_repository.asciidoc[]
@@ -236,6 +239,7 @@ include::snapshot/get_snapshots.asciidoc[]
 include::snapshot/snapshots_status.asciidoc[]
 include::snapshot/delete_snapshot.asciidoc[]
 include::snapshot/restore_snapshot.asciidoc[]
+include::snapshot/clone_snapshot.asciidoc[]
 
 == Tasks APIs
 
@@ -298,6 +302,7 @@ The Java High Level REST Client supports the following {ml} APIs:
 * <<{upid}-delete-forecast>>
 * <<{upid}-delete-model-snapshot>>
 * <<{upid}-delete-trained-models>>
+* <<{upid}-delete-trained-model-alias>>
 * <<{upid}-estimate-model-memory>>
 * <<{upid}-evaluate-data-frame>>
 * <<{upid}-explain-data-frame-analytics>>
@@ -332,6 +337,7 @@ The Java High Level REST Client supports the following {ml} APIs:
 * <<{upid}-put-datafeed>>
 * <<{upid}-put-filter>>
 * <<{upid}-put-trained-model>>
+* <<{upid}-put-trained-model-alias>>
 * <<{upid}-revert-model-snapshot>>
 * <<{upid}-set-upgrade-mode>>
 * <<{upid}-start-data-frame-analytics>>
@@ -359,6 +365,7 @@ include::ml/delete-filter.asciidoc[]
 include::ml/delete-forecast.asciidoc[]
 include::ml/delete-model-snapshot.asciidoc[]
 include::ml/delete-trained-models.asciidoc[]
+include::ml/delete-trained-model-alias.asciidoc[]
 // ESTIMATE
 include::ml/estimate-model-memory.asciidoc[]
 // EVALUATE
@@ -403,6 +410,7 @@ include::ml/put-data-frame-analytics.asciidoc[]
 include::ml/put-datafeed.asciidoc[]
 include::ml/put-filter.asciidoc[]
 include::ml/put-trained-model.asciidoc[]
+include::ml/put-trained-model-alias.asciidoc[]
 // REVERT
 include::ml/revert-model-snapshot.asciidoc[]
 // SET
@@ -479,6 +487,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-clear-privileges-cache>>
 * <<{upid}-clear-realm-cache>>
 * <<{upid}-clear-api-key-cache>>
+* <<{upid}-clear-service-account-token-cache>>
 * <<{upid}-authenticate>>
 * <<{upid}-has-privileges>>
 * <<{upid}-get-user-privileges>>
@@ -495,6 +504,10 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-create-api-key>>
 * <<{upid}-get-api-key>>
 * <<{upid}-invalidate-api-key>>
+* <<{upid}-get-service-accounts>>
+* <<{upid}-create-service-account-token>>
+* <<{upid}-delete-service-account-token>>
+* <<{upid}-get-service-account-credentials>>
 
 include::security/put-user.asciidoc[]
 include::security/get-users.asciidoc[]
@@ -512,6 +525,7 @@ include::security/clear-roles-cache.asciidoc[]
 include::security/clear-privileges-cache.asciidoc[]
 include::security/clear-realm-cache.asciidoc[]
 include::security/clear-api-key-cache.asciidoc[]
+include::security/clear-service-account-token-cache.asciidoc[]
 include::security/authenticate.asciidoc[]
 include::security/has-privileges.asciidoc[]
 include::security/get-user-privileges.asciidoc[]
@@ -523,8 +537,13 @@ include::security/create-token.asciidoc[]
 include::security/invalidate-token.asciidoc[]
 include::security/put-privileges.asciidoc[]
 include::security/create-api-key.asciidoc[]
+include::security/grant-api-key.asciidoc[]
 include::security/get-api-key.asciidoc[]
 include::security/invalidate-api-key.asciidoc[]
+include::security/get-service-accounts.asciidoc[]
+include::security/create-service-account-token.asciidoc[]
+include::security/delete-service-account-token.asciidoc[]
+include::security/get-service-account-credentials.asciidoc[]
 
 [role="xpack"]
 == Text Structure APIs
@@ -682,6 +701,20 @@ include::ilm/snapshot_lifecycle_management_status.asciidoc[]
 include::ilm/execute_snapshot_lifecycle_policy.asciidoc[]
 include::ilm/execute_snapshot_lifecycle_retention.asciidoc[]
 
+[role="xpack"]
+== Searchable Snapshots APIs
+
+:upid: {mainid}-searchable-snapshots
+:doc-tests-file: {doc-tests}/SearchableSnapshotsDocumentationIT.java
+
+The Java High Level REST Client supports the following Searchable Snapshots APIs:
+
+* <<{upid}-searchable-snapshots-mount-snapshot>>
+* <<{upid}-searchable-snapshots-caches-stats>>
+
+
+include::searchable_snapshots/mount_snapshot.asciidoc[]
+include::searchable_snapshots/caches_stats.asciidoc[]
 
 [role="xpack"]
 [[transform_apis]]

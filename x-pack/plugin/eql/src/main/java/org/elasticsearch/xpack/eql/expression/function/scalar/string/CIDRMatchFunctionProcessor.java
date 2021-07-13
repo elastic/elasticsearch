@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.core.common.network.CIDRUtils;
+import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.xpack.ql.util.Check;
 
 import java.io.IOException;

@@ -10,8 +10,9 @@ package org.elasticsearch.packaging.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.DockerRun;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ProcessInfo;
@@ -34,16 +35,18 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.util.Distribution.Packaging;
 import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
 import static org.elasticsearch.packaging.util.Docker.chownWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
+import static org.elasticsearch.packaging.util.Docker.getImageHealthcheck;
 import static org.elasticsearch.packaging.util.Docker.getImageLabels;
-import static org.elasticsearch.packaging.util.Docker.getImageName;
 import static org.elasticsearch.packaging.util.Docker.getJson;
 import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
+import static org.elasticsearch.packaging.util.Docker.restartContainer;
 import static org.elasticsearch.packaging.util.Docker.rmDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
@@ -57,10 +60,10 @@ import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -85,7 +88,7 @@ public class DockerTests extends PackagingTestCase {
 
     @Before
     public void setupTest() throws IOException {
-        installation = runContainer(distribution());
+        installation = runContainer(distribution(), builder().envVars(Map.of("ingest.geoip.downloader.enabled", "false")));
         tempDir = createTempDir(DockerTests.class.getSimpleName());
     }
 
@@ -99,7 +102,7 @@ public class DockerTests extends PackagingTestCase {
      * Checks that the Docker image can be run, and that it passes various checks.
      */
     public void test010Install() {
-        verifyContainerInstallation(installation, distribution());
+        verifyContainerInstallation(installation);
     }
 
     /**
@@ -108,12 +111,7 @@ public class DockerTests extends PackagingTestCase {
     public void test011PresenceOfXpack() throws Exception {
         waitForElasticsearch(installation);
         final int statusCode = Request.Get("http://localhost:9200/_xpack").execute().returnResponse().getStatusLine().getStatusCode();
-
-        if (distribution.isOSS()) {
-            assertThat(statusCode, greaterThanOrEqualTo(400));
-        } else {
-            assertThat(statusCode, equalTo(200));
-        }
+        assertThat(statusCode, equalTo(200));
     }
 
     /**
@@ -286,9 +284,6 @@ public class DockerTests extends PackagingTestCase {
      * Check that the elastic user's password can be configured via a file and the ELASTIC_PASSWORD_FILE environment variable.
      */
     public void test080ConfigurePasswordThroughEnvironmentVariableFile() throws Exception {
-        // Test relies on configuring security
-        assumeTrue(distribution.isDefault());
-
         final String xpackPassword = "hunter2";
         final String passwordFilename = "password.txt";
 
@@ -335,8 +330,6 @@ public class DockerTests extends PackagingTestCase {
      * are followed.
      */
     public void test081SymlinksAreFollowedWithEnvironmentVariableFiles() throws Exception {
-        // Test relies on configuring security
-        assumeTrue(distribution.isDefault());
         // Test relies on symlinks
         assumeFalse(Platforms.WINDOWS);
 
@@ -429,8 +422,6 @@ public class DockerTests extends PackagingTestCase {
      * are followed, and that invalid target permissions are detected.
      */
     public void test084SymlinkToFileWithInvalidPermissionsIsRejected() throws Exception {
-        // Test relies on configuring security
-        assumeTrue(distribution.isDefault());
         // Test relies on symlinks
         assumeFalse(Platforms.WINDOWS);
 
@@ -478,10 +469,6 @@ public class DockerTests extends PackagingTestCase {
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
     public void test085EnvironmentVariablesAreRespectedUnderDockerExec() throws Exception {
-        // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
-        // tool in question is only in the default distribution.
-        assumeTrue(distribution.isDefault());
-
         installation = runContainer(
             distribution(),
             builder().envVars(Map.of("xpack.security.enabled", "true", "ELASTIC_PASSWORD", "hunter2"))
@@ -500,6 +487,50 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that settings are applied when they are supplied as environment variables with names that are:
+     * <ul>
+     *     <li>Prefixed with {@code ES_}</li>
+     *     <li>All uppercase</li>
+     *     <li>Dots (periods) are converted to underscores</li>
+     *     <li>Underscores in setting names are escaped by doubling them</li>
+     * </ul>
+     */
+    public void test086EnvironmentVariablesInSnakeCaseAreTranslated() {
+        // Note the double-underscore in the var name here, which retains the underscore in translation
+        installation = runContainer(distribution(), builder().envVars(Map.of("ES_XPACK_SECURITY_FIPS__MODE_ENABLED", "false")));
+
+        final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
+            .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
+            .findFirst();
+
+        assertThat(commandLine.isPresent(), equalTo(true));
+
+        assertThat(commandLine.get(), containsString("-Expack.security.fips_mode.enabled=false"));
+    }
+
+    /**
+     * Check that environment variables that do not match the criteria for translation to settings are ignored.
+     */
+    public void test087EnvironmentVariablesInIncorrectFormatAreIgnored() {
+        final Map<String, String> envVars = new HashMap<>();
+        // No ES_ prefix
+        envVars.put("XPACK_SECURITY_FIPS__MODE_ENABLED", "false");
+        // Not underscore-separated
+        envVars.put("ES.XPACK.SECURITY.FIPS_MODE.ENABLED", "false");
+        // Not uppercase
+        envVars.put("es_xpack_security_fips__mode_enabled", "false");
+        installation = runContainer(distribution(), builder().envVars(envVars));
+
+        final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
+            .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
+            .findFirst();
+
+        assertThat(commandLine.isPresent(), equalTo(true));
+
+        assertThat(commandLine.get(), not(containsString("-Expack.security.fips_mode.enabled=false")));
+    }
+
+    /**
      * Check whether the elasticsearch-certutil tool has been shipped correctly,
      * and if present then it can execute.
      */
@@ -508,19 +539,15 @@ public class DockerTests extends PackagingTestCase {
 
         final Path securityCli = installation.lib.resolve("tools").resolve("security-cli");
 
-        if (distribution().isDefault()) {
-            assertTrue(existsInContainer(securityCli));
+        assertTrue(existsInContainer(securityCli));
 
-            Result result = sh.run(bin.certutilTool + " --help");
-            assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
+        Result result = sh.run(bin.certutilTool + " --help");
+        assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
 
-            // Ensure that the exit code from the java command is passed back up through the shell script
-            result = sh.runIgnoreExitCode(bin.certutilTool + " invalid-command");
-            assertThat(result.isSuccess(), is(false));
-            assertThat(result.stdout, containsString("Unknown command [invalid-command]"));
-        } else {
-            assertFalse(existsInContainer(securityCli));
-        }
+        // Ensure that the exit code from the java command is passed back up through the shell script
+        result = sh.runIgnoreExitCode(bin.certutilTool + " invalid-command");
+        assertThat(result.isSuccess(), is(false));
+        assertThat(result.stdout, containsString("Unknown command [invalid-command]"));
     }
 
     /**
@@ -566,7 +593,7 @@ public class DockerTests extends PackagingTestCase {
         // expected group.
         final Shell localSh = new Shell();
         final String findResults = localSh.run(
-            "docker run --rm --tty " + getImageName(distribution) + " bash -c ' touch data/test && find . \\! -group 0 ' "
+            "docker run --rm --tty " + DockerRun.getImageName(distribution) + " bash -c ' touch data/test && find . \\! -group 0 ' "
         ).stdout;
 
         assertThat("Found some files whose GID != 0", findResults, is(emptyString()));
@@ -577,6 +604,8 @@ public class DockerTests extends PackagingTestCase {
      * @see <a href="http://label-schema.org/">Label Schema website</a>
      */
     public void test110OrgLabelSchemaLabels() throws Exception {
+        assumeTrue(distribution.packaging != Packaging.DOCKER_IRON_BANK);
+
         final Map<String, String> labels = getImageLabels(distribution);
 
         final Map<String, String> staticLabels = new HashMap<>();
@@ -610,6 +639,8 @@ public class DockerTests extends PackagingTestCase {
      * @see <a href="https://github.com/opencontainers/image-spec/blob/master/annotations.md">Open Containers Annotations</a>
      */
     public void test110OrgOpencontainersLabels() throws Exception {
+        assumeTrue(distribution.packaging != Packaging.DOCKER_IRON_BANK);
+
         final Map<String, String> labels = getImageLabels(distribution);
 
         final Map<String, String> staticLabels = new HashMap<>();
@@ -689,6 +720,20 @@ public class DockerTests extends PackagingTestCase {
         final Result result = runContainerExpectingFailure(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "unknown")));
 
         assertThat(result.stderr, containsString("ERROR: ES_LOG_STYLE set to [unknown]. Expected [console] or [file]"));
+    }
+
+    /**
+     * Check that it when configuring logging to write to disk, the container can be restarted.
+     */
+    public void test124CanRestartContainerWithStackLoggingConfig() throws Exception {
+        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file")));
+
+        waitForElasticsearch(installation);
+
+        restartContainer();
+
+        // If something went wrong running Elasticsearch the second time, this will fail.
+        waitForElasticsearch(installation);
     }
 
     /**
@@ -777,10 +822,23 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Checks that the image has an appropriate <code>HEALTHCHECK</code> definition for the current distribution.
+     */
+    public void test160CheckImageHealthcheckDefinition() throws Exception {
+        final List<String> imageHealthcheck = getImageHealthcheck(distribution);
+
+        if (distribution.packaging == Packaging.DOCKER_IRON_BANK) {
+            assertThat(imageHealthcheck, contains("CMD-SHELL", "curl -I -f --max-time 5 http://localhost:9200 || exit 1"));
+        } else {
+            assertThat(imageHealthcheck, nullValue());
+        }
+    }
+
+    /**
      * Check that the UBI images has the correct license information in the correct place.
      */
     public void test200UbiImagesHaveLicenseDirectory() {
-        assumeTrue(distribution.packaging == Distribution.Packaging.DOCKER_UBI);
+        assumeTrue(distribution.packaging == Packaging.DOCKER_UBI);
 
         final String[] files = sh.run("find /licenses -type f").stdout.split("\n");
         assertThat(files, arrayContaining("/licenses/LICENSE"));
@@ -795,7 +853,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the UBI image has the expected labels
      */
     public void test210UbiLabels() throws Exception {
-        assumeTrue(distribution.packaging == Distribution.Packaging.DOCKER_UBI);
+        assumeTrue(distribution.packaging == Packaging.DOCKER_UBI);
 
         final Map<String, String> labels = getImageLabels(distribution);
 
@@ -814,5 +872,37 @@ public class DockerTests extends PackagingTestCase {
         });
 
         dynamicLabels.forEach(key -> assertThat(labels, hasKey(key)));
+    }
+
+    /**
+     * Check that the Iron Bank image has the correct license information in the correct place.
+     */
+    public void test300IronBankImagesHaveLicenseDirectory() {
+        assumeTrue(distribution.packaging == Packaging.DOCKER_IRON_BANK);
+
+        final String[] files = sh.run("find /licenses -type f").stdout.split("\n");
+        assertThat(files, arrayContaining("/licenses/LICENSE", "/licenses/LICENSE.addendum"));
+
+        // Image doesn't contain `diff`
+        final String ubiLicense = sh.run("cat /licenses/LICENSE").stdout;
+        final String distroLicense = sh.run("cat /usr/share/elasticsearch/LICENSE.txt").stdout;
+        assertThat(ubiLicense, equalTo(distroLicense));
+    }
+
+    /**
+     * Check that the Iron Bank image doesn't define extra labels
+     */
+    public void test310IronBankImageHasNoAdditionalLabels() throws Exception {
+        assumeTrue(distribution.packaging == Packaging.DOCKER_IRON_BANK);
+
+        final Map<String, String> labels = getImageLabels(distribution);
+
+        final Set<String> labelKeys = labels.keySet();
+
+        // We can't just assert that the labels map is empty, because it can inherit labels from its base.
+        // This is certainly the case when we build the Iron Bank image using a UBI base. It is unknown
+        // if that is true for genuine Iron Bank builds.
+        assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.label-schema.")));
+        assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.opencontainers.")));
     }
 }

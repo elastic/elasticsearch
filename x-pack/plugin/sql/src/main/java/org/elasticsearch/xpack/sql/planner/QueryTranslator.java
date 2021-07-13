@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.GeoDistanceQuery;
@@ -407,8 +408,9 @@ final class QueryTranslator {
                             Geometry geometry = ((GeoShape) geoShape).toGeometry();
                             if (geometry instanceof Point) {
                                 String field = nameOf(stDistance.left());
-                                return new GeoDistanceQuery(source, field, ((Number) value).doubleValue(),
+                                Query query = new GeoDistanceQuery(source, field, ((Number) value).doubleValue(),
                                     ((Point) geometry).getY(), ((Point) geometry).getX());
+                                return ExpressionTranslator.wrapIfNested(query, stDistance.left());
                             }
                         }
                     }

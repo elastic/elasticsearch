@@ -231,6 +231,62 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(IntervalFilterScript.class)) {
             IntervalFilterScript.Factory factory = mockCompiled::createIntervalFilterScript;
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(BooleanFieldScript.class)) {
+            BooleanFieldScript.Factory booleanFieldScript = (f, p, s) -> ctx -> new BooleanFieldScript(f, p, s, ctx) {
+                @Override
+                public void execute() {
+                    emit(true);
+                }
+            };
+            return context.factoryClazz.cast(booleanFieldScript);
+        } else if (context.instanceClazz.equals(StringFieldScript.class)) {
+            StringFieldScript.Factory stringFieldScript = (f, p, s) -> ctx -> new StringFieldScript(f, p, s, ctx) {
+                @Override
+                public void execute() {
+                    emit("test");
+                }
+            };
+            return context.factoryClazz.cast(stringFieldScript);
+        } else if (context.instanceClazz.equals(LongFieldScript.class)) {
+            LongFieldScript.Factory longFieldScript = (f, p, s) -> ctx -> new LongFieldScript(f, p, s, ctx) {
+                @Override
+                public void execute() {
+                    emit(1L);
+                }
+            };
+            return context.factoryClazz.cast(longFieldScript);
+        } else if (context.instanceClazz.equals(DoubleFieldScript.class)) {
+            DoubleFieldScript.Factory doubleFieldScript = (f, p, s) -> ctx -> new DoubleFieldScript(f, p, s, ctx) {
+                @Override
+                public void execute() {
+                    emit(1.2D);
+                }
+            };
+            return context.factoryClazz.cast(doubleFieldScript);
+        } else if (context.instanceClazz.equals(DateFieldScript.class)) {
+            DateFieldScript.Factory dateFieldScript = (f, p, s, formatter) -> ctx -> new DateFieldScript(f, p, s, formatter, ctx) {
+                @Override
+                public void execute() {
+                    emit(123L);
+                }
+            };
+            return context.factoryClazz.cast(dateFieldScript);
+        } else if (context.instanceClazz.equals(IpFieldScript.class)) {
+            IpFieldScript.Factory ipFieldScript = (f, p, s) -> ctx -> new IpFieldScript(f, p, s, ctx) {
+                @Override
+                public void execute() {
+                    emit("127.0.0.1");
+                }
+            };
+            return context.factoryClazz.cast(ipFieldScript);
+        } else if (context.instanceClazz.equals(GeoPointFieldScript.class)) {
+            GeoPointFieldScript.Factory geoPointFieldScript = (f, p, s) -> ctx -> new GeoPointFieldScript(f, p, s, ctx) {
+                @Override
+                public void execute() {
+                    emit(1.2D, 1.2D);
+                }
+            };
+            return context.factoryClazz.cast(geoPointFieldScript);
         }
         ContextCompiler compiler = contexts.get(context);
         if (compiler != null) {

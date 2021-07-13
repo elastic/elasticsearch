@@ -469,7 +469,7 @@ public class PkiRealmTests extends ESTestCase {
         List<Setting<?>> settingList = new ArrayList<>();
         settingList.addAll(InternalRealmsSettings.getSettings());
         ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(settingList));
-        clusterSettings.validate(settings, false);
+        clusterSettings.validate(settings, true);
 
         assertSettingDeprecationsAndWarnings(new Setting[]{
                 PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD.getConcreteSettingForNamespace("pki1")

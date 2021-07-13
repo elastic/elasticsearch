@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -24,10 +23,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,14 +57,17 @@ public class MetadataRolloverService {
     private final MetadataCreateIndexService createIndexService;
     private final MetadataIndexAliasesService indexAliasesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final SystemIndices systemIndices;
+
     @Inject
     public MetadataRolloverService(ThreadPool threadPool,
                                    MetadataCreateIndexService createIndexService, MetadataIndexAliasesService indexAliasesService,
-                                   IndexNameExpressionResolver indexNameExpressionResolver) {
+                                   IndexNameExpressionResolver indexNameExpressionResolver, SystemIndices systemIndices) {
         this.threadPool = threadPool;
         this.createIndexService = createIndexService;
         this.indexAliasesService = indexAliasesService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.systemIndices = systemIndices;
     }
 
     public static class RolloverResult {
@@ -122,7 +126,7 @@ public class MetadataRolloverService {
             case ALIAS:
                 return resolveAliasRolloverNames((IndexAbstraction.Alias) indexAbstraction, newIndexName);
             case DATA_STREAM:
-                return resolveDataStreamRolloverNames(currentState, (IndexAbstraction.DataStream) indexAbstraction);
+                return resolveDataStreamRolloverNames(currentState.getMetadata(), (IndexAbstraction.DataStream) indexAbstraction);
             default:
                 // the validate method above prevents this case
                 throw new IllegalStateException("unable to roll over type [" + indexAbstraction.getType().getDisplayName() + "]");
@@ -154,11 +158,10 @@ public class MetadataRolloverService {
         return new NameResolution(sourceIndexName, unresolvedName, rolloverIndexName);
     }
 
-    private NameResolution resolveDataStreamRolloverNames(ClusterState currentState, IndexAbstraction.DataStream dataStream) {
-        final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
+    private NameResolution resolveDataStreamRolloverNames(Metadata metadata, IndexAbstraction.DataStream dataStream) {
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
-        final DataStream rolledDataStream = ds.rollover("uuid", minNodeVersion);
+        final DataStream rolledDataStream = ds.rollover(metadata, "uuid");
         return new NameResolution(originalWriteIndex.getIndex().getName(), null, rolledDataStream.getWriteIndex().getName());
     }
 
@@ -211,21 +214,33 @@ public class MetadataRolloverService {
             );
         }
 
-        lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+        final SystemDataStreamDescriptor systemDataStreamDescriptor;
+        if (dataStream.isSystem() == false) {
+            systemDataStreamDescriptor = null;
+            lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+        } else {
+            systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
+            if (systemDataStreamDescriptor == null) {
+                throw new IllegalArgumentException("no system data stream descriptor found for data stream [" + dataStreamName + "]");
+            }
+        }
 
-        final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
-        DataStream rolledDataStream = ds.rollover("uuid", minNodeVersion);
+        DataStream rolledDataStream = ds.rollover(currentState.metadata(), "uuid");
         createIndexService.validateIndexName(rolledDataStream.getWriteIndex().getName(), currentState); // fails if the index already exists
         if (onlyValidate) {
             return new RolloverResult(rolledDataStream.getWriteIndex().getName(), originalWriteIndex.getIndex().getName(), currentState);
         }
 
-        CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
-            prepareDataStreamCreateIndexRequest(dataStreamName, rolledDataStream.getWriteIndex().getName(), createIndexRequest);
+        CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest = prepareDataStreamCreateIndexRequest(
+            dataStreamName,
+            rolledDataStream.getWriteIndex().getName(),
+            createIndexRequest,
+            systemDataStreamDescriptor
+        );
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent,
-            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndexUUID(), minNodeVersion)));
+            (builder, indexMetadata) -> builder.put(ds.rollover(currentState.metadata(), indexMetadata.getIndexUUID())));
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
         newState = ClusterState.builder(newState)
@@ -255,10 +270,12 @@ public class MetadataRolloverService {
 
     static CreateIndexClusterStateUpdateRequest prepareDataStreamCreateIndexRequest(final String dataStreamName,
                                                                                     final String targetIndexName,
-                                                                                    CreateIndexRequest createIndexRequest) {
-        Settings settings = Settings.builder().put("index.hidden", true).build();
+                                                                                    CreateIndexRequest createIndexRequest,
+                                                                                    final SystemDataStreamDescriptor descriptor) {
+        Settings settings = descriptor != null ? Settings.EMPTY : Settings.builder().put("index.hidden", true).build();
         return prepareCreateIndexRequest(targetIndexName, targetIndexName, "rollover_data_stream", createIndexRequest, settings)
-            .dataStreamName(dataStreamName);
+            .dataStreamName(dataStreamName)
+            .systemDataStreamDescriptor(descriptor);
     }
 
     static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(
@@ -307,15 +324,6 @@ public class MetadataRolloverService {
      */
     static void checkNoDuplicatedAliasInIndexTemplate(Metadata metadata, String rolloverIndexName, String rolloverRequestAlias,
                                                       @Nullable Boolean isHidden) {
-        final List<IndexTemplateMetadata> matchedTemplates = findV1Templates(metadata, rolloverIndexName, isHidden);
-        for (IndexTemplateMetadata template : matchedTemplates) {
-            if (template.aliases().containsKey(rolloverRequestAlias)) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT,
-                    "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
-                    rolloverRequestAlias, template.aliases().keys(), template.name()));
-            }
-        }
-
         final String matchedV2Template = findV2Template(metadata, rolloverIndexName, isHidden == null ? false : isHidden);
         if (matchedV2Template != null) {
             List<Map<String, AliasMetadata>> aliases = MetadataIndexTemplateService.resolveAliases(metadata, matchedV2Template);
@@ -325,6 +333,16 @@ public class MetadataRolloverService {
                         "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
                         rolloverRequestAlias, aliasConfig.keySet(), matchedV2Template));
                 }
+            }
+            return;
+        }
+
+        final List<IndexTemplateMetadata> matchedTemplates = findV1Templates(metadata, rolloverIndexName, isHidden);
+        for (IndexTemplateMetadata template : matchedTemplates) {
+            if (template.aliases().containsKey(rolloverRequestAlias)) {
+                throw new IllegalArgumentException(String.format(Locale.ROOT,
+                    "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
+                    rolloverRequestAlias, template.aliases().keys(), template.name()));
             }
         }
     }

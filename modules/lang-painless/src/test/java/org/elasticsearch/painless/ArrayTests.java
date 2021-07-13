@@ -9,7 +9,7 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.hamcrest.Matcher;
 
 import java.lang.invoke.MethodHandle;

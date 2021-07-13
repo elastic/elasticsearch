@@ -29,6 +29,7 @@ public class InternalInferModelActionResponseTests extends AbstractWireSerializi
             Stream.generate(() -> randomInferenceResult(resultType))
             .limit(randomIntBetween(0, 10))
             .collect(Collectors.toList()),
+            randomAlphaOfLength(10),
             randomBoolean());
     }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
@@ -23,11 +22,11 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -83,8 +82,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     private static final String REST_TESTS_VALIDATE_SPEC = "tests.rest.validate_spec";
 
-    private static final String TESTS_PATH = "/rest-api-spec/test";
-    private static final String SPEC_PATH = "/rest-api-spec/api";
+    private static final String TESTS_PATH = "rest-api-spec/test";
+    private static final String SPEC_PATH = "rest-api-spec/api";
 
     /**
      * This separator pattern matches ',' except it is preceded by a '\'.
@@ -136,8 +135,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 os
             );
             clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion, os);
-            restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
-            adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
+            restTestExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, randomizeContentType());
+            adminExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, false);
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
             for (final String entry : blacklist) {
@@ -241,21 +240,23 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     // pkg private for tests
     static Map<String, Set<Path>> loadSuites(String... paths) throws Exception {
         Map<String, Set<Path>> files = new HashMap<>();
-        Path root = PathUtils.get(ESClientYamlSuiteTestCase.class.getResource(TESTS_PATH).toURI());
-        for (String strPath : paths) {
-            Path path = root.resolve(strPath);
-            if (Files.isDirectory(path)) {
-                Files.walk(path).forEach(file -> {
-                    if (file.toString().endsWith(".yml")) {
-                        addSuite(root, file, files);
-                    } else if (file.toString().endsWith(".yaml")) {
-                        throw new IllegalArgumentException("yaml files are no longer supported: " + file);
-                    }
-                });
-            } else {
-                path = root.resolve(strPath + ".yml");
-                assert Files.exists(path);
-                addSuite(root, path, files);
+        Path[] roots = ClasspathUtils.findFilePaths(ESClientYamlSuiteTestCase.class.getClassLoader(), TESTS_PATH);
+        for (Path root : roots) {
+            for (String strPath : paths) {
+                Path path = root.resolve(strPath);
+                if (Files.isDirectory(path)) {
+                    Files.walk(path).forEach(file -> {
+                        if (file.toString().endsWith(".yml")) {
+                            addSuite(root, file, files);
+                        } else if (file.toString().endsWith(".yaml")) {
+                            throw new IllegalArgumentException("yaml files are no longer supported: " + file);
+                        }
+                    });
+                } else {
+                    path = root.resolve(strPath + ".yml");
+                    assert Files.exists(path);
+                    addSuite(root, path, files);
+                }
             }
         }
         return files;

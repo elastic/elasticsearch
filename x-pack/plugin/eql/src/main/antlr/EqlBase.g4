@@ -205,12 +205,29 @@ LP: '(';
 RP: ')';
 PIPE: '|';
 
+fragment STRING_ESCAPE
+    : '\\' [btnfr"'\\]
+    ;
+
+fragment HEX_DIGIT
+    : [0-9abcdefABCDEF]
+    ;
+
+fragment UNICODE_ESCAPE
+    : '\\u' '{' HEX_DIGIT+  '}' // 2-8 hex
+    ;
+
+fragment UNESCAPED_CHARS
+    : ~[\r\n"\\]
+    ;
+
 STRING
-    : '\''  ('\\' [btnfr"'\\] | ~[\r\n'\\])* '\''
-    | '"'   ('\\' [btnfr"'\\] | ~[\r\n"\\])* '"'
+    : '"' (STRING_ESCAPE | UNICODE_ESCAPE | UNESCAPED_CHARS)* '"'
+    | '"""' (~[\r\n])*? '"""' '"'? '"'?
+    // Old style quoting of string, handled as errors in AbstractBuilder
+    | '\''  ('\\' [btnfr"'\\] | ~[\r\n'\\])* '\''
     | '?"'  ('\\"' |~["\r\n])* '"'
     | '?\'' ('\\\'' |~['\r\n])* '\''
-    | '"""' (~[\r\n])*? '"""' '"'? '"'?
     ;
 
 INTEGER_VALUE

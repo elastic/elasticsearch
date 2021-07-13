@@ -19,7 +19,7 @@ bucket_key = Math.floor((value - offset) / interval) * interval + offset
 --------------------------------------------------
 
 For range values, a document can fall into multiple buckets. The first bucket is computed from the lower
-bound of the range in the same way as a bucket for a single value is computed.  The final bucket is computed in the same
+bound of the range in the same way as a bucket for a single value is computed. The final bucket is computed in the same
 way from the upper bound of the range, and the range is counted in all buckets in between and including those two.
 
 The `interval` must be a positive decimal, while the `offset` must be a decimal in `[0, interval)`
@@ -183,7 +183,7 @@ POST /sales/_search?size=0
 --------------------------------------------------
 // TEST[setup:sales]
 
-When aggregating ranges, buckets are based on the values of the returned documents.  This means the response may include
+When aggregating ranges, buckets are based on the values of the returned documents. This means the response may include
 buckets outside of a query's range. For example, if your query looks for values greater than 100, and you have a range
 covering 50 to 150, and an interval of 50, that document will land in 3 buckets - 50, 100, and 150. In general, it's
 best to think of the query and aggregation steps as independent - the query selects a set of documents, and then the

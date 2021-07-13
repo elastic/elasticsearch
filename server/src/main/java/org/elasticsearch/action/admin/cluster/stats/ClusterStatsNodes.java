@@ -14,15 +14,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -188,10 +187,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
         private Counts(final List<NodeInfo> nodeInfos) {
             // TODO: do we need to report zeros?
-            final Map<String, Integer> roles = new HashMap<>(DiscoveryNode.getPossibleRoleNames().size());
+            final Map<String, Integer> roles = new HashMap<>(DiscoveryNodeRole.roles().size() + 1);
             roles.put(COORDINATING_ONLY, 0);
-            for (final String possibleRoleName : DiscoveryNode.getPossibleRoleNames()) {
-                roles.put(possibleRoleName, 0);
+            for (final DiscoveryNodeRole role : DiscoveryNodeRole.roles()) {
+                roles.put(role.roleName(), 0);
             }
 
             int total = 0;

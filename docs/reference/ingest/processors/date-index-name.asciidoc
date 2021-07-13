@@ -133,11 +133,11 @@ understands this to mean `2016-04-01` as is explained in the <<date-math-index-n
 |======
 | Name                   | Required  | Default                      | Description
 | `field`                | yes       | -                            | The field to get the date or timestamp from.
-| `index_name_prefix`    | no        | -                            | A prefix of the index name to be prepended before the printed date. Supports <<accessing-template-fields,template snippets>>.
-| `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `M` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second). Supports <<accessing-template-fields,template snippets>>.
+| `index_name_prefix`    | no        | -                            | A prefix of the index name to be prepended before the printed date. Supports <<template-snippets,template snippets>>.
+| `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `M` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second). Supports <<template-snippets,template snippets>>.
 | `date_formats`         | no        | yyyy-MM-dd+++'T'+++HH:mm:ss.SSSXX  | An array of the expected date formats for parsing dates / timestamps in the document being preprocessed. Can be a java time pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`             | no        | UTC                          | The timezone to use when parsing the date and when date math index supports resolves expressions into concrete index names.
 | `locale`               | no        | ENGLISH                      | The locale to use when parsing the date from the document being preprocessed, relevant when parsing month names or week days.
-| `index_name_format`    | no        | yyyy-MM-dd                   | The format to be used when printing the parsed date into the index name. A valid java time pattern is expected here. Supports <<accessing-template-fields,template snippets>>.
+| `index_name_format`    | no        | yyyy-MM-dd                   | The format to be used when printing the parsed date into the index name. A valid java time pattern is expected here. Supports <<template-snippets,template snippets>>.
 include::common-options.asciidoc[]
 |======

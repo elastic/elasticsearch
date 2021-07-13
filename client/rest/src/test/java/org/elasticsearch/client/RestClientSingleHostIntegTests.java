@@ -295,11 +295,10 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
                 httpGet.abort();
                 assertTrue(httpGet.isAborted());
                 try {
-                    assertTrue(future.isCancelled());
+                    assertTrue(future.isDone());
                     future.get();
-                    throw new AssertionError("exception should have been thrown");
                 } catch(CancellationException e) {
-                    //expected
+                    //expected sometimes - if the future was cancelled before executing successfully
                 }
             }
             {

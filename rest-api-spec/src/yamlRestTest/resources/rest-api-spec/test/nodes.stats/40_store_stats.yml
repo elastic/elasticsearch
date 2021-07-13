@@ -1,0 +1,47 @@
+---
+"Store stats":
+  - skip:
+      features: [arbitrary_key]
+      version: " - 7.12.99"
+      reason:  "total_data_set_size added in 7.13"
+
+  - do:
+      nodes.info:
+        node_id: _master
+  - set:
+      nodes._arbitrary_key_: master
+
+  - do:
+      nodes.stats:
+        metric: [ indices ]
+        index_metric: [ store ]
+
+  - is_false: nodes.$master.discovery
+  - is_true:  nodes.$master.indices.store
+  - gte: { nodes.$master.indices.store.size_in_bytes: 0 }
+  - gte: { nodes.$master.indices.store.reserved_in_bytes: -1 }
+  - set:
+      nodes.$master.indices.store.size_in_bytes: size_in_bytes
+  - match: { nodes.$master.indices.store.total_data_set_size_in_bytes: $size_in_bytes }
+
+---
+#remove when 7.13 is released
+"Store stats bwc":
+  - skip:
+      features: [arbitrary_key]
+
+  - do:
+      nodes.info:
+        node_id: _master
+  - set:
+      nodes._arbitrary_key_: master
+
+  - do:
+      nodes.stats:
+        metric: [ indices ]
+        index_metric: [ store ]
+
+  - is_false: nodes.$master.discovery
+  - is_true:  nodes.$master.indices.store
+  - gte: { nodes.$master.indices.store.size_in_bytes: 0 }
+  - gte: { nodes.$master.indices.store.reserved_in_bytes: -1 }

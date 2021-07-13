@@ -1,0 +1,28 @@
+[role="xpack"]
+[testenv="enterprise"]
+[[operator-privileges]]
+== Operator privileges
+
+NOTE: {cloud-only}
+
+With a typical {es} deployment, people who administer the cluster also operate
+the cluster at the infrastructure level. User authorization based on
+<<authorization,role-based access control (RBAC)>> is effective and reliable for
+this environment. However, in more managed environments, such as
+{ess-trial}[{ess}], there is a distinction between the operator of the cluster
+infrastructure and the administrator of the cluster. 
+
+Operator privileges limit some functionality to operator users only. Operator
+users are just regular Elasticsearch users with access to specific
+<<operator-only-functionality,operator-only functionality>>. These
+privileges are not available to cluster administrators, even if they log in as
+a highly privileged user such as the `elastic` user or another user with the
+superuser role. By limiting system access, operator privileges enhance the
+Elasticsearch security model while safeguarding user capabilities.
+
+
+include::configure-operator-privileges.asciidoc[]
+
+include::operator-only-functionality.asciidoc[]
+
+include::operator-only-snapshot-and-restore.asciidoc[]

@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -56,6 +56,10 @@ public class MigrateAction implements LifecycleAction, ToXContentObject {
         return NAME;
     }
 
+    boolean isEnabled() {
+        return enabled;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hashCode(enabled);
@@ -69,7 +73,7 @@ public class MigrateAction implements LifecycleAction, ToXContentObject {
         if (obj.getClass() != getClass()) {
             return false;
         }
-        return true;
+        return enabled == ((MigrateAction) obj).enabled;
     }
 
     @Override

@@ -8,7 +8,9 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -19,7 +21,9 @@ import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -189,4 +193,13 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
         assertThat(e.toString(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
     }
 
+    @Override
+    protected void assertToXContentAfterSerialization(TopHitsAggregationBuilder original, TopHitsAggregationBuilder deserialized)
+        throws IOException {
+        ElasticsearchAssertions.assertToXContentEquivalent(
+            XContentHelper.toXContent(original, XContentType.JSON, false),
+            XContentHelper.toXContent(deserialized, XContentType.JSON, false),
+            XContentType.JSON
+        );
+    }
 }

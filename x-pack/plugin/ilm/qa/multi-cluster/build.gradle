@@ -1,8 +1,8 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
 
 dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa')
@@ -56,10 +56,10 @@ testClusters.matching{ it.name == 'follow-cluster' }.configureEach {
 }
 
 tasks.named("check").configure { dependsOn 'follow-cluster' }
-// no unit tests for this module, only the rest integration test
-tasks.named("test").configure { enabled = false }
 // Security is explicitly disabled for follow-cluster and leader-cluster, do not run these in FIPS mode
 tasks.withType(Test).configureEach {
-  onlyIf { BuildParams.inFipsJvm == false}
+  enabled = BuildParams.inFipsJvm == false
 }
-
+tasks.named("testingConventions").configure {
+  enabled = BuildParams.inFipsJvm == false 
+}

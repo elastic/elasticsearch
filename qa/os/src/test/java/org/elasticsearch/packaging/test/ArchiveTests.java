@@ -26,7 +26,6 @@ import static java.nio.file.StandardOpenOption.CREATE;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
-import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
@@ -62,7 +61,7 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test30MissingBundledJdk() throws Exception {
         final Installation.Executables bin = installation.executables();
-        sh.getEnv().remove("JAVA_HOME");
+        sh.getEnv().remove("ES_JAVA_HOME");
 
         final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
 
@@ -73,7 +72,7 @@ public class ArchiveTests extends PackagingTestCase {
             // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
             final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -v");
             assertThat(runResult.exitCode, is(1));
-            assertThat(runResult.stderr, containsString("could not find java in bundled jdk"));
+            assertThat(runResult.stderr, containsString("could not find java in bundled JDK"));
         } finally {
             if (distribution().hasJdk) {
                 mv(relocatedJdk, installation.bundledJdk);
@@ -83,13 +82,12 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test31BadJavaHome() throws Exception {
         final Installation.Executables bin = installation.executables();
-        sh.getEnv().put("JAVA_HOME", "doesnotexist");
+        sh.getEnv().put("ES_JAVA_HOME", "doesnotexist");
 
         // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
         final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -V");
         assertThat(runResult.exitCode, is(1));
-        assertThat(runResult.stderr, containsString("could not find java in JAVA_HOME"));
-
+        assertThat(runResult.stderr, containsString("could not find java in ES_JAVA_HOME"));
     }
 
     public void test32SpecialCharactersInJdkPath() throws Exception {
@@ -97,7 +95,7 @@ public class ArchiveTests extends PackagingTestCase {
         assumeTrue("Only run this test when we know where the JDK is.", distribution().hasJdk);
 
         final Path relocatedJdk = installation.bundledJdk.getParent().resolve("a (special) path");
-        sh.getEnv().put("JAVA_HOME", relocatedJdk.toString());
+        sh.getEnv().put("ES_JAVA_HOME", relocatedJdk.toString());
 
         try {
             mv(installation.bundledJdk, relocatedJdk);
@@ -130,22 +128,50 @@ public class ArchiveTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
-    public void test51JavaHomeOverride() throws Exception {
+    public void test51EsJavaHomeOverride() throws Exception {
         Platforms.onLinux(() -> {
             String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-            sh.getEnv().put("JAVA_HOME", systemJavaHome1);
+            sh.getEnv().put("ES_JAVA_HOME", systemJavaHome1);
         });
         Platforms.onWindows(() -> {
             final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
-            sh.getEnv().put("JAVA_HOME", systemJavaHome1);
+            sh.getEnv().put("ES_JAVA_HOME", systemJavaHome1);
         });
 
         startElasticsearch();
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
 
-        String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
+        String systemJavaHome1 = sh.getEnv().get("ES_JAVA_HOME");
         assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(systemJavaHome1));
+    }
+
+    public void test51JavaHomeIgnored() throws Exception {
+        assumeTrue(distribution().hasJdk);
+        Platforms.onLinux(() -> {
+            String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("JAVA_HOME", systemJavaHome1);
+            // ensure that ES_JAVA_HOME is not set for the test
+            sh.getEnv().remove("ES_JAVA_HOME");
+        });
+        Platforms.onWindows(() -> {
+            final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("JAVA_HOME", systemJavaHome1);
+            // ensure that ES_JAVA_HOME is not set for the test
+            sh.getEnv().remove("ES_JAVA_HOME");
+        });
+
+        final Installation.Executables bin = installation.executables();
+        final Result runResult = sh.run(bin.elasticsearch.toString() + " -V");
+        assertThat(runResult.stderr, containsString("warning: ignoring JAVA_HOME=" + systemJavaHome + "; using bundled JDK"));
+
+        startElasticsearch();
+        ServerUtils.runElasticsearchTests();
+        stopElasticsearch();
+
+        // if the JDK started with the bundled JDK then we know that JAVA_HOME was ignored
+        String bundledJdk = installation.bundledJdk.toString();
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(bundledJdk));
     }
 
     public void test52BundledJdkRemoved() throws Exception {
@@ -156,18 +182,18 @@ public class ArchiveTests extends PackagingTestCase {
             mv(installation.bundledJdk, relocatedJdk);
             Platforms.onLinux(() -> {
                 String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-                sh.getEnv().put("JAVA_HOME", systemJavaHome1);
+                sh.getEnv().put("ES_JAVA_HOME", systemJavaHome1);
             });
             Platforms.onWindows(() -> {
                 final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
-                sh.getEnv().put("JAVA_HOME", systemJavaHome1);
+                sh.getEnv().put("ES_JAVA_HOME", systemJavaHome1);
             });
 
             startElasticsearch();
             ServerUtils.runElasticsearchTests();
             stopElasticsearch();
 
-            String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
+            String systemJavaHome1 = sh.getEnv().get("ES_JAVA_HOME");
             assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(systemJavaHome1));
         } finally {
             mv(relocatedJdk, installation.bundledJdk);
@@ -181,7 +207,7 @@ public class ArchiveTests extends PackagingTestCase {
                 // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
                 sh.run("cmd /c mklink /D '" + javaPath + "' $Env:SYSTEM_JAVA_HOME");
 
-                sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
+                sh.getEnv().put("ES_JAVA_HOME", "C:\\Program Files (x86)\\java");
 
                 // verify ES can start, stop and run plugin list
                 startElasticsearch();
@@ -206,7 +232,7 @@ public class ArchiveTests extends PackagingTestCase {
             try {
                 final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
                 sh.run("ln -s \"" + systemJavaHome + "\" \"" + testJavaHome + "\"");
-                sh.getEnv().put("JAVA_HOME", testJavaHome);
+                sh.getEnv().put("ES_JAVA_HOME", testJavaHome);
 
                 // verify ES can start, stop and run plugin list
                 startElasticsearch();
@@ -227,7 +253,7 @@ public class ArchiveTests extends PackagingTestCase {
         // cleanup from previous test
         rm(installation.config("elasticsearch.keystore"));
 
-        sh.getEnv().put("JAVA_HOME", "");
+        sh.getEnv().put("ES_JAVA_HOME", "");
 
         startElasticsearch();
         ServerUtils.runElasticsearchTests();
@@ -337,22 +363,18 @@ public class ArchiveTests extends PackagingTestCase {
     public void test90SecurityCliPackaging() throws Exception {
         final Installation.Executables bin = installation.executables();
 
-        if (distribution().isDefault()) {
-            assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileExists());
-            final Platforms.PlatformAction action = () -> {
-                Result result = sh.run(bin.certutilTool + " --help");
-                assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
+        assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileExists());
+        final Platforms.PlatformAction action = () -> {
+            Result result = sh.run(bin.certutilTool + " --help");
+            assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
 
-                // Ensure that the exit code from the java command is passed back up through the shell script
-                result = sh.runIgnoreExitCode(bin.certutilTool + " invalid-command");
-                assertThat(result.exitCode, is(not(0)));
-                assertThat(result.stderr, containsString("Unknown command [invalid-command]"));
-            };
-            Platforms.onLinux(action);
-            Platforms.onWindows(action);
-        } else {
-            assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileDoesNotExist());
-        }
+            // Ensure that the exit code from the java command is passed back up through the shell script
+            result = sh.runIgnoreExitCode(bin.certutilTool + " invalid-command");
+            assertThat(result.exitCode, is(not(0)));
+            assertThat(result.stderr, containsString("Unknown command [invalid-command]"));
+        };
+        Platforms.onLinux(action);
+        Platforms.onWindows(action);
     }
 
     public void test91ElasticsearchShardCliPackaging() throws Exception {
@@ -363,11 +385,8 @@ public class ArchiveTests extends PackagingTestCase {
             assertThat(result.stdout, containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
         };
 
-        // TODO: this should be checked on all distributions
-        if (distribution().isDefault()) {
-            Platforms.onLinux(action);
-            Platforms.onWindows(action);
-        }
+        Platforms.onLinux(action);
+        Platforms.onWindows(action);
     }
 
     public void test92ElasticsearchNodeCliPackaging() throws Exception {
@@ -378,11 +397,8 @@ public class ArchiveTests extends PackagingTestCase {
             assertThat(result.stdout, containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
         };
 
-        // TODO: this should be checked on all distributions
-        if (distribution().isDefault()) {
-            Platforms.onLinux(action);
-            Platforms.onWindows(action);
-        }
+        Platforms.onLinux(action);
+        Platforms.onWindows(action);
     }
 
     public void test93ElasticsearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
@@ -417,12 +433,11 @@ public class ArchiveTests extends PackagingTestCase {
             assertThat(result.stdout, containsString("Sets the passwords for reserved users"));
             result = sh.run(bin.usersTool + " -h");
             assertThat(result.stdout, containsString("Manages elasticsearch file users"));
+            result = sh.run(bin.serviceTokensTool + " -h");
+            assertThat(result.stdout, containsString("Manages elasticsearch service account file-tokens"));
         };
 
-        // TODO: this should be checked on all distributions
-        if (distribution().isDefault()) {
-            Platforms.onLinux(action);
-            Platforms.onWindows(action);
-        }
+        Platforms.onLinux(action);
+        Platforms.onWindows(action);
     }
 }

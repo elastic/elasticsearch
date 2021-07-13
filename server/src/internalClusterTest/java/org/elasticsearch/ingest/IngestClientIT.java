@@ -50,11 +50,11 @@ import static org.hamcrest.core.Is.is;
 public class IngestClientIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         if (nodeOrdinal % 2 == 0) {
-            return Settings.builder().put(nonIngestNode()).put(super.nodeSettings(nodeOrdinal)).build();
+            return Settings.builder().put(nonIngestNode()).put(super.nodeSettings(nodeOrdinal, otherSettings)).build();
         }
-        return super.nodeSettings(nodeOrdinal);
+        return super.nodeSettings(nodeOrdinal, otherSettings);
     }
 
     @Override

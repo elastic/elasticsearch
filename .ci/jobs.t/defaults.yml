@@ -1,0 +1,89 @@
+---
+
+##### GLOBAL METADATA
+
+- meta:
+    cluster: elasticsearch-ci
+
+##### JOB DEFAULTS
+
+- job:
+    vault:
+      url: https://secrets.elastic.co:8200
+      role_id: 1ba1ac3e-aee4-d040-d9a3-6ae23bd2b3db
+    node: "general-purpose"
+    concurrent: true
+    logrotate:
+      daysToKeep: 30
+      numToKeep: 90
+      artifactDaysToKeep: 7
+    parameters:
+      - string:
+          name: branch_specifier
+          default: "refs/heads/%BRANCH%"
+          description: "the Git branch specifier to build (&lt;branchName&gt;, &lt;tagName&gt;, &lt;commitId&gt;, etc.)\n"
+    scm:
+      - git:
+          name: origin
+          # master node jenkins user ~/.ssh
+          credentials-id: f6c7695a-671e-4f4f-a331-acdce44ff9ba
+          reference-repo: "/var/lib/jenkins/.git-references/elasticsearch.git"
+          branches:
+            - "${branch_specifier}"
+          url: "https://github.com/elastic/elasticsearch.git"
+          basedir: ""
+          wipe-workspace: true
+    triggers: []
+    wrappers:
+      - timeout:
+          type: absolute
+          timeout: 480
+          fail: true
+      - ansicolor
+      - timestamps
+      - gradle-build-scan
+      - inject-passwords:
+          global: false
+          job-passwords:
+            - name: VAULT_ADDR
+              password: https://secrets.elastic.co:8200
+          mask-password-params: true
+    properties:
+      - github:
+          url: https://github.com/elastic/elasticsearch/
+      - inject:
+          properties-content: |
+            JOB_BRANCH=%BRANCH%
+            HOME=$JENKINS_HOME
+            GRADLEW=./gradlew --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+            GRADLEW_BAT=./gradlew.bat --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+    publishers:
+      - junit:
+          results: "**/*Junit/*.xml, **/test-results/*/*.xml"
+          keep-long-stdio: true
+          allow-empty-results: true
+      # Upload additional logs
+      - google-cloud-storage:
+          credentials-id: 'elasticsearch-ci-gcs-plugin'
+          uploads:
+            - classic:
+                file-pattern: 'build/*.tar.bz2'
+                storage-location: 'gs://elasticsearch-ci-artifacts/jobs/$JOB_NAME'
+                share-publicly: false
+                upload-for-failed-jobs: true
+                show-inline: true
+      # Notify homer
+      - postbuildscript:
+          builders:
+            - role: SLAVE
+              build-on:
+                - SUCCESS
+                - FAILURE
+                - UNSTABLE
+              build-steps:
+                - http-request:
+                    url: https://homer.app.elstc.co/webhook/jenkins/build-finished
+                    mode: GET
+                    custom-headers:
+                      - name: X-Jenkins-Build
+                        value: ${BUILD_URL}

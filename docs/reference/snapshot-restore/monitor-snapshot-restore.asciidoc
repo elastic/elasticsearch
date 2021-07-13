@@ -31,6 +31,8 @@ PUT /_snapshot/my_fs_backup
 }
 
 PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
+
+PUT /_snapshot/my_backup/some_other_snapshot?wait_for_completion=true
 -----------------------------------
 // TESTSETUP
 
@@ -82,7 +84,7 @@ This request fails if some of the snapshots are unavailable. Use the boolean par
 return all snapshots that are currently available.
 
 Getting all snapshots in the repository can be costly on cloud-based repositories,
-both from a cost and performance perspective.  If the only information required is
+both from a cost and performance perspective. If the only information required is
 the snapshot names or UUIDs in the repository and the data streams and indices in each snapshot, then
 the optional boolean parameter `verbose` can be set to `false` to execute a more
 performant and cost-effective retrieval of the snapshots in the repository.

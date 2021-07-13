@@ -41,7 +41,7 @@ The response provides the cluster state itself, which can be filtered to only
 retrieve the parts of interest as described below.
 
 The cluster's `cluster_uuid` is also returned as part of the top-level response,
-in addition to the `metadata` section. added[6.4.0]
+in addition to the `metadata` section.
 
 NOTE: While the cluster is still forming, it is possible for the `cluster_uuid`
       to be `_na_` as well as the cluster state's version to be `-1`.
@@ -93,13 +93,9 @@ you can request only the part of the cluster state that you need:
 --
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
-
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[cluster-state-api-query-params]]
 ==== {api-query-parms-title}

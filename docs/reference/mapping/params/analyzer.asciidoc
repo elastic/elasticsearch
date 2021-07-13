@@ -19,6 +19,9 @@ We recommend testing analyzers before using them in production. See
 <<test-analyzer>>.
 ====
 
+TIP: The `analyzer` setting can *not* be updated on existing fields
+using the <<indices-put-mapping,update mapping API>>.
+
 [[search-quote-analyzer]]
 ==== `search_quote_analyzer`
 
@@ -93,6 +96,9 @@ GET my-index-000001/_search
    }
 }
 --------------------------------------------------
+
+TIP: The `search_quote_analyzer` setting can be updated on existing fields
+using the <<indices-put-mapping,update mapping API>>.
 
 <1> `my_analyzer` analyzer which tokens all terms including stop words
 <2> `my_stop_analyzer` analyzer which removes stop words

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authc.saml;
 import java.util.List;
 
 import org.apache.commons.codec.binary.Hex;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 

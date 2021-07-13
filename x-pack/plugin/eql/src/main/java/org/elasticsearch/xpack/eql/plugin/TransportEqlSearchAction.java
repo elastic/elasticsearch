@@ -19,8 +19,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,15 +35,17 @@ import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
-import org.elasticsearch.xpack.eql.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.eql.util.RemoteClusterRegistry;
+import org.elasticsearch.xpack.ql.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.ql.expression.Order;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.ActionListener.wrap;
@@ -62,7 +66,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     @Inject
     public TransportEqlSearchAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                     ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor,
-                                    NamedWriteableRegistry registry, Client client) {
+                                    NamedWriteableRegistry registry, Client client, BigArrays bigArrays) {
         super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
@@ -73,7 +77,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         this.transportService = transportService;
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(XPackPlugin.ASYNC_RESULTS_INDEX, client, ASYNC_SEARCH_ORIGIN,
-            registry, taskManager, EqlSearchAction.INSTANCE.name(), this, EqlSearchTask.class, clusterService, threadPool);
+            registry, taskManager, EqlSearchAction.INSTANCE.name(), this, EqlSearchTask.class, clusterService, threadPool, bigArrays);
     }
 
     @Override
@@ -117,6 +121,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         // TODO: these should be sent by the client
         ZoneId zoneId = DateUtils.of("Z");
         QueryBuilder filter = request.filter();
+        List<FieldAndFormat> fetchFields = request.fetchFields();
         TimeValue timeout = TimeValue.timeValueSeconds(30);
         String clientId = null;
 
@@ -128,8 +133,11 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .size(request.size())
             .fetchSize(request.fetchSize());
 
-        EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout,
-                request.indicesOptions(), request.fetchSize(), clientId, new TaskId(nodeId, task.getId()), task);
+        RemoteClusterRegistry remoteClusterRegistry = new RemoteClusterRegistry(transportService.getRemoteClusterService(),
+            request.indicesOptions());
+        EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter,
+                request.runtimeMappings(), fetchFields, timeout, request.indicesOptions(), request.fetchSize(),
+                clientId, new TaskId(nodeId, task.getId()), task, remoteClusterRegistry::versionIncompatibleClusters);
         executeRequestWithRetryAttempt(clusterService, listener::onFailure,
             onFailure -> planExecutor.eql(cfg, request.query(), params,
                 wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), onFailure)),

@@ -104,14 +104,18 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         return httpServer;
     }
 
-    private static class WaitForCancelHandler implements HttpHandler {
-        private volatile CountDownLatch requestCameInLatch;
-        private volatile CountDownLatch cancelHandlerLatch;
-
-        void reset() {
-            cancelHandlerLatch = new CountDownLatch(1);
-            requestCameInLatch = new CountDownLatch(1);
+    private static WaitForCancelHandler resetWaitHandlers() {
+        WaitForCancelHandler handler = new WaitForCancelHandler();
+        for (HttpServer httpServer : httpServers) {
+            httpServer.removeContext(pathPrefix + "/wait");
+            httpServer.createContext(pathPrefix + "/wait", handler);
         }
+        return handler;
+    }
+
+    private static class WaitForCancelHandler implements HttpHandler {
+        private final CountDownLatch requestCameInLatch = new CountDownLatch(1);
+        private final CountDownLatch cancelHandlerLatch = new CountDownLatch(1);
 
         void cancelDone() {
             cancelHandlerLatch.countDown();
@@ -239,7 +243,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         final List<Exception> exceptions = new CopyOnWriteArrayList<>();
         for (int i = 0; i < numRequests; i++) {
             CountDownLatch latch = new CountDownLatch(1);
-            waitForCancelHandler.reset();
+            waitForCancelHandler = resetWaitHandlers();
             Cancellable cancellable = restClient.performRequestAsync(new Request("GET", "/wait"), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {

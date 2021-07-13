@@ -1,0 +1,3 @@
+service_account_manager:
+  cluster:
+    - "manage_service_account"

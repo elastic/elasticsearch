@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -52,9 +53,9 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("xpack.license.self_generated.type", "trial")
             .build();
     }
@@ -62,6 +63,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
     private final MonitoredSystem system = randomFrom(MonitoredSystem.values());
 
     public void testCreateWhenResourcesNeedToBeAddedOrUpdated() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/68608", Constants.MAC_OS_X);
         // sometimes they need to be added; sometimes they need to be replaced
         if (randomBoolean()) {
             putResources(oldVersion());

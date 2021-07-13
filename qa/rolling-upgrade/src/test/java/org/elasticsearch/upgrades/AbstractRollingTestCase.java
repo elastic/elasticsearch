@@ -57,4 +57,12 @@ public abstract class AbstractRollingTestCase extends ESRestTestCase {
             .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
             .build();
     }
+
+    @Override
+    protected final String getEnsureGreenTimeout() {
+        // increase the timeout here to 70 seconds to handle long waits for a green
+        // cluster health. the waits for green need to be longer than a minute to
+        // account for delayed shards
+        return "70s";
+    }
 }

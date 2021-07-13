@@ -10,6 +10,7 @@ package org.elasticsearch.packaging.util;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
@@ -77,7 +78,7 @@ public class Packages {
     public static Installation installPackage(Shell sh, Distribution distribution) throws IOException {
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         if (distribution.hasJdk == false) {
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            sh.getEnv().put("ES_JAVA_HOME", systemJavaHome);
         }
         final Result result = runPackageManager(distribution, sh, PackageManagerCommand.INSTALL);
         if (result.exitCode != 0) {
@@ -87,7 +88,11 @@ public class Packages {
         Installation installation = Installation.ofPackage(sh, distribution);
 
         if (distribution.hasJdk == false) {
-            Files.write(installation.envFile, List.of("JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
+            Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
+        }
+
+        if (Version.fromString(distribution.baseVersion).onOrAfter(Version.V_7_13_0)) {
+            ServerUtils.disableGeoIpDownloader(installation);
         }
         return installation;
     }
@@ -112,7 +117,7 @@ public class Packages {
 
     private static Result runPackageManager(Distribution distribution, Shell sh, PackageManagerCommand command) {
         final String distributionArg = command == PackageManagerCommand.QUERY || command == PackageManagerCommand.REMOVE
-            ? distribution.flavor.name
+            ? "elasticsearch"
             : distribution.path.toString();
 
         if (Platforms.isRPM()) {
@@ -150,9 +155,7 @@ public class Packages {
 
     public static void verifyPackageInstallation(Installation installation, Distribution distribution, Shell sh) {
         verifyOssInstallation(installation, distribution, sh);
-        if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation, distribution);
-        }
+        verifyDefaultInstallation(installation, distribution);
     }
 
     private static void verifyOssInstallation(Installation es, Distribution distribution, Shell sh) {
@@ -172,9 +175,12 @@ public class Packages {
         assertThat(es.config, file(Directory, "root", "elasticsearch", p750));
         assertThat(sh.run("find \"" + es.config + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
 
-        final Path jvmOptionsDirectory = es.config.resolve("jvm.options.d");
-        assertThat(jvmOptionsDirectory, file(Directory, "root", "elasticsearch", p750));
-        assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
+        // We introduced the jvm.options.d folder in 7.7
+        if (Version.fromString(distribution.baseVersion).onOrAfter(Version.V_7_7_0)) {
+            final Path jvmOptionsDirectory = es.config.resolve("jvm.options.d");
+            assertThat(jvmOptionsDirectory, file(Directory, "root", "elasticsearch", p750));
+            assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
+        }
 
         Stream.of("elasticsearch.keystore", "elasticsearch.yml", "jvm.options", "log4j2.properties")
             .forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
@@ -194,7 +200,7 @@ public class Packages {
         if (distribution.packaging == Distribution.Packaging.RPM) {
             assertThat(es.home.resolve("LICENSE.txt"), file(File, "root", "root", p644));
         } else {
-            Path copyrightDir = Paths.get(sh.run("readlink -f /usr/share/doc/" + distribution.flavor.name).stdout.trim());
+            Path copyrightDir = Paths.get(sh.run("readlink -f /usr/share/doc/elasticsearch").stdout.trim());
             assertThat(copyrightDir, file(Directory, "root", "root", p755));
             assertThat(copyrightDir.resolve("copyright"), file(File, "root", "root", p644));
         }
@@ -222,6 +228,7 @@ public class Packages {
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
             "elasticsearch-users",
+            "elasticsearch-service-tokens",
             "x-pack-env",
             "x-pack-security-env",
             "x-pack-watcher-env"

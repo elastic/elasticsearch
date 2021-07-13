@@ -22,9 +22,8 @@ import java.util.function.BiFunction;
  * result to get the piggybacked queue size and service time EWMA, adding those
  * values to the coordinating nodes' {@link ResponseCollectorService}.
  */
-public final class SearchExecutionStatsCollector implements ActionListener<SearchPhaseResult> {
+public final class SearchExecutionStatsCollector extends ActionListener.Delegating<SearchPhaseResult, SearchPhaseResult> {
 
-    private final ActionListener<SearchPhaseResult> listener;
     private final String nodeId;
     private final ResponseCollectorService collector;
     private final long startNanos;
@@ -32,7 +31,7 @@ public final class SearchExecutionStatsCollector implements ActionListener<Searc
     SearchExecutionStatsCollector(ActionListener<SearchPhaseResult> listener,
                                   ResponseCollectorService collector,
                                   String nodeId) {
-        this.listener = Objects.requireNonNull(listener, "listener cannot be null");
+        super(Objects.requireNonNull(listener, "listener cannot be null"));
         this.collector = Objects.requireNonNull(collector, "response collector cannot be null");
         this.startNanos = System.nanoTime();
         this.nodeId = nodeId;
@@ -54,11 +53,6 @@ public final class SearchExecutionStatsCollector implements ActionListener<Searc
                 collector.addNodeStatistics(nodeId, queueSize, responseDuration, serviceTimeEWMA);
             }
         }
-        listener.onResponse(response);
-    }
-
-    @Override
-    public void onFailure(Exception e) {
-        listener.onFailure(e);
+        delegate.onResponse(response);
     }
 }

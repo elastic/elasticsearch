@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.common;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -74,15 +74,74 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         assert tpPercentiles.length == fpPercentiles.length;
         assert tpPercentiles.length == 99;
 
-        List<AucRocPoint> aucRocCurve = new ArrayList<>();
-        aucRocCurve.add(new AucRocPoint(0.0, 0.0, 1.0));
-        aucRocCurve.add(new AucRocPoint(1.0, 1.0, 0.0));
+        List<AucRocPoint> points = new ArrayList<>(tpPercentiles.length + fpPercentiles.length);
         RateThresholdCurve tpCurve = new RateThresholdCurve(tpPercentiles, true);
         RateThresholdCurve fpCurve = new RateThresholdCurve(fpPercentiles, false);
-        aucRocCurve.addAll(tpCurve.scanPoints(fpCurve));
-        aucRocCurve.addAll(fpCurve.scanPoints(tpCurve));
-        Collections.sort(aucRocCurve);
+        points.addAll(tpCurve.scanPoints(fpCurve));
+        points.addAll(fpCurve.scanPoints(tpCurve));
+        Collections.sort(points);
+
+        // As our auc roc curve is comprised by two sets of points coming from two
+        // percentiles aggregations, it is possible that we get a non-monotonic result
+        // because the percentiles aggregation is an approximation. In order to make
+        // our final curve monotonic, we collapse equal threshold points.
+        points = collapseEqualThresholdPoints(points);
+
+        List<AucRocPoint> aucRocCurve = new ArrayList<>(points.size() + 2);
+        aucRocCurve.add(new AucRocPoint(0.0, 0.0, 1.0));
+        aucRocCurve.addAll(points);
+        aucRocCurve.add(new AucRocPoint(1.0, 1.0, 0.0));
         return aucRocCurve;
+    }
+
+    /**
+     * Visible for testing
+     *
+     * Expects a sorted list of {@link AucRocPoint} points.
+     * Collapses points with equal threshold by replacing them
+     * with a single point that is the average.
+     *
+     * @param points A sorted list of {@link AucRocPoint} points
+     * @return a new list of points where equal threshold points have been collapsed into their average
+     */
+    static List<AucRocPoint> collapseEqualThresholdPoints(List<AucRocPoint> points) {
+        List<AucRocPoint> collapsed = new ArrayList<>();
+        List<AucRocPoint> equalThresholdPoints = new ArrayList<>();
+        for (AucRocPoint point : points) {
+            if (equalThresholdPoints.isEmpty() == false && equalThresholdPoints.get(0).threshold != point.threshold) {
+                collapsed.add(calculateAveragePoint(equalThresholdPoints));
+                equalThresholdPoints = new ArrayList<>();
+            }
+            equalThresholdPoints.add(point);
+        }
+
+        if (equalThresholdPoints.isEmpty() == false) {
+            collapsed.add(calculateAveragePoint(equalThresholdPoints));
+        }
+
+        return collapsed;
+    }
+
+    private static AucRocPoint calculateAveragePoint(List<AucRocPoint> points) {
+        if (points.isEmpty()) {
+            throw new IllegalArgumentException("points must not be empty");
+        }
+
+        if (points.size() == 1) {
+            return points.get(0);
+        }
+
+        double avgTpr = 0.0;
+        double avgFpr = 0.0;
+        double avgThreshold = 0.0;
+        for (AucRocPoint sameThresholdPoint : points) {
+            avgTpr += sameThresholdPoint.tpr;
+            avgFpr += sameThresholdPoint.fpr;
+            avgThreshold += sameThresholdPoint.threshold;
+        }
+
+        int n = points.size();
+        return new AucRocPoint(avgTpr / n, avgFpr / n, avgThreshold / n);
     }
 
     /**
@@ -114,7 +173,10 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         }
 
         private double getThreshold(int index) {
-            return percentiles[index];
+            // We subtract the minimum value possible here in order to
+            // ensure no point has a threshold of 1.0 as we are adding
+            // that point separately so that fpr = tpr = 0.
+            return Math.max(0, percentiles[index] - Math.ulp(percentiles[index]));
         }
 
         private double interpolateRate(double threshold) {
@@ -160,9 +222,9 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         private static final String FPR = "fpr";
         private static final String THRESHOLD = "threshold";
 
-        private final double tpr;
-        private final double fpr;
-        private final double threshold;
+        final double tpr;
+        final double fpr;
+        final double threshold;
 
         public AucRocPoint(double tpr, double fpr, double threshold) {
             this.tpr = tpr;

@@ -15,8 +15,8 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.ParsedMediaType;
 
@@ -27,25 +27,25 @@ import org.elasticsearch.common.xcontent.ParsedMediaType;
  */
 class RestCompatibleVersionHelper {
 
-    static RestApiCompatibleVersion getCompatibleVersion(
+    static RestApiVersion getCompatibleVersion(
         @Nullable ParsedMediaType acceptHeader,
         @Nullable ParsedMediaType contentTypeHeader,
         boolean hasContent
     ) {
         Byte aVersion = parseVersion(acceptHeader);
-        byte acceptVersion = aVersion == null ? RestApiCompatibleVersion.currentVersion().major : Integer.valueOf(aVersion).byteValue();
+        byte acceptVersion = aVersion == null ? RestApiVersion.current().major : Integer.valueOf(aVersion).byteValue();
         Byte cVersion = parseVersion(contentTypeHeader);
         byte contentTypeVersion = cVersion == null ?
-            RestApiCompatibleVersion.currentVersion().major : Integer.valueOf(cVersion).byteValue();
+            RestApiVersion.current().major : Integer.valueOf(cVersion).byteValue();
 
         // accept version must be current or prior
-        if (acceptVersion > RestApiCompatibleVersion.currentVersion().major ||
-            acceptVersion < RestApiCompatibleVersion.minimumSupported().major) {
+        if (acceptVersion > RestApiVersion.current().major ||
+            acceptVersion < RestApiVersion.minimumSupported().major) {
             throw new ElasticsearchStatusException(
                 "Accept version must be either version {} or {}, but found {}. Accept={}",
                 RestStatus.BAD_REQUEST,
-                RestApiCompatibleVersion.currentVersion().major,
-                RestApiCompatibleVersion.minimumSupported().major,
+                RestApiVersion.current().major,
+                RestApiVersion.minimumSupported().major,
                 acceptVersion,
                 acceptHeader
             );
@@ -53,13 +53,13 @@ class RestCompatibleVersionHelper {
         if (hasContent) {
 
             // content-type version must be current or prior
-            if (contentTypeVersion > RestApiCompatibleVersion.currentVersion().major
-                || contentTypeVersion < RestApiCompatibleVersion.minimumSupported().major) {
+            if (contentTypeVersion > RestApiVersion.current().major
+                || contentTypeVersion < RestApiVersion.minimumSupported().major) {
                 throw new ElasticsearchStatusException(
                     "Content-Type version must be either version {} or {}, but found {}. Content-Type={}",
                     RestStatus.BAD_REQUEST,
-                    RestApiCompatibleVersion.currentVersion().major,
-                    RestApiCompatibleVersion.minimumSupported().major,
+                    RestApiVersion.current().major,
+                    RestApiVersion.minimumSupported().major,
                     contentTypeVersion,
                     contentTypeHeader
                 );
@@ -85,16 +85,16 @@ class RestCompatibleVersionHelper {
                     contentTypeHeader
                 );
             }
-            if (contentTypeVersion < RestApiCompatibleVersion.currentVersion().major) {
-                return RestApiCompatibleVersion.minimumSupported();
+            if (contentTypeVersion < RestApiVersion.current().major) {
+                return RestApiVersion.minimumSupported();
             }
         }
 
-        if (acceptVersion < RestApiCompatibleVersion.currentVersion().major) {
-            return RestApiCompatibleVersion.minimumSupported();
+        if (acceptVersion < RestApiVersion.current().major) {
+            return RestApiVersion.minimumSupported();
         }
 
-        return RestApiCompatibleVersion.currentVersion();
+        return RestApiVersion.current();
     }
 
     static Byte parseVersion(ParsedMediaType parsedMediaType) {

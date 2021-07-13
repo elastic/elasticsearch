@@ -190,7 +190,7 @@ public final class PutWatchRequest extends ActionRequest {
         if (source == null) {
             validationException = addValidationError("watch source is missing", validationException);
         }
-        if (xContentType == null) {
+        if (xContentType == null || (source != null && source.length() == 0)) {
             validationException = addValidationError("request body is missing", validationException);
         }
         if (ifSeqNo != UNASSIGNED_SEQ_NO && version != Versions.MATCH_ANY) {

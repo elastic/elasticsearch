@@ -103,7 +103,7 @@ code indicating that the authentication request failed and the reason for that f
 `urn:oasis:names:tc:SAML:2.0:status:Requester` indicates that the error is on the side of the SP or the user, while a `saml_status` of
 `urn:oasis:names:tc:SAML:2.0:status:Responder` indicates that something went wrong in the IDP side. The `error` field contains a short
 human friendly interpretation of the error that is outside the SAML standard and is meant to be communicated to the user, especially
-if the user is not  redirected back the SP with the `saml_response`
+if the user is not redirected back the SP with the `saml_response`
 
 [source, console-result]
 --------------------------------------------------------------------

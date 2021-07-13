@@ -8,8 +8,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -29,13 +28,24 @@ public final class ObjectParserHelper<Value, Context> {
     public void declareRawObject(final AbstractObjectParser<Value, Context> parser,
                                  final BiConsumer<Value, BytesReference> consumer,
                                  final ParseField field) {
-        final CheckedFunction<XContentParser, BytesReference, IOException> bytesParser = p -> {
+        final CheckedFunction<XContentParser, BytesReference, IOException> bytesParser = getBytesParser();
+        parser.declareField(consumer, bytesParser, field, ValueType.OBJECT);
+    }
+
+    public void declareRawObjectOrNull(final AbstractObjectParser<Value, Context> parser,
+                                       final BiConsumer<Value, BytesReference> consumer,
+                                       final ParseField field) {
+        final CheckedFunction<XContentParser, BytesReference, IOException> bytesParser = getBytesParser();
+        parser.declareField(consumer, bytesParser, field, ValueType.OBJECT_OR_NULL);
+    }
+
+    private CheckedFunction<XContentParser, BytesReference, IOException> getBytesParser() {
+        return p -> {
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.copyCurrentStructure(p);
                 return BytesReference.bytes(builder);
             }
         };
-        parser.declareField(consumer, bytesParser, field, ValueType.OBJECT);
     }
 
 }

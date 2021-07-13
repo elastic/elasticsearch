@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.common;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,6 +29,7 @@ public class FoldValues implements Writeable, ToXContentObject {
         return createParser(ignoreUnknownFields).apply(parser, null);
     }
 
+    @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<FoldValues, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<FoldValues, Void> parser = new ConstructingObjectParser<>("fold_values", ignoreUnknownFields,
             a -> new FoldValues((int) a[0], (List<Double>) a[1]));

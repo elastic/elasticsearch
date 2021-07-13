@@ -10,28 +10,30 @@ package fixture.s3;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
+
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
-import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -40,8 +42,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.CheckedInputStream;
-import java.util.zip.Checksum;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -82,12 +82,18 @@ public class S3HttpHandler implements HttpHandler {
                 }
             } else if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
                 final String uploadId = UUIDs.randomBase64UUID();
-                byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-                    "<InitiateMultipartUploadResult>\n" +
-                    "  <Bucket>" + bucket + "</Bucket>\n" +
-                    "  <Key>" + exchange.getRequestURI().getPath() + "</Key>\n" +
-                    "  <UploadId>" + uploadId + "</UploadId>\n" +
-                    "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                    + "<InitiateMultipartUploadResult>\n"
+                    + "  <Bucket>"
+                    + bucket
+                    + "</Bucket>\n"
+                    + "  <Key>"
+                    + exchange.getRequestURI().getPath()
+                    + "</Key>\n"
+                    + "  <UploadId>"
+                    + uploadId
+                    + "</UploadId>\n"
+                    + "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
                 blobs.put(multipartKey(uploadId, 0), BytesArray.EMPTY);
                 exchange.getResponseHeaders().add("Content-Type", "application/xml");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
@@ -114,7 +120,8 @@ public class S3HttpHandler implements HttpHandler {
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
                 final String uploadId = params.get("uploadId");
 
-                final int nbParts = blobs.keySet().stream()
+                final int nbParts = blobs.keySet()
+                    .stream()
                     .filter(blobName -> blobName.startsWith(uploadId))
                     .map(blobName -> blobName.replaceFirst(uploadId + '\n', ""))
                     .mapToInt(Integer::parseInt)
@@ -131,11 +138,15 @@ public class S3HttpHandler implements HttpHandler {
                 }
                 blobs.put(exchange.getRequestURI().getPath(), new BytesArray(blob.toByteArray()));
 
-                byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-                    "<CompleteMultipartUploadResult>\n" +
-                    "  <Bucket>" + bucket + "</Bucket>\n" +
-                    "  <Key>" + exchange.getRequestURI().getPath() + "</Key>\n" +
-                    "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                    + "<CompleteMultipartUploadResult>\n"
+                    + "<Bucket>"
+                    + bucket
+                    + "</Bucket>\n"
+                    + "<Key>"
+                    + exchange.getRequestURI().getPath()
+                    + "</Key>\n"
+                    + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/xml");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
@@ -215,8 +226,8 @@ public class S3HttpHandler implements HttpHandler {
 
                         final BytesReference rangeBlob = blob.slice(start, end + 1 - start);
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.getResponseHeaders().add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d",
-                            start, end, rangeBlob.length()));
+                        exchange.getResponseHeaders()
+                            .add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d", start, end, rangeBlob.length()));
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), rangeBlob.length());
                         rangeBlob.writeTo(exchange.getResponseBody());
                     }
@@ -226,7 +237,7 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("DELETE /" + path + "/*", request)) {
                 int deletions = 0;
-                for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext(); ) {
+                for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext();) {
                     Map.Entry<String, BytesReference> blob = iterator.next();
                     if (blob.getKey().startsWith(exchange.getRequestURI().toString())) {
                         iterator.remove();
@@ -241,9 +252,9 @@ public class S3HttpHandler implements HttpHandler {
                 final StringBuilder deletes = new StringBuilder();
                 deletes.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
                 deletes.append("<DeleteResult>");
-                for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext(); ) {
+                for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext();) {
                     Map.Entry<String, BytesReference> blob = iterator.next();
-                    String key = blob.getKey().replace("/" + path + "/", "");
+                    String key = blob.getKey().replace("/" + bucket + "/", "");
                     if (requestBody.contains("<Key>" + key + "</Key>")) {
                         deletes.append("<Deleted><Key>").append(key).append("</Key></Deleted>");
                         iterator.remove();
@@ -272,104 +283,92 @@ public class S3HttpHandler implements HttpHandler {
         return uploadId + "\n" + partNumber;
     }
 
-    private static CheckedInputStream createCheckedInputStream(final InputStream inputStream, final MessageDigest digest) {
-        return new CheckedInputStream(inputStream, new Checksum() {
-            @Override
-            public void update(int b) {
-                digest.update((byte) b);
-            }
-
-            @Override
-            public void update(byte[] b, int off, int len) {
-                digest.update(b, off, len);
-            }
-
-            @Override
-            public long getValue() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void reset() {
-                digest.reset();
-            }
-        });
-    }
-
     private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-z]+);chunk-signature=([^\\r\\n]*)$");
 
     private static Tuple<String, BytesReference> parseRequestBody(final HttpExchange exchange) throws IOException {
-        final BytesReference bytesReference;
+        try {
+            final BytesReference bytesReference;
 
-        final String headerDecodedContentLength = exchange.getRequestHeaders().getFirst("x-amz-decoded-content-length");
-        if (headerDecodedContentLength == null) {
-            bytesReference = Streams.readFully(exchange.getRequestBody());
-        } else {
-            BytesReference cc = Streams.readFully(exchange.getRequestBody());
+            final String headerDecodedContentLength = exchange.getRequestHeaders().getFirst("x-amz-decoded-content-length");
+            if (headerDecodedContentLength == null) {
+                bytesReference = Streams.readFully(exchange.getRequestBody());
+            } else {
+                BytesReference requestBody = Streams.readFully(exchange.getRequestBody());
+                int chunkIndex = 0;
+                final List<BytesReference> chunks = new ArrayList<>();
 
-            final ByteArrayOutputStream blob = new ByteArrayOutputStream();
-            try (BufferedInputStream in = new BufferedInputStream(cc.streamInput())) {
-                int chunkSize = 0;
-                int read;
-                while ((read = in.read()) != -1) {
-                    boolean markAndContinue = false;
-                    try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                        do { // search next consecutive {carriage return, new line} chars and stop
-                            if ((char) read == '\r') {
-                                int next = in.read();
-                                if (next != -1) {
-                                    if (next == '\n') {
-                                        break;
-                                    }
-                                    out.write(read);
-                                    out.write(next);
-                                    continue;
-                                }
-                            }
-                            out.write(read);
-                        } while ((read = in.read()) != -1);
+                while (true) {
+                    chunkIndex += 1;
 
-                        final String line = new String(out.toByteArray(), UTF_8);
-                        if (line.length() == 0 || line.equals("\r\n")) {
-                            markAndContinue = true;
-                        } else {
-                            Matcher matcher = chunkSignaturePattern.matcher(line);
-                            if (matcher.find()) {
-                                markAndContinue = true;
-                                chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
-                            }
-                        }
-                        if (markAndContinue) {
-                            in.mark(Integer.MAX_VALUE);
-                            continue;
-                        }
+                    final int headerLength = requestBody.indexOf((byte) '\n', 0) + 1; // includes terminating \r\n
+                    if (headerLength == 0) {
+                        throw new IllegalStateException("header of chunk [" + chunkIndex + "] was not terminated");
                     }
-                    if (chunkSize > 0) {
-                        in.reset();
-                        final byte[] buffer = new byte[chunkSize];
-                        in.read(buffer, 0, buffer.length);
-                        blob.write(buffer);
-                        blob.flush();
-                        chunkSize = 0;
+                    if (headerLength > 150) {
+                        throw new IllegalStateException(
+                            "header of chunk [" + chunkIndex + "] was too long at [" + headerLength + "] bytes"
+                        );
+                    }
+                    if (headerLength < 3) {
+                        throw new IllegalStateException(
+                            "header of chunk [" + chunkIndex + "] was too short at [" + headerLength + "] bytes"
+                        );
+                    }
+                    if (requestBody.get(headerLength - 1) != '\n' || requestBody.get(headerLength - 2) != '\r') {
+                        throw new IllegalStateException("header of chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
+                    }
+
+                    final String header = requestBody.slice(0, headerLength - 2).utf8ToString();
+                    final Matcher matcher = chunkSignaturePattern.matcher(header);
+                    if (matcher.find() == false) {
+                        throw new IllegalStateException(
+                            "header of chunk [" + chunkIndex + "] did not match expected pattern: [" + header + "]"
+                        );
+                    }
+                    final int chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
+
+                    if (requestBody.get(headerLength + chunkSize) != '\r' || requestBody.get(headerLength + chunkSize + 1) != '\n') {
+                        throw new IllegalStateException("chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
+                    }
+
+                    if (chunkSize != 0) {
+                        chunks.add(requestBody.slice(headerLength, chunkSize));
+                    }
+
+                    final int toSkip = headerLength + chunkSize + 2;
+                    requestBody = requestBody.slice(toSkip, requestBody.length() - toSkip);
+
+                    if (chunkSize == 0) {
+                        break;
                     }
                 }
-            }
-            if (blob.size() != Integer.parseInt(headerDecodedContentLength)) {
-                throw new IllegalStateException("Something went wrong when parsing the chunked request " +
-                    "[bytes read=" + blob.size() + ", expected=" + headerDecodedContentLength + "]");
-            }
-            bytesReference = new BytesArray(blob.toByteArray());
-        }
 
-        final MessageDigest digest = MessageDigests.md5();
-        Streams.readFully(createCheckedInputStream(bytesReference.streamInput(), digest));
-        return Tuple.tuple(MessageDigests.toHexString(digest.digest()), bytesReference);
+                bytesReference = CompositeBytesReference.of(chunks.toArray(new BytesReference[0]));
+
+                if (bytesReference.length() != Integer.parseInt(headerDecodedContentLength)) {
+                    throw new IllegalStateException(
+                        "Something went wrong when parsing the chunked request "
+                            + "[bytes read="
+                            + bytesReference.length()
+                            + ", expected="
+                            + headerDecodedContentLength
+                            + "]"
+                    );
+                }
+            }
+            return Tuple.tuple(MessageDigests.toHexString(MessageDigests.digest(bytesReference, MessageDigests.md5())), bytesReference);
+        } catch (Exception e) {
+            exchange.sendResponseHeaders(500, 0);
+            try (PrintStream printStream = new PrintStream(exchange.getResponseBody())) {
+                printStream.println(e.toString());
+                e.printStackTrace(printStream);
+            }
+            throw new AssertionError("parseRequestBody failed", e);
+        }
     }
 
-    public static void sendError(final HttpExchange exchange,
-                                 final RestStatus status,
-                                 final String errorCode,
-                                 final String message) throws IOException {
+    public static void sendError(final HttpExchange exchange, final RestStatus status, final String errorCode, final String message)
+        throws IOException {
         final Headers headers = exchange.getResponseHeaders();
         headers.add("Content-Type", "application/xml");
 
@@ -382,10 +381,16 @@ public class S3HttpHandler implements HttpHandler {
             exchange.sendResponseHeaders(status.getStatus(), -1L);
             exchange.close();
         } else {
-            final byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error>" +
-                "<Code>" + errorCode + "</Code>" +
-                "<Message>" + message + "</Message>"
-                + "<RequestId>" + requestId + "</RequestId>"
+            final byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error>"
+                + "<Code>"
+                + errorCode
+                + "</Code>"
+                + "<Message>"
+                + message
+                + "</Message>"
+                + "<RequestId>"
+                + requestId
+                + "</RequestId>"
                 + "</Error>").getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(status.getStatus(), response.length);
             exchange.getResponseBody().write(response);

@@ -8,17 +8,6 @@
 
 package org.elasticsearch.common.geo;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
-
-import java.io.IOException;
-import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -35,9 +24,21 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
+
+import java.io.IOException;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class GeometryIndexerTests extends ESTestCase {
 
@@ -46,7 +47,7 @@ public class GeometryIndexerTests extends ESTestCase {
     public void testCircle() {
         UnsupportedOperationException ex =
             expectThrows(UnsupportedOperationException.class, () -> indexer.prepareForIndexing(new Circle(2, 1, 3)));
-        assertEquals(GeoShapeType.CIRCLE + " geometry is not supported", ex.getMessage());
+        assertEquals(ShapeType.CIRCLE + " geometry is not supported", ex.getMessage());
     }
 
     public void testCollection() {
@@ -293,7 +294,7 @@ public class GeometryIndexerTests extends ESTestCase {
         assertEquals(indexed, processed);
 
         // a rectangle is broken into two triangles
-        List<IndexableField> fields = indexer.indexShape(null, indexed);
+        List<IndexableField> fields = indexer.indexShape(indexed);
         assertEquals(fields.size(), 2);
 
         indexed = new Rectangle(179, -179, 10, -10);
@@ -301,7 +302,7 @@ public class GeometryIndexerTests extends ESTestCase {
         assertEquals(indexed, processed);
 
         // a rectangle crossing the dateline is broken into 4 triangles
-        fields = indexer.indexShape(null, indexed);
+        fields = indexer.indexShape(indexed);
         assertEquals(fields.size(), 4);
     }
 
@@ -311,7 +312,7 @@ public class GeometryIndexerTests extends ESTestCase {
         assertEquals(indexed, processed);
 
         // Rectangle is a line
-        List<IndexableField> fields = indexer.indexShape(null, indexed);
+        List<IndexableField> fields = indexer.indexShape(indexed);
         assertEquals(fields.size(), 1);
 
         indexed = new Rectangle(-179, -178, 10, 10);
@@ -319,7 +320,7 @@ public class GeometryIndexerTests extends ESTestCase {
         assertEquals(indexed, processed);
 
         // Rectangle is a line
-        fields = indexer.indexShape(null, indexed);
+        fields = indexer.indexShape(indexed);
         assertEquals(fields.size(), 1);
 
         indexed = new Rectangle(-179, -179, 10, 10);
@@ -327,7 +328,7 @@ public class GeometryIndexerTests extends ESTestCase {
         assertEquals(indexed, processed);
 
         // Rectangle is a point
-        fields = indexer.indexShape(null, indexed);
+        fields = indexer.indexShape(indexed);
         assertEquals(fields.size(), 1);
 
         indexed = new Rectangle(180, -179, 10, -10);
@@ -335,7 +336,7 @@ public class GeometryIndexerTests extends ESTestCase {
         assertEquals(indexed, processed);
 
         // Rectangle crossing the dateline, one side is a line
-        fields = indexer.indexShape(null, indexed);
+        fields = indexer.indexShape(indexed);
         assertEquals(fields.size(), 3);
 
         indexed = new Rectangle(180, -179, 10, 10);
@@ -344,7 +345,7 @@ public class GeometryIndexerTests extends ESTestCase {
 
         // Rectangle crossing the dateline, one side is a point,
         // other side a line
-        fields = indexer.indexShape(null, indexed);
+        fields = indexer.indexShape(indexed);
         assertEquals(fields.size(), 2);
 
         indexed = new Rectangle(-178, -180, 10, -10);
@@ -352,7 +353,7 @@ public class GeometryIndexerTests extends ESTestCase {
         assertEquals(indexed, processed);
 
         // Rectangle crossing the dateline, one side is a line
-        fields = indexer.indexShape(null, indexed);
+        fields = indexer.indexShape(indexed);
         assertEquals(fields.size(), 3);
 
         indexed = new Rectangle(-178, -180, 10, 10);
@@ -361,7 +362,7 @@ public class GeometryIndexerTests extends ESTestCase {
 
         // Rectangle crossing the dateline, one side is a point,
         // other side a line
-        fields = indexer.indexShape(null, indexed);
+        fields = indexer.indexShape(indexed);
         assertEquals(fields.size(), 2);
 
         indexed = new Rectangle(0.0, 1.0819389717881644E-299, 1.401298464324817E-45, 0.0);
@@ -369,7 +370,7 @@ public class GeometryIndexerTests extends ESTestCase {
         assertEquals(indexed, processed);
 
         // Rectangle is a point
-        fields = indexer.indexShape(null, processed);
+        fields = indexer.indexShape(processed);
         assertEquals(fields.size(), 1);
 
         indexed = new Rectangle(-1.4017117476654298E-170, 0.0, 0.0, -2.415012082648633E-174);
@@ -377,7 +378,7 @@ public class GeometryIndexerTests extends ESTestCase {
         assertEquals(indexed, processed);
 
         // Rectangle is a triangle but needs to be computed quantize
-        fields = indexer.indexShape(null, processed);
+        fields = indexer.indexShape(processed);
         assertEquals(fields.size(), 2);
     }
 

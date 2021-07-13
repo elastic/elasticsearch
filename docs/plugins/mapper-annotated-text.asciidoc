@@ -293,7 +293,7 @@ The annotated highlighter is based on the `unified` highlighter and supports the
 settings but does not use the `pre_tags` or `post_tags` parameters. Rather than using
 html-like markup such as `<em>cat</em>` the annotated highlighter uses the same 
 markdown-like syntax used for annotations and injects a key=value annotation where `_hit_term`
-is the  key and the matched search term is the value e.g. 
+is the key and the matched search term is the value e.g. 
 
     The [cat](_hit_term=cat) sat on the [mat](sku3578)
 

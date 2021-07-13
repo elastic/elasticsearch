@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -61,19 +61,19 @@ public class ConditionTests extends ESTestCase {
         assertThat(result.matched, equalTo(true));
     }
 
-    public void testMaxSinglePrimarySize() {
-        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition =
-            new MaxSinglePrimarySizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 20)));
+    public void testMaxPrimaryShardSize() {
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition =
+            new MaxPrimaryShardSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 20)));
 
-        Condition.Result result = maxSinglePrimarySizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(),
+        Condition.Result result = maxPrimaryShardSizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(),
             randomNonNegativeLong(), randomByteSize(), ByteSizeValue.ofMb(0)));
         assertThat(result.matched, equalTo(false));
 
-        result = maxSinglePrimarySizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
+        result = maxPrimaryShardSizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
             randomByteSize(), ByteSizeValue.ofMb(randomIntBetween(0, 9))));
         assertThat(result.matched, equalTo(false));
 
-        result = maxSinglePrimarySizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
+        result = maxPrimaryShardSizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
             randomByteSize(), ByteSizeValue.ofMb(randomIntBetween(20, 1000))));
         assertThat(result.matched, equalTo(true));
     }
@@ -91,10 +91,10 @@ public class ConditionTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxSizeCondition, condition -> new MaxSizeCondition(condition.value),
             condition -> new MaxSizeCondition(randomByteSize()));
 
-        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition = new MaxSinglePrimarySizeCondition(randomByteSize());
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxSinglePrimarySizeCondition,
-            condition -> new MaxSinglePrimarySizeCondition(condition.value),
-            condition -> new MaxSinglePrimarySizeCondition(randomByteSize()));
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(randomByteSize());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxPrimaryShardSizeCondition,
+            condition -> new MaxPrimaryShardSizeCondition(condition.value),
+            condition -> new MaxPrimaryShardSizeCondition(randomByteSize()));
     }
 
     private static ByteSizeValue randomByteSize() {

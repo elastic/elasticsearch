@@ -21,7 +21,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.join.ParentJoinPlugin;
-import org.elasticsearch.join.mapper.MetaJoinFieldMapper;
 import org.elasticsearch.join.mapper.ParentIdFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -297,11 +296,10 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
 
     static MappedFieldType[] withJoinFields(MappedFieldType... fieldTypes) {
-        MappedFieldType[] result = new MappedFieldType[fieldTypes.length + 3];
+        MappedFieldType[] result = new MappedFieldType[fieldTypes.length + 2];
         System.arraycopy(fieldTypes, 0, result, 0, fieldTypes.length);
 
         int i = fieldTypes.length;
-        result[i++] = new MetaJoinFieldMapper.MetaJoinFieldType("join_field");
         result[i++] = new ParentJoinFieldMapper.Builder("join_field").addRelation(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
             .build(new ContentPath(0))
             .fieldType();

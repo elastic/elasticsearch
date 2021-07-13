@@ -13,69 +13,27 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
-import org.elasticsearch.test.StreamsUtils;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.test.NodeRoles.nonIngestNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoIpProcessorNonIngestNodeIT extends ESIntegTestCase {
-
-    public static class IngestGeoIpSettingsPlugin extends Plugin {
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Collections.singletonList(Setting.simpleString("ingest.geoip.database_path", Setting.Property.NodeScope));
-        }
-    }
+public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(IngestGeoIpPlugin.class, IngestGeoIpSettingsPlugin.class);
-    }
-
-    @Override
-    protected Settings nodeSettings(final int nodeOrdinal) {
-        final Path databasePath = createTempDir();
-        try {
-            Files.createDirectories(databasePath);
-            Files.copy(
-                    new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb")),
-                    databasePath.resolve("GeoLite2-City.mmdb"));
-            Files.copy(
-                    new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb")),
-                    databasePath.resolve("GeoLite2-Country.mmdb"));
-            Files.copy(
-                    new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-ASN.mmdb")),
-                    databasePath.resolve("GeoLite2-ASN.mmdb"));
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        return Settings.builder()
-                .put("ingest.geoip.database_path", databasePath)
-                .put(nonIngestNode())
-                .put(super.nodeSettings(nodeOrdinal))
-                .build();
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(nonIngestNode()).build();
     }
 
     /**
@@ -143,7 +101,7 @@ public class GeoIpProcessorNonIngestNodeIT extends ESIntegTestCase {
         final IndexRequest indexRequest = new IndexRequest("index");
         indexRequest.setPipeline("geoip");
         indexRequest.source(Collections.singletonMap("ip", "1.1.1.1"));
-        final IndexResponse indexResponse = client().index(indexRequest).actionGet();
+        final IndexResponse indexResponse = client(ingestNode).index(indexRequest).actionGet();
         assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
         // now the geo-IP database should be loaded on the ingest node
         assertDatabaseLoadStatus(ingestNode, true);
@@ -156,7 +114,7 @@ public class GeoIpProcessorNonIngestNodeIT extends ESIntegTestCase {
     private void assertDatabaseLoadStatus(final String node, final boolean loaded) {
         final IngestService ingestService = internalCluster().getInstance(IngestService.class, node);
         final GeoIpProcessor.Factory factory = (GeoIpProcessor.Factory)ingestService.getProcessorFactories().get("geoip");
-        for (final DatabaseReaderLazyLoader loader : factory.databaseReaders().values()) {
+        for (final DatabaseReaderLazyLoader loader : factory.getAllDatabases()) {
             if (loaded) {
                 assertNotNull(loader.databaseReader.get());
             } else {

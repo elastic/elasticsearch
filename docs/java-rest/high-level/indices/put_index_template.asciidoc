@@ -5,10 +5,10 @@
 --
 
 [id="{upid}-{api}"]
-=== Put Composable Index Template API
+=== Create or update composable index template API
 
 [id="{upid}-{api}-request"]
-==== Put Composable Index Template Request
+==== Request
 
 A +{request}+ specifies the `name` of a template and the index template configuration
 which consists of the `patterns` that control whether the template should be applied
@@ -108,7 +108,7 @@ include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Put Composable Index Template Response
+==== Response
 
 The returned +{response}+ allows to retrieve information about the
 executed operation as follows:

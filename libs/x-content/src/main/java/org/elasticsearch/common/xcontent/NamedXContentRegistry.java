@@ -8,9 +8,8 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -139,7 +138,7 @@ public class NamedXContentRegistry {
      */
     public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
 
-        Map<String, Entry> parsers = parser.getRestApiCompatibleVersion() == RestApiCompatibleVersion.minimumSupported() ?
+        Map<String, Entry> parsers = parser.getRestApiVersion() == RestApiVersion.minimumSupported() ?
             compatibleRegistry.get(categoryClass) : registry.get(categoryClass);
         if (parsers == null) {
             if (registry.isEmpty()) {

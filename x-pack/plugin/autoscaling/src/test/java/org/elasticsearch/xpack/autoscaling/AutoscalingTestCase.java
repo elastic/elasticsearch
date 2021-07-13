@@ -9,12 +9,13 @@ package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
@@ -94,7 +95,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
                     prefix + i,
                     buildNewFakeTransportAddress(),
                     Map.of(),
-                    randomRoles().stream().map(DiscoveryNode::getRoleFromRoleName).collect(Collectors.toSet()),
+                    randomRoles().stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Collectors.toSet()),
                     Version.CURRENT
                 )
             )
@@ -187,7 +188,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     }
 
     public static SortedSet<String> randomRoles() {
-        return randomSubsetOf(DiscoveryNode.getPossibleRoleNames()).stream().collect(Sets.toUnmodifiableSortedSet());
+        return randomSubsetOf(DiscoveryNodeRole.roleNames()).stream().collect(Sets.toUnmodifiableSortedSet());
     }
 
     public static NamedWriteableRegistry getAutoscalingNamedWriteableRegistry() {

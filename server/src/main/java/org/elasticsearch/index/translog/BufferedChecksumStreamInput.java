@@ -9,6 +9,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.BufferedChecksum;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -65,22 +66,31 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     public short readShort() throws IOException {
         final byte[] buf = buffer.get();
         readBytes(buf, 0, 2);
-        return (short) (((buf[0] & 0xFF) << 8) | (buf[1] & 0xFF));
+        return Numbers.bytesToShort(buf, 0);
     }
 
     @Override
     public int readInt() throws IOException {
         final byte[] buf = buffer.get();
         readBytes(buf, 0, 4);
-        return ((buf[0] & 0xFF) << 24) | ((buf[1] & 0xFF) << 16) | ((buf[2] & 0xFF) << 8) | (buf[3] & 0xFF);
+        return Numbers.bytesToInt(buf, 0);
     }
 
     @Override
     public long readLong() throws IOException {
         final byte[] buf = buffer.get();
         readBytes(buf, 0, 8);
-        return (((long) (((buf[0] & 0xFF) << 24) | ((buf[1] & 0xFF) << 16) | ((buf[2] & 0xFF) << 8) | (buf[3] & 0xFF))) << 32)
-            | ((((buf[4] & 0xFF) << 24) | ((buf[5] & 0xFF) << 16) | ((buf[6] & 0xFF) << 8) | (buf[7] & 0xFF)) & 0xFFFFFFFFL);
+        return Numbers.bytesToLong(buf, 0);
+    }
+
+    @Override
+    public int readVInt() throws IOException {
+        return readVIntSlow();
+    }
+
+    @Override
+    public long readVLong() throws IOException {
+        return readVLongSlow();
     }
 
     @Override

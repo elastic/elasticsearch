@@ -231,7 +231,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         } catch (IllegalArgumentException e) {
         }
 
-        logger.info("--> allocate the replica shard on on the second node");
+        logger.info("--> allocate the replica shard on the second node");
         newState = allocation.reroute(clusterState,
             new AllocationCommands(new AllocateReplicaAllocationCommand("test", 0, "node2")), false, false).getClusterState();
         assertThat(newState, not(equalTo(clusterState)));

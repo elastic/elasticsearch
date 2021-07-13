@@ -8,12 +8,12 @@
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
-apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
 
 for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   String baseName = "v${bwcVersion}"
@@ -21,6 +21,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   testClusters {
     "${baseName}" {
       version = bwcVersion.toString()
+      setting 'xpack.security.enabled', 'true'
+      user username: 'admin', password: 'admin-password', role: 'superuser'
     }
   }
 

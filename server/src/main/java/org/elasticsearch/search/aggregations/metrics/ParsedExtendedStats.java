@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
@@ -285,7 +285,6 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
     }
 
     protected static void declareExtendedStatsFields(ObjectParser<? extends ParsedExtendedStats, Void> objectParser) {
-        declareAggregationFields(objectParser);
         declareStatsFields(objectParser);
         objectParser.declareField((agg, value) -> agg.sumOfSquares = value, (parser, context) -> parseDouble(parser, 0),
                 new ParseField(Fields.SUM_OF_SQRS), ValueType.DOUBLE_OR_NULL);

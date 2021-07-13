@@ -1,6 +1,8 @@
 [[quota-aware-fs]]
 === Quota-aware Filesystem Plugin
 
+NOTE: {cloud-only}
+
 The Quota-aware Filesystem plugin adds an interface for telling
 Elasticsearch the disk-quota limits under which it is operating.
 

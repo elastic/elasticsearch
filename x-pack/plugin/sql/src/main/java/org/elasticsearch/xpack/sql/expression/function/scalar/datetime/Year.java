@@ -34,11 +34,6 @@ public class Year extends DateTimeHistogramFunction {
     }
 
     @Override
-    public String dateTimeFormat() {
-        return "year";
-    }
-
-    @Override
     public String calendarInterval() {
         return Histogram.YEAR_INTERVAL;
     }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -30,12 +30,16 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
 
     public static RolloverAction randomInstance() {
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue maxSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+        ByteSizeValue maxSize = randomBoolean() ? null :
+            new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+        ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
+        ByteSizeValue maxPrimaryShardSize = randomBoolean() ? null :
+            new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
         Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;
-        return new RolloverAction(maxSize, maxAge, maxDocs);
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
     }
 
     @Override
@@ -46,9 +50,10 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
     @Override
     protected RolloverAction mutateInstance(RolloverAction instance) throws IOException {
         ByteSizeValue maxSize = instance.getMaxSize();
+        ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
         TimeValue maxAge = instance.getMaxAge();
         Long maxDocs = instance.getMaxDocs();
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0:
                 maxSize = randomValueOtherThan(maxSize, () -> {
                     ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
@@ -56,21 +61,27 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
                 });
                 break;
             case 1:
+                maxPrimaryShardSize = randomValueOtherThan(maxPrimaryShardSize, () -> {
+                    ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
+                    return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
+                });
+                break;
+            case 2:
                 maxAge = randomValueOtherThan(maxAge,
                     () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test"));
                 break;
-            case 2:
+            case 3:
                 maxDocs = maxDocs == null ? randomNonNegativeLong() : maxDocs + 1;
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new RolloverAction(maxSize, maxAge, maxDocs);
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
     }
 
     public void testNoConditions() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new RolloverAction(null, null, null));
+                () -> new RolloverAction(null, null, null, null));
         assertEquals("At least one rollover condition must be set.", exception.getMessage());
     }
 
@@ -102,6 +113,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         assertEquals(fourthStep.getKey(), thirdStep.getNextStepKey());
         assertEquals(fifthStep.getKey(), fourthStep.getNextStepKey());
         assertEquals(action.getMaxSize(), firstStep.getMaxSize());
+        assertEquals(action.getMaxPrimaryShardSize(), firstStep.getMaxPrimaryShardSize());
         assertEquals(action.getMaxAge(), firstStep.getMaxAge());
         assertEquals(action.getMaxDocs(), firstStep.getMaxDocs());
         assertEquals(nextStepKey, fifthStep.getNextStepKey());

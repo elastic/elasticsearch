@@ -31,8 +31,4 @@ public class DayOfMonth extends DateTimeFunction {
         return new DayOfMonth(source(), newChild, zoneId());
     }
 
-    @Override
-    public String dateTimeFormat() {
-        return "d";
-    }
 }

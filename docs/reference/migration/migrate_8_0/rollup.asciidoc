@@ -9,29 +9,6 @@
 
 // end::notable-breaking-changes[]
 
-ifdef::permanently-unreleased-branch[]
-
-.The StartRollupJob endpoint now returns a success status if a legacy rollup job has already started.
-[%collapsible]
-====
-*Details* +
-Previously, attempting to start an already-started legacy rollup job would
-result in a `500 InternalServerError: Cannot start task for Rollup Job
-[job] because state was [STARTED]` exception.
-
-Now, attempting to start a job that is already started will just
-return a successful `200 OK: started` response.
-
-*Impact* +
-Update your workflow and applications to assume that a 200 status in response to
-attempting to start a legacy rollup job means the job is in an actively started state.
-The request itself may have started the job, or it was previously running and so
-the request had no effect.
-====
-
-endif::[]
-ifndef::permanently-unreleased-branch[]
-
 .The StartRollupJob endpoint now returns a success status if a job has already started.
 [%collapsible]
 ====
@@ -49,5 +26,3 @@ attempting to start a rollup job means the job is in an actively started state.
 The request itself may have started the job, or it was previously running and so
 the request had no effect.
 ====
-
-endif::[]

@@ -33,7 +33,7 @@ public final class TransformBuilders {
         return ScriptTransform.builder(script);
     }
 
-    public static ChainTransform.Builder chainTransform(Transform.Builder... transforms) {
+    public static ChainTransform.Builder chainTransform(Transform.Builder<?>... transforms) {
         return ChainTransform.builder().add(transforms);
     }
 

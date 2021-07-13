@@ -24,15 +24,20 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FETCH_SIZE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FILTER_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.KEEP_ALIVE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.KEEP_ON_COMPLETION_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.MODE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.QUERY_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.RUNTIME_MAPPINGS_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.TIME_ZONE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 
 public abstract class BaseRestSqlTestCase extends ESRestTestCase {
 
@@ -105,6 +110,31 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        public RequestObjectBuilder waitForCompletionTimeout(String timeout) {
+            request.append(field(WAIT_FOR_COMPLETION_TIMEOUT_NAME, timeout));
+            return this;
+        }
+
+        public RequestObjectBuilder keepOnCompletion(Boolean keepOnCompletion) {
+            request.append(field(KEEP_ON_COMPLETION_NAME, keepOnCompletion));
+            return this;
+        }
+
+        public RequestObjectBuilder keepAlive(String keepAlive) {
+            request.append(field(KEEP_ALIVE_NAME, keepAlive));
+            return this;
+        }
+
+        public RequestObjectBuilder fieldMultiValueLeniency(Boolean fieldMultiValueLeniency) {
+            request.append(field(FIELD_MULTI_VALUE_LENIENCY_NAME, fieldMultiValueLeniency));
+            return this;
+        }
+
+        public RequestObjectBuilder runtimeMappings(String runtimeMappings) {
+            request.append(field(RUNTIME_MAPPINGS_NAME, runtimeMappings));
+            return this;
+        }
+
         private static String field(String name, Object value) {
             if (value == null) {
                 return StringUtils.EMPTY;
@@ -116,7 +146,7 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
                     return StringUtils.EMPTY;
                 }
                 String lowerName = name.toLowerCase(Locale.ROOT);
-                if (lowerName.equals(PARAMS_NAME) || lowerName.equals(FILTER_NAME)) {
+                if (lowerName.equals(PARAMS_NAME) || lowerName.equals(FILTER_NAME) || lowerName.equals(RUNTIME_MAPPINGS_NAME)) {
                     field += value;
                 } else {
                     field += "\"" + value + "\"";

@@ -2,7 +2,7 @@
 === Total shards per node
 
 The cluster-level shard allocator tries to spread the shards of a single index
-across as many nodes as possible.  However, depending on how many shards and
+across as many nodes as possible. However, depending on how many shards and
 indices you have, and how big they are, it may not always be possible to spread
 shards evenly.
 
@@ -13,7 +13,7 @@ number of shards from a single index allowed per node:
 `index.routing.allocation.total_shards_per_node`::
 
     The maximum number of shards (replicas and primaries) that will be
-    allocated to a single node.  Defaults to unbounded.
+    allocated to a single node. Defaults to unbounded.
 
 You can also limit the amount of shards a node can have regardless of the index:
 

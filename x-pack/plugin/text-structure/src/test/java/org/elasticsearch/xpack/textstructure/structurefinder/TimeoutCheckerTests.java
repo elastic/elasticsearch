@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.threadpool.Scheduler;
 import org.joni.Matcher;

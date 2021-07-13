@@ -1,6 +1,7 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -8,8 +9,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common'
-    includeXpack 'autoscaling'
+    include '_common', 'autoscaling'
   }
 }
 

@@ -50,8 +50,8 @@ PUT /shirts/_doc/1?refresh
 
 Imagine a user has specified two filters:
 
-`color:red` and `brand:gucci`.  You only want to show them red shirts made by
-Gucci in the search results.  Normally you would do this with a 
+`color:red` and `brand:gucci`. You only want to show them red shirts made by
+Gucci in the search results. Normally you would do this with a 
 <<query-dsl-bool-query,`bool` query>>:
 
 [source,console]
@@ -70,7 +70,7 @@ GET /shirts/_search
 --------------------------------------------------
 
 However, you would also like to use _faceted navigation_ to display a list of
-other options that the user could click on.  Perhaps you have a `model` field
+other options that the user could click on. Perhaps you have a `model` field
 that would allow the user to limit their search results to red Gucci
 `t-shirts` or `dress-shirts`.
 
@@ -105,7 +105,7 @@ available in *other colors*. If you just add a `terms` aggregation on the
 returns only red shirts by Gucci.
 
 Instead, you want to include shirts of all colors during aggregation, then
-apply the `colors` filter only to the search results.  This is the purpose of
+apply the `colors` filter only to the search results. This is the purpose of
 the `post_filter`:
 
 [source,console]
@@ -226,8 +226,8 @@ The way the scores are combined can be controlled with the `score_mode`:
 [cols="<,<",options="header",]
 |=======================================================================
 |Score Mode |Description
-|`total`    |Add the original score and the rescore query score.  The default.
-|`multiply` |Multiply the original score by the rescore query score.  Useful
+|`total`    |Add the original score and the rescore query score. The default.
+|`multiply` |Multiply the original score by the rescore query score. Useful
 for <<query-dsl-function-score-query,`function query`>> rescores.
 |`avg`      |Average the original score and the rescore query score.
 |`max`      |Take the max of original score and the rescore query score.
@@ -286,6 +286,6 @@ POST /_search
 // TEST[setup:my_index]
 
 The first one gets the results of the query then the second one gets the
-results of the first, etc.  The second rescore will "see" the sorting done
+results of the first, etc. The second rescore will "see" the sorting done
 by the first rescore so it is possible to use a large window on the first
 rescore to pull documents into a smaller window for the second rescore.

@@ -102,7 +102,7 @@ public class ClientYamlTestSuite {
 
     public ClientYamlTestSuite(String api, String name, SetupSection setupSection, TeardownSection teardownSection,
                         List<ClientYamlTestSection> testSections) {
-        this.api = api;
+        this.api = api.replace("\\", "/");  //since api's are sourced from the filesystem normalize backslashes to "/"
         this.name = name;
         this.setupSection = Objects.requireNonNull(setupSection, "setup section cannot be null");
         this.teardownSection = Objects.requireNonNull(teardownSection, "teardown section cannot be null");
@@ -153,12 +153,29 @@ public class ClientYamlTestSuite {
                 "section can skip the test at line [" + section.getLocation().lineNumber + "]");
 
         errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
+            .map(section -> (DoSection) section)
+            .filter(section -> false == section.getExpectedWarningHeadersRegex()
+                .isEmpty())
+            .filter(section -> false == hasSkipFeature("warnings_regex", testSection, setupSection, teardownSection))
+            .map(section -> "attempted to add a [do] with a [warnings_regex] section " +
+                "without a corresponding [\"skip\": \"features\": \"warnings_regex\"] so runners that do not support the [warnings_regex] "+
+                "section can skip the test at line [" + section.getLocation().lineNumber + "]"));
+
+        errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
                 .map(section -> (DoSection) section)
                 .filter(section -> false == section.getAllowedWarningHeaders().isEmpty())
                 .filter(section -> false == hasSkipFeature("allowed_warnings", testSection, setupSection, teardownSection))
                 .map(section -> "attempted to add a [do] with a [allowed_warnings] section " +
                     "without a corresponding [\"skip\": \"features\": \"allowed_warnings\"] so runners that do not " +
                     "support the [allowed_warnings] section can skip the test at line [" + section.getLocation().lineNumber + "]"));
+
+        errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
+            .map(section -> (DoSection) section)
+            .filter(section -> false == section.getAllowedWarningHeadersRegex().isEmpty())
+            .filter(section -> false == hasSkipFeature("allowed_warnings_regex", testSection, setupSection, teardownSection))
+            .map(section -> "attempted to add a [do] with a [allowed_warnings_regex] section " +
+                "without a corresponding [\"skip\": \"features\": \"allowed_warnings_regex\"] so runners that do not " +
+                "support the [allowed_warnings_regex] section can skip the test at line [" + section.getLocation().lineNumber + "]"));
 
         errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
             .map(section -> (DoSection) section)
@@ -182,6 +199,13 @@ public class ClientYamlTestSuite {
             .map(section -> "attempted to add a [do] with a [headers] section without a corresponding "
                 + "[\"skip\": \"features\": \"headers\"] so runners that do not support the [headers] section can skip the test at " +
                 "line [" + section.getLocation().lineNumber + "]"));
+
+        errors = Stream.concat(errors, sections.stream()
+            .filter(section -> section instanceof CloseToAssertion)
+            .filter(section -> false == hasSkipFeature("close_to", testSection, setupSection, teardownSection))
+            .map(section -> "attempted to add a [close_to] assertion " +
+                "without a corresponding [\"skip\": \"features\": \"close_to\"] so runners that do not support the " +
+                "[close_to] assertion can skip the test at line [" + section.getLocation().lineNumber + "]"));
 
         return errors;
     }

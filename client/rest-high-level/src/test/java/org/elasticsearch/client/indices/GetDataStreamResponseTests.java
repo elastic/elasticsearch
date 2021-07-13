@@ -9,7 +9,7 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.cluster.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.xcontent.XContentParser;

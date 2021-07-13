@@ -16,7 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskManager;
 
@@ -126,17 +126,8 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
             if (expirationTimeMillis != -1) {
                 task.setExpirationTime(expirationTimeMillis);
             }
-            addCompletionListener.apply(task, new ActionListener<>() {
-                @Override
-                public void onResponse(Response response) {
-                    sendFinalResponse(request, response, nowInMillis, listener);
-                }
-
-                @Override
-                public void onFailure(Exception exc) {
-                    listener.onFailure(exc);
-                }
-            }, request.getWaitForCompletionTimeout());
+            addCompletionListener.apply(task, listener.delegateFailure((l, response) ->
+                    sendFinalResponse(request, response, nowInMillis, l)), request.getWaitForCompletionTimeout());
         } catch (Exception exc) {
             listener.onFailure(exc);
         }
@@ -146,18 +137,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
                                             GetAsyncResultRequest request,
                                             long nowInMillis,
                                             ActionListener<Response> listener) {
-        store.getResponse(searchId, true,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Response response) {
-                    sendFinalResponse(request, response, nowInMillis, listener);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+        store.getResponse(searchId, true, listener.delegateFailure((l, response) -> sendFinalResponse(request, response, nowInMillis, l)));
     }
 
     private void sendFinalResponse(GetAsyncResultRequest request,

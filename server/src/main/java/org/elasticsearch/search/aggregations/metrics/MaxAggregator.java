@@ -10,11 +10,10 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FutureArrays;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -71,12 +70,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
-            if (parent != null) {
-                return LeafBucketCollector.NO_OP_COLLECTOR;
-            } else {
-                // we have no parent and the values source is empty so we can skip collecting hits.
-                throw new CollectionTerminatedException();
-            }
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         if (pointConverter != null) {
             Number segMax = findLeafMaxValue(ctx.reader(), pointField, pointConverter);
@@ -90,7 +84,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                 max = Math.max(max, segMax.doubleValue());
                 maxes.set(0, max);
                 // the maximum value has been extracted, we don't need to collect hits on this segment.
-                throw new CollectionTerminatedException();
+                return LeafBucketCollector.NO_OP_COLLECTOR;
             }
         }
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);

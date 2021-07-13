@@ -13,9 +13,11 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -24,11 +26,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCase {
 
@@ -207,7 +211,10 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
         ClusterState newState = MetadataMigrateToDataStreamService.migrateToDataStream(cs, this::getMapperService,
             new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(dataStreamName,
                 TimeValue.ZERO,
-                TimeValue.ZERO));
+                TimeValue.ZERO),
+            new ThreadContext(Settings.EMPTY),
+            getMetadataCreateIndexService()
+        );
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
@@ -249,7 +256,10 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
         ClusterState newState = MetadataMigrateToDataStreamService.migrateToDataStream(cs, this::getMapperService,
             new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(dataStreamName,
                 TimeValue.ZERO,
-                TimeValue.ZERO));
+                TimeValue.ZERO),
+            new ThreadContext(Settings.EMPTY),
+            getMetadataCreateIndexService()
+        );
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
@@ -298,7 +308,9 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     this::getMapperService,
                     new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(dataStreamName,
                         TimeValue.ZERO,
-                        TimeValue.ZERO)));
+                        TimeValue.ZERO),
+                    new ThreadContext(Settings.EMPTY),
+                    getMetadataCreateIndexService()));
         assertThat(e.getMessage(), containsString("alias [" + dataStreamName + "] must specify a write index"));
     }
 
@@ -308,6 +320,12 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private MetadataCreateIndexService getMetadataCreateIndexService() {
+        MetadataCreateIndexService service = mock(MetadataCreateIndexService.class);
+        when(service.getSystemIndices()).thenReturn(EmptySystemIndices.INSTANCE);
+        return service;
     }
 
     @Override

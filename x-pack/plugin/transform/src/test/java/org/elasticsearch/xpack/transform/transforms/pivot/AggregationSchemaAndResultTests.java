@@ -90,7 +90,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                         field,
                         Collections.singletonMap(
                             type,
-                            new FieldCapabilities(field, type, true, true, null, null, null, emptyMap())
+                            new FieldCapabilities(field, type, false, true, true, null, null, null, emptyMap())
                         )
                     );
                 }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -50,7 +50,7 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
     }
 
     public PercentileRanksAggregationBuilder(StreamInput in) throws IOException {
-        super(in);
+        super(VALUES_FIELD, in);
     }
 
     private PercentileRanksAggregationBuilder(PercentileRanksAggregationBuilder clone,

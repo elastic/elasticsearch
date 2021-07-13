@@ -35,14 +35,14 @@ import java.util.function.BiConsumer;
  * See CLengthEncodedInputParser.h in the C++ code for a more
  * detailed description.
  */
-class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
+public class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
 
     private static final Logger LOGGER = LogManager.getLogger(JsonDataToProcessWriter.class);
-    private NamedXContentRegistry xContentRegistry;
+    private final NamedXContentRegistry xContentRegistry;
 
-    JsonDataToProcessWriter(boolean includeControlField, boolean includeTokensField, AutodetectProcess autodetectProcess,
-                            DataDescription dataDescription, AnalysisConfig analysisConfig,
-                            DataCountsReporter dataCountsReporter, NamedXContentRegistry xContentRegistry) {
+    public JsonDataToProcessWriter(boolean includeControlField, boolean includeTokensField, AutodetectProcess autodetectProcess,
+                                   DataDescription dataDescription, AnalysisConfig analysisConfig,
+                                   DataCountsReporter dataCountsReporter, NamedXContentRegistry xContentRegistry) {
         super(includeControlField, includeTokensField, autodetectProcess, dataDescription, analysisConfig,
                 dataCountsReporter, LOGGER);
         this.xContentRegistry = xContentRegistry;
@@ -61,9 +61,9 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
             throws IOException {
         dataCountsReporter.startNewIncrementalCount();
 
-        if (xContentType.equals(XContentType.JSON)) {
+        if (xContentType.canonical() == XContentType.JSON) {
             writeJsonXContent(categorizationAnalyzer, inputStream);
-        } else if (xContentType.equals(XContentType.SMILE)) {
+        } else if (xContentType.canonical() == XContentType.SMILE) {
             writeSmileXContent(categorizationAnalyzer, inputStream);
         } else {
             throw new RuntimeException("XContentType [" + xContentType

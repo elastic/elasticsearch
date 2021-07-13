@@ -19,6 +19,7 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
@@ -44,11 +45,13 @@ public class BasicQueryClient implements QueryClient {
     final EqlConfiguration cfg;
     final Client client;
     final String[] indices;
+    final List<FieldAndFormat> fetchFields;
 
     public BasicQueryClient(EqlSession eqlSession) {
         this.cfg = eqlSession.configuration();
         this.client = eqlSession.client();
         this.indices = cfg.indices();
+        this.fetchFields = cfg.fetchFields();
     }
 
     @Override
@@ -137,6 +140,12 @@ public class BasicQueryClient implements QueryClient {
                 // the default size is 10 so be sure to change it
                 // NB:this is different from mget
                 .size(idQuery.ids().size());
+            if (fetchFields != null) {
+                fetchFields.forEach(builder::fetchField);
+            }
+            if (cfg.runtimeMappings() != null) {
+                builder.runtimeMappings(cfg.runtimeMappings());
+            }
 
             SearchRequest search = prepareRequest(builder, false, entry.getKey());
             multiSearchBuilder.add(search);

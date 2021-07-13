@@ -1,7 +1,7 @@
 [[array]]
 === Arrays
 
-In Elasticsearch, there is no dedicated `array` data type.  Any field can contain
+In Elasticsearch, there is no dedicated `array` data type. Any field can contain
 zero or more values by default, however, all values in the array must be of the
 same data type. For instance:
 
@@ -15,7 +15,7 @@ same data type. For instance:
 ====================================================
 
 Arrays of objects do not work as you would expect: you cannot query each
-object independently of the other objects in the array.  If you need to be
+object independently of the other objects in the array. If you need to be
 able to do this then you should use the <<nested,`nested`>> data type instead
 of the <<object,`object`>> data type.
 
@@ -24,14 +24,14 @@ This is explained in more detail in <<nested>>.
 
 
 When adding a field dynamically, the first value in the array determines the
-field `type`.  All subsequent values must be of the same data type or it must
+field `type`. All subsequent values must be of the same data type or it must
 at least be possible to <<coerce,coerce>> subsequent values to the same
 data type.
 
 Arrays with a mixture of data types are _not_ supported: [ `10`, `"some string"` ]
 
 An array may contain `null` values, which are either replaced by the
-configured <<null-value,`null_value`>> or skipped entirely.  An empty array
+configured <<null-value,`null_value`>> or skipped entirely. An empty array
 `[]` is treated as a missing field -- a field with no values.
 
 Nothing needs to be pre-configured in order to use arrays in documents, they
@@ -86,13 +86,13 @@ GET my-index-000001/_search
 ****************************************************
 
 The fact that all field types support multi-value fields out of the box is a
-consequence of the origins of Lucene.  Lucene was designed to be a full text
-search engine.  In order to be able to search for individual words within a
+consequence of the origins of Lucene. Lucene was designed to be a full text
+search engine. In order to be able to search for individual words within a
 big block of text, Lucene tokenizes the text into individual terms, and
 adds each term to the inverted index separately.
 
 This means that even a simple text field must be able to support multiple
-values by default.  When other data types were added, such as numbers and
+values by default. When other data types were added, such as numbers and
 dates, they used the same data structure as strings, and so got multi-values
 for free.
 

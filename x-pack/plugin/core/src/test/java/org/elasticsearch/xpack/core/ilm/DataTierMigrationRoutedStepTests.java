@@ -82,7 +82,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
         ClusterState clusterState =
             ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true).build())
                 .nodes(DiscoveryNodes.builder()
-                    .add(newNode("node1", Collections.singleton(DataTier.DATA_HOT_NODE_ROLE)))
+                    .add(newNode("node1", Collections.singleton(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)))
                 )
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
                 .build();
@@ -105,8 +105,8 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
         ClusterState clusterState =
             ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true).build())
                 .nodes(DiscoveryNodes.builder()
-                    .add(newNode("node1", Collections.singleton(DataTier.DATA_HOT_NODE_ROLE)))
-                    .add(newNode("node2", Collections.singleton(DataTier.DATA_WARM_NODE_ROLE)))
+                    .add(newNode("node1", Collections.singleton(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)))
+                    .add(newNode("node2", Collections.singleton(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)))
                 )
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
                 .build();
@@ -132,7 +132,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
         ClusterState clusterState =
             ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true).build())
                 .nodes(DiscoveryNodes.builder()
-                    .add(newNode("node1", Collections.singleton(DataTier.DATA_HOT_NODE_ROLE)))
+                    .add(newNode("node1", Collections.singleton(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)))
                 )
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
                 .build();
@@ -168,8 +168,8 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
         ClusterState clusterState =
             ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true).build())
                 .nodes(DiscoveryNodes.builder()
-                    .add(newNode("node1", Collections.singleton(DataTier.DATA_HOT_NODE_ROLE)))
-                    .add(newNode("node2", Collections.singleton(DataTier.DATA_WARM_NODE_ROLE)))
+                    .add(newNode("node1", Collections.singleton(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)))
+                    .add(newNode("node2", Collections.singleton(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)))
                 )
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
                 .build();
@@ -213,7 +213,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
             ClusterState clusterState =
                 ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true).build())
                     .nodes(DiscoveryNodes.builder()
-                        .add(newNode("node1", Collections.singleton(DataTier.DATA_HOT_NODE_ROLE)))
+                        .add(newNode("node1", Collections.singleton(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)))
                     )
                     .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
                     .build();
@@ -233,8 +233,8 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
             ClusterState clusterState =
                 ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true).build())
                     .nodes(DiscoveryNodes.builder()
-                        .add(newNode("node1", Collections.singleton(DataTier.DATA_HOT_NODE_ROLE)))
-                        .add(newNode("node2", Collections.singleton(DataTier.DATA_WARM_NODE_ROLE)))
+                        .add(newNode("node1", Collections.singleton(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)))
+                        .add(newNode("node2", Collections.singleton(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)))
                     )
                     .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
                     .build();

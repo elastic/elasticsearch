@@ -9,9 +9,9 @@
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -38,11 +38,12 @@ public interface Scheduler {
      * Notice that if any scheduled jobs fail with an exception, these will bubble up to the uncaught exception handler where they will
      * be logged as a warning. This includes jobs started using execute, submit and schedule.
      * @param settings the settings to use
+     * @param schedulerName a string that identifies the threads belonging to this scheduler
      * @return executor
      */
-    static ScheduledThreadPoolExecutor initScheduler(Settings settings) {
+    static ScheduledThreadPoolExecutor initScheduler(Settings settings, String schedulerName) {
         final ScheduledThreadPoolExecutor scheduler = new SafeScheduledThreadPoolExecutor(1,
-                EsExecutors.daemonThreadFactory(settings, "scheduler"), new EsAbortPolicy());
+                EsExecutors.daemonThreadFactory(settings, schedulerName), new EsAbortPolicy());
         scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         scheduler.setRemoveOnCancelPolicy(true);

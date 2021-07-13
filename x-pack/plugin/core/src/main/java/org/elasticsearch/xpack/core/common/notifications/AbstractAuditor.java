@@ -8,17 +8,24 @@ package org.elasticsearch.xpack.core.common.notifications;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
@@ -39,12 +46,15 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
     private static final Logger logger = LogManager.getLogger(AbstractAuditor.class);
     static final int MAX_BUFFER_SIZE = 1000;
+    static final TimeValue MASTER_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     private final OriginSettingClient client;
     private final String nodeName;
     private final String auditIndex;
     private final String templateName;
-    private final Supplier<PutIndexTemplateRequest> templateSupplier;
+    private final Version versionComposableTemplateExpected;
+    private final Supplier<PutIndexTemplateRequest> legacyTemplateSupplier;
+    private final Supplier<PutComposableIndexTemplateAction.Request> templateSupplier;
     private final AbstractAuditMessageFactory<T> messageFactory;
     private final AtomicBoolean hasLatestTemplate;
 
@@ -52,30 +62,45 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     private final ClusterService clusterService;
     private final AtomicBoolean putTemplateInProgress;
 
-
     protected AbstractAuditor(OriginSettingClient client,
                               String auditIndex,
+                              Version versionComposableTemplateExpected,
+                              IndexTemplateConfig legacyTemplateConfig,
                               IndexTemplateConfig templateConfig,
                               String nodeName,
                               AbstractAuditMessageFactory<T> messageFactory,
                               ClusterService clusterService) {
 
-        this(client, auditIndex, templateConfig.getTemplateName(),
-            () -> new PutIndexTemplateRequest(templateConfig.getTemplateName()).source(templateConfig.loadBytes(), XContentType.JSON),
+        this(client, auditIndex, templateConfig.getTemplateName(), versionComposableTemplateExpected,
+            () -> new PutIndexTemplateRequest(legacyTemplateConfig.getTemplateName())
+                .source(legacyTemplateConfig.loadBytes(), XContentType.JSON).masterNodeTimeout(MASTER_TIMEOUT),
+            () -> {
+                try {
+                    return new PutComposableIndexTemplateAction.Request(templateConfig.getTemplateName())
+                        .indexTemplate(ComposableIndexTemplate.parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, templateConfig.loadBytes())))
+                        .masterNodeTimeout(MASTER_TIMEOUT);
+                } catch (IOException e) {
+                    throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
+                }
+            },
             nodeName, messageFactory, clusterService);
     }
-
 
     protected AbstractAuditor(OriginSettingClient client,
                               String auditIndex,
                               String templateName,
-                              Supplier<PutIndexTemplateRequest> templateSupplier,
+                              Version versionComposableTemplateExpected,
+                              Supplier<PutIndexTemplateRequest> legacyTemplateSupplier,
+                              Supplier<PutComposableIndexTemplateAction.Request> templateSupplier,
                               String nodeName,
                               AbstractAuditMessageFactory<T> messageFactory,
                               ClusterService clusterService) {
         this.client = Objects.requireNonNull(client);
         this.auditIndex = Objects.requireNonNull(auditIndex);
         this.templateName = Objects.requireNonNull(templateName);
+        this.versionComposableTemplateExpected = versionComposableTemplateExpected;
+        this.legacyTemplateSupplier = Objects.requireNonNull(legacyTemplateSupplier);
         this.templateSupplier = Objects.requireNonNull(templateSupplier);
         this.messageFactory = Objects.requireNonNull(messageFactory);
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -105,13 +130,13 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         logger.debug("Failed to write audit message", exception);
     }
 
-    private void indexDoc(ToXContent toXContent) {
+    protected void indexDoc(ToXContent toXContent) {
         if (hasLatestTemplate.get()) {
             writeDoc(toXContent);
             return;
         }
 
-        if (MlIndexAndAlias.hasIndexTemplate(clusterService.state(), templateName)) {
+        if (MlIndexAndAlias.hasIndexTemplate(clusterService.state(), templateName, templateName, versionComposableTemplateExpected)) {
             synchronized (this) {
                 // synchronized so nothing can be added to backlog while this value changes
                 hasLatestTemplate.set(true);
@@ -152,8 +177,8 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
                 // stop multiple invocations
                 if (putTemplateInProgress.compareAndSet(false, true)) {
-                    MlIndexAndAlias.installIndexTemplateIfRequired(clusterService.state(), client, templateSupplier.get(),
-                        putTemplateListener);
+                    MlIndexAndAlias.installIndexTemplateIfRequired(clusterService.state(), client, versionComposableTemplateExpected,
+                        legacyTemplateSupplier.get(), templateSupplier.get(), putTemplateListener);
                 }
                 return;
             }
@@ -184,7 +209,11 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         }
     }
 
-    private void writeBacklog() {
+    protected void clearBacklog() {
+        backlog = null;
+    }
+
+    protected void writeBacklog() {
         assert backlog != null;
         if (backlog == null) {
             logger.error("Message back log has already been written");

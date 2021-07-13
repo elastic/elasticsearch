@@ -50,16 +50,19 @@ public class AutoExpandReplicasTests extends ESTestCase {
         assertEquals(0, autoExpandReplicas.getMinReplicas());
         assertEquals(5, autoExpandReplicas.getMaxReplicas(8));
         assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertFalse(autoExpandReplicas.expandToAllNodes());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "0-all").build());
         assertEquals(0, autoExpandReplicas.getMinReplicas());
         assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
         assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertTrue(autoExpandReplicas.expandToAllNodes());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "1-all").build());
         assertEquals(1, autoExpandReplicas.getMinReplicas());
         assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
         assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertTrue(autoExpandReplicas.expandToAllNodes());
 
     }
 
@@ -98,7 +101,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
     private static final AtomicInteger nodeIdGenerator = new AtomicInteger();
 
     protected DiscoveryNode createNode(Version version, DiscoveryNodeRole... mustHaveRoles) {
-        Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+        Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Collections.addAll(roles, mustHaveRoles);
         final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles, version);

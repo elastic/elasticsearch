@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.core.slm;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
@@ -285,10 +286,19 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         final Map<String, Object> meta = new HashMap<>();
         meta.put(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD, REPO);
         final int totalShards = between(1,20);
-        SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-" + randomAlphaOfLength(3), "uuid"),
+        SnapshotInfo snapInfo = new SnapshotInfo(
+            new Snapshot(REPO, new SnapshotId("snap-" + randomAlphaOfLength(3), "uuid")),
             Collections.singletonList("foo"),
             Collections.singletonList("bar"),
-            Collections.emptyList(), null, startTime + between(1, 10000), totalShards, new ArrayList<>(), false, meta, startTime
+            Collections.emptyList(),
+            null,
+            startTime + between(1, 10000),
+            totalShards,
+            new ArrayList<>(),
+            false,
+            meta,
+            startTime,
+            Collections.emptyMap()
         );
         assertThat(snapInfo.state(), equalTo(SnapshotState.SUCCESS));
         return snapInfo;
@@ -312,11 +322,19 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
             failures.add(new SnapshotShardFailure("nodeId", new ShardId("index-name", "index-uuid", i), "failed"));
         }
         assert failureCount == failures.size();
-        SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail"),
+        SnapshotInfo snapInfo = new SnapshotInfo(
+            new Snapshot(REPO, new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail")),
             Collections.singletonList("foo-fail"),
             Collections.singletonList("bar-fail"),
             Collections.emptyList(),
-            "forced-failure", startTime + between(1, 10000), totalShards, failures, randomBoolean(), meta, startTime
+            "forced-failure",
+            startTime + between(1, 10000),
+            totalShards,
+            failures,
+            randomBoolean(),
+            meta,
+            startTime,
+            Collections.emptyMap()
         );
         assertThat(snapInfo.state(), equalTo(SnapshotState.FAILED));
         return snapInfo;
@@ -332,10 +350,19 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
             failures.add(new SnapshotShardFailure("nodeId", new ShardId("index-name", "index-uuid", i), "failed"));
         }
         assert failureCount == failures.size();
-        SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail"),
+        SnapshotInfo snapInfo = new SnapshotInfo(
+            new Snapshot(REPO, new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail")),
             Collections.singletonList("foo-fail"),
             Collections.singletonList("bar-fail"),
-            Collections.emptyList(), null, startTime + between(1, 10000), totalShards, failures, randomBoolean(), meta, startTime
+            Collections.emptyList(),
+            null,
+            startTime + between(1, 10000),
+            totalShards,
+            failures,
+            randomBoolean(),
+            meta,
+            startTime,
+            Collections.emptyMap()
         );
         assertThat(snapInfo.state(), equalTo(SnapshotState.PARTIAL));
         return snapInfo;

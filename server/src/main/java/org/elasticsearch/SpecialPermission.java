@@ -50,7 +50,7 @@ public final class SpecialPermission extends BasicPermission {
     public static final SpecialPermission INSTANCE = new SpecialPermission();
 
     /**
-     * Creates a new SpecialPermision object.
+     * Creates a new SpecialPermission object.
      */
     public SpecialPermission() {
         // TODO: if we really need we can break out name (e.g. "hack" or "scriptEngineService" or whatever).

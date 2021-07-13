@@ -183,7 +183,7 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(Case.class, Case::new, "CASE"),
                 def(Coalesce.class, Coalesce::new, "COALESCE"),
                 def(Iif.class, Iif::new, "IIF"),
-                def(IfNull.class, IfNull::new, "IFNULL", "ISNULL", "NVL"),
+                def(IfNull.class, (BinaryBuilder<IfNull>) IfNull::new, "IFNULL", "ISNULL", "NVL"),
                 def(NullIf.class, NullIf::new, "NULLIF"),
                 def(Greatest.class, Greatest::new, "GREATEST"),
                 def(Least.class, Least::new, "LEAST")

@@ -89,7 +89,7 @@ potentially ignoring any firewall settings. If you don't want to expose port 920
 a reverse proxy, replace `9200:9200` with `127.0.0.1:9200:9200` in the docker-compose.yml file.
 {es} will then only be accessible from the host machine itself.
 
-The  https://docs.docker.com/storage/volumes[Docker named volumes]
+The https://docs.docker.com/storage/volumes[Docker named volumes]
 `data01`, `data02`, and `data03` store the node data directories so the data persists across restarts.
 If they don't already exist, `docker-compose` creates them when you bring up the cluster.
 --
@@ -163,7 +163,7 @@ sysctl -w vm.max_map_count=262144
 --------------------------------------------
 --
 
-* macOS with  https://docs.docker.com/docker-for-mac[Docker for Mac]
+* macOS with https://docs.docker.com/docker-for-mac[Docker for Mac]
 +
 --
 The `vm.max_map_count` setting must be set within the xhyve virtual machine:
@@ -288,9 +288,9 @@ By default, {es} automatically sizes JVM heap based on a nodes's
 recommend this default sizing for most production environments. If needed, you
 can override default sizing by manually setting JVM heap size.
 
-To manually set the heap size in production, bind mount a <<jvm-options,JVM
+To manually set the heap size in production, bind mount a <<set-jvm-options,JVM
 options>> file under `/usr/share/elasticsearch/config/jvm.options.d` that
-includes your desired <<setting-jvm-heap-size,heap size>> settings.
+includes your desired <<set-jvm-heap-size,heap size>> settings.
 
 For testing, you can also manually set the heap size using the `ES_JAVA_OPTS`
 environment variable. For example, to use 16GB, specify `-e
@@ -308,7 +308,7 @@ example +docker.elastic.co/elasticsearch/elasticsearch:{version}+.
 
 You should use a volume bound on `/usr/share/elasticsearch/data` for the following reasons:
 
-.  The data of your {es} node won't be lost if the container is killed
+. The data of your {es} node won't be lost if the container is killed
 
 . {es} is I/O sensitive and the Docker storage driver is not ideal for fast I/O
 
@@ -339,7 +339,19 @@ over the configuration files in the image.
 
 You can set individual {es} configuration parameters using Docker environment variables.
 The <<docker-compose-file, sample compose file>> and the
-<<docker-cli-run-dev-mode, single-node example>> use this method.
+<<docker-cli-run-dev-mode, single-node example>> use this method. You can
+use the setting name directly as the environment variable name. If
+you cannot do this, for example because your orchestration platform forbids
+periods in environment variable names, then you can use an alternative
+style by converting the setting name as follows.
+
+. Change the setting name to uppercase
+. Prefix it with `ES_`
+. Escape any underscores (`_`) by duplicating them
+. Convert all periods (`.`) to underscores (`_`)
+
+For example, `-e bootstrap.memory_lock=true` becomes
+`-e ES_BOOTSTRAP_MEMORY__LOCK=true`.
 
 To use the contents of a file to set an environment variable, suffix the environment
 variable name with `_FILE`. This is useful for passing secrets such as passwords to {es}

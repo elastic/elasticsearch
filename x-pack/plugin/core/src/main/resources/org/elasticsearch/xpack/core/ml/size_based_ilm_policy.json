@@ -3,9 +3,13 @@
     "hot": {
       "actions": {
         "rollover": {
-          "max_size": "50GB"
+          "max_primary_shard_size": "50gb"
         }
       }
     }
+  },
+  "_meta": {
+    "description": "default policy for machine learning state and stats indices",
+    "managed": true
   }
 }

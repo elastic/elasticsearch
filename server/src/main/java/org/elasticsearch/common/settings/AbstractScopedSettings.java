@@ -14,7 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.ArrayList;
@@ -414,47 +414,47 @@ public abstract class AbstractScopedSettings {
      * Validates that all settings are registered and valid.
      *
      * @param settings             the settings to validate
-     * @param validateDependencies true if dependent settings should be validated
+     * @param validateValues       true if values should be validated, otherwise only keys are validated
      * @see Setting#getSettingsDependencies(String)
      */
-    public final void validate(final Settings settings, final boolean validateDependencies) {
-        validate(settings, validateDependencies, false, false);
+    public final void validate(final Settings settings, final boolean validateValues) {
+        validate(settings, validateValues, false, false);
     }
 
     /**
      * Validates that all settings are registered and valid.
      *
      * @param settings                       the settings to validate
-     * @param validateDependencies           true if dependent settings should be validated
+     * @param validateValues                 true if values should be validated, otherwise only keys are validated
      * @param validateInternalOrPrivateIndex true if internal index settings should be validated
      * @see Setting#getSettingsDependencies(String)
      */
-    public final void validate(final Settings settings, final boolean validateDependencies, final boolean validateInternalOrPrivateIndex) {
-        validate(settings, validateDependencies, false, false, validateInternalOrPrivateIndex);
+    public final void validate(final Settings settings, final boolean validateValues, final boolean validateInternalOrPrivateIndex) {
+        validate(settings, validateValues, false, false, validateInternalOrPrivateIndex);
     }
 
     /**
      * Validates that all settings are registered and valid.
      *
      * @param settings               the settings
-     * @param validateDependencies   true if dependent settings should be validated
+     * @param validateValues         true if values should be validated, otherwise only keys are validated
      * @param ignorePrivateSettings  true if private settings should be ignored during validation
      * @param ignoreArchivedSettings true if archived settings should be ignored during validation
      * @see Setting#getSettingsDependencies(String)
      */
     public final void validate(
             final Settings settings,
-            final boolean validateDependencies,
+            final boolean validateValues,
             final boolean ignorePrivateSettings,
             final boolean ignoreArchivedSettings) {
-        validate(settings, validateDependencies, ignorePrivateSettings, ignoreArchivedSettings, false);
+        validate(settings, validateValues, ignorePrivateSettings, ignoreArchivedSettings, false);
     }
 
     /**
      * Validates that all settings are registered and valid.
      *
      * @param settings                       the settings
-     * @param validateDependencies           true if dependent settings should be validated
+     * @param validateValues                 true if values should be validated, otherwise only keys are validated
      * @param ignorePrivateSettings          true if private settings should be ignored during validation
      * @param ignoreArchivedSettings         true if archived settings should be ignored during validation
      * @param validateInternalOrPrivateIndex true if index internal settings should be validated
@@ -462,7 +462,7 @@ public abstract class AbstractScopedSettings {
      */
     public final void validate(
             final Settings settings,
-            final boolean validateDependencies,
+            final boolean validateValues,
             final boolean ignorePrivateSettings,
             final boolean ignoreArchivedSettings,
             final boolean validateInternalOrPrivateIndex) {
@@ -476,7 +476,7 @@ public abstract class AbstractScopedSettings {
                 continue;
             }
             try {
-                validate(key, settings, validateDependencies, validateInternalOrPrivateIndex);
+                validate(key, settings, validateValues, validateInternalOrPrivateIndex);
             } catch (final RuntimeException ex) {
                 exceptions.add(ex);
             }
@@ -489,11 +489,11 @@ public abstract class AbstractScopedSettings {
      *
      * @param key the key of the setting to validate
      * @param settings the settings
-     * @param validateDependencies true if dependent settings should be validated
+     * @param validateValue true if value should be validated, otherwise only keys are validated
      * @throws IllegalArgumentException if the setting is invalid
      */
-    void validate(final String key, final Settings settings, final boolean validateDependencies) {
-        validate(key, settings, validateDependencies, false);
+    void validate(final String key, final Settings settings, final boolean validateValue) {
+        validate(key, settings, validateValue, false);
     }
 
     /**
@@ -501,12 +501,12 @@ public abstract class AbstractScopedSettings {
      *
      * @param key                            the key of the setting to validate
      * @param settings                       the settings
-     * @param validateDependencies           true if dependent settings should be validated
+     * @param validateValue                  true if value should be validated, otherwise only keys are validated
      * @param validateInternalOrPrivateIndex true if internal index settings should be validated
      * @throws IllegalArgumentException if the setting is invalid
      */
     void validate(
-            final String key, final Settings settings, final boolean validateDependencies, final boolean validateInternalOrPrivateIndex) {
+            final String key, final Settings settings, final boolean validateValue, final boolean validateInternalOrPrivateIndex) {
         Setting<?> setting = getRaw(key);
         if (setting == null) {
             LevenshteinDistance ld = new LevenshteinDistance();
@@ -537,7 +537,7 @@ public abstract class AbstractScopedSettings {
             if (setting.hasComplexMatcher()) {
                 setting = setting.getConcreteSetting(key);
             }
-            if (validateDependencies && settingsDependencies.isEmpty() == false) {
+            if (validateValue && settingsDependencies.isEmpty() == false) {
                 for (final Setting.SettingDependency settingDependency : settingsDependencies) {
                     final Setting<?> dependency = settingDependency.getSetting();
                     // validate the dependent setting is set
@@ -564,7 +564,9 @@ public abstract class AbstractScopedSettings {
                 }
             }
         }
-        setting.get(settings);
+        if (validateValue) {
+            setting.get(settings);
+        }
     }
 
     /**

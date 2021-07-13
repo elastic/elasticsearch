@@ -7,7 +7,9 @@
  */
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.Nullable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -26,6 +28,8 @@ import java.util.function.Predicate;
 import static java.util.stream.Collectors.toSet;
 
 public abstract class AbstractRestChannel implements RestChannel {
+
+    private static final Logger logger = LogManager.getLogger(AbstractRestChannel.class);
 
     private static final Predicate<String> INCLUDE_FILTER = f -> f.charAt(0) != '-';
     private static final Predicate<String> EXCLUDE_FILTER = INCLUDE_FILTER.negate();
@@ -64,6 +68,8 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     @Override
     public XContentBuilder newErrorBuilder() throws IOException {
+        // release whatever output we already buffered and write error response to fresh buffer
+        releaseOutputBuffer();
         // Disable filtering when building error responses
         return newBuilder(request.getXContentType(), false);
     }
@@ -126,7 +132,7 @@ public abstract class AbstractRestChannel implements RestChannel {
 
         XContentBuilder builder =
             new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream,
-                includes, excludes, responseMediaType);
+                includes, excludes, responseMediaType, request.getRestApiVersion());
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }
@@ -137,25 +143,30 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     /**
      * A channel level bytes output that can be reused. The bytes output is lazily instantiated
-     * by a call to {@link #newBytesOutput()}. Once the stream is created, it gets reset on each
-     * call to this method.
+     * by a call to {@link #newBytesOutput()}. This method should only be called once per request.
      */
     @Override
     public final BytesStreamOutput bytesOutput() {
-        if (bytesOut == null) {
-            bytesOut = newBytesOutput();
-        } else {
-            bytesOut.reset();
+        if (bytesOut != null) {
+            // fallback in case of encountering a bug, release the existing buffer if any (to avoid leaking memory) and acquire a new one
+            // to send out an error response
+            assert false : "getting here is always a bug";
+            logger.error("channel handling [{}] reused", request.rawPath());
+            releaseOutputBuffer();
         }
+        bytesOut = newBytesOutput();
         return bytesOut;
     }
 
     /**
-     * An accessor to the raw value of the channel bytes output. This method will not instantiate
-     * a new stream if one does not exist and this method will not reset the stream.
+     * Releases the current output buffer for this channel. Must be called after the buffer derived from {@link #bytesOutput} is no longer
+     * needed.
      */
-    protected final BytesStreamOutput bytesOutputOrNull() {
-        return bytesOut;
+    protected final void releaseOutputBuffer() {
+        if (bytesOut != null) {
+            bytesOut.close();
+            bytesOut = null;
+        }
     }
 
     protected BytesStreamOutput newBytesOutput() {

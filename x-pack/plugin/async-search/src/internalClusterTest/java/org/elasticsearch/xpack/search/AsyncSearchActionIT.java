@@ -402,7 +402,6 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         ensureTaskRemoval(response.getId());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67974")
     public void testRemoveAsyncIndex() throws Exception {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
         request.setWaitForCompletionTimeout(TimeValue.timeValueMinutes(10));

@@ -26,7 +26,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.store.input.ChecksumBlobContainerIndexInput.checksumToBytesArray;
 
 public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInput {

@@ -79,18 +79,18 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
         createIndicesWithRandomAliases("test1", "test2", "test3");
 
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        BulkByScrollResponse response = restClient.deleteByQuery((DeleteByQueryRequest) new DeleteByQueryRequest()
+        BulkByScrollResponse response = restClient.deleteByQuery(new DeleteByQueryRequest()
             .setQuery(QueryBuilders.matchAllQuery())
             .indices("test1", "test2"), RequestOptions.DEFAULT);
         assertNotNull(response);
 
-        response = restClient.deleteByQuery((DeleteByQueryRequest) new DeleteByQueryRequest()
+        response = restClient.deleteByQuery(new DeleteByQueryRequest()
             .setQuery(QueryBuilders.matchAllQuery())
             .indices("test*"), RequestOptions.DEFAULT);
         assertNotNull(response);
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> restClient.deleteByQuery((DeleteByQueryRequest) new DeleteByQueryRequest()
+                () -> restClient.deleteByQuery(new DeleteByQueryRequest()
                     .setQuery(QueryBuilders.matchAllQuery())
                     .indices("test1", "index1"), RequestOptions.DEFAULT));
         assertThat(e.getMessage(), containsString("no such index [index1]"));

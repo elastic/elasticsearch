@@ -22,7 +22,8 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 [[ml-post-calendar-event-desc]]
 == {api-description-title}
 
-This API accepts a list of {ml-docs}/ml-calendars.html[scheduled events], each
+This API accepts a list of
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[scheduled events], each
 of which must have a start time, end time, and description.
 
 [[ml-post-calendar-event-path-parms]]

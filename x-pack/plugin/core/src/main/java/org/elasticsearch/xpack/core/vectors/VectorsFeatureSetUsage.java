@@ -17,6 +17,11 @@ import org.elasticsearch.xpack.core.XPackField;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * @deprecated This class exists for backwards compatibility with 7.14 only
+ * and should not be used for other purposes.
+ */
+@Deprecated
 public class VectorsFeatureSetUsage extends XPackFeatureSet.Usage {
 
     private final int numDenseVectorFields;

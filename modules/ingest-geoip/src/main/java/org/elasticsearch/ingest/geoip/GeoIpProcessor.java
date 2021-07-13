@@ -26,7 +26,6 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;

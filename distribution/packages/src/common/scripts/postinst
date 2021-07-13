@@ -57,6 +57,17 @@ fi
 if [ "x$IS_UPGRADE" != "xtrue" ]; then
     # This runs on installation and since we do not set a password for the keystore by default, we can assume it's not password protected
     /usr/share/elasticsearch/bin/elasticsearch-autoconfig-security <<< ""
+    if [ -f "${ES_PATH_CONF}"/elasticsearch.keystore ]; then
+        INITIAL_PASSWORD=$(tr -dc 'A-Za-z0-9~!@#$%^&*-_=+?' </dev/urandom | head -c 14)
+        echo "$INITIAL_PASSWORD" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -x 'bootstrap.password'
+        echo "##########                 Security autoconfiguration information                ############"
+        echo "#                                                                                           #"
+        echo "# The password of the elastic superuser will be set to: ${INITIAL_PASSWORD}                      #"
+        echo "#                                                                                           #"
+        echo "#                                                                                           #"
+        echo "#                                                                                           #"
+        echo "#############################################################################################"
+    fi
     if command -v systemctl >/dev/null; then
         echo "### NOT starting on installation, please execute the following statements to configure elasticsearch service to start automatically using systemd"
         echo " sudo systemctl daemon-reload"

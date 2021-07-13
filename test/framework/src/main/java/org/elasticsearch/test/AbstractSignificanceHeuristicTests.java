@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.bucket.terms;
+package org.elasticsearch.test;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -28,15 +28,20 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.terms.InternalMappedSignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.InternalSignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -82,14 +87,12 @@ public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
         // read
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         StreamInput in = new InputStreamStreamInput(inBuffer);
-        // populates the registry through side effects
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
-        NamedWriteableRegistry registry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        NamedWriteableRegistry registry = writableRegistry();
         in = new NamedWriteableAwareStreamInput(in, registry);
         in.setVersion(version);
         InternalMappedSignificantTerms<?, ?> read = (InternalMappedSignificantTerms<?, ?>) in.readNamedWriteable(InternalAggregation.class);
 
-        assertEquals(sigTerms.significanceHeuristic, read.significanceHeuristic);
+        assertEquals(sigTerms.getSignificanceHeuristic(), read.getSignificanceHeuristic());
         SignificantTerms.Bucket originalBucket = sigTerms.getBuckets().get(0);
         SignificantTerms.Bucket streamedBucket = read.getBuckets().get(0);
         assertThat(originalBucket.getKeyAsString(), equalTo(streamedBucket.getKeyAsString()));
@@ -271,6 +274,11 @@ public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents());
+    }
+
+    @Override
+    protected NamedWriteableRegistry writableRegistry() {
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
     }
 
     protected void testBackgroundAssertions(SignificanceHeuristic heuristicIsSuperset, SignificanceHeuristic heuristicNotSuperset) {

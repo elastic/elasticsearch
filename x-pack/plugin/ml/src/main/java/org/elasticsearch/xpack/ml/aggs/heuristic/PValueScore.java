@@ -9,34 +9,58 @@
 package org.elasticsearch.xpack.ml.aggs.heuristic;
 
 
-import org.apache.commons.math3.distribution.BinomialDistribution;
 import org.apache.commons.math3.util.FastMath;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.NXYSignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristicBuilder;
 
 import java.io.IOException;
 
-public class PValueScore extends SignificanceHeuristic {
-    public static final String NAME = "p_value";
-    public static final ObjectParser<PValueScore, Void> PARSER = new ObjectParser<>(NAME, PValueScore::new);
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-    private static final MlChiSquaredDistribution CHI_SQUARED_DISTRIBUTION = new MlChiSquaredDistribution(1);
-    public PValueScore() {
+public class PValueScore extends NXYSignificanceHeuristic {
+    public static final String NAME = "p_value";
+    public static final ConstructingObjectParser<PValueScore, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+        boolean backgroundIsSuperset = args[0] == null || (boolean) args[0];
+        return new PValueScore(backgroundIsSuperset);
+    });
+    static {
+        PARSER.declareBoolean(optionalConstructorArg(), BACKGROUND_IS_SUPERSET);
     }
 
-    public PValueScore(StreamInput in) {
-        // Nothing to read.
+    private static final MlChiSquaredDistribution CHI_SQUARED_DISTRIBUTION = new MlChiSquaredDistribution(1);
+
+    public PValueScore(boolean backgroundIsSuperset) {
+        super(true, backgroundIsSuperset);
+    }
+
+    public PValueScore(StreamInput in) throws IOException {
+        super(true, in.readBoolean());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeBoolean(backgroundIsSuperset);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if ((obj instanceof PValueScore) == false) {
+            return false;
+        }
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = NAME.hashCode();
+        result = 31 * result + super.hashCode();
+        return result;
     }
 
     @Override
@@ -46,18 +70,14 @@ public class PValueScore extends SignificanceHeuristic {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAME).endObject();
+        builder.startObject(NAME);
+        builder.field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
+        builder.endObject();
         return builder;
     }
 
-    public static SignificanceHeuristic parse(XContentParser parser)
-            throws IOException, QueryShardException {
-        // move to the closing bracket
-        if (parser.nextToken().equals(XContentParser.Token.END_OBJECT) == false) {
-            throw new ElasticsearchParseException("failed to parse [p_value] significance heuristic. expected an empty object, " +
-                    "but got [{}] instead", parser.currentToken());
-        }
-        return new PValueScore();
+    public static SignificanceHeuristic parse(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
     }
 
     /**
@@ -75,78 +95,91 @@ public class PValueScore extends SignificanceHeuristic {
      *  NOTE: Since in the original calculation of `p-value`, smaller indicates more significance, the value actual value returned
      *        is `log(-p-value)`. To get the original p-value from the score, simply calculate `exp(-retval)`
      *
-     * @param subsetFreq   The frequency of the term in the selected sample
-     * @param subsetSize   The size of the selected sample (typically number of docs)
-     * @param supersetFreq The frequency of the term in the superset from which the sample was taken
-     * @param supersetSize The size of the superset from which the sample was taken  (typically number of docs)
      * @return log(-p-value)
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        checkFrequencyValidity(subsetFreq, subsetSize, supersetFreq, supersetSize, "PValueScore");
+        Frequencies frequencies = computeNxys(subsetFreq, subsetSize, supersetFreq, supersetSize, "PValueScore");
+        double docsContainTermInClass = frequencies.N11;
+        double allDocsInClass = frequencies.N_1;
+        double docsContainTermNotInClass = frequencies.N10;
+        double allDocsNotInClass = frequencies.N_0;
 
-        if (subsetFreq * supersetSize <= subsetSize * supersetFreq) {
+        if (docsContainTermInClass * allDocsNotInClass <= allDocsInClass * docsContainTermNotInClass) {
             return 0.0;
         }
 
-        if (supersetSize == 0L || subsetSize == 0L) {
+        if (allDocsNotInClass == 0L || allDocsInClass == 0L) {
             return 0.0;
         }
 
         // Adjust counts to ignore ratio changes which are less than 5%
-        if (subsetFreq * supersetSize < supersetFreq * subsetSize) {
-            subsetFreq = (long)(Math.min(1.05 * subsetFreq, supersetFreq / (double)supersetSize * subsetSize) + 0.5);
+        // casting to `long` to round down to nearest whole number
+        if (docsContainTermInClass * allDocsNotInClass < docsContainTermNotInClass * allDocsInClass) {
+            docsContainTermInClass = (long)(Math.min(
+                1.05 * docsContainTermInClass,
+                docsContainTermNotInClass / allDocsNotInClass * allDocsInClass
+            ) + 0.5);
         }
-        if (subsetFreq * supersetSize > supersetFreq * subsetSize) {
-            supersetFreq = (long)(Math.min(1.05 * supersetFreq, subsetFreq / (double)subsetSize * supersetSize) + 0.5);
+        if (docsContainTermInClass * allDocsNotInClass > docsContainTermNotInClass * allDocsInClass) {
+            docsContainTermNotInClass = (long)(Math.min(
+                1.05 * docsContainTermNotInClass,
+                docsContainTermInClass / allDocsInClass * allDocsNotInClass
+            ) + 0.5);
         }
 
-        long epsSubSetSize = eps(subsetSize);
-        long epsSuperSetSize = eps(supersetSize);
+        // casting to `long` to round down to nearest whole number
+        double epsAllDocsInClass = (long)eps(allDocsInClass);
+        double epsAllDocsNotInClass = (long)eps(allDocsNotInClass);
 
-        double v1 = new BinomialDistribution(
-            (int)(subsetSize + epsSubSetSize),
-            (double)(subsetFreq + epsSubSetSize)/(subsetSize + epsSubSetSize)
-        ).logProbability((int)(subsetFreq + epsSubSetSize));
+        if ((allDocsInClass + epsAllDocsInClass) > Long.MAX_VALUE
+            || (docsContainTermInClass + epsAllDocsInClass) > Long.MAX_VALUE
+            || (allDocsNotInClass + epsAllDocsNotInClass) > Long.MAX_VALUE
+            || (docsContainTermNotInClass + epsAllDocsNotInClass) > Long.MAX_VALUE) {
+            throw new AggregationExecutionException(
+                "too many documents in background and foreground sets, further restrict sets for execution"
+            );
+        }
 
-        double v2 = new BinomialDistribution(
-            (int)(supersetSize + epsSuperSetSize),
-            (double)(supersetFreq + epsSuperSetSize)/(supersetSize + epsSuperSetSize)
-        ).logProbability((int)(supersetFreq + epsSuperSetSize));
+        double v1 = new LongBinomialDistribution(
+            (long)(allDocsInClass + epsAllDocsInClass),
+            (docsContainTermInClass + epsAllDocsInClass)/(allDocsInClass + epsAllDocsInClass)
+        ).logProbability((long)(docsContainTermInClass + epsAllDocsInClass));
 
-        double p2 = (double)(subsetFreq + supersetFreq + epsSuperSetSize + epsSubSetSize)
-            / (subsetSize + supersetSize + epsSuperSetSize + epsSubSetSize);
+        double v2 = new LongBinomialDistribution(
+            (long)(allDocsNotInClass + epsAllDocsNotInClass),
+            (docsContainTermNotInClass + epsAllDocsNotInClass)/(allDocsNotInClass + epsAllDocsNotInClass)
+        ).logProbability((long)(docsContainTermNotInClass + epsAllDocsNotInClass));
 
-        double v3 = new BinomialDistribution((int)(subsetSize + epsSubSetSize), p2)
-            .logProbability((int)(subsetFreq + epsSubSetSize));
+        double p2 = (docsContainTermInClass + docsContainTermNotInClass + epsAllDocsNotInClass + epsAllDocsInClass)
+            / (allDocsInClass + allDocsNotInClass + epsAllDocsNotInClass + epsAllDocsInClass);
 
-        double v4 = new BinomialDistribution((int)(supersetSize + epsSuperSetSize), p2)
-            .logProbability((int)(supersetFreq + epsSuperSetSize));
+        double v3 = new LongBinomialDistribution((long)(allDocsInClass + epsAllDocsInClass), p2)
+            .logProbability((long)(docsContainTermInClass + epsAllDocsInClass));
+
+        double v4 = new LongBinomialDistribution((long)(allDocsNotInClass + epsAllDocsNotInClass), p2)
+            .logProbability((long)(docsContainTermNotInClass + epsAllDocsNotInClass));
 
         double logLikelihoodRatio = v1 + v2 - v3 - v4;
-        double pValue = (CHI_SQUARED_DISTRIBUTION.survivalFunction(2.0 * logLikelihoodRatio) * 0.5);
+        double pValue = CHI_SQUARED_DISTRIBUTION.survivalFunction(2.0 * logLikelihoodRatio) * 0.5;
         return -FastMath.log(FastMath.max(pValue, Double.MIN_NORMAL));
     }
 
-    private long eps(long value) {
-        return Math.max((long)(0.05 * (double)value + 0.5), 1);
+    private double eps(double value) {
+        return Math.max(0.05 * value + 0.5, 1.0);
     }
 
-    @Override
-    public boolean equals(Object obj) {
-        return obj != null && obj.getClass() == getClass();
-    }
+    public static class PValueScoreBuilder extends NXYBuilder {
 
-    @Override
-    public int hashCode() {
-        return getClass().hashCode();
-    }
-
-    public static class PValueScoreBuilder implements SignificanceHeuristicBuilder {
+        public PValueScoreBuilder(boolean backgroundIsSuperset) {
+            super(true, backgroundIsSuperset);
+        }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAME).endObject();
+            builder.startObject(NAME);
+            builder.field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
+            builder.endObject();
             return builder;
         }
     }

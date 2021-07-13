@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
-import org.elasticsearch.search.aggregations.bucket.terms.AbstractSignificanceHeuristicTests;
+import org.elasticsearch.test.AbstractSignificanceHeuristicTests;
 
 public class ChiSquareTests extends AbstractSignificanceHeuristicTests {
     @Override

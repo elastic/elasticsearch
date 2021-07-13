@@ -111,7 +111,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     assertThat(names, not(hasItem("GeoLite2-Country.mmdb")));
                 }
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testInvalidTimestamp() throws Exception {

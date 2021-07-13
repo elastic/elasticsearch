@@ -194,6 +194,8 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
     static NodeConfigurationSource nodeConfigurationSource(Settings nodeSettings, Collection<Class<? extends Plugin>> nodePlugins) {
         final Settings.Builder builder = Settings.builder();
+        // TODO Ensure that tests extending AbstractMultiClustersTestCase run with security enabled when possible
+        builder.put("xpack.security.enabled", false);
         builder.putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
         builder.putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());

@@ -438,7 +438,8 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("pri.segments.count", "default:false;text-align:right;desc:number of segments");
 
         if (request.getRestApiVersion() == RestApiVersion.V_7) {
-            table.addCell("segments.memory", "sibling:pri;alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
+            table.addCell("segments.memory",
+                "sibling:pri;alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
             table.addCell("pri.segments.memory", "default:false;text-align:right;desc:memory used by segments");
         }
 

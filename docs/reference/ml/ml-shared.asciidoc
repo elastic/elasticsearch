@@ -157,7 +157,7 @@ The size of the interval that the analysis is aggregated into, typically between
 `5m` and `1h`. The default value is `5m`. If the {anomaly-job} uses a {dfeed}
 with {ml-docs}/ml-configuring-aggregation.html[aggregations], this value must be
 divisible by the interval of the date histogram aggregation. For more
-information, see {ml-docs}/ml-buckets.html[Buckets].
+information, see {ml-docs}/ml-ad-finding-anomalies.html#ml-ad-bucket-span[Bucket span].
 end::bucket-span[]
 
 tag::bucket-span-results[]
@@ -411,7 +411,7 @@ of the most recent snapshot for this job. Valid values range from `0` to
 `model_snapshot_retention_days`. For new jobs, the default value is `1`. For
 jobs created before version 7.8.0, the default value matches
 `model_snapshot_retention_days`. For more information, refer to
-{ml-docs}/ml-model-snapshots.html[Model snapshots].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-model-snapshots[Model snapshots].
 end::daily-model-snapshot-retention-after-days[]
 
 tag::data-description[]
@@ -1254,7 +1254,7 @@ snapshots for this job. It specifies the maximum period of time (in days) that
 snapshots are retained. This period is relative to the timestamp of the most
 recent snapshot for this job. The default value is `10`, which means snapshots
 ten days older than the newest snapshot are deleted. For more information, refer
-to {ml-docs}/ml-model-snapshots.html[Model snapshots].
+to {ml-docs}/ml-ad-finding-anomalies.html#ml-ad-model-snapshots[Model snapshots].
 end::model-snapshot-retention-days[]
 
 tag::model-timestamp[]

@@ -1593,6 +1593,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * translated properly. This test can be removed in 9.0.
      */
     public void testTransportCompressionSetting() throws IOException {
+        assumeTrue("the old transport.compress setting existed before 7.14", getOldClusterVersion().before(Version.V_7_14_0));
+        assumeTrue("Early versions of 6.x do not have cluster.remote* prefixed settings",
+            getOldClusterVersion().onOrAfter(Version.V_7_14_0.minimumCompatibilityVersion()));
         if (isRunningAgainstOldCluster()) {
             final Request putSettingsRequest = new Request("PUT", "/_cluster/settings");
             try (XContentBuilder builder = jsonBuilder()) {

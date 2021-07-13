@@ -18,14 +18,15 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -34,7 +35,6 @@ import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -219,7 +219,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     }
 
     @Override
-    protected void index(ParseContext context, Geometry geometry) throws IOException {
+    protected void index(DocumentParserContext context, Geometry geometry) throws IOException {
         if (geometry == null) {
             return;
         }

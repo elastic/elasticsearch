@@ -45,6 +45,7 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
                     .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
             )
         );
+        indexRandomDocs("index", scaledRandomIntBetween(0, 1_000));
         createSnapshot("repository", "snapshot", List.of("index"));
         assertAcked(client().admin().indices().prepareDelete("index"));
         mountSnapshot("repository", "snapshot", "index", "mounted-index", Settings.EMPTY, randomFrom(Storage.values()));

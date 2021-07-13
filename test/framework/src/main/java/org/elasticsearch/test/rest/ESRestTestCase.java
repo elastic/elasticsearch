@@ -556,6 +556,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private void wipeCluster() throws Exception {
 
+        // First we invoke system index cleanup so that we don't get wildcard errors
+        // later on
+        wipeSystemResources();
+
         // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
         // so we need to fully shut them down first otherwise a job might stall waiting
         // for a bulk to finish against a non-existing index (and then fail tests)
@@ -747,6 +751,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
+    protected void wipeSystemResources() throws IOException {
+        // TODO: 7.14 for backwards compatibility
+        if (minimumNodeVersion().onOrAfter(Version.CURRENT)) {
+            // feature reset deletes system indices
+            final Request postRequest = new Request("POST", "/_features/_reset");
+            adminClient().performRequest(postRequest);
+        }
+    }
+
     protected static void wipeAllIndices() throws IOException {
         final String[] indicesToIgnore = new String[] {
             // ignore ilm history which can pop up after deleting all data streams but shouldn't interfere
@@ -758,11 +771,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             final Request deleteRequest = new Request("DELETE", "*,-" + String.join(",-", indicesToIgnore));
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
 
-            if (minimumNodeVersion().onOrAfter(Version.CURRENT)) {
-                // feature reset deletes system indices
-                final Request postRequest = new Request("POST", "/_features/_reset");
-                adminClient().performRequest(postRequest);
-            } else {
+            // TODO: 7.14 for backwards compatibility
+            if (minimumNodeVersion().before(Version.CURRENT)) {
                 RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder()
                     .setWarningsHandler(warnings -> {
                         if (warnings.size() == 0) {

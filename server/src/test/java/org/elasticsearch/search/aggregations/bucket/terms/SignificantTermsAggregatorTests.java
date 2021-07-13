@@ -40,10 +40,17 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory.ExecutionMode;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.GND;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.JLHScore;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.MutualInformation;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.PercentageScore;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -51,6 +58,17 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.signific
 import static org.hamcrest.Matchers.equalTo;
 
 public class SignificantTermsAggregatorTests extends AggregatorTestCase {
+
+    static SignificanceHeuristic getRandomSignificanceheuristic() {
+        List<SignificanceHeuristic> heuristics = new ArrayList<>();
+        heuristics.add(new JLHScore());
+        heuristics.add(new MutualInformation(randomBoolean(), randomBoolean()));
+        heuristics.add(new GND(randomBoolean()));
+        heuristics.add(new ChiSquare(randomBoolean(), randomBoolean()));
+        heuristics.add(new PercentageScore());
+        return heuristics.get(randomInt(4));
+    }
+
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
         return new SignificantTermsAggregationBuilder("foo").field(fieldName);
@@ -75,10 +93,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    /**
-     * Uses the significant terms aggregation to find the keywords in text fields
-     */
-    public void testSignificance() throws IOException {
+    public void testSignificance(SignificanceHeuristic heuristic) throws IOException  {
         TextFieldType textFieldType = new TextFieldType("text");
         textFieldType.setFielddata(true);
 
@@ -135,7 +150,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 String evenStrings[] = new String[] {"even", "regular"};
 
                 sigAgg.includeExclude(new IncludeExclude(oddStrings, evenStrings));
-                sigAgg.significanceHeuristic(SignificanceHeuristicTests.getRandomSignificanceheuristic());
+                sigAgg.significanceHeuristic(heuristic);
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
                 assertThat(terms.getSubsetSize(), equalTo(5L));
                 assertEquals(1, terms.getBuckets().size());
@@ -160,14 +175,19 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
     }
 
     /**
+     * Uses the significant terms aggregation to find the keywords in text fields
+     */
+    public void testSignificance() throws IOException {
+        testSignificance(getRandomSignificanceheuristic());
+    }
+
+    /**
      * Uses the significant terms aggregation to find the keywords in numeric
      * fields
      */
     public void testNumericSignificance() throws IOException {
         NumberFieldType longFieldType
             = new NumberFieldMapper.NumberFieldType("long_field", NumberFieldMapper.NumberType.LONG);
-
-        TextFieldType textFieldType = new TextFieldType("text");
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -257,8 +277,6 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
      */
     public void testRangeField() throws IOException {
         RangeType rangeType = RangeType.DOUBLE;
-        final RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true);
-        final RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(rangeType, 6.0D, 10.0D, true, true);
         final String fieldName = "rangeField";
         MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
 

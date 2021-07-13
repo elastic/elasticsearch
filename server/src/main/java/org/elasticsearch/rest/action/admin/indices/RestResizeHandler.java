@@ -12,6 +12,9 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -23,6 +26,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public abstract class RestResizeHandler extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(RestResizeHandler.class);
 
     RestResizeHandler() {
     }
@@ -34,6 +38,15 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     @Override
     public final RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("copy_settings")) {
+            deprecationLogger.compatibleApiWarning("copy_settings", "parameter [copy_settings] is deprecated and will be removed in 8.0.0");
+
+            final String rawCopySettings = request.param("copy_settings");
+            final boolean copySettings = Booleans.parseBoolean(rawCopySettings);
+            if (copySettings == false) {
+                throw new IllegalArgumentException("parameter [copy_settings] can not be explicitly set to [false]");
+            }
+        }
         final ResizeRequest resizeRequest = new ResizeRequest(request.param("target"), request.param("index"));
         resizeRequest.setResizeType(getResizeType());
         request.applyContentParser(resizeRequest::fromXContent);

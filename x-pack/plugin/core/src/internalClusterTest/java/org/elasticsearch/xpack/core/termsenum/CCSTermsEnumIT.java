@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumResponse;
@@ -27,6 +28,12 @@ public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
     @Override
     protected Collection<String> remoteClusterAlias() {
         return List.of("remote_cluster");
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        // TODO Ensure that the tests run correctly with security enabled
+        return Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
     }
 
     @Override

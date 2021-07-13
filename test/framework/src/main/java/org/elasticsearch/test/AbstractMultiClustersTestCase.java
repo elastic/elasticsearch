@@ -57,6 +57,10 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         return Collections.emptyList();
     }
 
+    protected Settings nodeSettings() {
+        return Settings.EMPTY;
+    }
+
     protected final Client client() {
         return client(LOCAL_CLUSTER);
     }
@@ -92,8 +96,8 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             final List<Class<? extends Plugin>> mockPlugins =
                 List.of(MockHttpTransport.TestPlugin.class, MockTransportService.TestPlugin.class, MockNioTransportPlugin.class);
             final Collection<Class<? extends Plugin>> nodePlugins = nodePlugins(clusterAlias);
-            final Settings nodeSettings = Settings.EMPTY;
-            final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings, nodePlugins);
+
+            final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings(), nodePlugins);
             final InternalTestCluster cluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodes,
                 numberOfNodes, clusterName, nodeConfigurationSource, 0, clusterName + "-", mockPlugins, Function.identity());
             cluster.beforeTest(random());
@@ -194,8 +198,6 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
     static NodeConfigurationSource nodeConfigurationSource(Settings nodeSettings, Collection<Class<? extends Plugin>> nodePlugins) {
         final Settings.Builder builder = Settings.builder();
-        // TODO Ensure that tests extending AbstractMultiClustersTestCase run with security enabled when possible
-        builder.put("xpack.security.enabled", false);
         builder.putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
         builder.putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());

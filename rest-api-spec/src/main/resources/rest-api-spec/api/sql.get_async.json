@@ -1,0 +1,51 @@
+{
+  "sql.get_async": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-async-sql-search-api.html",
+      "description": "Returns the current status and available results for an async SQL search or stored synchronous SQL search"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_sql/async/{id}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The async search ID"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "delimiter": {
+        "type": "string",
+        "description": "Separator for CSV results",
+        "default": ","
+      },
+      "format": {
+        "type": "string",
+        "description": "Short version of the Accept header, e.g. json, yaml"
+      },
+      "keep_alive": {
+        "type": "time",
+        "description": "Retention period for the search and its results",
+        "default": "5d"
+      },
+      "wait_for_completion_timeout": {
+        "type": "time",
+        "description": "Duration to wait for complete results"
+      }
+    }
+  }
+}

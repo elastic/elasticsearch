@@ -982,7 +982,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
      * @param file   the file that is being written to
      * @param writer writes the contents of the file
      */
-    static void fullyWriteFile(Path file, CheckedConsumer<OutputStream, Exception> writer) throws Exception {
+    private static void fullyWriteFile(Path file, CheckedConsumer<OutputStream, Exception> writer) throws Exception {
         assert file != null;
         assert writer != null;
 

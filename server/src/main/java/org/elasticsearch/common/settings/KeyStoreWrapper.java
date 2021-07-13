@@ -46,6 +46,7 @@ import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFileAttributeView;
@@ -509,6 +510,7 @@ public class KeyStoreWrapper implements SecureSettings {
         Directory directory = new NIOFSDirectory(configDir);
         // write to tmp file first, then overwrite
         String tmpFile = KEYSTORE_FILENAME + ".tmp";
+        Path keystoreTempFile = configDir.resolve(tmpFile);
         try (IndexOutput output = directory.createOutput(tmpFile, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, KEYSTORE_FILENAME, FORMAT_VERSION);
             output.writeByte(password.length == 0 ? (byte)0 : (byte)1);
@@ -542,18 +544,31 @@ public class KeyStoreWrapper implements SecureSettings {
             final String message = String.format(
                 Locale.ROOT,
                 "unable to create temporary keystore at [%s], write permissions required for [%s] or run [elasticsearch-keystore upgrade]",
-                configDir.resolve(tmpFile),
+                keystoreTempFile,
                 configDir);
+            Files.deleteIfExists(keystoreTempFile);
             throw new UserException(ExitCodes.CONFIG, message, e);
         }
 
         Path keystoreFile = keystorePath(configDir);
-        Files.move(configDir.resolve(tmpFile), keystoreFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        PosixFileAttributeView attrs = Files.getFileAttributeView(keystoreFile, PosixFileAttributeView.class);
+        // check that replace doesn't change the owner
+        if (Files.exists(keystoreFile, LinkOption.NOFOLLOW_LINKS) &&
+                false == Files.getOwner(keystoreTempFile, LinkOption.NOFOLLOW_LINKS).equals(Files.getOwner(keystoreFile,
+                        LinkOption.NOFOLLOW_LINKS))) {
+            Files.deleteIfExists(keystoreTempFile);
+            final String message = String.format(
+                    Locale.ROOT,
+                    "will not overwrite keystore at [%s], because this incurs changing the file owner",
+                    keystoreFile,
+                    configDir);
+            throw new UserException(ExitCodes.CONFIG, message);
+        }
+        PosixFileAttributeView attrs = Files.getFileAttributeView(keystoreTempFile, PosixFileAttributeView.class);
         if (attrs != null) {
             // don't rely on umask: ensure the keystore has minimal permissions
             attrs.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
         }
+        Files.move(keystoreTempFile, keystoreFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
     }
 
     /**

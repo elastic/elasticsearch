@@ -22,6 +22,7 @@
           white-list-target-branches:
             - %BRANCH%
             - ^feat(ure)?/.*
+            - eql_multi_value_fields
           excluded-regions:
             - ^docs/.*
           white-list-labels:
@@ -37,7 +38,6 @@
             - centos-8-packaging
             - debian-9-packaging
             - debian-10-packaging
-            - fedora-32-packaging
             - opensuse-15-1-packaging
             - oraclelinux-7-packaging
             - oraclelinux-8-packaging

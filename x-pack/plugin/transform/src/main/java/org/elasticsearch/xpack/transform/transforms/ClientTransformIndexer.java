@@ -71,9 +71,9 @@ class ClientTransformIndexer extends TransformIndexer {
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex;
-    private PointInTimeBuilder pit;
-    private long pitCheckpoint;
-    private boolean disablePit = false;
+    private volatile PointInTimeBuilder pit;
+    private volatile long pitCheckpoint;
+    private volatile boolean disablePit = false;
 
     ClientTransformIndexer(
         ThreadPool threadPool,

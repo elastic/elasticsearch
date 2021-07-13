@@ -113,8 +113,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     private volatile Integer initialConfiguredPageSize;
     private volatile int pageSize = 0;
-    private long logEvery = 1;
-    private long logCount = 0;
+    private volatile long logEvery = 1;
+    private volatile long logCount = 0;
     private volatile TransformCheckpoint lastCheckpoint;
     private volatile TransformCheckpoint nextCheckpoint;
 

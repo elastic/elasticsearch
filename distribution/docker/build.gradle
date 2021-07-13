@@ -15,7 +15,8 @@ apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.rest-resources'
 
-String useLocalBeats = Boolean.parseBoolean(System.getProperty('docker.localBeats'))
+String buildId = System.getProperty('build.id')
+boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false
 
 repositories {
   // Define a repository that allows Gradle to fetch a resource from GitHub. This
@@ -34,10 +35,10 @@ repositories {
 
   // Cloud builds bundle some beats
   ivy {
-    if (useLocalBeats) {
+    if (useLocalArtifacts) {
       url "file://${buildDir}/artifacts/"
       patternLayout {
-        artifact '/[module]-[revision]-linux-[classifier].[ext]'
+        artifact '/[organisation]/[module]-[revision]-linux-[classifier].[ext]'
       }
     } else {
       url "https://${VersionProperties.isElasticsearchSnapshot() ? 'snapshots' : 'artifacts'}-no-kpi.elastic.co/"
@@ -245,6 +246,8 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
       from configurations.repositoryAzurePlugin
       from configurations.filebeat
       from configurations.metricbeat
+      // For some reason, the artifact name can differ depending on what repository we used.
+      rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
     }
 
     onlyIf { Architecture.current() == architecture }

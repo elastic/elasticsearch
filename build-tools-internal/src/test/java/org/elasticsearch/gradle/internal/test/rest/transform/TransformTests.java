@@ -21,6 +21,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
 import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matchers;
 import org.hamcrest.core.IsCollectionContaining;
 import org.junit.Before;
 
@@ -201,13 +202,10 @@ public abstract class TransformTests extends GradleUnitTestCase {
                             ObjectNode doSection = (ObjectNode) testSection.get("do");
                             assertThat(doSection.get(featureName), CoreMatchers.notNullValue());
                             ArrayNode warningsNode = (ArrayNode) doSection.get(featureName);
-                            LongAdder assertions = new LongAdder();
-                            warningsNode.forEach(warning -> {
-                                if (expectedWarnings.contains(warning.asText())) {
-                                    assertions.increment();
-                                }
-                            });
-                            assertThat(assertions.intValue(), CoreMatchers.equalTo(expectedWarnings.size()));
+                            List<String> actual  = new ArrayList<>();
+                            warningsNode.forEach(node -> actual.add(node.asText()));
+                            String[] expected = expectedWarnings.toArray(new String[]{});
+                            assertThat(actual, Matchers.containsInAnyOrder(expected));
                             actuallyDidSomething.set(true);
                         }
                     });

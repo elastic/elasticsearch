@@ -66,7 +66,7 @@ public class InjectAllowedWarnings extends FeatureInjector implements RestTestTr
             arrayWarnings = new ArrayNode(jsonNodeFactory);
             doNodeValue.set(getSkipFeatureName(), arrayWarnings);
         }
-        allowedWarnings.forEach(arrayWarnings::add);
+        this.allowedWarnings.forEach(arrayWarnings::add);
     }
 
     @Override

@@ -49,8 +49,7 @@ public class InjectAllowedWarningsTests extends InjectFeatureTests {
         List<ObjectNode> transformedTests = transformTests(tests);
         printTest(testName, transformedTests);
         validateSetupAndTearDown(transformedTests);
-        validateBodyHasWarnings(ALLOWED_WARNINGS, tests, Set.of("a", "b"));
-        validateBodyHasWarnings(ALLOWED_WARNINGS, transformedTests, List.of("a", "b", "added warning", "added warning"));
+        validateBodyHasWarnings(ALLOWED_WARNINGS, transformedTests, List.of("a", "b", "added warning"));
     }
 
     @Test

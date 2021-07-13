@@ -17,6 +17,7 @@ setup:
         id: "something"
   - match: { acknowledged: true }
 
+---
 "Test with existing allowed warnings not to change":
   - do:
       allowed_warnings:
@@ -26,5 +27,5 @@ setup:
         - "c"
         - "d"
       something:
-        id: "something"
+        id: "something_else"
   - match: { acknowledged: true }

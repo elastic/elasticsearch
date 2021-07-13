@@ -157,6 +157,7 @@ public class RestTestTransformer {
                                 }
                             }
                         }
+                        traverseTest(testContext, entry.getValue(), entry.getKey(), objectKeyFinders, arrayByObjectKeyFinders);
                     }
                 }
             });

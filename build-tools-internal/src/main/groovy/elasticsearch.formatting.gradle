@@ -102,15 +102,9 @@ def projectPathsToExclude = [
   ':plugins:transport-nio',
   ':qa:die-with-dignity',
   ':rest-api-spec',
-  ':test:fixtures:azure-fixture',
-  ':test:fixtures:gcs-fixture',
   ':test:fixtures:geoip-fixture',
-  ':test:fixtures:hdfs-fixture',
   ':test:fixtures:krb5kdc-fixture',
-  ':test:fixtures:minio-fixture',
   ':test:fixtures:old-elasticsearch',
-  ':test:fixtures:s3-fixture',
-  ':test:fixtures:url-fixture',
   ':test:framework',
   ':test:logger-usage',
   ':x-pack:license-tools',
@@ -137,7 +131,6 @@ def projectPathsToExclude = [
   ':x-pack:plugin:eql:qa:rest',
   ':x-pack:plugin:eql:qa:security',
   ':x-pack:plugin:fleet:qa:rest',
-  ':x-pack:plugin:frozen-indices',
   ':x-pack:plugin:graph',
   ':x-pack:plugin:graph:qa:with-security',
   ':x-pack:plugin:identity-provider',
@@ -162,7 +155,6 @@ def projectPathsToExclude = [
   ':x-pack:plugin:rollup',
   ':x-pack:plugin:rollup:qa:rest',
   ':x-pack:plugin:search-business-rules',
-  ':x-pack:plugin:searchable-snapshots:qa:rest',
   ':x-pack:plugin:security',
   ':x-pack:plugin:security:cli',
   ':x-pack:plugin:security:qa:basic-enable-security',
@@ -226,11 +218,23 @@ subprojects {
             target 'src/**/*.java'
           }
 
+          toggleOffOn('@formatter:off', '@formatter:on') // use `@formatter:off` and `@formatter:on` to toggle formatting - ONLY IF STRICTLY NECESSARY
           removeUnusedImports()
+          importOrderFile rootProject.file('build-tools-internal/elastic.importorder')
           eclipse().configFile rootProject.file('build-tools-internal/formatterConfig.xml')
           trimTrailingWhitespace()
 
-          // See CONTRIBUTING.md for details of when to enabled this.
+          // Sometimes Spotless will report a "misbehaving rule which can't make up its
+          // mind" and will recommend enabling the `paddedCell()` setting. If you
+          // enabled this setting and run the format check again,
+          // Spotless will write files to
+          // `$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
+          // different copies of the formatted files, so that you can see how they
+          // differ and infer what is the problem.
+
+          // The `paddedCell()` option is disabled for normal operation so that any
+          // misbehaviour is detected, and not just suppressed. You can enabled the
+          // option from the command line by running Gradle with `-Dspotless.paddedcell`.
           if (System.getProperty('spotless.paddedcell') != null) {
             paddedCell()
           }

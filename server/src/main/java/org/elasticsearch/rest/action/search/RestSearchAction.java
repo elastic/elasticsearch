@@ -303,7 +303,8 @@ public class RestSearchAction extends BaseRestHandler {
         assert request.pointInTimeBuilder() != null;
         ActionRequestValidationException validationException = null;
         if (request.indices().length > 0) {
-            validationException = addValidationError("[indices] cannot be used with point in time", validationException);
+            validationException = addValidationError("[indices] cannot be used with point in time. Do " + 
+                "not specify any index with point in time.", validationException);
         }
         if (request.indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {
             validationException = addValidationError("[indicesOptions] cannot be used with point in time", validationException);

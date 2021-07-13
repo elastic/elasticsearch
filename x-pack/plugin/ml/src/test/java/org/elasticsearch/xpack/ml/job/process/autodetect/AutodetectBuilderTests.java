@@ -81,8 +81,6 @@ public class AutodetectBuilderTests extends ESTestCase {
         job.setAnalysisConfig(acBuilder);
 
         DataDescription.Builder dd = new DataDescription.Builder();
-        dd.setFormat(DataDescription.DataFormat.DELIMITED);
-        dd.setFieldDelimiter('|');
         dd.setTimeField("tf");
         job.setDataDescription(dd);
 
@@ -91,8 +89,9 @@ public class AutodetectBuilderTests extends ESTestCase {
 
         assertTrue(command.contains(AutodetectBuilder.LENGTH_ENCODED_INPUT_ARG));
         assertTrue(command.contains(AutodetectBuilder.maxAnomalyRecordsArg(settings)));
+        assertTrue(command.contains(AutodetectBuilder.LICENSE_KEY_VALIDATED_ARG + true));
 
-        assertEquals(3, command.size());
+        assertEquals(4, command.size());
     }
 
     private AutodetectBuilder autodetectBuilder(Job job) {

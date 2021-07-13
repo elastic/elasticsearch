@@ -41,7 +41,6 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
     protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, either(instanceOf(SpanNearQuery.class))
             .or(instanceOf(SpanTermQuery.class))
-            .or(instanceOf(BoostQuery.class))
             .or(instanceOf(SpanMatchNoDocsQuery.class))
             .or(instanceOf(MatchAllQueryBuilder.class)));
         if (query instanceof SpanNearQuery) {

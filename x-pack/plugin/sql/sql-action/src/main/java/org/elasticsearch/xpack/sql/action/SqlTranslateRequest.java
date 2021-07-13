@@ -75,6 +75,9 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
             false,
             false,
             null,
-            runtimeMappings()).toXContent(builder, params);
+            runtimeMappings(),
+            null,
+            false,
+            null).toXContent(builder, params);
     }
 }

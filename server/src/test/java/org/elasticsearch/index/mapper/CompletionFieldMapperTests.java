@@ -241,7 +241,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.array("field", "key1", "key2", "key3")));
 
-        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        LuceneDocument indexableFields = parsedDocument.rootDoc();
 
         assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(
             keywordField("key1"),
@@ -302,7 +302,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
                 b.endObject();
             }));
 
-            ParseContext.Document indexableFields = parsedDocument.rootDoc();
+            LuceneDocument indexableFields = parsedDocument.rootDoc();
             assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(
                 contextSuggestField("timmy"),
                 contextSuggestField("starbucks")
@@ -327,7 +327,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
                 b.array("cat", "cafe", "food");
             }));
 
-            ParseContext.Document indexableFields = parsedDocument.rootDoc();
+            LuceneDocument indexableFields = parsedDocument.rootDoc();
             assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(
                 contextSuggestField("timmy"),
                 contextSuggestField("starbucks")
@@ -354,7 +354,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         //"41.12,-71.34"
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.field("field", "drm3btev3e86")));
 
-        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        LuceneDocument indexableFields = parsedDocument.rootDoc();
         assertThat(indexableFields.getFields("field"), arrayWithSize(2));
         assertThat(indexableFields.getFields("field.analyzed"), arrayContainingInAnyOrder(
             suggestField("drm3btev3e86")
@@ -375,7 +375,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.field("field", "suggestion")));
 
-        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        LuceneDocument indexableFields = parsedDocument.rootDoc();
         assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(
             suggestField("suggestion")
         ));
@@ -404,7 +404,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        LuceneDocument indexableFields = parsedDocument.rootDoc();
         assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(
             suggestField("New York"),
             suggestField("NY")
@@ -436,7 +436,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        LuceneDocument indexableFields = parsedDocument.rootDoc();
         assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(
             suggestField("New York"),
             suggestField("NY")
@@ -463,7 +463,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.field("field", "suggestion")));
 
-        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        LuceneDocument indexableFields = parsedDocument.rootDoc();
         assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(
             suggestField("suggestion")
         ));

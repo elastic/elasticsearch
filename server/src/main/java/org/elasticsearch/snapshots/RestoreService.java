@@ -11,12 +11,12 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -50,11 +50,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
@@ -62,6 +60,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -77,7 +77,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -233,10 +232,7 @@ public class RestoreService implements ClusterStateApplier {
             final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
             repository.getRepositoryData(repositoryDataListener);
 
-            repositoryDataListener.whenComplete(repositoryData -> repositoryUuidRefreshListener.whenComplete(ignored ->
-            // fork handling to the generic pool since it loads various pieces of metadata from the repository over a longer period
-            // of time
-            clusterService.getClusterApplierService().threadPool().generic().execute(ActionRunnable.wrap(listener, l -> {
+            repositoryDataListener.whenComplete(repositoryData -> repositoryUuidRefreshListener.whenComplete(ignored -> {
                 final String snapshotName = request.snapshot();
                 final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds()
                     .stream()
@@ -254,8 +250,14 @@ public class RestoreService implements ClusterStateApplier {
                         "snapshot UUID mismatch: expected [" + request.snapshotUuid() + "] but got [" + snapshotId.getUUID() + "]"
                     );
                 }
-                startRestore(repository.getSnapshotInfo(snapshotId), repository, request, repositoryData, updater, l);
-            })), listener::onFailure), listener::onFailure);
+                repository.getSnapshotInfo(
+                    snapshotId,
+                    ActionListener.wrap(
+                        snapshotInfo -> startRestore(snapshotInfo, repository, request, repositoryData, updater, listener),
+                        listener::onFailure
+                    )
+                );
+            }, listener::onFailure), listener::onFailure);
         } catch (Exception e) {
             logger.warn(
                 () -> new ParameterizedMessage("[{}] failed to restore snapshot", request.repository() + ":" + request.snapshot()),
@@ -287,6 +289,7 @@ public class RestoreService implements ClusterStateApplier {
         BiConsumer<ClusterState, Metadata.Builder> updater,
         ActionListener<RestoreCompletionResponse> listener
     ) throws IOException {
+        assert Repository.assertSnapshotMetaThread();
         final SnapshotId snapshotId = snapshotInfo.snapshotId();
         final String repositoryName = repository.getMetadata().name();
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
@@ -304,7 +307,14 @@ public class RestoreService implements ClusterStateApplier {
             metadataBuilder = Metadata.builder();
         }
 
-        List<String> requestIndices = new ArrayList<>(Arrays.asList(request.indices()));
+        final String[] indicesInRequest = request.indices();
+        List<String> requestIndices = new ArrayList<>(indicesInRequest.length);
+        if (indicesInRequest.length == 0) {
+            // no specific indices request means restore everything
+            requestIndices.add("*");
+        } else {
+            Collections.addAll(requestIndices, indicesInRequest);
+        }
 
         // Get data stream metadata for requested data streams
         Tuple<Map<String, DataStream>, Map<String, DataStreamAlias>> result = getDataStreamsToRestore(

@@ -27,7 +27,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -82,18 +81,6 @@ public class QueryToFilterAdapter<Q extends Query> {
      * {@link #weight()} to build it when needed.
      */
     private Weight weight;
-    /**
-     * Scorer for each segment or {@code null} if we haven't built the scorer.
-     * Use {@link #bulkScorer(LeafReaderContext, Runnable)} to build the scorer
-     * when needed.
-     */
-    private BulkScorer[] bulkScorers;
-    /**
-     * The number of scorers we prepared just to estimate the cost of counting
-     * documents. For some queries preparing the scorers is very slow so its
-     * nice to know how many we built. Exposed by profiling.
-     */
-    private int scorersPreparedWhileEstimatingCost;
 
     QueryToFilterAdapter(IndexSearcher searcher, String key, Q query) {
         this.searcher = searcher;
@@ -109,6 +96,16 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     Q query() {
         return query;
+    }
+
+    /**
+     * Is this an inefficient union of the top level query with the filter?
+     * If the top level query if complex we can't efficiently merge it with
+     * the filter. If we can't do that it is likely faster to just run the
+     * "native" aggregation implementation rather than go filter by filter.
+     */
+    public boolean isInefficientUnion() {
+        return false;
     }
 
     /**
@@ -179,7 +176,11 @@ public class QueryToFilterAdapter<Q extends Query> {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(query, BooleanClause.Occur.MUST);
         builder.add(extraQuery, BooleanClause.Occur.MUST);
-        return new QueryToFilterAdapter<>(searcher(), key(), builder.build());
+        return new QueryToFilterAdapter<>(searcher(), key(), builder.build()) {
+            public boolean isInefficientUnion() {
+                return true;
+            }
+        };
     }
 
     private static Query unwrap(Query query) {
@@ -217,7 +218,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      * Count the number of documents that match this filter in a leaf.
      */
     long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-        BulkScorer scorer = bulkScorer(ctx, () -> {});
+        BulkScorer scorer = weight().bulkScorer(ctx);
         if (scorer == null) {
             // No hits in this segment.
             return 0;
@@ -227,34 +228,15 @@ public class QueryToFilterAdapter<Q extends Query> {
     }
 
     /**
-     * Estimate the cost of calling {@code #count} in a leaf.
-     */
-    long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
-        return estimateCollectCost(ctx);
-    }
-
-    /**
      * Collect all documents that match this filter in this leaf.
      */
     void collect(LeafReaderContext ctx, LeafCollector collector, Bits live) throws IOException {
-        BulkScorer scorer = bulkScorer(ctx, () -> {});
+        BulkScorer scorer = weight().bulkScorer(ctx);
         if (scorer == null) {
             // No hits in this segment.
             return;
         }
         scorer.score(collector, live);
-    }
-
-    /**
-     * Estimate the cost of calling {@code #count} in a leaf.
-     */
-    long estimateCollectCost(LeafReaderContext ctx) throws IOException {
-        BulkScorer scorer = bulkScorer(ctx, () -> scorersPreparedWhileEstimatingCost++);
-        if (scorer == null) {
-            // There aren't any matches for this filter in this leaf
-            return 0;
-        }
-        return scorer.cost(); // TODO change this to ScorerSupplier.cost
     }
 
     /**
@@ -270,18 +252,6 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("query", query.toString());
-        add.accept("scorers_prepared_while_estimating_cost", scorersPreparedWhileEstimatingCost);
-    }
-
-    private BulkScorer bulkScorer(LeafReaderContext ctx, Runnable onPrepare) throws IOException {
-        if (bulkScorers == null) {
-            bulkScorers = new BulkScorer[searcher().getIndexReader().leaves().size()];
-        }
-        if (bulkScorers[ctx.ord] == null) {
-            onPrepare.run();
-            return bulkScorers[ctx.ord] = weight().bulkScorer(ctx);
-        }
-        return bulkScorers[ctx.ord];
     }
 
     private Weight weight() throws IOException {

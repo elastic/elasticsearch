@@ -16,18 +16,20 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -70,12 +72,34 @@ public interface Repository extends LifecycleComponent {
     RepositoryMetadata getMetadata();
 
     /**
-     * Reads snapshot description from repository.
+     * Reads snapshot descriptions from the repository.
      *
-     * @param snapshotId  snapshot id
-     * @return information about snapshot
+     * @param context get-snapshot-info-context
      */
-    SnapshotInfo getSnapshotInfo(SnapshotId snapshotId);
+    void getSnapshotInfo(GetSnapshotInfoContext context);
+
+    /**
+     * Reads a single snapshot description from the repository
+     *
+     * @param snapshotId snapshot id to read description for
+     * @param listener   listener to resolve with snapshot description (is resolved on the {@link ThreadPool.Names#SNAPSHOT_META} pool)
+     */
+    default void getSnapshotInfo(SnapshotId snapshotId, ActionListener<SnapshotInfo> listener) {
+        getSnapshotInfo(new GetSnapshotInfoContext(List.of(snapshotId), true, () -> false, (context, snapshotInfo) -> {
+            assert Repository.assertSnapshotMetaThread();
+            listener.onResponse(snapshotInfo);
+        }, new ActionListener<>() {
+            @Override
+            public void onResponse(Void o) {
+                // ignored
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        }));
+    }
 
     /**
      * Returns global metadata associated with the snapshot.
@@ -295,5 +319,12 @@ public interface Repository extends LifecycleComponent {
      */
     default Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
         return userMetadata;
+    }
+
+    static boolean assertSnapshotMetaThread() {
+        final String threadName = Thread.currentThread().getName();
+        assert threadName.contains('[' + ThreadPool.Names.SNAPSHOT_META + ']') || threadName.startsWith("TEST-")
+            : "Expected current thread [" + Thread.currentThread() + "] to be a snapshot meta thread.";
+        return true;
     }
 }

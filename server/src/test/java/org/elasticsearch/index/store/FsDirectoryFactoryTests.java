@@ -130,20 +130,16 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                 case HYBRIDFS:
                     assertTrue(FsDirectoryFactory.isHybridFs(directory));
                     break;
+                case SIMPLEFS:
                 case NIOFS:
                     assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
                     break;
                 case MMAPFS:
                     assertTrue(type + " " + directory.toString(), directory instanceof MMapDirectory);
                     break;
-                case SIMPLEFS:
-                    assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
-                    break;
                 case FS:
                     if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
                         assertTrue(FsDirectoryFactory.isHybridFs(directory));
-                    } else if (Constants.WINDOWS) {
-                        assertTrue(directory.toString(), directory instanceof NIOFSDirectory);
                     } else {
                         assertTrue(directory.toString(), directory instanceof NIOFSDirectory);
                     }

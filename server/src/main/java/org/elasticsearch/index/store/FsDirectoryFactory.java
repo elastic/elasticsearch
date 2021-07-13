@@ -79,7 +79,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             case MMAPFS:
                 return setPreload(new MMapDirectory(location, lockFactory), lockFactory, preLoadExtensions);
             case SIMPLEFS:
-                // TODO nocommit throw an error here or just fall through?
             case NIOFS:
                 return new NIOFSDirectory(location, lockFactory);
             default:

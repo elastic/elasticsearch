@@ -36,11 +36,21 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
     private final AtomicLong insertionOrder = new AtomicLong();
     private final Queue<Runnable> current = ConcurrentCollections.newQueue();
     private final ScheduledExecutorService timer;
+    private final StarvationWatcher starvationWatcher;
 
-    public PrioritizedEsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-                                    ThreadFactory threadFactory, ThreadContext contextHolder, ScheduledExecutorService timer) {
+    public PrioritizedEsThreadPoolExecutor(
+            String name,
+            int corePoolSize,
+            int maximumPoolSize,
+            long keepAliveTime,
+            TimeUnit unit,
+            ThreadFactory threadFactory,
+            ThreadContext contextHolder,
+            ScheduledExecutorService timer,
+            StarvationWatcher starvationWatcher) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, new PriorityBlockingQueue<>(), threadFactory, contextHolder);
         this.timer = timer;
+        this.starvationWatcher = starvationWatcher;
     }
 
     public Pending[] getPending() {
@@ -101,12 +111,20 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
     @Override
     protected void beforeExecute(Thread t, Runnable r) {
         current.add(r);
+        if (getQueue().isEmpty()) {
+            starvationWatcher.onEmptyQueue();
+        }
     }
 
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
         super.afterExecute(r, t);
         current.remove(r);
+        if (getQueue().isEmpty()) {
+            starvationWatcher.onEmptyQueue();
+        } else {
+            starvationWatcher.onNonemptyQueue();
+        }
     }
 
     public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
@@ -280,6 +298,35 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
             }
             return insertionOrder < pft.insertionOrder ? -1 : 1;
         }
+    }
+
+    /**
+     * We expect the work queue to be empty fairly frequently; if the queue remains nonempty for sufficiently long then there's a risk that
+     * some lower-priority tasks are being starved of access to the executor. Implementations of this interface are notified whether the
+     * work queue is empty or not before and after execution of each task, so that we can warn the user of this possible starvation.
+     */
+    public interface StarvationWatcher {
+
+        /**
+         * Called before and after the execution of each task if the queue is empty (excluding the task being executed)
+         */
+        void onEmptyQueue();
+
+        /**
+         * Called after the execution of each task if the queue is nonempty (excluding the task being executed)
+         */
+        void onNonemptyQueue();
+
+        StarvationWatcher NOOP_STARVATION_WATCHER = new StarvationWatcher() {
+            @Override
+            public void onEmptyQueue() {
+            }
+
+            @Override
+            public void onNonemptyQueue() {
+            }
+        };
+
     }
 
 }

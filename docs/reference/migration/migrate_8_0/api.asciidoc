@@ -81,3 +81,22 @@ and will be removed in a future major version.
 Use <<ml-api-datafeed-endpoint,{dfeeds}>> instead.
 
 ====
+
+.Monitoring APIs no longer expose memory usage of segments.
+[%collapsible]
+====
+*Details* +
+The <<index-stats-api-request,index stats>>,
+<<cluster-nodes-stats-api-request,node stats>>,
+<<cat-indices-api-request,cat indices>> and <<cat-nodes-api-request,cat nodes>>
+APIs no longer expose memory usage of segments, including memory usage per
+data-structure such as memory usage of terms, points or doc values.
+
+This change is motivated by the fact that memory usage of segments has
+significantly reduced in Elasticsearch 7.7, to the point that segments are
+unlikely a major contributor to heap usage anymore.
+
+*Impact* +
+Assume that memory usage of segments is close to zero.
+
+====

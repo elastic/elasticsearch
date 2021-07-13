@@ -71,6 +71,8 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
 
         assertThat(exceptions, Matchers.empty());
         assertEquals(futures.size(), numRequests * numThreads);
+        // TODO: We could also just assert future.actionGet does not throw since either created
+        //       or updated is sufficient for the test purpose, i.e. security index is created.
         for (ActionFuture<PutUserResponse> future : futures) {
             assertTrue(future.actionGet().created());
         }

@@ -308,11 +308,6 @@ public final class XCombinedFieldQuery extends Query implements Accountable {
     }
 
     @Override
-    public void extractTerms(Set<Term> termSet) {
-        termSet.addAll(Arrays.asList(fieldTerms));
-    }
-
-    @Override
     public Matches matches(LeafReaderContext context, int doc) throws IOException {
       Weight weight =
           searcher.rewrite(rewriteToBoolean()).createWeight(searcher, ScoreMode.COMPLETE, 1f);

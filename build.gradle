@@ -24,6 +24,8 @@ import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 import org.elasticsearch.gradle.internal.InternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
+import java.nio.file.Files
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 plugins {
   id 'lifecycle-base'
@@ -380,6 +382,9 @@ tasks.named("wrapper").configure {
     final String sha256Sum = new String(sha256Uri.toURL().bytes)
     wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
     println "Added checksum to wrapper properties"
+    // copy wrapper properties file to build-tools-internal to allow seamless idea integration
+    def file = new File("build-tools-internal/gradle/wrapper/gradle-wrapper.properties")
+    Files.copy(wrapper.getPropertiesFile().toPath(), file.toPath(), REPLACE_EXISTING)
     // Update build-tools to reflect the Gradle upgrade
     // TODO: we can remove this once we have tests to make sure older versions work.
     project.file('build-tools-internal/src/main/resources/minimumGradleVersion').text = gradleVersion

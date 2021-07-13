@@ -291,8 +291,10 @@ public class KeyStoreWrapperTests extends ESTestCase {
     public void testFailWhenEncryptedBytesStreamIsNotConsumed() throws Exception {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         Path configDir = env.configFile();
-        NIOFSDirectory directory = new NIOFSDirectory(configDir);
-        try (IndexOutput indexOutput = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)) {
+        try (
+            Directory directory = newFSDirectory(configDir);
+            IndexOutput indexOutput = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)
+        ) {
             CodecUtil.writeHeader(indexOutput, "elasticsearch.keystore", 3);
             indexOutput.writeByte((byte) 0); // No password
             SecureRandom random = Randomness.createSecure();

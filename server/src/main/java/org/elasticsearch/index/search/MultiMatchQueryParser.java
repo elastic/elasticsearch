@@ -212,7 +212,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             List<Query> disjunctions = new ArrayList<>();
             for (FieldAndBoost fieldType : blendedFields) {
-                Query query = fieldType.fieldType.phraseQuery(stream, slop, enablePositionIncrements);
+                Query query = fieldType.fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
                 if (fieldType.boost != 1f) {
                     query = new BoostQuery(query, fieldType.boost);
                 }
@@ -225,7 +225,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
             List<Query> disjunctions = new ArrayList<>();
             for (FieldAndBoost fieldType : blendedFields) {
-                Query query = fieldType.fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements);
+                Query query = fieldType.fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
                 if (fieldType.boost != 1f) {
                     query = new BoostQuery(query, fieldType.boost);
                 }

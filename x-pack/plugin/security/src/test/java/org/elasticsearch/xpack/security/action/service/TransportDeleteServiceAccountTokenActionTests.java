@@ -13,7 +13,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
-import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountsTokenStore;
+import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.junit.Before;
 
@@ -27,16 +27,16 @@ import static org.mockito.Mockito.verify;
 
 public class TransportDeleteServiceAccountTokenActionTests extends ESTestCase {
 
-    private IndexServiceAccountsTokenStore indexServiceAccountsTokenStore;
+    private IndexServiceAccountTokenStore indexServiceAccountTokenStore;
     private HttpTlsRuntimeCheck httpTlsRuntimeCheck;
     private TransportDeleteServiceAccountTokenAction transportDeleteServiceAccountTokenAction;
 
     @Before
     public void init() {
-        indexServiceAccountsTokenStore = mock(IndexServiceAccountsTokenStore.class);
+        indexServiceAccountTokenStore = mock(IndexServiceAccountTokenStore.class);
         httpTlsRuntimeCheck = mock(HttpTlsRuntimeCheck.class);
         transportDeleteServiceAccountTokenAction = new TransportDeleteServiceAccountTokenAction(
-            mock(TransportService.class), new ActionFilters(Collections.emptySet()), indexServiceAccountsTokenStore, httpTlsRuntimeCheck);
+            mock(TransportService.class), new ActionFilters(Collections.emptySet()), indexServiceAccountTokenStore, httpTlsRuntimeCheck);
 
         doAnswer(invocationOnMock -> {
             final Object[] arguments = invocationOnMock.getArguments();
@@ -51,7 +51,7 @@ public class TransportDeleteServiceAccountTokenActionTests extends ESTestCase {
             randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         final ActionListener listener = mock(ActionListener.class);
         transportDeleteServiceAccountTokenAction.doExecute(mock(Task.class), request, listener);
-        verify(indexServiceAccountsTokenStore).deleteToken(eq(request), any(ActionListener.class));
+        verify(indexServiceAccountTokenStore).deleteToken(eq(request), any(ActionListener.class));
     }
 
 }

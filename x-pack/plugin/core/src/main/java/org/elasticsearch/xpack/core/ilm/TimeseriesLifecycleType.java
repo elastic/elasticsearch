@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rollup.RollupV2;
 
@@ -126,7 +126,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         return orderedPhases;
     }
 
-    static boolean shouldInjectMigrateStepForPhase(Phase phase) {
+    public static boolean shouldInjectMigrateStepForPhase(Phase phase) {
         AllocateAction allocateAction = (AllocateAction) phase.getActions().get(AllocateAction.NAME);
         if (allocateAction != null) {
             if (definesAllocationRules(allocateAction)) {

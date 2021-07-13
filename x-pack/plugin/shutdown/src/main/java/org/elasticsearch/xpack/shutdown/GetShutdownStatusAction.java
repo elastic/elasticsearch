@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,7 +19,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -74,17 +72,17 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        List<SingleNodeShutdownMetadata> shutdownStatuses = Collections.emptyList();
+        final List<SingleNodeShutdownStatus> shutdownStatuses;
 
-        public Response(List<SingleNodeShutdownMetadata> shutdownStatuses) {
+        public Response(List<SingleNodeShutdownStatus> shutdownStatuses) {
             this.shutdownStatuses = Objects.requireNonNull(shutdownStatuses, "shutdown statuses must not be null");
         }
 
         public Response(StreamInput in) throws IOException {
-            shutdownStatuses = in.readList(SingleNodeShutdownMetadata::new);
+            this.shutdownStatuses = in.readList(SingleNodeShutdownStatus::new);
         }
 
-        public List<SingleNodeShutdownMetadata> getShutdownStatuses() {
+        public List<SingleNodeShutdownStatus> getShutdownStatuses() {
             return shutdownStatuses;
         }
 
@@ -93,8 +91,8 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
             builder.startObject();
             {
                 builder.startArray("nodes");
-                for (SingleNodeShutdownMetadata nodeMetadata : shutdownStatuses) {
-                    nodeMetadata.toXContent(builder, params);
+                for (SingleNodeShutdownStatus nodeShutdownStatus : shutdownStatuses) {
+                    nodeShutdownStatus.toXContent(builder, params);
                 }
                 builder.endArray();
             }
@@ -125,4 +123,5 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
             return Strings.toString(this);
         }
     }
+
 }

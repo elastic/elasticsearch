@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-ccr'
@@ -41,4 +41,9 @@ tasks.named("testingConventions").configure {
       baseClass "org.elasticsearch.xpack.CcrIntegTestCase"
     }
   }
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // xpack core has xpackinfo classes for ccr under this package
+  ignoreClasses 'org.elasticsearch.xpack.ccr.*'
 }

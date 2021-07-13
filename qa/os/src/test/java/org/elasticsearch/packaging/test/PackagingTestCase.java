@@ -14,10 +14,12 @@ import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.Version;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
@@ -167,7 +169,10 @@ public abstract class PackagingTestCase extends Assert {
             Platforms.onLinux(() -> sh.getEnv().put("ES_JAVA_HOME", systemJavaHome));
             Platforms.onWindows(() -> sh.getEnv().put("ES_JAVA_HOME", systemJavaHome));
         }
-        if (installation != null && distribution.isDocker() == false) {
+        if (installation != null
+            && installation.distribution.isDocker() == false
+            && Version.fromString(installation.distribution.baseVersion).onOrAfter(Version.V_7_11_0)) {
+            // Explicitly set heap for versions 7.11 and later otherwise auto heap sizing will cause OOM issues
             setHeap("1g");
         }
     }

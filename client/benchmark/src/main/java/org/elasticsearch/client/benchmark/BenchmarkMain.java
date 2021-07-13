@@ -8,7 +8,7 @@
 package org.elasticsearch.client.benchmark;
 
 import org.elasticsearch.client.benchmark.rest.RestClientBenchmark;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.Arrays;
 

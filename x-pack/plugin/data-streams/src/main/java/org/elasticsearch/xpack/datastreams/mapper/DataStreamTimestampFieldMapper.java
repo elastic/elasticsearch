@@ -15,12 +15,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -167,6 +167,17 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             configuredSettings.remove("type");
             configuredSettings.remove("meta");
             configuredSettings.remove("format");
+
+            // ignoring malformed values is disallowed (see previous check),
+            // however if `index.mapping.ignore_malformed` has been set to true then
+            // there is no way to disable ignore_malformed for the timestamp field mapper,
+            // other then not using 'index.mapping.ignore_malformed' at all.
+            // So by ignoring the ignore_malformed here, we allow index.mapping.ignore_malformed
+            // index setting to be set to true and then turned off for the timestamp field mapper.
+            // (ignore_malformed will here always be false, otherwise previous check would have failed)
+            Object value = configuredSettings.remove("ignore_malformed");
+            assert value == null || Boolean.FALSE.equals(value);
+
             // All other configured attributes are not allowed:
             if (configuredSettings.isEmpty() == false) {
                 throw new IllegalArgumentException(
@@ -179,7 +190,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(ParseContext context) throws IOException {
+    public void postParse(DocumentParserContext context) throws IOException {
         if (enabled == false) {
             // not configured, so skip the validation
             return;

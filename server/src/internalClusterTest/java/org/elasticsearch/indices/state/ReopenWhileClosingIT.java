@@ -14,11 +14,11 @@ import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCl
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Glob;
+import org.elasticsearch.core.Glob;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -148,8 +148,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
                     connection.sendRequest(requestId, action, request, options);
                 });
         }
-        final RunOnce releaseOnce = new RunOnce(release::countDown);
-        return releaseOnce::run;
+        return Releasables.releaseOnce(release::countDown);
     }
 
     private static void assertIndexIsBlocked(final String... indices) {

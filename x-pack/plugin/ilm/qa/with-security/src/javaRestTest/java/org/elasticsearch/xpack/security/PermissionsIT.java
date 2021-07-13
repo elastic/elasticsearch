@@ -34,7 +34,7 @@ import org.elasticsearch.client.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -43,6 +43,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
@@ -236,7 +237,7 @@ public class PermissionsIT extends ESRestTestCase {
                 GetSnapshotsRequest getSnaps = new GetSnapshotsRequest(repo);
                 getSnaps.snapshots(new String[]{snapName});
                 GetSnapshotsResponse getResp = adminHLRC.snapshot().get(getSnaps, RequestOptions.DEFAULT);
-                assertThat(getResp.getSnapshots(repo).get(0).state(), equalTo(SnapshotState.SUCCESS));
+                assertThat(getResp.getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
             } catch (ElasticsearchException e) {
                 fail("expected snapshot to exist but it does not: " + e.getDetailedMessage());
             }
@@ -256,7 +257,7 @@ public class PermissionsIT extends ESRestTestCase {
                 GetSnapshotsRequest getSnaps = new GetSnapshotsRequest(repo);
                 getSnaps.snapshots(new String[]{snapName});
                 GetSnapshotsResponse getResp = adminHLRC.snapshot().get(getSnaps, RequestOptions.DEFAULT);
-                assertThat(getResp.getSnapshots(repo).size(), equalTo(0));
+                assertThat(getResp.getSnapshots().size(), equalTo(0));
             } catch (ElasticsearchException e) {
                 // great, we want it to not exist
                 assertThat(e.getDetailedMessage(), containsString("snapshot_missing_exception"));
@@ -363,6 +364,7 @@ public class PermissionsIT extends ESRestTestCase {
                 "                   \"index.lifecycle.rollover_alias\": \""+alias+"\"\n" +
                 "                 }\n" +
                 "              }");
+        request.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         assertOK(adminClient().performRequest(request));
     }
 

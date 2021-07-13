@@ -166,10 +166,9 @@ accurately.
 |======
 | Name                                          |Required   | Default             | Description
 
-| `request.search_type`                         | no        | `query_then_fetch`  | The <<search-type,type>>
-                                                                                    of search request to perform. Valid values are: `dfs_query_and_fetch`,
-                                                                                    `dfs_query_then_fetch`, `query_and_fetch`, and `query_then_fetch`. The
-                                                                                    Elasticsearch default is `query_then_fetch`.
+| `request.search_type`                         | no        | `query_then_fetch`  | The <<search-type,type>> of search request to perform.
+                                                                                    Valid values are: `dfs_query_then_fetch` and `query_then_fetch`.
+                                                                                    The Elasticsearch default is `query_then_fetch`.
 
 | `request.indices`                             | no        | -                   | The indices to search. If omitted, all indices are searched, which is the
                                                                                     default behaviour in Elasticsearch.

@@ -16,17 +16,18 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
-import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
@@ -454,6 +454,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "}", ContentType.APPLICATION_JSON);
         Request templateRequest = new Request("PUT", "_template/test");
         templateRequest.setEntity(template);
+        templateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(templateRequest);
 
         policy = randomAlphaOfLengthBetween(5,20);
@@ -629,6 +630,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "    \"index.write.wait_for_active_shards\": \"all\"\n" +
             "  }\n" +
             "}");
+        createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
         // index document to trigger rollover
@@ -655,6 +657,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "    \"index.lifecycle.rollover_alias\": \"" + alias + "\"\n" +
             "  }\n" +
             "}");
+        createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
         createIndexWithSettings(client(), index + "-1", alias, Settings.builder(), true);
@@ -758,6 +761,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "    \"index.lifecycle.rollover_alias\": \"" + alias + "\"\n" +
             "  }\n" +
             "}");
+        createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
         createIndexWithSettings(client(), index + "-1", alias,
@@ -879,18 +883,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
                     snapshotsResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                 }
-                ArrayList<Object> responses = (ArrayList<Object>) snapshotsResponseMap.get("responses");
-                for (Object response : responses) {
-                    Map<String, Object> responseAsMap = (Map<String, Object>) response;
-                    if (responseAsMap.get("snapshots") != null) {
-                        ArrayList<Object> snapshots = (ArrayList<Object>) responseAsMap.get("snapshots");
-                        for (Object snapshot : snapshots) {
-                            Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
-                            if (snapshotInfoMap.get("snapshot").equals(snapshotName[0]) &&
+                if (snapshotsResponseMap.get("snapshots") != null) {
+                    ArrayList<Object> snapshots = (ArrayList<Object>) snapshotsResponseMap.get("snapshots");
+                    for (Object snapshot : snapshots) {
+                        Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
+                        if (snapshotInfoMap.get("snapshot").equals(snapshotName[0]) &&
                                 // wait for the snapshot to be completed (successfully or not) otherwise the teardown might fail
                                 SnapshotState.valueOf((String) snapshotInfoMap.get("state")).completed()) {
-                                return true;
-                            }
+                            return true;
                         }
                     }
                 }

@@ -10,10 +10,11 @@ package org.elasticsearch.packaging.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -326,7 +327,7 @@ public class Docker {
         args.add("--volume \"" + localPath.getParent() + ":" + containerPath.getParent() + "\"");
 
         // Use a lightweight musl libc based small image
-        args.add("alpine");
+        args.add("alpine:3.13");
 
         // And run inline commands via the POSIX shell
         args.add("/bin/sh -c \"" + shellCmd + "\"");
@@ -599,5 +600,20 @@ public class Docker {
 
     public static Shell.Result getContainerLogs() {
         return sh.run("docker logs " + containerId);
+    }
+
+    /**
+     * Restarts the current docker container.
+     */
+    public static void restartContainer() {
+        sh.run("docker restart " + containerId);
+    }
+
+    private static String getArchitecture() {
+        String architecture = System.getProperty("os.arch", "x86_64");
+        if (architecture.equals("amd64")) {
+            architecture = "x86_64";
+        }
+        return architecture;
     }
 }

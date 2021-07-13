@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -67,7 +68,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.validateJobAndId;
@@ -86,8 +86,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     @Before
     public void setUpMocks() {
         ThreadPool tp = mock(ThreadPool.class);
-        ExecutorService executorService = EsExecutors.newDirectExecutorService();
-        when(tp.generic()).thenReturn(executorService);
+        when(tp.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         Settings settings = Settings.builder().put("node.name", "OpenJobPersistentTasksExecutorTests").build();
         ClusterSettings clusterSettings = new ClusterSettings(settings,
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
@@ -117,7 +116,15 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         jobBuilder.setDeleting(true);
         Exception e = expectThrows(ElasticsearchStatusException.class,
             () -> validateJobAndId("job_id", jobBuilder.build()));
-        assertEquals("Cannot open job [job_id] because it is being deleted", e.getMessage());
+        assertEquals("Cannot open job [job_id] because it is executing [delete]", e.getMessage());
+    }
+
+    public void testValidate_blockedReset() {
+        Job.Builder jobBuilder = buildJobBuilder("job_id");
+        jobBuilder.setBlocked(new Blocked(Blocked.Reason.REVERT, null));
+        Exception e = expectThrows(ElasticsearchStatusException.class,
+            () -> validateJobAndId("job_id", jobBuilder.build()));
+        assertEquals("Cannot open job [job_id] because it is executing [revert]", e.getMessage());
     }
 
     public void testValidate_jobWithoutVersion() {
@@ -137,7 +144,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         OpenJobPersistentTasksExecutor executor = createExecutor(Settings.EMPTY);
 
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("missing_job_field");
-        assertEquals(AWAITING_MIGRATION, executor.getAssignment(params, mock(ClusterState.class)));
+        assertEquals(AWAITING_MIGRATION, executor.getAssignment(params, Collections.emptyList(), mock(ClusterState.class)));
     }
 
     // An index being unavailable should take precedence over waiting for a lazy node
@@ -158,7 +165,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         params.setJob(mock(Job.class));
         assertEquals("Not opening [unavailable_index_with_lazy_node], " +
                 "because not all primary shards are active for the following indices [.ml-state]",
-            executor.getAssignment(params, csBuilder.build()).getExplanation());
+            executor.getAssignment(params, csBuilder.nodes().getAllNodes(), csBuilder.build()).getExplanation());
     }
 
     public void testGetAssignment_GivenLazyJobAndNoGlobalLazyNodes() {
@@ -176,7 +183,8 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         when(job.allowLazyOpen()).thenReturn(true);
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("lazy_job");
         params.setJob(job);
-        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(params, csBuilder.build());
+        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(params,
+            csBuilder.nodes().getAllNodes(), csBuilder.build());
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
         assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), assignment.getExplanation());
@@ -193,7 +201,8 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         Job job = mock(Job.class);
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("job_during_reset");
         params.setJob(job);
-        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(params, csBuilder.build());
+        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(params,
+            csBuilder.nodes().getAllNodes(), csBuilder.build());
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
         assertEquals(MlTasks.RESET_IN_PROGRESS.getExplanation(), assignment.getExplanation());

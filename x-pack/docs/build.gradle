@@ -732,4 +732,11 @@ tasks.named("buildRestTests").configure { buildRestTests ->
               }
             }
 '''
+  setups['service_token42'] = '''
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: token42
+'''
 }

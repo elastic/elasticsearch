@@ -83,6 +83,19 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return hasRole(settings, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
     }
 
+    private static boolean isDedicatedFrozenRoles(Set<DiscoveryNodeRole> roles) {
+        return roles.contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) &&
+            roles.stream().filter(DiscoveryNodeRole::canContainData)
+                .anyMatch(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) == false;
+    }
+
+    /**
+     * Check if the settings are for a dedicated frozen node, i.e. has frozen role and no other data roles.
+     */
+    public static boolean isDedicatedFrozenNode(final Settings settings) {
+        return isDedicatedFrozenRoles(getRolesFromSettings(settings));
+    }
+
     private final String nodeName;
     private final String nodeId;
     private final String ephemeralId;
@@ -324,6 +337,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     public boolean isRemoteClusterClient() {
         return roles.contains(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
+    }
+
+    /**
+     * Returns whether or not the node is a frozen only node, i.e., has data frozen role and no other data roles.
+     * @return
+     */
+    public boolean isDedicatedFrozenNode() {
+        return isDedicatedFrozenRoles(getRoles());
     }
 
     /**

@@ -14,15 +14,19 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.rest.action.search.RestMultiSearchAction;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -46,6 +50,9 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  * A multi search API request.
  */
 public class MultiSearchRequest extends ActionRequest implements CompositeIndicesRequest {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+        " Specifying types in search requests is deprecated.";
 
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
 
@@ -170,7 +177,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                            String searchType,
                                            Boolean ccsMinimizeRoundtrips,
                                            NamedXContentRegistry registry,
-                                           boolean allowExplicitIndex) throws IOException {
+                                           boolean allowExplicitIndex, RestApiVersion restApiVersion) throws IOException {
         int from = 0;
         byte marker = xContent.streamSeparator();
         while (true) {
@@ -198,7 +205,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             // now parse the action
             if (nextMarker - from > 0) {
                 try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
-                     XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
+                     XContentParser parser = xContent
+                         .createParserForCompatibility(registry, LoggingDeprecationHandler.INSTANCE, stream, restApiVersion)) {
                     Map<String, Object> source = parser.map();
                     Object expandWildcards = null;
                     Object ignoreUnavailable = null;
@@ -231,6 +239,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             allowNoIndices = value;
                         } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
                             ignoreThrottled = value;
+                        } else if(restApiVersion == RestApiVersion.V_7 &&
+                            ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
+                            deprecationLogger.compatibleApiWarning("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
                         } else {
                             throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                         }
@@ -250,7 +261,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             }
             BytesReference bytes = data.slice(from, nextMarker - from);
             try (InputStream stream = bytes.streamInput();
-                 XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
+                 XContentParser parser = xContent
+                     .createParserForCompatibility(registry, LoggingDeprecationHandler.INSTANCE, stream, restApiVersion)) {
                 consumer.accept(searchRequest, parser);
             }
             // move pointers
@@ -297,7 +309,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         if (request.indices() != null) {
             xContentBuilder.field("index", request.indices());
         }
-        if (request.indicesOptions() != null && request.indicesOptions() != SearchRequest.DEFAULT_INDICES_OPTIONS) {
+        if (request.indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
             WildcardStates.toXContent(request.indicesOptions().getExpandWildcards(), xContentBuilder);
             xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
             xContentBuilder.field("allow_no_indices", request.indicesOptions().allowNoIndices());

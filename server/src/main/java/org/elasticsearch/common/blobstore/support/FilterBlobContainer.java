@@ -13,10 +13,12 @@ import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedConsumer;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
+import java.io.OutputStream;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -62,6 +64,12 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
+    public void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic,
+                          CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        delegate.writeBlob(blobName, failIfAlreadyExists, atomic, writer);
+    }
+
+    @Override
     public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         delegate.writeBlobAtomic(blobName, bytes, failIfAlreadyExists);
     }
@@ -72,7 +80,7 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
         delegate.deleteBlobsIgnoringIfNotExists(blobNames);
     }
 

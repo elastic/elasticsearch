@@ -72,7 +72,7 @@ RUN chmod 0555 /bin/tini
 # Stage 1. Build curl statically. Installing it from RPM on CentOS pulls in too
 # many dependencies.
 ################################################################################
-FROM alpine:latest AS curl
+FROM alpine:3.13 AS curl
 
 ENV VERSION 7.71.0
 ENV TARBALL_URL https://curl.haxx.se/download/curl-\${VERSION}.tar.xz
@@ -99,11 +99,15 @@ RUN gpg --import --always-trust "curl-gpg.pub" && \\
     gpg --verify "\${TARBALL_PATH}.asc" "\${TARBALL_PATH}"
 
 # Unpack and build
-RUN tar xfJ "\${TARBALL_PATH}" && \\
-    cd "curl-\${VERSION}" && \\
-    ./configure --disable-shared --with-ca-fallback --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt && \\
-    make curl_LDFLAGS="-all-static" && \\
-    cp src/curl /work/curl && \\
+RUN set -e ; \\
+    tar xfJ "\${TARBALL_PATH}" ; \\
+    cd "curl-\${VERSION}" ; \\
+    if ! ./configure --disable-shared --with-ca-fallback --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt ; then \\
+        [[ -e config.log ]] && cat config.log ; \\
+        exit 1 ; \\
+    fi ; \\
+    make curl_LDFLAGS="-all-static" ; \\
+    cp src/curl /work/curl ; \\
     strip /work/curl
 
 ################################################################################
@@ -234,19 +238,20 @@ COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
 #  2. Create required directory
 #  3. Move the distribution's default logging config aside
 #  4. Move the generated docker logging config so that it is the default
-#  5. Remove write permissions from all directories
-#  6. Remove write and exec permissions from all files
-#  7. Make tools executable again
-#  8. Make some directories writable again
-#  9. Make some files writable again
+#  5. Reset permissions on all directories
+#  6. Reset permissions on all files
+#  7. Make CLI tools executable
+#  8. Make some directories writable. `bin` must be writable because
+#     plugins can install their own CLI utilities.
+#  9. Make some files writable
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir data && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\
     mv config/log4j2.docker.properties config/log4j2.properties && \\
     find . -type d -exec chmod 0555 {} + && \\
     find . -type f -exec chmod 0444 {} + && \\
-    chmod 0555 bin/* jdk/bin/* jdk/lib/jspawnhelper modules/x-pack-ml/platform/linux-\$(arch)/bin/* && \\
-    chmod 0775 config config/jvm.options.d data logs plugins && \\
+    chmod 0555 bin/* jdk/bin/* jdk/lib/jspawnhelper modules/x-pack-ml/platform/linux-*/bin/* && \\
+    chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} +
 
 <% if (docker_base == "ubi" || docker_base == "iron_bank") { %>

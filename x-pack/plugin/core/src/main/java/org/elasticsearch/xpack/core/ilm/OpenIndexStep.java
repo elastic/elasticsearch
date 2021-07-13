@@ -14,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * Invokes a open step on a single index.
@@ -29,9 +30,9 @@ final class OpenIndexStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                              ClusterStateObserver observer, Listener listener) {
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
-            OpenIndexRequest request = new OpenIndexRequest(indexMetadata.getIndex().getName());
+            OpenIndexRequest request = new OpenIndexRequest(indexMetadata.getIndex().getName()).masterNodeTimeout(TimeValue.MAX_VALUE);
             getClient().admin().indices()
                 .open(request,
                     ActionListener.wrap(openIndexResponse -> {

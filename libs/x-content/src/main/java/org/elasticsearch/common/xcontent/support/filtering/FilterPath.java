@@ -9,7 +9,7 @@
 
 package org.elasticsearch.common.xcontent.support.filtering;
 
-import org.elasticsearch.common.Glob;
+import org.elasticsearch.core.Glob;
 
 import java.util.ArrayList;
 import java.util.List;

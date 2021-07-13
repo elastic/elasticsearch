@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.io.IOException;
@@ -97,19 +98,17 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
-        // TODO: make this dependent on search.max_buckets
-        if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > 10_000)) {
+        if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > MultiBucketConsumerService.DEFAULT_MAX_BUCKETS)) {
             validationException = addValidationError(
-                "settings.max_page_search_size [" + maxPageSearchSize + "] must be greater than 10 and less than 10,000",
+                "settings.max_page_search_size ["
+                    + maxPageSearchSize
+                    + "] is out of range. The minimum value is 10 and the maximum is "
+                    + MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
                 validationException
             );
         }
 
         return validationException;
-    }
-
-    public boolean isValid() {
-        return true;
     }
 
     @Override

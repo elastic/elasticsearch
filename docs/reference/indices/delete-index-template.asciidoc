@@ -49,7 +49,7 @@ privilege>> to use this API.
 
 Use the delete index template API to delete one or more index templates.
 Index templates define <<index-modules-settings,settings>>, <<mapping,mappings>>,
-and <<indices-aliases,aliases>> that can be applied automatically to new indices.
+and <<alias,aliases>> that can be applied automatically to new indices.
 
 
 [[delete-template-api-path-params]]

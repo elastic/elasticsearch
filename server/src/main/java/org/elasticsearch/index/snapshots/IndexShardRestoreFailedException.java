@@ -25,7 +25,7 @@ public class IndexShardRestoreFailedException extends IndexShardRestoreException
         super(shardId, msg, cause);
     }
 
-    public IndexShardRestoreFailedException(StreamInput in) throws IOException{
+    public IndexShardRestoreFailedException(StreamInput in) throws IOException {
         super(in);
     }
 }

@@ -34,16 +34,16 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -607,14 +607,12 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     private List<Path> findFilesToCorruptOnNode(final String nodeName, final ShardId shardId) throws IOException {
         List<Path> files = new ArrayList<>();
-        for (Path path : internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPaths(shardId)) {
-            path = path.resolve("index");
-            if (Files.exists(path)) { // multi data path might only have one path in use
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
-                    for (Path item : stream) {
-                        if (item.getFileName().toString().startsWith("segments_")) {
-                            files.add(item);
-                        }
+        Path path = internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPath(shardId).resolve("index");
+        if (Files.exists(path)) { // multi data path might only have one path in use
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
+                for (Path item : stream) {
+                    if (item.getFileName().toString().startsWith("segments_")) {
+                        files.add(item);
                     }
                 }
             }

@@ -134,12 +134,9 @@ public class RankFeatureFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         float value;
-        if (context.externalValueSet()) {
-            Object v = context.externalValue();
-            value = objectToFloat(v);
-        } else if (context.parser().currentToken() == Token.VALUE_NULL) {
+        if (context.parser().currentToken() == Token.VALUE_NULL) {
             // skip
             return;
         } else {

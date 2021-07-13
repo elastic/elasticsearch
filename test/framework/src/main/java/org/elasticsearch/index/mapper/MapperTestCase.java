@@ -20,13 +20,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -101,14 +102,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected void assertExistsQuery(MapperService mapperService) throws IOException {
-        ParseContext.Document fields = mapperService.documentMapper().parse(source(this::writeField)).rootDoc();
+        LuceneDocument fields = mapperService.documentMapper().parse(source(this::writeField)).rootDoc();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
         MappedFieldType fieldType = mapperService.fieldType("field");
         Query query = fieldType.existsQuery(searchExecutionContext);
         assertExistsQuery(fieldType, query, fields);
     }
 
-    protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
         if (fieldType.hasDocValues()) {
             assertThat(query, instanceOf(DocValuesFieldExistsQuery.class));
             DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery) query;
@@ -138,11 +139,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    protected static void assertNoFieldNamesField(ParseContext.Document fields) {
+    protected static void assertNoFieldNamesField(LuceneDocument fields) {
         assertNull(fields.getField(FieldNamesFieldMapper.NAME));
     }
 
-    protected static void assertHasNorms(ParseContext.Document doc, String field) {
+    protected static void assertHasNorms(LuceneDocument doc, String field) {
         IndexableField[] fields = doc.getFields(field);
         for (IndexableField indexableField : fields) {
             IndexableFieldType indexableFieldType = indexableField.fieldType();
@@ -154,7 +155,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         fail("field [" + field + "] should be indexed but it isn't");
     }
 
-    protected static void assertDocValuesField(ParseContext.Document doc, String field) {
+    protected static void assertDocValuesField(LuceneDocument doc, String field) {
         IndexableField[] fields = doc.getFields(field);
         for (IndexableField indexableField : fields) {
             if (indexableField.fieldType().docValuesType().equals(DocValuesType.NONE) == false) {
@@ -164,11 +165,22 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         fail("doc_values not present for field [" + field + "]");
     }
 
-    protected static void assertNoDocValuesField(ParseContext.Document doc, String field) {
+    protected static void assertNoDocValuesField(LuceneDocument doc, String field) {
         IndexableField[] fields = doc.getFields(field);
         for (IndexableField indexableField : fields) {
             assertEquals(DocValuesType.NONE, indexableField.fieldType().docValuesType());
         }
+    }
+
+    protected <T> void assertDimension(boolean isDimension, Function<T, Boolean> checker) throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", isDimension);
+        }));
+
+        @SuppressWarnings("unchecked") // Syntactic sugar in tests
+        T fieldType = (T) mapperService.fieldType("field");
+        assertThat(checker.apply(fieldType), equalTo(isDimension));
     }
 
     public final void testEmptyName() {
@@ -529,6 +541,33 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
+     * Test that dimension parameter is not updateable
+     */
+    protected void registerDimensionChecks(ParameterChecker checker) throws IOException {
+        // dimension cannot be updated
+        checker.registerConflictCheck("dimension", b -> b.field("dimension", true));
+        checker.registerConflictCheck("dimension", b -> b.field("dimension", false));
+        checker.registerConflictCheck("dimension",
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", false);
+            }),
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true);
+            }));
+        checker.registerConflictCheck("dimension",
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true);
+            }),
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", false);
+            }));
+    }
+
+    /**
      * Create a random {@code _source} value for this field. Must be compatible
      * with {@link XContentBuilder#value(Object)} and the field's parser.
      */
@@ -643,24 +682,24 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         });
     }
 
+    protected boolean supportsStoredFields() {
+        return true;
+    }
+
+    protected void minimalStoreMapping(XContentBuilder b) throws IOException {
+        minimalMapping(b);
+        b.field("store", true);
+    }
+
     /**
      * Checks that loading stored fields for this field produces the same set of values
      * for query time scripts and index time scripts
      */
     public final void testIndexTimeStoredFieldsAccess() throws IOException {
 
-        MapperService mapperService;
-        try {
-            mapperService = createMapperService(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("store", true);
-            }));
-            assertParseMinimalWarnings();
-        } catch (MapperParsingException e) {
-            assertParseMinimalWarnings();
-            assumeFalse("Field type does not support stored fields", true);
-            return;
-        }
+        assumeTrue("Field type does not support stored fields", supportsStoredFields());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalStoreMapping));
+        assertParseMinimalWarnings();
 
         MappedFieldType fieldType = mapperService.fieldType("field");
         SourceToParse source = source(this::writeField);
@@ -690,5 +729,22 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return (mft, lookupSource) -> mft
             .fielddataBuilder("test", lookupSource)
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+    }
+
+    public final void testNullInput() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        if (allowsNullValues()) {
+            ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
+            assertThat(doc.docs().get(0).getFields("field").length, equalTo(0));
+            assertThat(doc.docs().get(0).getFields("_field_names").length, equalTo(0));
+        } else {
+            expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
+        }
+
+        assertWarnings(getParseMinimalWarnings());
+    }
+
+    protected boolean allowsNullValues() {
+        return true;
     }
 }

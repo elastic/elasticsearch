@@ -83,7 +83,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     public void setUpManager() {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        when(threadPool.generic()).thenReturn(EsExecutors.newDirectExecutorService());
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         // Build a mock client that always accepts put mappings requests
         final Client client = new NoOpClient(threadPool) {
@@ -152,7 +152,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             currentState.set(state);
             listenerCalled.set(true);
         };
-        manager.addIndexStateListener(listener);
+        manager.addStateListener(listener);
 
         // index doesn't exist and now exists
         final ClusterState.Builder clusterStateBuilder = createClusterState(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7,
@@ -310,7 +310,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     public void testListenerNotCalledBeforeStateNotRecovered() {
         final AtomicBoolean listenerCalled = new AtomicBoolean(false);
-        manager.addIndexStateListener((prev, current) -> listenerCalled.set(true));
+        manager.addStateListener((prev, current) -> listenerCalled.set(true));
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
         // state not recovered
         manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME).blocks(blocks)));
@@ -329,7 +329,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final AtomicBoolean listenerCalled = new AtomicBoolean(false);
         manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
         AtomicBoolean upToDateChanged = new AtomicBoolean();
-        manager.addIndexStateListener((prev, current) -> {
+        manager.addStateListener((prev, current) -> {
             listenerCalled.set(true);
             upToDateChanged.set(prev.isIndexUpToDate != current.isIndexUpToDate);
         });

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.expression;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AttributeInput;
@@ -24,26 +24,6 @@ import java.util.function.Predicate;
 import static java.util.Collections.emptyList;
 
 public final class Expressions {
-
-    public enum ParamOrdinal {
-        DEFAULT,
-        FIRST,
-        SECOND,
-        THIRD,
-        FOURTH,
-        FIFTH;
-
-        public static ParamOrdinal fromIndex(int index) {
-            switch (index) {
-                case 0: return ParamOrdinal.FIRST;
-                case 1: return ParamOrdinal.SECOND;
-                case 2: return ParamOrdinal.THIRD;
-                case 3: return ParamOrdinal.FOURTH;
-                case 4: return ParamOrdinal.FIFTH;
-                default: return ParamOrdinal.DEFAULT;
-            }
-        }
-    }
 
 
     private Expressions() {}

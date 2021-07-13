@@ -12,12 +12,12 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -230,7 +230,7 @@ public class CompositeRolesStore {
             return;
         }
 
-        if (ServiceAccountService.isServiceAccount(authentication)) {
+        if (authentication.isServiceAccount()) {
             getRolesForServiceAccount(authentication, roleActionListener);
         } else if (ApiKeyService.isApiKeyAuthentication(authentication)) {
             getRolesForApiKey(authentication, roleActionListener);
@@ -345,8 +345,8 @@ public class CompositeRolesStore {
 
     private void buildAndCacheRoleForApiKey(Authentication authentication, boolean limitedBy, ActionListener<Role> roleActionListener) {
         final Tuple<String, BytesReference> apiKeyIdAndBytes = apiKeyService.getApiKeyIdAndRoleBytes(authentication, limitedBy);
-        final String roleDescriptorsHash = MessageDigests.toHexString(
-            MessageDigests.sha256().digest(BytesReference.toBytes(apiKeyIdAndBytes.v2())));
+        final String roleDescriptorsHash =
+                MessageDigests.toHexString(MessageDigests.digest(apiKeyIdAndBytes.v2(), MessageDigests.sha256()));
         final RoleKey roleKey = new RoleKey(Set.of("apikey:" + roleDescriptorsHash), limitedBy ? "apikey_limited_role" : "apikey_role");
         final Role existing = roleCache.get(roleKey);
         if (existing == null) {

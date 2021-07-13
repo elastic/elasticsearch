@@ -33,6 +33,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesRequestCache;
+import org.elasticsearch.indices.ShardLimitValidator;
 
 import java.util.Collections;
 import java.util.Map;
@@ -143,6 +144,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING,
             MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
             MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
+            MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING,
             MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING,
             BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
             IndexModule.INDEX_STORE_TYPE_SETTING,
@@ -157,6 +159,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
             ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
             DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS,
+            ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP,
 
             // validate that built-in similarities don't get redefined
             Setting.groupSetting(

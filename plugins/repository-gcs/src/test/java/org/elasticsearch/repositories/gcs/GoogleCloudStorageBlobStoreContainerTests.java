@@ -18,6 +18,7 @@ import com.google.cloud.storage.StorageException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -77,10 +78,10 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         when(storageService.client(any(String.class), any(String.class), any(GoogleCloudStorageOperationsStats.class))).thenReturn(storage);
 
         try (BlobStore store = new GoogleCloudStorageBlobStore("bucket", "test", "repo", storageService,
-            randomIntBetween(1, 8) * 1024)) {
-            final BlobContainer container = store.blobContainer(new BlobPath());
+            BigArrays.NON_RECYCLING_INSTANCE, randomIntBetween(1, 8) * 1024)) {
+            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
 
-            IOException e = expectThrows(IOException.class, () -> container.deleteBlobsIgnoringIfNotExists(blobs));
+            IOException e = expectThrows(IOException.class, () -> container.deleteBlobsIgnoringIfNotExists(blobs.iterator()));
             assertThat(e.getCause(), instanceOf(StorageException.class));
         }
     }

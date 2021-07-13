@@ -51,6 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -217,7 +218,9 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         int runNodesCount = randomIntBetween(1, nodesCount);
-        int blockedNodesCount = randomIntBetween(0, runNodesCount);
+        // Block at least 1 node, otherwise it's quite easy to end up in a race condition where the node tasks
+        // have finished before the cancel request has arrived
+        int blockedNodesCount = randomIntBetween(1, runNodesCount);
         Task mainTask = startCancellableTestNodesAction(waitForActionToStart, runNodesCount, blockedNodesCount,
             new ActionListener<NodesResponse>() {
                 @Override
@@ -254,12 +257,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             assertEquals(runNodesCount, responseReference.get().getNodes().size());
             assertEquals(0, responseReference.get().failureCount());
         } else {
-            // We canceled the request, in this case it should have fail, but we should get partial response
-            assertNull(throwableReference.get());
-            assertEquals(runNodesCount, responseReference.get().failureCount() + responseReference.get().getNodes().size());
-            // and we should have at least as many failures as the number of blocked operations
-            // (we might have cancelled some non-blocked operations before they even started and that's ok)
-            assertThat(responseReference.get().failureCount(), greaterThanOrEqualTo(blockedNodesCount));
+            assertThat(throwableReference.get(), instanceOf(TaskCancelledException.class));
 
             // We should have the information about the cancelled task in the cancel operation response
             assertEquals(1, response.getTasks().size());

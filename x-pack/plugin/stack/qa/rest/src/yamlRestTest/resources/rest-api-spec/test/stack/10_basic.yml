@@ -16,6 +16,10 @@ setup:
 
   - do:
       cluster.get_component_template:
+        name: data-streams-mappings
+
+  - do:
+      cluster.get_component_template:
         name: logs-mappings
 
   - do:
@@ -46,6 +50,11 @@ setup:
         body:
           "@timestamp": "2020-01-01"
           message: "test-log-message"
+          source.ip: "10.1.2.3"
+          log.file.path: "/var/log/web/access.log"
+          data_stream.type: "logs"
+          data_stream.dataset: "foo"
+          data_stream.namespace: "bar"
 
   - do:
       indices.get_data_stream:
@@ -66,7 +75,16 @@ setup:
   - is_true: .$idx0name.settings
   - is_true: .$idx0name.mappings
   - match: { .$idx0name.settings.index.lifecycle.name: "logs" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.type.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.type.value: "logs" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.dataset.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.dataset.value: "foo" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.namespace.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.namespace.value: "bar" }
   - is_true: .$idx0name.mappings.properties.message
+  - match: { .$idx0name.mappings.properties.message.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.source.properties.ip.type: "ip" }
+  - match: { .$idx0name.mappings.properties.log.properties.file.properties.path.type: "keyword" }
   - match: { .$idx0name.data_stream: "logs-foo-bar" }
 
   - do:
@@ -80,7 +98,10 @@ setup:
         index: metrics-foo-bar
         body:
           "@timestamp": "2020-01-01"
-          message: "test-log-message"
+          source.ip: "10.1.2.3"
+          data_stream.type: "metrics"
+          data_stream.dataset: "foo"
+          data_stream.namespace: "bar"
 
   - do:
       indices.get_data_stream:
@@ -101,9 +122,92 @@ setup:
   - is_true: .$idx0name.settings
   - is_true: .$idx0name.mappings
   - match: { .$idx0name.settings.index.lifecycle.name: "metrics" }
-  - is_true: .$idx0name.mappings.properties.message
+  - match: { .$idx0name.mappings.properties.data_stream.properties.type.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.type.value: "metrics" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.dataset.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.dataset.value: "foo" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.namespace.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.namespace.value: "bar" }
+  - match: { .$idx0name.mappings.properties.source.properties.ip.type: "ip" }
   - match: { .$idx0name.data_stream: "metrics-foo-bar" }
 
   - do:
       indices.delete_data_stream:
         name: metrics-foo-bar
+
+---
+"Test synthetics index auto creation":
+  - do:
+      index:
+        index: synthetics-foo-bar
+        body:
+          "@timestamp": "2020-01-01"
+          source.ip: "10.1.2.3"
+          data_stream.type: "synthetics"
+          data_stream.dataset: "foo"
+          data_stream.namespace: "bar"
+
+  - do:
+      indices.get_data_stream:
+        name: synthetics-foo-bar
+
+  - match: { data_streams.0.name: synthetics-foo-bar }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-synthetics-foo-bar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get:
+        index: $idx0name
+
+  - is_true: .$idx0name.settings
+  - is_true: .$idx0name.mappings
+  - match: { .$idx0name.settings.index.lifecycle.name: "synthetics" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.type.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.type.value: "synthetics" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.dataset.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.dataset.value: "foo" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.namespace.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.namespace.value: "bar" }
+  - match: { .$idx0name.mappings.properties.source.properties.ip.type: "ip" }
+  - match: { .$idx0name.data_stream: "synthetics-foo-bar" }
+
+  - do:
+      indices.delete_data_stream:
+        name: synthetics-foo-bar
+
+---
+"Test wrong data_stream type":
+
+ - do:
+      catch: bad_request
+      index:
+        index: synthetics-dataset0-namespace1
+        body:
+          "@timestamp": "2020-01-01"
+          data_stream.type: "logs"
+          data_stream.dataset: "dataset0"
+          data_stream.namespace: "namespace1"
+
+ - do:
+      catch: bad_request
+      index:
+        index: logs-dataset0-namespace1
+        body:
+          "@timestamp": "2020-01-01"
+          data_stream.type: "metrics"
+          data_stream.dataset: "dataset0"
+          data_stream.namespace: "namespace1"
+
+ - do:
+      catch: bad_request
+      index:
+        index: metrics-dataset0-namespace1
+        body:
+          "@timestamp": "2020-01-01"
+          data_stream.type: "synthetics"
+          data_stream.dataset: "dataset0"
+          data_stream.namespace: "namespace1"

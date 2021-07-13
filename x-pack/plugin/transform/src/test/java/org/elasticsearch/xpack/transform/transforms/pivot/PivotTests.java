@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -19,6 +18,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -48,6 +48,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -58,20 +59,24 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PivotTests extends ESTestCase {
 
     private NamedXContentRegistry namedXContentRegistry;
     private Client client;
 
+    // exclude aggregations from the analytics module as we don't have parser for it here
+    private final Set<String> externalAggregations = Collections.singleton("top_metrics");
+
     private final Set<String> supportedAggregations = Stream.of(AggregationType.values())
         .map(AggregationType::getName)
+        .filter(agg -> externalAggregations.contains(agg) == false)
         .collect(Collectors.toSet());
-    private final String[] unsupportedAggregations = { "stats" };
+    private final String[] unsupportedAggregations = { "global" };
 
     @Before
     public void registerAggregationNamedObjects() throws Exception {
@@ -148,11 +153,7 @@ public class PivotTests extends ESTestCase {
         for (String agg : supportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            Function pivot = new Pivot(
-                getValidPivotConfig(aggregationConfig),
-                new SettingsConfig(),
-                Version.CURRENT
-            );
+            Function pivot = new Pivot(getValidPivotConfig(aggregationConfig), new SettingsConfig(), Version.CURRENT);
             assertValidTransform(client, source, pivot);
         }
     }
@@ -161,15 +162,13 @@ public class PivotTests extends ESTestCase {
         for (String agg : unsupportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            Function pivot = new Pivot(
-                getValidPivotConfig(aggregationConfig),
-                new SettingsConfig(),
-                Version.CURRENT
-            );
+            Function pivot = new Pivot(getValidPivotConfig(aggregationConfig), new SettingsConfig(), Version.CURRENT);
 
             pivot.validateConfig(ActionListener.wrap(r -> { fail("expected an exception but got a response"); }, e -> {
-                assertThat(e, anyOf(instanceOf(ElasticsearchException.class)));
-                assertThat("expected aggregations to be unsupported, but they were", e, is(notNullValue()));
+                assertThat(e, is(instanceOf(ValidationException.class)));
+                assertThat(
+                    "expected aggregations to be unsupported, but they were",
+                    e.getMessage(), containsString("Unsupported aggregation type [" + agg + "]"));
             }));
         }
     }
@@ -179,12 +178,12 @@ public class PivotTests extends ESTestCase {
             + "\"group-A\": { \"terms\": { \"field\": \"field-A\" } },"
             + "\"group-B\": { \"terms\": { \"field\": \"field-B\" } },"
             + "\"group-C\": { \"terms\": { \"field\": \"field-C\" } }"
-        + "}";
+            + "}";
         GroupConfig groupConfig;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, groupConfigJson)) {
             groupConfig = GroupConfig.fromXContent(parser, false);
         }
-        assertThat(groupConfig.isValid(), is(true));
+        assertThat(groupConfig.validate(null), is(nullValue()));
 
         PivotConfig pivotConfig = new PivotConfig(groupConfig, AggregationConfigTests.randomAggregationConfig(), null);
         Function pivot = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT);
@@ -309,6 +308,11 @@ public class PivotTests extends ESTestCase {
         if (agg.equals(AggregationType.GEO_LINE.getName())) {
             return parseAggregations(
                 "{\"pivot_geo_line\": {\"geo_line\": {\"point\": {\"field\": \"values\"}, \"sort\":{\"field\": \"timestamp\"}}}}"
+            );
+        }
+        if (agg.equals("global")) {
+            return parseAggregations(
+                "{\"pivot_global\": {\"global\": {}}}"
             );
         }
 

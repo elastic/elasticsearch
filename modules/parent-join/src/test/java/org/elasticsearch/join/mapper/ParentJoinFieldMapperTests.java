@@ -46,8 +46,8 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
         DocumentMapper docMapper = mapperService.documentMapper();
-
-        Joiner joiner = Joiner.getJoiner(mapperService.mappingLookup().fieldTypes());
+        Joiner joiner = Joiner.getJoiner(mapperService.mappingLookup().getMatchingFieldNames("*").stream()
+            .map(mapperService.mappingLookup()::getFieldType));
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
 
@@ -233,7 +233,8 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Joiner joiner = Joiner.getJoiner(mapperService.mappingLookup().fieldTypes());
+        Joiner joiner = Joiner.getJoiner(mapperService.mappingLookup().getMatchingFieldNames("*").stream()
+            .map(mapperService.mappingLookup()::getFieldType));
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
         assertTrue(joiner.childTypeExists("child2"));
@@ -259,7 +260,8 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        joiner = Joiner.getJoiner(mapperService.mappingLookup().fieldTypes());
+        joiner = Joiner.getJoiner(mapperService.mappingLookup().getMatchingFieldNames("*").stream()
+            .map(mapperService.mappingLookup()::getFieldType));
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
         assertTrue(joiner.childTypeExists("child2"));

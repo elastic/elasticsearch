@@ -52,10 +52,37 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     private final Set<String> jobIds = new HashSet<>();
     private final Set<String> datafeedIds = new HashSet<>();
 
+    void cleanupDatafeed(String datafeedId) {
+        try {
+            stopDatafeed(datafeedId);
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            deleteDatafeed(datafeedId);
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
+    void cleanupJob(String jobId) {
+        try {
+            closeJob(jobId);
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            deleteJob(jobId);
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
     @Override
     // The extra work of the original native clean up causes the indices to be recreated
     // It can complicate the logging and make it difficult to determine if the reset feature API cleaned up all the indices appropriately
     protected void cleanUpResources() {
+        super.cleanUpResources();
         for (String jobId : jobIds) {
             cleanupJob(jobId);
         }

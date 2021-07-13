@@ -1,0 +1,38 @@
+{
+  "xpack-rollup.put_job":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-put-job.html",
+      "description":"Creates a rollup job."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"],
+      "content_type": ["application/vnd.elasticsearch+json;compatible-with=7"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/rollup/job/{id}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The ID of the job to create"
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The job configuration",
+      "required":true
+    }
+  }
+}

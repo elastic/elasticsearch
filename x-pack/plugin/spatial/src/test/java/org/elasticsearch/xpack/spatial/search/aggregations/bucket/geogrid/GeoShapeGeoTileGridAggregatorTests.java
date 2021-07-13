@@ -37,9 +37,17 @@ public class GeoShapeGeoTileGridAggregatorTests extends GeoShapeGeoGridTestCase<
 
     @Override
     protected GeoBoundingBox randomBBox() {
-         return randomValueOtherThanMany(
+        GeoBoundingBox bbox =  randomValueOtherThanMany(
             (b) -> b.top() > GeoTileUtils.LATITUDE_MASK || b.bottom() < -GeoTileUtils.LATITUDE_MASK,
             GeoTestUtils::randomBBox);
+        // Avoid numerical errors for sub-atomic values
+        double left = GeoTestUtils.encodeDecodeLon(bbox.left());
+        double right = GeoTestUtils.encodeDecodeLon(bbox.right());
+        double top = GeoTestUtils.encodeDecodeLat(bbox.top());
+        double bottom = GeoTestUtils.encodeDecodeLat(bbox.bottom());
+        bbox.topLeft().reset(top, left);
+        bbox.bottomRight().reset(bottom, right);
+        return bbox;
     }
 
     @Override

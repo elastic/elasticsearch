@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
@@ -556,8 +555,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }));
         assertNull(doc.rootDoc().getField("foo.bar.baz"));
         assertEquals("{\"_doc\":{\"dynamic\":\"false\"," +
-            "\"runtime\":{\"foo.bar.baz\":{\"type\":\"keyword\"},\"foo.baz\":{\"type\":\"keyword\"}}," +
-            "\"properties\":{\"foo\":{\"dynamic\":\"runtime\",\"properties\":{\"bar\":{\"type\":\"object\"}}}}}}",
+            "\"runtime\":{\"foo.bar.baz\":{\"type\":\"keyword\"},\"foo.baz\":{\"type\":\"keyword\"}}}}",
             Strings.toString(doc.dynamicMappingsUpdate()));
     }
 
@@ -609,15 +607,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     // creates an object mapper, which is about 100x harder than it should be....
-    ObjectMapper createObjectMapper(MapperService mapperService, String name) {
-        DocumentMapper docMapper = mapperService.documentMapper();
-        ParseContext context = new ParseContext.InternalParseContext(docMapper.mappers(), null, null, null);
+    private static ObjectMapper createObjectMapper(String name) {
+        ContentPath path = new ContentPath(0);
         String[] nameParts = name.split("\\.");
         for (int i = 0; i < nameParts.length - 1; ++i) {
-            context.path().add(nameParts[i]);
+            path.add(nameParts[i]);
         }
-        Mapper.Builder builder = new ObjectMapper.Builder(nameParts[nameParts.length - 1], Version.CURRENT).enabled(true);
-        return (ObjectMapper)builder.build(context.path());
+        return new ObjectMapper.Builder(nameParts[nameParts.length - 1], Version.CURRENT).enabled(true).build(path);
     }
 
     public void testEmptyMappingUpdate() throws Exception {
@@ -713,8 +709,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService();
         DocumentMapper docMapper = mapperService.documentMapper();
         List<Mapper> updates = new ArrayList<>();
-        updates.add(createObjectMapper(mapperService, "foo"));
-        updates.add(createObjectMapper(mapperService, "foo.bar"));
+        updates.add(createObjectMapper("foo"));
+        updates.add(createObjectMapper("foo.bar"));
         updates.add(new MockFieldMapper("foo.bar.baz"));
         updates.add(new MockFieldMapper("foo.field"));
         Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mappers(), updates, Collections.emptyList());
@@ -808,7 +804,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(0).value(1).endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
         RuntimeField foo = doc.dynamicMappingsUpdate().getRoot().getRuntimeField("foo");
-        assertEquals("long", foo.typeName());
+        assertEquals("{\"foo\":{\"type\":\"long\"}}", Strings.toString(foo));
     }
 
     public void testDynamicRuntimeDoubleArray() throws Exception {
@@ -816,7 +812,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(0.25).value(1.43).endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
         RuntimeField foo = doc.dynamicMappingsUpdate().getRoot().getRuntimeField("foo");
-        assertEquals("double", foo.typeName());
+        assertEquals("{\"foo\":{\"type\":\"double\"}}", Strings.toString(foo));
     }
 
     public void testDynamicRuntimeStringArray() throws Exception {
@@ -824,7 +820,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value("test1").value("test2").endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
         RuntimeField foo = doc.dynamicMappingsUpdate().getRoot().getRuntimeField("foo");
-        assertEquals("keyword", foo.typeName());
+        assertEquals("{\"foo\":{\"type\":\"keyword\"}}", Strings.toString(foo));
     }
 
     public void testDynamicRuntimeBooleanArray() throws Exception {
@@ -832,7 +828,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(true).value(false).endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
         RuntimeField foo = doc.dynamicMappingsUpdate().getRoot().getRuntimeField("foo");
-        assertEquals("boolean", foo.typeName());
+        assertEquals("{\"foo\":{\"type\":\"boolean\"}}", Strings.toString(foo));
     }
 
     public void testDynamicRuntimeDateArray() throws Exception {
@@ -840,7 +836,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value("2020-12-15").value("2020-12-09").endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
         RuntimeField foo = doc.dynamicMappingsUpdate().getRoot().getRuntimeField("foo");
-        assertEquals("date", foo.typeName());
+        assertEquals("{\"foo\":{\"type\":\"date\"}}", Strings.toString(foo));
     }
 
     public void testMappedGeoPointArray() throws Exception {
@@ -1068,14 +1064,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "41.12,-71.34"), null, Map.of(field, "points")));
         IndexableField[] fields = doc.rootDoc().getFields(field);
         assertThat(fields, arrayWithSize(2));
-        assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
-        assertThat(fields[1].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
 
         doc = mapper.parse(source("1", b -> b.field(field, new double[]{-71.34, 41.12}), null, Map.of(field, "points")));
         fields = doc.rootDoc().getFields(field);
         assertThat(fields, arrayWithSize(2));
-        assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
-        assertThat(fields[1].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
 
         doc = mapper.parse(source("1", b -> {
             b.startObject(field);
@@ -1085,16 +1081,16 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }, null, Map.of(field, "points")));
         fields = doc.rootDoc().getFields(field);
         assertThat(fields, arrayWithSize(2));
-        assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
-        assertThat(fields[1].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
 
         doc = mapper.parse(source("1", b -> b.field(field, new String[]{"41.12,-71.34", "43,-72.34"}), null, Map.of(field, "points")));
         fields = doc.rootDoc().getFields(field);
         assertThat(fields, arrayWithSize(4));
-        assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonPoint.TYPE));
         assertThat(fields[1].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
         assertThat(fields[2].fieldType(), sameInstance(LatLonPoint.TYPE));
-        assertThat(fields[3].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[3].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
 
         doc = mapper.parse(source("1", b -> {
             b.startArray(field);
@@ -1111,10 +1107,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }, null, Map.of(field, "points")));
         fields = doc.rootDoc().getFields(field);
         assertThat(fields, arrayWithSize(4));
-        assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonPoint.TYPE));
         assertThat(fields[1].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
         assertThat(fields[2].fieldType(), sameInstance(LatLonPoint.TYPE));
-        assertThat(fields[3].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[3].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
 
         doc = mapper.parse(source("1", b -> {
             b.startObject("address");
@@ -1123,8 +1119,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }, null, Map.of("address.home", "points")));
         fields = doc.rootDoc().getFields("address.home");
         assertThat(fields, arrayWithSize(2));
-        assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
-        assertThat(fields[1].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
     }
 
     public void testDynamicTemplatesNotFound() throws Exception {
@@ -1461,7 +1457,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Document doc = docMapper.parse(source(b -> {
+        LuceneDocument doc = docMapper.parse(source(b -> {
             b.startObject("name");
             {
                 b.field("first", "shay");
@@ -1481,7 +1477,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         // reparse it
         DocumentMapper builtDocMapper = createDocumentMapper(builtMapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
-        Document doc = builtDocMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        LuceneDocument doc = builtDocMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(builtDocMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(builtDocMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
@@ -1493,7 +1489,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat((String) docMapper.mapping().getMeta().get("param1"), equalTo("value1"));
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
-        Document doc = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        LuceneDocument doc = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
@@ -1502,7 +1498,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
         DocumentMapper docMapper = createDocumentMapper(mapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
-        Document doc = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        LuceneDocument doc = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
@@ -1894,6 +1890,20 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNull(doc.dynamicMappingsUpdate()); // no update since we reused the existing type
     }
 
+    public void testParseWithFlattenedField() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "flattened")));
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("field");
+            b.field("first", "first");
+            b.field("second", "second");
+            b.endObject();
+        }));
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNotNull(doc.rootDoc().getField("field"));
+        assertNull(doc.rootDoc().getField("field.first"));
+        assertNull(doc.rootDoc().getField("field.second"));
+    }
+
     /**
      * Mapper plugin providing a mock metadata field mapper implementation that supports setting its value
      * as well as a mock runtime field parser.
@@ -1911,7 +1921,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
 
             @Override
-            protected void parseCreateField(ParseContext context) throws IOException {
+            protected void parseCreateField(DocumentParserContext context) throws IOException {
                 if (context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
                     context.doc().add(new StringField(FIELD_NAME, context.parser().text(), Field.Store.YES));
                 } else {

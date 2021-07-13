@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
@@ -31,7 +32,7 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
     }
 
     @Override
-    void innerPerformAction(String followerIndex, ClusterState currentClusterState, Listener listener) {
+    void innerPerformAction(String followerIndex, ClusterState currentClusterState, ActionListener<Boolean> listener) {
         PersistentTasksCustomMetadata persistentTasksMetadata = currentClusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasksMetadata == null) {
             listener.onResponse(true);
@@ -52,6 +53,7 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
         }
 
         PauseFollowAction.Request request = new PauseFollowAction.Request(followerIndex);
+        request.masterNodeTimeout(TimeValue.MAX_VALUE);
         getClient().execute(PauseFollowAction.INSTANCE, request, ActionListener.wrap(
             r -> {
                 if (r.isAcknowledged() == false) {

@@ -203,12 +203,9 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject().endObject());
 
         IndexService indexService = createIndex("foo");
-        try {
-            indexService.mapperService().parse("type", new CompressedXContent(mapping));
-            fail("Expected MappingParsingException");
-        } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), equalTo("Unknown Similarity type [unknown_similarity] for field [field1]"));
-        }
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> indexService.mapperService().parseMapping("type", new CompressedXContent(mapping)));
+        assertThat(e.getMessage(), equalTo("Failed to parse mapping: Unknown Similarity type [unknown_similarity] for field [field1]"));
     }
 
     public void testUnknownParameters() throws IOException {

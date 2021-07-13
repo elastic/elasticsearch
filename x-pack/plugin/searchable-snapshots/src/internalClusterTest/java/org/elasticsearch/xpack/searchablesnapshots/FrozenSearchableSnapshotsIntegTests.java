@@ -692,9 +692,6 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureSearchable("index");
 
-        // TODO: this does not work as GlobalOrdinalsIndexFieldData.segmentAfd captures readers, which means that subsequent access to this
-        // turns into accessing closed resources
-        // IndicesRequestCache and IndicesQueryCache do not capture state of Lucene reader
         assertSearchResponse(client().prepareSearch("index")
             .setQuery(QueryBuilders.matchQuery("f", "baz"))
             .addAggregation(AggregationBuilders.significantTerms("sig")

@@ -323,6 +323,7 @@ tasks.named('splitPackagesAudit').configure {
     // These are tricky because Lucene itself splits the index package,
     // but this should be fixed in Lucene 9
     'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper',
+    'org.apache.lucene.index.StaticCacheKeyDirectoryReaderWrapper',
     'org.apache.lucene.index.OneMergeHelper',
     'org.apache.lucene.index.ShuffleForcedMergePolicy',
 
@@ -341,7 +342,7 @@ tasks.named('splitPackagesAudit').configure {
     'org.elasticsearch.cli.LoggingAwareMultiCommand',
 
     // these should be temporary, query needs package private access to TermScorer though
-   'org.apache.lucene.search.XCombinedFieldQuery', 
-   'org.apache.lucene.search.XMultiNormsLeafSimScorer' 
+   'org.apache.lucene.search.XCombinedFieldQuery',
+   'org.apache.lucene.search.XMultiNormsLeafSimScorer'
 
 }

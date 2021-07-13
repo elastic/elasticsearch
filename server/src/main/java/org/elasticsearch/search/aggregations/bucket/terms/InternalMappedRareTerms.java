@@ -107,10 +107,10 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
 
             SetBackedScalingCuckooFilter otherFilter = ((InternalMappedRareTerms)aggregation).getFilter();
             if (filter == null) {
-                filter = new SetBackedScalingCuckooFilter(otherFilter);
-            } else {
-                filter.merge(otherFilter);
+                filter = new SetBackedScalingCuckooFilter(otherFilter.getThreshold(), otherFilter.getRng(), otherFilter.getFpp());
             }
+            filter.merge(otherFilter);
+
         }
 
         final List<B> rare = new ArrayList<>();

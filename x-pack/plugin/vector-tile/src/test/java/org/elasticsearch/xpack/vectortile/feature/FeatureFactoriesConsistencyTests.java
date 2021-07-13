@@ -18,13 +18,14 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 public class FeatureFactoriesConsistencyTests extends ESTestCase {
 
-    public void testPoint() {
+    public void testPoint() throws IOException {
         int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);
@@ -53,7 +54,7 @@ public class FeatureFactoriesConsistencyTests extends ESTestCase {
         assertArrayEquals(b1, b2);
     }
 
-    public void testIssue74341() {
+    public void testIssue74341() throws IOException {
         int z = 1;
         int x = 0;
         int y = 0;
@@ -79,7 +80,7 @@ public class FeatureFactoriesConsistencyTests extends ESTestCase {
         return (double) -extent / yDiff != -1d / (yDiff / (double) extent) || (double) extent / xDiff != 1d / (xDiff / (double) extent);
     }
 
-    public void testRectangle() {
+    public void testRectangle() throws IOException {
         int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);

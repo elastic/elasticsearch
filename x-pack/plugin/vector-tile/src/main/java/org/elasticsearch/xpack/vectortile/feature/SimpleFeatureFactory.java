@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.vectortile.feature;
 
 import org.apache.lucene.util.BitUtil;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
+import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 
@@ -42,7 +44,7 @@ public class SimpleFeatureFactory {
     /**
      * Returns a {@code byte[]} containing the mvt representation of the provided point
      */
-    public byte[] point(double lon, double lat) {
+    public byte[] point(double lon, double lat) throws IOException {
         final int posLon = lon(lon);
         if (posLon > extent || posLon < 0) {
             return EMPTY;
@@ -61,7 +63,7 @@ public class SimpleFeatureFactory {
     /**
      * Returns a {@code byte[]} containing the mvt representation of the provided points
      */
-    public byte[] points(List<Point> multiPoint) {
+    public byte[] points(List<Point> multiPoint) throws IOException {
         multiPoint.sort(Comparator.comparingDouble(Point::getLon).thenComparingDouble(Point::getLat));
         final int[] commands = new int[2 * multiPoint.size() + 1];
         int pos = 1, prevLon = 0, prevLat = 0, numPoints = 0;
@@ -93,7 +95,7 @@ public class SimpleFeatureFactory {
     /**
      * Returns a {@code byte[]} containing the mvt representation of the provided rectangle
      */
-    public byte[] box(double minLon, double maxLon, double minLat, double maxLat) {
+    public byte[] box(double minLon, double maxLon, double minLat, double maxLat) throws IOException {
         int[] commands = new int[11];
         final int minX = Math.max(0, lon(minLon));
         if (minX > extent) {
@@ -141,54 +143,21 @@ public class SimpleFeatureFactory {
         return (id & 0x7) | (length << 3);
     }
 
-    private static byte[] writeCommands(final int[] commands, final int type, final int length) {
-        int size = 3;
-        int dataSize = 0;
-        for (int i = 0; i < length; i++) {
-            dataSize += computeUInt32SizeNoTag(commands[i]);
-        }
-        size += dataSize;
-        size += computeUInt32SizeNoTag(dataSize);
-        int position = 0;
-        byte[] result = new byte[size];
-        // for points
-        position = writeInt(result, position, 24); // tag
-        position = writeInt(result, position, type);
-        position = writeInt(result, position, 34); // tag
-        position = writeInt(result, position, dataSize);
-        for (int i = 0; i < length; i++) {
-            position = writeInt(result, position, commands[i]);
-        }
-        return result;
-    }
-
-    private static int writeInt(byte[] buffer, int position, int value) {
-        assert value >= 0;
-        while (true) {
-            if ((value & ~0x7F) == 0) {
-                buffer[position++] = (byte) value;
-                return position;
-            } else {
-                buffer[position++] = (byte) ((value & 0x7F) | 0x80);
-                value >>>= 7;
+    private static byte[] writeCommands(final int[] commands, final int type, final int length) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            for (int i = 0; i < length; i++) {
+                output.writeVInt(commands[i]);
             }
+            final int dataSize = output.size();
+            output.reset();
+            output.writeVInt(24);
+            output.writeVInt(type);
+            output.writeVInt(34);
+            output.writeVInt(dataSize);
+            for (int i = 0; i < length; i++) {
+                output.writeVInt(commands[i]);
+            }
+            return output.copyBytes().array();
         }
-    }
-
-    // Compute the number of bytes that would be needed to encode a uint32 field.
-    private static int computeUInt32SizeNoTag(final int value) {
-        if ((value & (~0 << 7)) == 0) {
-            return 1;
-        }
-        if ((value & (~0 << 14)) == 0) {
-            return 2;
-        }
-        if ((value & (~0 << 21)) == 0) {
-            return 3;
-        }
-        if ((value & (~0 << 28)) == 0) {
-            return 4;
-        }
-        return 5;
     }
 }

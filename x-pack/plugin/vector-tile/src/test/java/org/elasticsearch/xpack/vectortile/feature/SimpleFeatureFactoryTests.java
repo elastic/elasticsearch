@@ -14,12 +14,13 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class SimpleFeatureFactoryTests extends ESTestCase {
 
-    public void testPoint() {
+    public void testPoint() throws IOException {
         int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);
@@ -38,7 +39,7 @@ public class SimpleFeatureFactoryTests extends ESTestCase {
         }
     }
 
-    public void testMultiPoint() {
+    public void testMultiPoint() throws IOException {
         int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);
@@ -73,7 +74,7 @@ public class SimpleFeatureFactoryTests extends ESTestCase {
         }
     }
 
-    public void testPointsMethodConsistency() {
+    public void testPointsMethodConsistency() throws IOException {
         int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);
@@ -105,7 +106,7 @@ public class SimpleFeatureFactoryTests extends ESTestCase {
         }
     }
 
-    public void testRectangle() {
+    public void testRectangle() throws IOException {
         int z = randomIntBetween(3, 10);
         int x = randomIntBetween(1, (1 << z) - 1);
         int y = randomIntBetween(1, (1 << z) - 1);

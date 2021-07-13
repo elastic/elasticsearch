@@ -125,7 +125,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     public static boolean resolvePipelines(final DocWriteRequest<?> originalRequest, final IndexRequest indexRequest,
-                                           final Metadata metadata) {
+        final Metadata metadata) {
+        return resolvePipelines(originalRequest, indexRequest, metadata, System.currentTimeMillis());
+    }
+
+    public static boolean resolvePipelines(final DocWriteRequest<?> originalRequest, final IndexRequest indexRequest,
+                                           final Metadata metadata, final long epochMillis) {
         if (indexRequest.isPipelineResolved() == false) {
             final String requestPipeline = indexRequest.getPipeline();
             indexRequest.setPipeline(NOOP_PIPELINE_NAME);
@@ -135,7 +140,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             IndexMetadata indexMetadata = null;
             // start to look for default or final pipelines via settings found in the index meta data
             if (originalRequest != null) {
-                indexMetadata = metadata.indices().get(resolveIndexName(originalRequest.index()));
+                indexMetadata = metadata.indices().get(resolveIndexName(originalRequest.index(), epochMillis));
             }
             // check the alias for the index request (this is how normal index requests are modeled)
             if (indexMetadata == null && indexRequest.index() != null) {
@@ -226,9 +231,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
     }
 
-    private static String resolveIndexName(String unresolvedIndexName) {
+    private static String resolveIndexName(final String unresolvedIndexName, final long epochMillis) {
         List<String> resolvedNames = DATE_MATH_EXPRESSION_RESOLVER.resolve(
-            new IndexNameExpressionResolver.ResolverContext(),
+            new IndexNameExpressionResolver.ResolverContext(epochMillis),
             List.of(unresolvedIndexName)
         );
         assert resolvedNames.size() == 1;

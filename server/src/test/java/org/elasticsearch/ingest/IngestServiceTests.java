@@ -1378,8 +1378,9 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     public void testResolveFinalPipelineWithDateMathExpression() {
+        final long epochMillis = randomLongBetween(1, System.currentTimeMillis());
         final DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
-        IndexMetadata.Builder builder = IndexMetadata.builder("idx-" + dateFormatter.formatMillis(System.currentTimeMillis()))
+        IndexMetadata.Builder builder = IndexMetadata.builder("idx-" + dateFormatter.formatMillis(epochMillis))
             .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
             .numberOfShards(1)
             .numberOfReplicas(0);
@@ -1387,7 +1388,7 @@ public class IngestServiceTests extends ESTestCase {
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("<idx-{now/d}>");
-        boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata, epochMillis);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("_none"));

@@ -122,7 +122,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         public <FD extends LeafFieldData, IFD extends IndexFieldData<FD>> FD load(final LeafReaderContext context,
                                                                                   final IFD indexFieldData) throws Exception {
             if (StaticCacheKeyDirectoryReaderWrapper.hasStaticCacheKeyLeafReaderWrapper(context.reader())) {
-                // no caching
+                // no caching as we would otherwise hold onto reader even when underlying resources are closed
                 return indexFieldData.loadDirect(context);
             }
             final ShardId shardId = ShardUtils.extractShardId(context.reader());
@@ -153,7 +153,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final DirectoryReader indexReader,
                                                                                           final IFD indexFieldData) throws Exception {
             if (StaticCacheKeyDirectoryReaderWrapper.getStaticCacheKeyDirectoryReaderWrapper(indexReader) != null) {
-                // no caching
+                // no caching as we would otherwise hold onto reader even when underlying resources are closed
                 return (IFD) indexFieldData.loadGlobalDirect(indexReader);
             }
             final ShardId shardId = ShardUtils.extractShardId(indexReader);

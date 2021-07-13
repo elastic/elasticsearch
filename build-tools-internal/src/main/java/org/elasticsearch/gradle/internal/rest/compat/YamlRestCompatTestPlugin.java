@@ -139,7 +139,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             });
 
         String testTaskName = "yamlRestTestV"+ compatibleVersion + "Compat";
-        
+
         // transform the copied tests task
         TaskProvider<RestCompatTestTransformTask> transformCompatTestTask = project.getTasks()
             .register(testTaskName + "Transform", RestCompatTestTransformTask.class, task -> {

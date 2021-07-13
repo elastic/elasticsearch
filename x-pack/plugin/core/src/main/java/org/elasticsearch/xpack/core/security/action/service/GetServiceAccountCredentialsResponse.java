@@ -17,7 +17,6 @@ import org.elasticsearch.rest.action.RestActions;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 

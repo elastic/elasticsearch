@@ -11,12 +11,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.core.MemoizedSupplier;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.transport.TransportActionProxy;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
@@ -34,13 +32,11 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
 
     private final ThreadContext threadContext;
     private final XPackLicenseState licenseState;
-    private final Settings settings;
     private final Logger logger;
 
-    FieldAndDocumentLevelSecurityRequestInterceptor(ThreadContext threadContext, XPackLicenseState licenseState, Settings settings) {
+    FieldAndDocumentLevelSecurityRequestInterceptor(ThreadContext threadContext, XPackLicenseState licenseState) {
         this.threadContext = threadContext;
         this.licenseState = licenseState;
-        this.settings = settings;
         this.logger = LogManager.getLogger(getClass());
     }
 
@@ -49,9 +45,8 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                           ActionListener<Void> listener) {
         if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
             IndicesRequest indicesRequest = (IndicesRequest) requestInfo.getRequest();
-            // TODO: should we check is DLS/FLS feature allowed here as part of shouldIntercept
-            boolean shouldIntercept = XPackSettings.SECURITY_ENABLED.get(settings);
-            if (supports(indicesRequest) && shouldIntercept) {
+            // TODO: should we check is DLS/FLS feature allowed here
+            if (supports(indicesRequest)) {
                 var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
                 final IndicesAccessControl indicesAccessControl
                     = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);

@@ -65,20 +65,20 @@ public class ServerUtils {
     private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
 
     public static void waitForElasticsearch(Installation installation) throws Exception {
-        boolean xpackEnabled;
+        boolean securityEnabled;
 
         if (installation.distribution.isDocker() == false) {
             Path configFilePath = installation.config("elasticsearch.yml");
             // this is fragile, but currently doesn't deviate from a single line enablement and not worth the parsing effort
             String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
-            xpackEnabled = configFile.contains(SECURITY_DISABLED) == false;
+            securityEnabled = configFile.contains(SECURITY_DISABLED) == false;
         } else {
             // TODO: need a way to check if docker has security enabled, the yml config is not bind mounted so can't look from here
             // we currently enable security in all tests
-            xpackEnabled = true;
+            securityEnabled = true;
         }
 
-        if (xpackEnabled) {
+        if (securityEnabled) {
             // with security enabled, we may or may not have setup a user/pass, so we use a more generic port being available check.
             // this isn't as good as a health check, but long term all this waiting should go away when node startup does not
             // make the http port available until the system is really ready to serve requests
@@ -306,11 +306,11 @@ public class ServerUtils {
     }
 
     public static void disableSecurityFeatures(Installation installation) throws IOException {
-        List<String> yaml = Collections.singletonList("xpack.security.enabled: false");
-        Path yml = installation.config("elasticsearch.yml");
-        try (Stream<String> lines = Files.readAllLines(yml).stream()) {
+        List<String> configLines = Collections.singletonList("xpack.security.enabled: false");
+        Path yamlFile = installation.config("elasticsearch.yml");
+        try (Stream<String> lines = Files.readAllLines(yamlFile).stream()) {
             if (lines.noneMatch(s -> s.startsWith("xpack.security.enabled"))) {
-                Files.write(yml, yaml, CREATE, APPEND);
+                Files.write(yamlFile, configLines, CREATE, APPEND);
             }
         }
     }

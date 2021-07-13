@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -21,7 +20,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.junit.After;
 import org.junit.Before;
 
@@ -51,8 +49,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS)).thenReturn(true);
         clusterService = mock(ClusterService.class);
-        Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
-        interceptor = new SearchRequestInterceptor(threadPool, licenseState, clusterService, settings);
+        interceptor = new SearchRequestInterceptor(threadPool, licenseState, clusterService);
     }
 
     @After

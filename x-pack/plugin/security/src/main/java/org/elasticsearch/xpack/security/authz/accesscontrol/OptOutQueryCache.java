@@ -10,13 +10,11 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.indices.IndicesQueryCache;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
@@ -32,18 +30,15 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
     private final IndicesQueryCache indicesQueryCache;
     private final ThreadContext context;
     private final String indexName;
-    private final Settings settings;
 
     public OptOutQueryCache(
             final IndexSettings indexSettings,
             final IndicesQueryCache indicesQueryCache,
-            final ThreadContext context,
-            final Settings settings) {
+            final ThreadContext context) {
         super(indexSettings);
         this.indicesQueryCache = indicesQueryCache;
         this.context = Objects.requireNonNull(context, "threadContext must not be null");
         this.indexName = indexSettings.getIndex().getName();
-        this.settings = Objects.requireNonNull(settings, "settings must not be null");
     }
 
     @Override
@@ -60,11 +55,6 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
-        if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
-            logger.debug("not opting out of the query cache; authorization is not allowed");
-            return indicesQueryCache.doCache(weight, policy);
-        }
-
         IndicesAccessControl indicesAccessControl = context.getTransient(
                 AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl == null) {

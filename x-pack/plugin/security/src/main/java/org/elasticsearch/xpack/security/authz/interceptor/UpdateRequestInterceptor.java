@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,8 +26,8 @@ import java.util.Map;
  */
 public class UpdateRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
-    public UpdateRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, Settings settings) {
-        super(threadPool.getThreadContext(), licenseState, settings);
+    public UpdateRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState) {
+        super(threadPool.getThreadContext(), licenseState);
     }
 
     @Override

@@ -108,6 +108,19 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
+    public void testSecurityBasic() {
+        XPackLicenseState licenseState = new XPackLicenseState( () -> 0);
+        licenseState.update(BASIC, true, Long.MAX_VALUE, null);
+
+        assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(false));
+    }
+
+
+
     public void testSecurityGold() {
         XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         licenseState.update(GOLD, true, Long.MAX_VALUE, null);

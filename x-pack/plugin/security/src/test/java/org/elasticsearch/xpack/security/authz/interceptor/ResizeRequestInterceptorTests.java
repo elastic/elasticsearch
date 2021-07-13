@@ -79,7 +79,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
 
         ResizeRequestInterceptor resizeRequestInterceptor =
-                new ResizeRequestInterceptor(threadPool, licenseState, Settings.EMPTY, auditTrailService);
+                new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService);
 
         PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
         RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("bar", "foo"), action);
@@ -117,7 +117,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
         ResizeRequestInterceptor resizeRequestInterceptor =
-                new ResizeRequestInterceptor(threadPool, licenseState, Settings.EMPTY, auditTrailService);
+                new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService);
 
         AuthorizationEngine mockEngine = mock(AuthorizationEngine.class);
         {

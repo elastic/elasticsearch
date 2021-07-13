@@ -74,7 +74,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
 
         IndicesAliasesRequestInterceptor interceptor =
-                new IndicesAliasesRequestInterceptor(threadContext, licenseState, Settings.EMPTY, auditTrailService);
+                new IndicesAliasesRequestInterceptor(threadContext, licenseState, auditTrailService);
 
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         if (randomBoolean()) {
@@ -115,7 +115,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
         IndicesAliasesRequestInterceptor interceptor =
-                new IndicesAliasesRequestInterceptor(threadContext, licenseState, Settings.EMPTY, auditTrailService);
+                new IndicesAliasesRequestInterceptor(threadContext, licenseState, auditTrailService);
 
         final IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         if (randomBoolean()) {

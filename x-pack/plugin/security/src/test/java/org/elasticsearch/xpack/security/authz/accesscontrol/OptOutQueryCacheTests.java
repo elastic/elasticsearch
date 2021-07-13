@@ -24,7 +24,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
@@ -125,23 +124,6 @@ public class OptOutQueryCacheTests extends ESTestCase {
         assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
     }
 
-    public void testOptOutQueryCacheAuthIsNotAllowed() {
-        final Settings.Builder settings = Settings.builder()
-                .put("index.version.created", Version.CURRENT)
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, settings.build());
-        final Weight weight = mock(Weight.class);
-        final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
-        cache.doCache(weight, policy);
-        verify(indicesQueryCache).doCache(same(weight), same(policy));
-    }
-
     public void testOptOutQueryCacheNoIndicesPermissions() {
         final Settings.Builder settings = Settings.builder()
                 .put("index.version.created", Version.CURRENT)
@@ -151,7 +133,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, Settings.EMPTY);
+        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext);
         final Weight weight = mock(Weight.class);
         final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
         final Weight w = cache.doCache(weight, policy);
@@ -173,7 +155,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
         when(indicesAccessControl.getIndexPermissions("index")).thenReturn(indexAccessControl);
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
-        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, Settings.EMPTY);
+        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext);
         final Weight weight = mock(Weight.class);
         final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
         cache.doCache(weight, policy);

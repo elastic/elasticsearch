@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -29,9 +28,8 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     public static final Version VERSION_SHARD_SEARCH_INTERCEPTOR = Version.V_7_11_2;
     private final ClusterService clusterService;
 
-    public SearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, ClusterService clusterService,
-                                    Settings settings) {
-        super(threadPool.getThreadContext(), licenseState, settings);
+    public SearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, ClusterService clusterService) {
+        super(threadPool.getThreadContext(), licenseState);
         this.clusterService = clusterService;
     }
 

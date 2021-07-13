@@ -20,7 +20,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
@@ -148,7 +147,6 @@ public class IPFilter {
 
     private final AuditTrailService auditTrailService;
     private final XPackLicenseState licenseState;
-    private final Settings settings;
     private final boolean alwaysAllowBoundAddresses;
 
     private volatile Map<String, SecurityIpFilterRule[]> rules = Collections.emptyMap();
@@ -169,7 +167,6 @@ public class IPFilter {
                     XPackLicenseState licenseState) {
         this.auditTrailService = auditTrailService;
         this.licenseState = licenseState;
-        this.settings = settings;
         this.alwaysAllowBoundAddresses = ALLOW_BOUND_ADDRESSES_SETTING.get(settings);
         httpDenyFilter = HTTP_FILTER_DENY_SETTING.get(settings);
         httpAllowFilter = HTTP_FILTER_ALLOW_SETTING.get(settings);
@@ -248,8 +245,7 @@ public class IPFilter {
     }
 
     public boolean accept(String profile, InetSocketAddress peerAddress) {
-        if (XPackSettings.SECURITY_ENABLED.get(settings) == false ||
-            licenseState.checkFeature(Feature.SECURITY_IP_FILTERING) == false) {
+        if (licenseState.checkFeature(Feature.SECURITY_IP_FILTERING) == false) {
             return true;
         }
 

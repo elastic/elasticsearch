@@ -10,13 +10,11 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.core.MemoizedSupplier;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
@@ -35,14 +33,11 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
 
     private final ThreadContext threadContext;
     private final XPackLicenseState licenseState;
-    private final Settings settings;
     private final AuditTrailService auditTrailService;
 
-    public ResizeRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, Settings settings,
-                                    AuditTrailService auditTrailService) {
+    public ResizeRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, AuditTrailService auditTrailService) {
         this.threadContext = threadPool.getThreadContext();
         this.licenseState = licenseState;
-        this.settings = settings;
         this.auditTrailService = auditTrailService;
     }
 
@@ -53,39 +48,35 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
             final ResizeRequest request = (ResizeRequest) requestInfo.getRequest();
             final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
             final AuditTrail auditTrail = auditTrailService.get();
-            if (XPackSettings.SECURITY_ENABLED.get(settings)) {
-                var licenseChecker = new MemoizedSupplier<>(() -> frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
-                IndicesAccessControl indicesAccessControl =
-                    threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-                IndicesAccessControl.IndexAccessControl indexAccessControl =
-                    indicesAccessControl.getIndexPermissions(request.getSourceIndex());
-                if (indexAccessControl != null) {
-                    final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                    final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                    if ((fls || dls) && licenseChecker.get()) {
-                        listener.onFailure(new ElasticsearchSecurityException("Resize requests are not allowed for users when " +
-                            "field or document level security is enabled on the source index", RestStatus.BAD_REQUEST));
-                        return;
-                    }
+            var licenseChecker = new MemoizedSupplier<>(() -> frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
+            IndicesAccessControl indicesAccessControl =
+                threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            IndicesAccessControl.IndexAccessControl indexAccessControl =
+                indicesAccessControl.getIndexPermissions(request.getSourceIndex());
+            if (indexAccessControl != null) {
+                final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
+                final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
+                if ((fls || dls) && licenseChecker.get()) {
+                    listener.onFailure(new ElasticsearchSecurityException("Resize requests are not allowed for users when " +
+                        "field or document level security is enabled on the source index", RestStatus.BAD_REQUEST));
+                    return;
                 }
-
-                authorizationEngine.validateIndexPermissionsAreSubset(requestInfo, authorizationInfo,
-                    Collections.singletonMap(request.getSourceIndex(), Collections.singletonList(request.getTargetIndexRequest().index())),
-                    wrapPreservingContext(ActionListener.wrap(authzResult -> {
-                        if (authzResult.isGranted()) {
-                            listener.onResponse(null);
-                        } else {
-                            if (authzResult.isAuditable()) {
-                                auditTrail.accessDenied(extractRequestId(threadContext), requestInfo.getAuthentication(),
-                                    requestInfo.getAction(), request, authorizationInfo);
-                            }
-                            listener.onFailure(Exceptions.authorizationError("Resizing an index is not allowed when the target index " +
-                                "has more permissions than the source index"));
-                        }
-                    }, listener::onFailure), threadContext));
-            } else {
-                listener.onResponse(null);
             }
+
+            authorizationEngine.validateIndexPermissionsAreSubset(requestInfo, authorizationInfo,
+                Collections.singletonMap(request.getSourceIndex(), Collections.singletonList(request.getTargetIndexRequest().index())),
+                wrapPreservingContext(ActionListener.wrap(authzResult -> {
+                    if (authzResult.isGranted()) {
+                        listener.onResponse(null);
+                    } else {
+                        if (authzResult.isAuditable()) {
+                            auditTrail.accessDenied(extractRequestId(threadContext), requestInfo.getAuthentication(),
+                                requestInfo.getAction(), request, authorizationInfo);
+                        }
+                        listener.onFailure(Exceptions.authorizationError("Resizing an index is not allowed when the target index " +
+                            "has more permissions than the source index"));
+                    }
+                }, listener::onFailure), threadContext));
         } else {
             listener.onResponse(null);
         }

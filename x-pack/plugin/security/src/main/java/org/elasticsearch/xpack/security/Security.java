@@ -564,14 +564,14 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         securityIndex.get().addStateListener(authcService.get()::onSecurityIndexStateChange);
 
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
-            new ResizeRequestInterceptor(threadPool, getLicenseState(), settings, auditTrailService),
-            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), settings, auditTrailService));
+            new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
+            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService));
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
             requestInterceptors.addAll(Arrays.asList(
-                new SearchRequestInterceptor(threadPool, getLicenseState(), clusterService, settings),
-                new ShardSearchRequestInterceptor(threadPool, getLicenseState(), clusterService, settings),
-                new UpdateRequestInterceptor(threadPool, getLicenseState(), settings),
-                new BulkShardRequestInterceptor(threadPool, getLicenseState(), settings)
+                new SearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
+                new ShardSearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
+                new UpdateRequestInterceptor(threadPool, getLicenseState()),
+                new BulkShardRequestInterceptor(threadPool, getLicenseState())
             ));
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
@@ -596,7 +596,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 authzService, getLicenseState(), getSslService(), securityContext.get(), destructiveOperations, clusterService));
 
         securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, auditTrailService, getLicenseState(),
-            threadPool, securityContext.get(), settings,  destructiveOperations));
+            threadPool, securityContext.get(), destructiveOperations));
 
         components.add(new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get()));
 
@@ -833,7 +833,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 module.forceQueryCacheProvider(
                         (indexSettings, cache) -> {
                             final OptOutQueryCache queryCache =
-                                    new OptOutQueryCache(indexSettings, cache, threadContext.get(), settings);
+                                    new OptOutQueryCache(indexSettings, cache, threadContext.get());
 
                             return queryCache;
                         });

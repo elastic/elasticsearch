@@ -720,14 +720,14 @@ public class AuthorizationService {
         @Override
         public void getAsync(ActionListener<V> listener) {
             if (valueFuture == null) {
-                boolean addedListener = false;
+                boolean firstInvocation = false;
                 synchronized (this) {
                     if (valueFuture == null) {
                         valueFuture = new ListenableFuture<>();
-                        addedListener = true;
+                        firstInvocation = true;
                     }
                 }
-                if (addedListener) {
+                if (firstInvocation) {
                     asyncSupplier.getAsync(valueFuture);
                 }
             }

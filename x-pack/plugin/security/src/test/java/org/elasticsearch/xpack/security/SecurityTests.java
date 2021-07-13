@@ -68,6 +68,8 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -143,17 +145,6 @@ public class SecurityTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class), mock(ScriptService.class),
             xContentRegistry(), env, TestIndexNameExpressionResolver.newInstance(threadContext));
-    }
-
-    private Collection<Object> createComponentsWithSecurityNotExplicitlyEnabled(Settings testSettings, SecurityExtension... extensions)
-        throws Exception {
-        if (security != null) {
-            throw new IllegalStateException("Security object already exists (" + security + ")");
-        }
-        Settings settings = Settings.builder()
-            .put(testSettings)
-            .put("path.home", createTempDir()).build();
-        return createComponentsUtil(settings, extensions);
     }
 
     private Collection<Object> createComponents(Settings testSettings, SecurityExtension... extensions) throws Exception {
@@ -499,26 +490,36 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testLicenseUpdateFailureHandlerUpdate() throws Exception {
-        Settings settings = Settings.builder().
-            put("xpack.security.authc.api_key.enabled", "true").
-            build();
-        Collection<Object> components = createComponentsWithSecurityNotExplicitlyEnabled(settings);
+        final Path kerbKeyTab = createTempFile("es", "keytab");
+        Files.write(kerbKeyTab, new byte[0]);
+        Settings settings = Settings.builder()
+            .put("xpack.security.authc.api_key.enabled", "true")
+            .put("xpack.security.authc.realms.kerberos.kb.enabled", true)
+            .put("xpack.security.authc.realms.kerberos.kb.order", 2)
+            .put("xpack.security.authc.realms.kerberos.kb.keytab.path", kerbKeyTab)
+            .build();
+        Collection<Object> components = createComponents(settings);
         AuthenticationService service = findComponent(AuthenticationService.class, components);
         assertNotNull(service);
         RestRequest request = new FakeRestRequest();
         final AtomicBoolean completed = new AtomicBoolean(false);
         service.authenticate(request, ActionListener.wrap(result -> {
             assertTrue(completed.compareAndSet(false, true));
-        }, this::logAndFail));
-        assertTrue(completed.compareAndSet(true, false));
+        }, e -> {
+            // On trial license, kerberos is allowed and the WWW-Authenticate response header should reflect that
+            verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "Negotiate", "ApiKey");
+        }));
         threadContext.stashContext();
         licenseState.update(
-            randomFrom(License.OperationMode.GOLD, License.OperationMode.ENTERPRISE, License.OperationMode.PLATINUM),
+            randomFrom(License.OperationMode.GOLD, License.OperationMode.BASIC),
             true, Long.MAX_VALUE, null);
         service.authenticate(request, ActionListener.wrap(result -> {
             assertTrue(completed.compareAndSet(false, true));
-        }, this::VerifyBasicAuthenticationHeader));
-        if(completed.get()){
+        }, e -> {
+            // On basic or gold license, kerberos is not allowed and the WWW-Authenticate response header should also reflect that
+            verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "ApiKey");
+        }));
+        if (completed.get()) {
             fail("authentication succeeded but it shouldn't");
         }
     }
@@ -615,10 +616,12 @@ public class SecurityTests extends ESTestCase {
         fail("unexpected exception " + e.getMessage());
     }
 
-    private void VerifyBasicAuthenticationHeader(Exception e) {
+    private void verifyHasAuthenticationHeaderValue(Exception e, String... expectedValues) {
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));
         assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), notNullValue());
-        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"),
-            hasItem("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
+        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate").size(), equalTo(expectedValues.length));
+        for (String v: expectedValues) {
+            assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), hasItem(v));
+        }
     }
 }

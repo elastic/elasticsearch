@@ -88,7 +88,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
     public void testUsage() throws Exception {
         final boolean explicitlyDisabled = randomBoolean();
-        final boolean enabled = explicitlyDisabled == false && randomBoolean();
+        final boolean enabled = explicitlyDisabled == false;
         final boolean operatorPrivilegesAvailable = randomBoolean();
         when(licenseState.isAllowed(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(operatorPrivilegesAvailable);
 

@@ -32,7 +32,7 @@ import java.util.Objects;
 public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsAction.Response> {
 
     public static final GetDeploymentStatsAction INSTANCE = new GetDeploymentStatsAction();
-    public static final String NAME = "cluster:monitor/xpack/ml/deployments/stats/get";
+    public static final String NAME = "cluster:monitor/xpack/ml/trained_models/deployments/stats/get";
 
     private GetDeploymentStatsAction() {
         super(NAME, GetDeploymentStatsAction.Response::new);

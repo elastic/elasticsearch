@@ -775,12 +775,12 @@ public abstract class ESRestTestCase extends ESTestCase {
             // ignore ilm history which can pop up after deleting all data streams but shouldn't interfere
             ".ds-ilm-history-*",
             // watcher may recreate its indices unexpectedly
-            ".watches"
+            ".watches*"
         };
 
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
-            final Request deleteRequest = new Request("DELETE", "*,-" + String.join(",-", indicesToIgnore));
+            final Request deleteRequest = new Request("DELETE", "*,-" + String.join(",", indicesToIgnore));
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
 
             // TODO: 7.14 for backwards compatibility

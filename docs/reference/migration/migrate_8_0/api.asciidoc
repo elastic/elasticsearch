@@ -86,8 +86,10 @@ Use <<ml-api-datafeed-endpoint,{dfeeds}>> instead.
 [%collapsible]
 ====
 *Details* +
-The <<index-stats-api-request,index stats>>,
-<<cluster-nodes-stats-api-request,node stats>>,
+The <<indices-segments,segments>>,
+<<index-stats-api-request,index stats>>,
+<<cluster-nodes-stats-api-request,nodes stats>>,
+<<cat-segments-api-request,cat segments>>,
 <<cat-shards-api-request,cat shards>>,
 <<cat-indices-api-request,cat indices>> and <<cat-nodes-api-request,cat nodes>>
 APIs no longer expose memory usage of segments, including memory usage per

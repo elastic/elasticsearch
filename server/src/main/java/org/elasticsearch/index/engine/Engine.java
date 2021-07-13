@@ -882,7 +882,6 @@ public abstract class Engine implements Closeable {
         } catch (IOException e) {
             logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
         }
-        segment.memoryInBytes = segmentReader.ramBytesUsed();
         segment.segmentSort = info.info.getIndexSort();
         if (verbose) {
             segment.ramTree = Accountables.namedAccountable("root", segmentReader);

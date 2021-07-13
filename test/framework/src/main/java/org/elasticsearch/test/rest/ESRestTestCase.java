@@ -33,6 +33,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
@@ -756,14 +757,25 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (minimumNodeVersion().onOrAfter(Version.CURRENT)) {
             // feature reset deletes system indices
             final Request postRequest = new Request("POST", "/_features/_reset");
-            adminClient().performRequest(postRequest);
+            Response response;
+            try {
+                response = adminClient().performRequest(postRequest);
+            } catch (ResponseException e) {
+                response = e.getResponse();
+        }
+        if (response.getStatusLine().getStatusCode() != 200) {
+            throw new IllegalStateException("Failed to reset all feature states: "
+                + Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)));
+            }
         }
     }
 
     protected static void wipeAllIndices() throws IOException {
         final String[] indicesToIgnore = new String[] {
             // ignore ilm history which can pop up after deleting all data streams but shouldn't interfere
-            ".ds-ilm-history-*"
+            ".ds-ilm-history-*",
+            // watcher may recreate its indices unexpectedly
+            ".watches"
         };
 
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);

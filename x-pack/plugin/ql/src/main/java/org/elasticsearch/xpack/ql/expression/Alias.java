@@ -97,4 +97,9 @@ public class Alias extends NamedExpression {
     public String toString() {
         return child + " AS " + name() + "#" + id();
     }
+
+    @Override
+    public String nodeString() {
+        return child.nodeString() + " AS " + name();
+    }
 }

@@ -529,28 +529,27 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 protected void doRun() {
                     ProcessContext processContext = processByAllocation.get(jobTask.getAllocationId());
                     if (processContext == null) {
-                        logger.debug("Aborted opening job [{}] as it has been closed", job.getId());
+                        logger.debug("Aborted opening job [{}] as it has been closed or killed", job.getId());
                         return;
                     }
                     // We check again after the process state is locked to ensure no race conditions are hit.
                     if (processContext.getJobTask().isClosing()) {
-                        logger.debug("Aborted opening job [{}] as it is being closed", job.getId());
+                        logger.debug("Aborted opening job [{}] as it is being closed (before starting process)", job.getId());
                         jobTask.markAsCompleted();
                         return;
                     }
 
                     try {
                         if (createProcessAndSetRunning(processContext, job, params, closeHandler)) {
+                            // This next check also covers the case of a process being killed while it was being started.
+                            // It relies on callers setting the closing flag on the job task before calling this method.
+                            // It also relies on the fact that at this stage of the process lifecycle kill and close are
+                            // basically identical, i.e. the process has done so little work that making it exit by closing
+                            // its input stream will not result in side effects.
                             if (processContext.getJobTask().isClosing()) {
-                                logger.debug("Aborted opening job [{}] as it is being closed", job.getId());
+                                logger.debug("Aborted opening job [{}] as it is being closed or killed (after starting process)",
+                                    job.getId());
                                 closeProcessAndTask(processContext, jobTask, "job is already closing");
-                                return;
-                            }
-                            // It is possible that a `kill` request came in before the communicator was set
-                            // This means that the kill was not handled appropriately and we continued down this execution path
-                            if (processContext.shouldBeKilled()) {
-                                logger.debug("Aborted opening job [{}] as it is being killed", job.getId());
-                                processContext.killIt();
                                 return;
                             }
                             processContext.getAutodetectCommunicator().restoreState(params.modelSnapshot());
@@ -689,7 +688,6 @@ public class AutodetectProcessManager implements ClusterStateListener {
         }
         return new AutodetectCommunicator(job, process, new StateStreamer(client), dataCountsReporter, processor, handler,
                 xContentRegistry, autodetectWorkerExecutor);
-
     }
 
     private void notifyLoadingSnapshot(String jobId, AutodetectParams autodetectParams) {
@@ -736,6 +734,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
     private void closeProcessAndTask(ProcessContext processContext, JobTask jobTask, String reason) {
         String jobId = jobTask.getJobId();
         long allocationId = jobTask.getAllocationId();
+        // We use a lock to prevent simultaneous open and close from conflicting.  However, we found
+        // that we could not use the lock to stop kill from conflicting because that could lead to
+        // a kill taking an unacceptably long time to have an effect, which largely defeats the point
+        // of having an option to quickly kill a process.  Therefore we have to deal with the effects
+        // of kill running simultaneously with open and close.
+        boolean jobKilled = false;
         processContext.tryLock();
         try {
             if (processContext.setDying() == false) {
@@ -745,7 +749,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 return;
             }
 
-            if (reason == null) {
+            // If the job was killed early on during its open sequence then
+            // its context will already have been removed from this map
+            jobKilled = (processByAllocation.containsKey(allocationId) == false);
+            if (jobKilled) {
+                logger.debug("[{}] Cleaning up job opened after kill", jobId);
+            } else if (reason == null) {
                 logger.info("Closing job [{}]", jobId);
             } else {
                 logger.info("Closing job [{}], because [{}]", jobId, reason);
@@ -753,21 +762,34 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
             AutodetectCommunicator communicator = processContext.getAutodetectCommunicator();
             if (communicator == null) {
+                assert jobKilled == false
+                    : "Job " + jobId + " killed before process started yet still had no communicator during cleanup after process started";
                 logger.debug("Job [{}] is being closed before its process is started", jobId);
                 jobTask.markAsCompleted();
+                processByAllocation.remove(allocationId);
             } else {
-                communicator.close();
+                if (jobKilled) {
+                    communicator.killProcess(true, false, false);
+                } else {
+                    // communicator.close() may take a long time to run, if the job persists a large model state as a
+                    // result of calling it.  We want to leave open the option to kill the job during this time, which
+                    // is why the allocation ID must remain in the map until after the close is complete.
+                    communicator.close();
+                    processByAllocation.remove(allocationId);
+                }
             }
-
-            processByAllocation.remove(allocationId);
         } catch (Exception e) {
-            // If the close failed because the process has explicitly been killed by us then just pass on that exception
+            // If the close failed because the process has explicitly been killed by us then just pass on that exception.
+            // (Note that jobKilled may be false in this case, if the kill is executed while communicator.close() is running.)
             if (e instanceof ElasticsearchStatusException && ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT) {
-                throw e;
+                logger.trace("[{}] Conflict between kill and close during autodetect process cleanup - job {} before cleanup started",
+                    jobId, jobKilled ? "killed" : "not killed");
+                throw (ElasticsearchStatusException) e;
             }
-            logger.warn("[" + jobId + "] Exception closing autodetect process", e);
+            String msg = jobKilled ? "Exception cleaning up autodetect process started after kill" : "Exception closing autodetect process";
+            logger.warn("[" + jobId + "] " + msg, e);
             setJobState(jobTask, JobState.FAILED, e.getMessage());
-            throw ExceptionsHelper.serverError("Exception closing autodetect process", e);
+            throw ExceptionsHelper.serverError(msg, e);
         } finally {
             // to ensure the contract that multiple simultaneous close calls for the same job wait until
             // the job is closed is honoured, hold the lock throughout the close procedure so that another

@@ -427,6 +427,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                         ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                         NamedXContentRegistry xContentRegistry, Environment environment,
                                         IndexNameExpressionResolver expressionResolver) throws Exception {
+        logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null));
         }

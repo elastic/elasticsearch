@@ -581,6 +581,35 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
+    public void testSecurityStatusMessageInLog() throws Exception{
+        final Logger mockLogger = LogManager.getLogger(Security.class);
+        boolean securityEnabled = true;
+        Loggers.setLevel(mockLogger, Level.INFO);
+        final MockLogAppender appender = new MockLogAppender();
+        Loggers.addAppender(mockLogger, appender);
+        appender.start();
+
+        Settings.Builder settings = Settings.builder()
+            .put("path.home", createTempDir());
+        if (randomBoolean()) {
+            // randomize explicit vs implicit configuration
+            securityEnabled = randomBoolean();
+            settings.put("xpack.security.enabled", securityEnabled);
+        }
+
+        try {
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "message", Security.class.getName(), Level.INFO,
+                "Security is " + (securityEnabled ? "enabled" : "disabled")
+            ));
+            createComponents(settings.build());
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.removeAppender(mockLogger, appender);
+        }
+    }
+
     private void logAndFail(Exception e) {
         logger.error("unexpected exception", e);
         fail("unexpected exception " + e.getMessage());

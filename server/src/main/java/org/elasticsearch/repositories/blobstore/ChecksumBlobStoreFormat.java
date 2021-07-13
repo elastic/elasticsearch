@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.CorruptStateException;
 
@@ -108,6 +109,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                     .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, wrappedStream)
             ) {
                 result = reader.apply(repoName, parser);
+                XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
             }
             deserializeMetaBlobInputStream.verifyFooter();
             return result;

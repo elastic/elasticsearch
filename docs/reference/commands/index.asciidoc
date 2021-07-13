@@ -12,6 +12,7 @@ tasks from the command line:
 * <<elasticsearch-croneval>>
 * <<elasticsearch-keystore>>
 * <<node-tool>>
+* <<reset-elastic-password>>
 * <<saml-metadata>>
 * <<setup-passwords>>
 * <<shard-tool>>

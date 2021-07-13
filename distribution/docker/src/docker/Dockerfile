@@ -339,7 +339,7 @@ RUN chmod g=u /etc/passwd && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
     ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts && \\
     chmod 0775 /usr/share/elasticsearch && \\
-    chown elasticsearch /usr/share/elasticsearch/config
+    chown elasticsearch bin config config/jvm.options.d data logs plugins
 
 EXPOSE 9200 9300
 

@@ -213,7 +213,7 @@ public class Docker {
 
                     // I'm not sure why we're already removing this container, but that's OK.
                     if (isErrorAcceptable == false) {
-                        throw new RuntimeException("Command was not successful: [" + command + "] result: " + result.toString());
+                        throw new RuntimeException("Command was not successful: [" + command + "] result: " + result);
                     }
                 }
             } finally {
@@ -463,6 +463,7 @@ public class Docker {
      * @param es the installation to verify
      */
     public static void verifyContainerInstallation(Installation es) {
+        // Ensure the `elasticsearch` user and group exist.
         // These lines will both throw an exception if the command fails
         dockerShell.run("id elasticsearch");
         dockerShell.run("getent group elasticsearch");
@@ -473,15 +474,13 @@ public class Docker {
 
         assertPermissionsAndOwnership(es.home, "root", "root", p775);
 
-        Stream.of(es.bin, es.bundledJdk, es.lib, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p555));
-
-        Stream.of(es.data, es.logs, es.config.resolve("jvm.options.d"), es.plugins)
-            .forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p775));
+        Stream.of(es.bundledJdk, es.lib, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p555));
 
         // You can't install plugins that include configuration when running as `elasticsearch` and the `config`
         // dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
         // config directory.
-        assertPermissionsAndOwnership(es.config, "elasticsearch", "root", p775);
+        Stream.of(es.bin, es.config, es.logs, es.config.resolve("jvm.options.d"), es.data, es.plugins)
+            .forEach(dir -> assertPermissionsAndOwnership(dir, "elasticsearch", "root", p775));
 
         Stream.of(es.bin, es.bundledJdk.resolve("bin"), es.modules.resolve("x-pack-ml/platform/linux-*/bin"))
             .forEach(binariesPath -> assertPermissionsAndOwnership(binariesPath.resolve("*"), "root", "root", p555));
@@ -607,13 +606,5 @@ public class Docker {
      */
     public static void restartContainer() {
         sh.run("docker restart " + containerId);
-    }
-
-    private static String getArchitecture() {
-        String architecture = System.getProperty("os.arch", "x86_64");
-        if (architecture.equals("amd64")) {
-            architecture = "x86_64";
-        }
-        return architecture;
     }
 }

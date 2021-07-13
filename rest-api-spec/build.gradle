@@ -28,7 +28,7 @@ testClusters.all {
 
 tasks.named("test").configure { enabled = false }
 tasks.named("jarHell").configure { enabled = false }
-def v7compatiblityNotSupportedTests = {
+def v7compatibilityNotSupportedTests = {
   return [
           // Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API
           'cat*/*/*',
@@ -65,6 +65,13 @@ def v7compatiblityNotSupportedTests = {
           'mget/16_basic_with_types/Basic multi-get',
           // asserting about type not found won't work as we ignore the type information
           'explain/40_mix_typeless_typeful/Explain with typeless API on an index that has types',
+          // translog settings removal is not supported under compatible api
+          'indices.stats/20_translog/Translog retention settings are deprecated',
+          'indices.stats/20_translog/Translog retention without soft_deletes',
+          'indices.stats/20_translog/Translog stats on closed indices without soft-deletes',
+
+          // upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex
+          'indices.upgrade/*/*'
   ]
 }
 tasks.named("yamlRestCompatTest").configure {
@@ -84,49 +91,15 @@ tasks.named("yamlRestCompatTest").configure {
     'indices.open/10_basic/?wait_for_active_shards=index-setting',
     // not fixing this in #70966
     'indices.put_template/11_basic_with_types/Put template with empty mappings',
-    'indices.shrink/30_copy_settings/Copy settings during shrink index',
-    'indices.split/30_copy_settings/Copy settings during split index',
-    'indices.stats/15_types/Types - _all metric',
-    'indices.stats/15_types/Types - indexing metric',
-    'indices.stats/15_types/Types - multi',
-    'indices.stats/15_types/Types - multi metric',
-    'indices.stats/15_types/Types - one',
-    'indices.stats/15_types/Types - pattern',
-    'indices.stats/15_types/Types - star',
-    'indices.stats/20_translog/Translog retention settings are deprecated',
-    'indices.stats/20_translog/Translog retention without soft_deletes',
-    'indices.stats/20_translog/Translog stats on closed indices without soft-deletes',
-    'indices.upgrade/10_basic/Basic test for upgrade indices',
-    'indices.upgrade/10_basic/Upgrade indices allow no indices',
-    'indices.upgrade/10_basic/Upgrade indices disallow no indices',
-    'indices.upgrade/10_basic/Upgrade indices disallow unavailable',
-    'indices.upgrade/10_basic/Upgrade indices ignore unavailable',
-    'mlt/20_docs/Basic mlt query with docs',
-    'mlt/30_unlike/Basic mlt query with unlike',
-    'search.aggregation/10_histogram/Deprecated _time order',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
-    'search.aggregation/20_terms/Deprecated _term order',
+    'search.aggregation/20_terms/*profiler*', // The profiler results aren't backwards compatible.
     'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
-    'mtermvectors/11_basic_with_types/Basic tests for multi termvector get',
-    'mtermvectors/21_deprecated_with_types/Deprecated camel case and _ parameters should fail in Term Vectors query',
-    'mtermvectors/30_mix_typeless_typeful/mtermvectors without types on an index that has types',
-    'search/10_source_filtering/docvalue_fields with default format', //use_field_mapping change
-    'search/40_indices_boost/Indices boost using object', //indices_boost
+    'search.aggregation/370_doc_count_field/Test filters agg with doc_count', // Uses profiler for assertions which is not backwards compatible
     'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', //terms_lookup
-    'search/171_terms_query_with_types/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', //bulk
     'search/260_parameter_validation/test size=-1 is deprecated', //size=-1 change
     'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
     'search/340_type_query/type query', // type_query - probably should behave like match_all
-    'search_shards/10_basic/Search shards aliases with and without filters',
-    'snapshot.get/10_basic/Get missing snapshot info succeeds when ignore_unavailable is true',
-    'snapshot.get/10_basic/Get missing snapshot info throws an exception',
-    'snapshot.get/10_basic/Get snapshot info',
-    'snapshot.get/10_basic/Get snapshot info contains include_global_state',
-    'snapshot.get/10_basic/Get snapshot info when verbose is false',
-    'snapshot.get/10_basic/Get snapshot info with metadata',
-    'snapshot.get/10_basic/Get snapshot info with index details',
-    'suggest/20_completion/Suggestions with source should work'
-   ] + v7compatiblityNotSupportedTests())
+   ] + v7compatibilityNotSupportedTests())
     .join(',')
 }
 
@@ -236,6 +209,17 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceValueInMatch("docs.0._type", "_doc", "IDs")
   task.replaceValueInMatch("docs.1._type", "_doc", "IDs")
   task.replaceValueInMatch("docs.2._type", "_doc", "Routing")
+
+  //overrides for indices.stats
+  //TODO fix to remove the below match
+  task.replaceKeyInMatch("_all.primaries.indexing.types.baz.index_total",
+    "_all.primaries.indexing.types._doc.index_total"
+  )
+  task.replaceKeyInMatch("_all.primaries.indexing.types.bar.index_total",
+    "_all.primaries.indexing.types._doc.index_total"
+  )
+  task.replaceValueInMatch("_all.primaries.indexing.types._doc.index_total", 2)
+
 })
 
 tasks.register('enforceYamlTestConvention').configure {

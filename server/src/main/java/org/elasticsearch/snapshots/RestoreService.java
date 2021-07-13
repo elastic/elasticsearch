@@ -77,7 +77,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -308,7 +307,14 @@ public class RestoreService implements ClusterStateApplier {
             metadataBuilder = Metadata.builder();
         }
 
-        List<String> requestIndices = new ArrayList<>(Arrays.asList(request.indices()));
+        final String[] indicesInRequest = request.indices();
+        List<String> requestIndices = new ArrayList<>(indicesInRequest.length);
+        if (indicesInRequest.length == 0) {
+            // no specific indices request means restore everything
+            requestIndices.add("*");
+        } else {
+            Collections.addAll(requestIndices, indicesInRequest);
+        }
 
         // Get data stream metadata for requested data streams
         Tuple<Map<String, DataStream>, Map<String, DataStreamAlias>> result = getDataStreamsToRestore(

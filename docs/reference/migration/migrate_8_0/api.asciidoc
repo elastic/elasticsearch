@@ -88,6 +88,7 @@ Use <<ml-api-datafeed-endpoint,{dfeeds}>> instead.
 *Details* +
 The <<index-stats-api-request,index stats>>,
 <<cluster-nodes-stats-api-request,node stats>>,
+<<cat-shards-api-request,cat shards>>,
 <<cat-indices-api-request,cat indices>> and <<cat-nodes-api-request,cat nodes>>
 APIs no longer expose memory usage of segments, including memory usage per
 data-structure such as memory usage of terms, points or doc values.

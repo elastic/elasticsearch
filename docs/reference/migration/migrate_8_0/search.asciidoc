@@ -21,7 +21,7 @@ Aggregating and sorting on `_id` should be avoided. As an alternative, the
 enabled (note that this does not apply to auto-generated IDs).
 ====
 
-[[id-field-data]]
+[[max_clause_count_change]]
 .Changed semantics of the `indices.query.bool.max_clause_count` setting.
 [%collapsible]
 ====

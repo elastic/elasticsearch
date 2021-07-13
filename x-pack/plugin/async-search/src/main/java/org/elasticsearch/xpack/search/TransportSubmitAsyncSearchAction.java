@@ -6,15 +6,10 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -25,10 +20,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.tasks.Task;

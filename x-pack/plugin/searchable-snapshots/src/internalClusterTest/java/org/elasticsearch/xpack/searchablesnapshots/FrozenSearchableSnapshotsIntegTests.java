@@ -702,7 +702,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             .get());
 
         ClusterStatsResponse response1 = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response1.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
+        assertThat(response1.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0L));
         assertThat(response1.getIndicesStats().getFieldData().getEvictions(), equalTo(0L));
 
         assertSearchResponse(client().prepareSearch("index")

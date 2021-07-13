@@ -14,6 +14,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReader.CacheKey;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.StaticCacheKeyDirectoryReaderWrapper;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.cache.Cache;
@@ -120,6 +121,10 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         @SuppressWarnings("unchecked")
         public <FD extends LeafFieldData, IFD extends IndexFieldData<FD>> FD load(final LeafReaderContext context,
                                                                                   final IFD indexFieldData) throws Exception {
+            if (StaticCacheKeyDirectoryReaderWrapper.hasStaticCacheKeyLeafReaderWrapper(context.reader())) {
+                // no caching
+                return indexFieldData.loadDirect(context);
+            }
             final ShardId shardId = ShardUtils.extractShardId(context.reader());
             final IndexReader.CacheHelper cacheHelper = context.reader().getCoreCacheHelper();
             if (cacheHelper == null) {
@@ -147,6 +152,10 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         @SuppressWarnings("unchecked")
         public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final DirectoryReader indexReader,
                                                                                           final IFD indexFieldData) throws Exception {
+            if (StaticCacheKeyDirectoryReaderWrapper.getStaticCacheKeyDirectoryReaderWrapper(indexReader) != null) {
+                // no caching
+                return (IFD) indexFieldData.loadGlobalDirect(indexReader);
+            }
             final ShardId shardId = ShardUtils.extractShardId(indexReader);
             final IndexReader.CacheHelper cacheHelper = indexReader.getReaderCacheHelper();
             if (cacheHelper == null) {
@@ -157,6 +166,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                 ElasticsearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
                 Collections.addAll(k.listeners, this.listeners);
                 final Accountable ifd = (Accountable) indexFieldData.loadGlobalDirect(indexReader);
+
                 for (Listener listener : k.listeners) {
                     try {
                         listener.onCache(shardId, fieldName, ifd);

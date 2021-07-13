@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader.CacheHelper;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
@@ -275,6 +276,11 @@ public class IndicesService extends AbstractLifecycleComponent
         this.idFieldDataEnabled = INDICES_ID_FIELD_DATA_ENABLED_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_ID_FIELD_DATA_ENABLED_SETTING, this::setIdFieldDataEnabled);
         this.indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
+                circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(ramUsage.ramBytesUsed());
+            }
+
             @Override
             public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
                 assert sizeInBytes >= 0 : "When reducing circuit breaker, it should be adjusted with a number higher or " +

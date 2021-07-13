@@ -148,4 +148,15 @@ public class StaticCacheKeyDirectoryReaderWrapper extends FilterDirectoryReader 
         }
         return null;
     }
+
+    public static boolean hasStaticCacheKeyLeafReaderWrapper(LeafReader reader) {
+        if (reader instanceof FilterLeafReader) {
+            if (reader instanceof StaticCacheKeyFilterCodecReader || reader instanceof StaticCacheKeyFilterLeafReader) {
+                return true;
+            } else {
+                return hasStaticCacheKeyLeafReaderWrapper(((FilterLeafReader) reader).getDelegate());
+            }
+        }
+        return false;
+    }
 }

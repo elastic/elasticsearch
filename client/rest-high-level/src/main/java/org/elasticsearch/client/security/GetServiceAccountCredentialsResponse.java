@@ -37,7 +37,7 @@ public final class GetServiceAccountCredentialsResponse {
                                                 List<ServiceTokenInfo> indexTokenInfos,
                                                 FileServiceTokensResponse fileTokensResponse) {
         this.principal = Objects.requireNonNull(principal, "principal is required");
-        this.indexTokenInfos = List.copyOf(Objects.requireNonNull(indexTokenInfos, "service token infos are required)"));
+        this.indexTokenInfos = List.copyOf(Objects.requireNonNull(indexTokenInfos, "service token infos are required"));
         this.fileTokensResponse = Objects.requireNonNull(fileTokensResponse, "file tokens response is required");
     }
 

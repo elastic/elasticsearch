@@ -22,23 +22,20 @@ import java.util.Objects;
 public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenInfo> {
 
     private final String name;
-    private final TokenSource source;
     @Nullable
     private final Collection<String> nodeNames;
 
-    private TokenInfo(String name, TokenSource source) {
-        this(name, source, null);
+    private TokenInfo(String name) {
+        this(name, null);
     }
 
-    private TokenInfo(String name, TokenSource source, Collection<String> nodeNames) {
+    private TokenInfo(String name, Collection<String> nodeNames) {
         this.name = name;
-        this.source = source;
         this.nodeNames = nodeNames;
     }
 
     public TokenInfo(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.source = in.readEnum(TokenSource.class);
         this.nodeNames = in.readOptionalStringList();
     }
 
@@ -47,7 +44,7 @@ public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenI
     }
 
     public TokenSource getSource() {
-        return source;
+        return nodeNames == null ? TokenSource.INDEX : TokenSource.FILE;
     }
 
     public Collection<String> getNodeNames() {
@@ -61,30 +58,30 @@ public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenI
         if (o == null || getClass() != o.getClass())
             return false;
         TokenInfo tokenInfo = (TokenInfo) o;
-        return Objects.equals(name, tokenInfo.name) && source == tokenInfo.source && Objects.equals(nodeNames, tokenInfo.nodeNames);
+        return Objects.equals(name, tokenInfo.name) && Objects.equals(nodeNames, tokenInfo.nodeNames);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, source, nodeNames);
+        return Objects.hash(name, nodeNames);
     }
 
     @Override
     public String toString() {
-        return "TokenInfo{" + "name='" + name + '\'' + ", source=" + source + ", nodeNames=" + nodeNames + '}';
+        return "TokenInfo{" + "name='" + name + '\'' + ", nodeNames=" + nodeNames + '}';
     }
 
     public static TokenInfo indexToken(String name) {
-        return new TokenInfo(name, TokenSource.INDEX);
+        return new TokenInfo(name);
     }
 
     public static TokenInfo fileToken(String name, Collection<String> nodeNames) {
-        return new TokenInfo(name, TokenSource.FILE, nodeNames);
+        return new TokenInfo(name, nodeNames);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (source == TokenSource.INDEX) {
+        if (nodeNames == null) {
             return builder.field(name, Map.of());
         } else {
             return builder.field(name, Map.of("nodes", nodeNames));
@@ -94,14 +91,13 @@ public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenI
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeEnum(source);
         out.writeOptionalStringCollection(nodeNames);
     }
 
     @Override
     public int compareTo(TokenInfo o) {
         // Not comparing node names since name and source guarantee unique order
-        int v = source.compareTo(o.source);
+        int v = getSource().compareTo(o.getSource());
         if (v == 0) {
             return name.compareTo(o.name);
         } else {

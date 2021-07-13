@@ -8,7 +8,6 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.client.NodesResponseHeader;
 import org.elasticsearch.client.security.support.ServiceTokenInfo;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
@@ -18,8 +17,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -45,13 +42,12 @@ public final class GetServiceAccountCredentialsResponse {
         return principal;
     }
 
-    public List<ServiceTokenInfo> getTokenInfos() {
-        return Stream.concat(fileTokensResponse.getTokenInfos().stream(), indexTokenInfos.stream())
-            .collect(Collectors.toUnmodifiableList());
+    public List<ServiceTokenInfo> getIndexTokenInfos() {
+        return indexTokenInfos;
     }
 
-    public NodesResponseHeader getFileTokensResponseHeader() {
-        return fileTokensResponse.getHeader();
+    public FileServiceTokensResponse getFileTokenResponse() {
+        return fileTokensResponse;
     }
 
     @SuppressWarnings("unchecked")

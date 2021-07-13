@@ -29,7 +29,9 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -43,7 +45,7 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
         final GetServiceAccountCredentialsResponse deserialized = new GetServiceAccountCredentialsResponse(out.bytes().streamInput());
 
         assertThat(original.getPrincipal(), equalTo(deserialized.getPrincipal()));
-        assertThat(original.getTokenInfos(), equalTo(deserialized.getTokenInfos()));
+        assertThat(getAllTokenInfos(original), equalTo(getAllTokenInfos(deserialized)));
         assertThat(original.getFileTokensResponse().getTokenInfos(), equalTo(deserialized.getFileTokensResponse().getTokenInfos()));
     }
 
@@ -59,7 +61,7 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
         final GetServiceAccountCredentialsResponse response = createTestInstance();
-        final Collection<TokenInfo> tokenInfos = response.getTokenInfos();
+        final Collection<TokenInfo> tokenInfos = getAllTokenInfos(response);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -125,5 +127,10 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
         return new GetServiceAccountFileTokensResponse.Node(
             discoveryNode,
             randomSubsetOf(randomIntBetween(0, tokenNames.length), tokenNames).toArray(String[]::new));
+    }
+
+    private List<TokenInfo> getAllTokenInfos(GetServiceAccountCredentialsResponse response) {
+        return Stream.concat(response.getFileTokensResponse().getTokenInfos().stream(), response.getIndexTokenInfos().stream())
+            .collect(toUnmodifiableList());
     }
 }

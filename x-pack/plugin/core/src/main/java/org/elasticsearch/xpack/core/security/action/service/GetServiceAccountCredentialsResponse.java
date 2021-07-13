@@ -45,9 +45,8 @@ public class GetServiceAccountCredentialsResponse extends ActionResponse impleme
         return principal;
     }
 
-    public Collection<TokenInfo> getTokenInfos() {
-        return Stream.concat(fileTokensResponse.getTokenInfos().stream(), indexTokenInfos.stream())
-            .collect(toUnmodifiableList());
+    public List<TokenInfo> getIndexTokenInfos() {
+        return indexTokenInfos;
     }
 
     public GetServiceAccountFileTokensResponse getFileTokensResponse() {

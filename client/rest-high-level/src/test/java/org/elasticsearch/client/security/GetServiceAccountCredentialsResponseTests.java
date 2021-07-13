@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -59,15 +60,17 @@ public class GetServiceAccountCredentialsResponseTests
         assertThat(serverTestInstance.getPrincipal(), equalTo(clientInstance.getPrincipal()));
 
         assertThat(
-            serverTestInstance.getTokenInfos().stream()
+            Stream.concat(serverTestInstance.getIndexTokenInfos().stream(),
+                serverTestInstance.getFileTokensResponse().getTokenInfos().stream())
                 .map(tokenInfo -> new Tuple<>(tokenInfo.getName(), tokenInfo.getSource().name().toLowerCase(Locale.ROOT)))
                 .collect(Collectors.toSet()),
-            equalTo(clientInstance.getTokenInfos().stream()
+            equalTo(Stream.concat(clientInstance.getIndexTokenInfos().stream(),
+                clientInstance.getFileTokenResponse().getTokenInfos().stream())
                 .map(info -> new Tuple<>(info.getName(), info.getSource()))
                 .collect(Collectors.toSet())));
 
         assertThat(
             serverTestInstance.getFileTokensResponse().failures().size(),
-            equalTo(clientInstance.getFileTokensResponseHeader().getFailures().size()));
+            equalTo(clientInstance.getFileTokenResponse().getHeader().getFailures().size()));
     }
 }

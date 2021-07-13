@@ -2747,20 +2747,23 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::get-service-account-credentials-response
             final String principal = getServiceAccountCredentialsResponse.getPrincipal(); // <1>
-            final List<ServiceTokenInfo> tokenInfos = getServiceAccountCredentialsResponse.getTokenInfos(); // <2>
-            final String tokenName = tokenInfos.get(0).getName(); // <3>
-            final String tokenSource = tokenInfos.get(0).getSource(); // <4>
-            final Collection<String> nodeNames = tokenInfos.get(0).getNodeNames(); // <5>
-            final NodesResponseHeader fileTokensResponseHeader = getServiceAccountCredentialsResponse.getFileTokensResponseHeader(); // <6>
-            final int nSuccessful = fileTokensResponseHeader.getSuccessful(); // <7>
-            final int nFailed = fileTokensResponseHeader.getFailed(); // <8>
+            final List<ServiceTokenInfo> indexTokenInfos = getServiceAccountCredentialsResponse.getIndexTokenInfos(); // <2>
+            final String tokenName = indexTokenInfos.get(0).getName(); // <3>
+            final String tokenSource = indexTokenInfos.get(0).getSource(); // <4>
+            final Collection<String> nodeNames = indexTokenInfos.get(0).getNodeNames(); // <5>
+            final List<ServiceTokenInfo> fileTokenInfos
+                = getServiceAccountCredentialsResponse.getFileTokenResponse().getTokenInfos(); // <6>
+            final NodesResponseHeader fileTokensResponseHeader
+                = getServiceAccountCredentialsResponse.getFileTokenResponse().getHeader(); // <7>
+            final int nSuccessful = fileTokensResponseHeader.getSuccessful(); // <8>
+            final int nFailed = fileTokensResponseHeader.getFailed(); // <9>
             // end::get-service-account-credentials-response
             assertThat(principal, equalTo("elastic/fleet-server"));
             // Cannot assert exactly one token because there are rare occasions where tests overlap and it will see
             // token created from other tests
-            assertThat(tokenInfos.size(), greaterThanOrEqualTo(1));
-            assertThat(tokenInfos.stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()), hasItem("token2"));
-            assertThat(tokenInfos.stream().map(ServiceTokenInfo::getSource).collect(Collectors.toSet()), hasItem("index"));
+            assertThat(indexTokenInfos.size(), greaterThanOrEqualTo(1));
+            assertThat(indexTokenInfos.stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()), hasItem("token2"));
+            assertThat(indexTokenInfos.stream().map(ServiceTokenInfo::getSource).collect(Collectors.toSet()), hasItem("index"));
         }
 
         {
@@ -2792,8 +2795,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertNotNull(future.actionGet());
             assertThat(future.actionGet().getPrincipal(), equalTo("elastic/fleet-server"));
-            assertThat(future.actionGet().getTokenInfos().size(), greaterThanOrEqualTo(1));
-            assertThat(future.actionGet().getTokenInfos().stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()),
+            assertThat(future.actionGet().getIndexTokenInfos().size(), greaterThanOrEqualTo(1));
+            assertThat(future.actionGet().getIndexTokenInfos().stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()),
                 hasItem("token2"));
         }
     }

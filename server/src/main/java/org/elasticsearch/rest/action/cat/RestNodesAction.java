@@ -232,6 +232,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("search.scroll_total", "alias:scto,searchScrollTotal;default:false;text-align:right;desc:completed scroll contexts");
 
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
+        // TODO: REST API version compatibility: only emit cell when compatibility with 7.x is requested
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
         table.addCell("segments.index_writer_memory",
             "alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
@@ -421,7 +422,7 @@ public class RestNodesAction extends AbstractCatAction {
 
             SegmentsStats segmentsStats = indicesStats == null ? null : indicesStats.getSegments();
             table.addCell(segmentsStats == null ? null : segmentsStats.getCount());
-            // nocommit: REST API version compatibility?
+            // TODO: REST API version compatibility: only emit cell when compatibility with 7.x is requested
             table.addCell(segmentsStats == null ? null : new ByteSizeValue(0));
             table.addCell(segmentsStats == null ? null : segmentsStats.getIndexWriterMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getVersionMapMemory());

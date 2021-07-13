@@ -436,6 +436,7 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("segments.count", "sibling:pri;alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("pri.segments.count", "default:false;text-align:right;desc:number of segments");
 
+        // TODO: REST API version compatibility: only add these cells when compatibility with 7.x is requested? 
         table.addCell("segments.memory", "sibling:pri;alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
         table.addCell("pri.segments.memory", "default:false;text-align:right;desc:memory used by segments");
 
@@ -723,7 +724,7 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getCount());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getCount());
 
-            // nocommit: do we have REST API version compat for _cat APIs?
+            // TODO: REST API compatibility: only emit the two below cells when compatibility with 7.x is requested
             table.addCell(totalStats.getSegments() == null ? null : new ByteSizeValue(0));
             table.addCell(primaryStats.getSegments() == null ? null : new ByteSizeValue(0));
 

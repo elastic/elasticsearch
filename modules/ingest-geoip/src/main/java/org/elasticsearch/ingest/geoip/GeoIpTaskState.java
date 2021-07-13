@@ -189,6 +189,10 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             return lastUpdate;
         }
 
+        public boolean isCloseToExpiration(){
+            return Instant.ofEpochMilli(lastCheck).isBefore(Instant.now().minus(25, ChronoUnit.DAYS));
+        }
+
         public boolean isValid(Settings settings) {
             TimeValue valid = settings.getAsTime("ingest.geoip.database_validity", TimeValue.timeValueDays(30));
             return Instant.ofEpochMilli(lastCheck).isAfter(Instant.now().minus(valid.getMillis(), ChronoUnit.MILLIS));

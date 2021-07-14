@@ -101,7 +101,8 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
             .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
             .build();
@@ -486,24 +487,27 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
     }
 
     public void testRequestCacheOnFrozen() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("index")
-            .setMapping("f", "type=date")
-            .setSettings(Settings.builder()
-                .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
-            .get());
-        indexRandom(true,
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("index")
+                .setMapping("f", "type=date")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .get()
+        );
+        indexRandom(
+            true,
             client().prepareIndex("index").setSource("f", "2014-03-10T00:00:00.000Z"),
-            client().prepareIndex("index").setSource("f", "2014-05-13T00:00:00.000Z"));
+            client().prepareIndex("index").setSource("f", "2014-05-13T00:00:00.000Z")
+        );
         ensureSearchable("index");
 
-        createRepository(
-            "repo",
-            "fs",
-            Settings.builder().put("location", randomRepoPath())
-        );
+        createRepository("repo", "fs", Settings.builder().put("location", randomRepoPath()));
 
         createFullSnapshot("repo", "snap");
 
@@ -533,22 +537,43 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         // This is not a random example: serialization with time zones writes shared strings
         // which used to not work well with the query cache because of the handles stream output
         // see #9500
-        final SearchResponse r1 = client.prepareSearch("index").setSize(0).setSearchType(SearchType.QUERY_THEN_FETCH)
-            .addAggregation(dateHistogram("histo").field("f").timeZone(ZoneId.of("+01:00")).minDocCount(0)
-                .dateHistogramInterval(DateHistogramInterval.MONTH))
+        final SearchResponse r1 = client.prepareSearch("index")
+            .setSize(0)
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .addAggregation(
+                dateHistogram("histo").field("f")
+                    .timeZone(ZoneId.of("+01:00"))
+                    .minDocCount(0)
+                    .dateHistogramInterval(DateHistogramInterval.MONTH)
+            )
             .get();
         assertSearchResponse(r1);
 
         assertRequestCacheState(client(), "index", 0, 1);
 
         // The cached is actually used
-        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache()
-            .getMemorySizeInBytes(), greaterThan(0L));
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("index")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getMemorySizeInBytes(),
+            greaterThan(0L)
+        );
 
         for (int i = 0; i < 10; ++i) {
-            final SearchResponse r2 = client.prepareSearch("index").setSize(0)
-                .setSearchType(SearchType.QUERY_THEN_FETCH).addAggregation(dateHistogram("histo").field("f")
-                    .timeZone(ZoneId.of("+01:00")).minDocCount(0).dateHistogramInterval(DateHistogramInterval.MONTH))
+            final SearchResponse r2 = client.prepareSearch("index")
+                .setSize(0)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .addAggregation(
+                    dateHistogram("histo").field("f")
+                        .timeZone(ZoneId.of("+01:00"))
+                        .minDocCount(0)
+                        .dateHistogramInterval(DateHistogramInterval.MONTH)
+                )
                 .get();
             assertSearchResponse(r2);
             assertRequestCacheState(client(), "index", i + 1, 1);
@@ -567,35 +592,42 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
     }
 
     private static void assertRequestCacheState(Client client, String index, long expectedHits, long expectedMisses) {
-        RequestCacheStats requestCacheStats = client.admin().indices().prepareStats(index)
+        RequestCacheStats requestCacheStats = client.admin()
+            .indices()
+            .prepareStats(index)
             .setRequestCache(true)
-            .get().getTotal().getRequestCache();
+            .get()
+            .getTotal()
+            .getRequestCache();
         // Check the hit count and miss count together so if they are not
         // correct we can see both values
-        assertEquals(Arrays.asList(expectedHits, expectedMisses, 0L),
-            Arrays.asList(requestCacheStats.getHitCount(), requestCacheStats.getMissCount(), requestCacheStats.getEvictions()));
+        assertEquals(
+            Arrays.asList(expectedHits, expectedMisses, 0L),
+            Arrays.asList(requestCacheStats.getHitCount(), requestCacheStats.getMissCount(), requestCacheStats.getEvictions())
+        );
     }
 
     public void testQueryCacheOnFrozen() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("index")
-            .setMapping("f", "type=text")
-            .setSettings(Settings.builder()
-                .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false)
-                .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), true)
-                .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
-            .get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("index")
+                .setMapping("f", "type=text")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false)
+                        .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), true)
+                        .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .get()
+        );
         client().prepareIndex("index").setSource("f", "baz").get();
         client().admin().indices().prepareRefresh("index").get();
         ensureSearchable("index");
 
-        createRepository(
-            "repo",
-            "fs",
-            Settings.builder().put("location", randomRepoPath())
-        );
+        createRepository("repo", "fs", Settings.builder().put("location", randomRepoPath()));
 
         createFullSnapshot("repo", "snap");
 
@@ -622,53 +654,62 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         // the query cache has an "optimization" that disables it automatically if there is contention,
         // so we run it in an assertBusy block which should eventually succeed
         assertBusy(() -> {
-            assertSearchResponse(client().prepareSearch("index")
-                .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("f", "baz"))).get());
+            assertSearchResponse(
+                client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("f", "baz"))).get()
+            );
             assertQueryCacheState(client(), "index", 0, 1);
         });
 
         assertBusy(() -> {
-            assertSearchResponse(client().prepareSearch("index")
-                .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("f", "baz"))).get());
+            assertSearchResponse(
+                client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("f", "baz"))).get()
+            );
             assertQueryCacheState(client(), "index", 1, 1);
         });
     }
 
     private static void assertQueryCacheState(Client client, String index, long expectedHits, long expectedMisses) {
-        QueryCacheStats queryCacheStats = client.admin().indices().prepareStats(index)
-            .setQueryCache(true)
-            .get().getTotal().getQueryCache();
+        QueryCacheStats queryCacheStats = client.admin().indices().prepareStats(index).setQueryCache(true).get().getTotal().getQueryCache();
         // Check the hit count and miss count together so if they are not
         // correct we can see both values
-        assertEquals(Arrays.asList(expectedHits, expectedMisses, 0L),
-            Arrays.asList(queryCacheStats.getHitCount(), queryCacheStats.getMissCount(), queryCacheStats.getEvictions()));
+        assertEquals(
+            Arrays.asList(expectedHits, expectedMisses, 0L),
+            Arrays.asList(queryCacheStats.getHitCount(), queryCacheStats.getMissCount(), queryCacheStats.getEvictions())
+        );
     }
 
     public void testFieldDataOnFrozen() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("index")
-            .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
-                .startObject("f")
-                .field("type", "keyword")
-                .endObject()
-                .endObject().endObject().endObject())
-            .setSettings(Settings.builder()
-                .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false)
-                .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
-            .get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("index")
+                .setMapping(
+                    jsonBuilder().startObject()
+                        .startObject("_doc")
+                        .startObject("properties")
+                        .startObject("f")
+                        .field("type", "keyword")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .setSettings(
+                    Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false)
+                        .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .get()
+        );
         client().prepareIndex("index").setSource("f", "bar").get();
         client().admin().indices().prepareFlush("index").get();
         client().prepareIndex("index").setSource("f", "baz").get();
         client().admin().indices().prepareRefresh("index").get();
         ensureSearchable("index");
 
-        createRepository(
-            "repo",
-            "fs",
-            Settings.builder().put("location", randomRepoPath())
-        );
+        createRepository("repo", "fs", Settings.builder().put("location", randomRepoPath()));
 
         createFullSnapshot("repo", "snap");
 
@@ -692,27 +733,30 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureSearchable("index");
 
-        assertSearchResponse(client().prepareSearch("index")
-            .setQuery(QueryBuilders.matchQuery("f", "baz"))
-            .addAggregation(AggregationBuilders.significantTerms("sig")
-                .field("f"))
-            .get());
+        assertSearchResponse(
+            client().prepareSearch("index")
+                .setQuery(QueryBuilders.matchQuery("f", "baz"))
+                .addAggregation(AggregationBuilders.significantTerms("sig").field("f"))
+                .get()
+        );
 
         ClusterStatsResponse response1 = client().admin().cluster().prepareClusterStats().get();
         assertThat(response1.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0L));
         assertThat(response1.getIndicesStats().getFieldData().getEvictions(), equalTo(0L));
 
-        assertSearchResponse(client().prepareSearch("index")
-            .setQuery(QueryBuilders.matchQuery("f", "baz"))
-            .addAggregation(AggregationBuilders.significantTerms("sig")
-                .field("f"))
-            .get());
+        assertSearchResponse(
+            client().prepareSearch("index")
+                .setQuery(QueryBuilders.matchQuery("f", "baz"))
+                .addAggregation(AggregationBuilders.significantTerms("sig").field("f"))
+                .get()
+        );
 
         ClusterStatsResponse response2 = client().admin().cluster().prepareClusterStats().get();
-        assertEquals(response1.getIndicesStats().getFieldData().getMemorySizeInBytes(),
-            response2.getIndicesStats().getFieldData().getMemorySizeInBytes());
-        assertEquals(response1.getIndicesStats().getFieldData().getEvictions(),
-            response2.getIndicesStats().getFieldData().getEvictions());
+        assertEquals(
+            response1.getIndicesStats().getFieldData().getMemorySizeInBytes(),
+            response2.getIndicesStats().getFieldData().getMemorySizeInBytes()
+        );
+        assertEquals(response1.getIndicesStats().getFieldData().getEvictions(), response2.getIndicesStats().getFieldData().getEvictions());
     }
 
 }

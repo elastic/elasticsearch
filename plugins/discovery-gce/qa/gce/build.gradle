@@ -36,7 +36,7 @@ def gceFixtureProvider = tasks.register("gceFixture", AntFixture) {
 }
 
 Map<String, Object> expansions = [
-  'expected_nodes': gceNumberOfNodes
+  'expected_nodes': gceNumberOfNodes.toString()
 ]
 
 tasks.named("processYamlRestTestResources").configure {

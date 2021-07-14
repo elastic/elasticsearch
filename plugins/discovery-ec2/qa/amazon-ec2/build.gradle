@@ -29,7 +29,7 @@ restResources {
 final int ec2NumberOfNodes = 3
 
 Map<String, Object> expansions = [
-  'expected_nodes': ec2NumberOfNodes
+  'expected_nodes': ec2NumberOfNodes.toString()
 ]
 
 tasks.named("processYamlRestTestResources").configure {

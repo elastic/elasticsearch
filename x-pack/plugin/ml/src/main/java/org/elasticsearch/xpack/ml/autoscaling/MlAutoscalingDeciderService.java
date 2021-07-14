@@ -14,14 +14,14 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
@@ -30,7 +30,9 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.DatafeedParams;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
@@ -62,7 +64,6 @@ import static org.elasticsearch.xpack.core.ml.MlTasks.getJobStateModifiedForReas
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD;
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
-import static org.elasticsearch.xpack.ml.job.NodeLoad.taskStateFilter;
 
 public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     LocalNodeMasterListener {
@@ -927,5 +928,15 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     @Override
     public List<DiscoveryNodeRole> roles() {
         return List.of(DiscoveryNodeRole.ML_ROLE);
+    }
+
+    private static boolean taskStateFilter(JobState jobState) {
+        return jobState == null || jobState.isNoneOf(JobState.CLOSED, JobState.FAILED);
+    }
+
+    private static boolean taskStateFilter(DataFrameAnalyticsState dataFrameAnalyticsState) {
+        // Don't count stopped and failed df-analytics tasks as they don't consume native memory
+        return dataFrameAnalyticsState == null
+            || dataFrameAnalyticsState.isNoneOf(DataFrameAnalyticsState.STOPPED, DataFrameAnalyticsState.FAILED);
     }
 }

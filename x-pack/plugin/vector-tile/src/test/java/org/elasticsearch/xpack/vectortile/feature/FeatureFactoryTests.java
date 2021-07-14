@@ -31,6 +31,7 @@ import java.util.List;
 
 public class FeatureFactoryTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75325")
     public void testPoint() {
         int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
@@ -54,6 +55,7 @@ public class FeatureFactoryTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75325")
     public void testMultiPoint() {
         int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);

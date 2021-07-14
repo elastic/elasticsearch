@@ -12,9 +12,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -127,6 +130,41 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             "{ \"query\": { \"wildcard\": {\"name\": \"*alert*\"} } }");
     }
 
+    public void testQueryShouldRespectOwnerIdentityWithApiKeyAuth() throws IOException {
+        final Tuple<String, String> powerKey = createApiKey("power-key-1", null, null, API_KEY_ADMIN_AUTH_HEADER);
+        final String powerKeyAuthHeader = "ApiKey " + Base64.getEncoder()
+            .encodeToString((powerKey.v1() + ":" + powerKey.v2()).getBytes(StandardCharsets.UTF_8));
+
+        final Tuple<String, String> limitKey = createApiKey("limit-key-1",
+            Map.of("a", Map.of("cluster", List.of("manage_own_api_key"))), null, API_KEY_ADMIN_AUTH_HEADER);
+        final String limitKeyAuthHeader = "ApiKey " + Base64.getEncoder()
+            .encodeToString((limitKey.v1() + ":" + limitKey.v2()).getBytes(StandardCharsets.UTF_8));
+
+        createApiKey("power-key-1-derived-1", Map.of("a", Map.of()), null, powerKeyAuthHeader);
+        createApiKey("limit-key-1-derived-1", Map.of("a", Map.of()), null, limitKeyAuthHeader);
+
+        createApiKey("user-key-1", Map.of(), API_KEY_USER_AUTH_HEADER);
+        createApiKey("user-key-2", Map.of(), API_KEY_USER_AUTH_HEADER);
+
+        // powerKey gets back all keys since it has manage_api_key privilege
+        assertQuery(powerKeyAuthHeader, "", apiKeys -> {
+            assertThat(apiKeys.size(), equalTo(6));
+            assertThat(
+                apiKeys.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableSet()),
+                equalTo(Set.of("power-key-1", "limit-key-1", "power-key-1-derived-1", "limit-key-1-derived-1",
+                    "user-key-1", "user-key-2")));
+        });
+
+        // limitKey gets only keys owned by the original user, not including the derived keys since they are not
+        // owned by the user (realm_name is _es_api_key).
+        assertQuery(limitKeyAuthHeader, "", apiKeys -> {
+            assertThat(apiKeys.size(), equalTo(2));
+            assertThat(
+                apiKeys.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableSet()),
+                equalTo(Set.of("power-key-1", "limit-key-1")));
+        });
+    }
+
     private void assertQueryError(String authHeader, int statusCode, String body) throws IOException {
         final Request request = new Request("GET", "/_security/_query/api_key");
         request.setJsonEntity(body);
@@ -212,12 +250,27 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             API_KEY_USER_AUTH_HEADER);
     }
 
-    private void createApiKey(String name, Map<String, Object> metadata, String authHeader) throws IOException {
+    private Tuple<String, String> createApiKey(String name, Map<String, Object> metadata, String authHeader) throws IOException {
+        return createApiKey(name, null, metadata, authHeader);
+    }
+
+    private Tuple<String, String> createApiKey(String name,
+                                               Map<String, Object> roleDescriptors,
+                                               Map<String, Object> metadata,
+                                               String authHeader) throws IOException {
         final Request request = new Request("POST", "/_security/api_key");
-        final String metadataString = XContentTestUtils.convertToXContent(metadata, XContentType.JSON).utf8ToString();
-        request.setJsonEntity("{\"name\":\"" + name + "\", \"metadata\":" + metadataString + "}");
+        final String roleDescriptorsString =
+            XContentTestUtils.convertToXContent(roleDescriptors == null ? Map.of() : roleDescriptors, XContentType.JSON).utf8ToString();
+        final String metadataString =
+            XContentTestUtils.convertToXContent(metadata == null ? Map.of() : metadata, XContentType.JSON).utf8ToString();
+        request.setJsonEntity("{\"name\":\"" + name
+            + "\", \"role_descriptors\":" + roleDescriptorsString
+            + ", \"metadata\":" + metadataString + "}");
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
-        assertOK(client().performRequest(request));
+        final Response response = client().performRequest(request);
+        assertOK(response);
+        final Map<String, Object> m = responseAsMap(response);
+        return new Tuple<>((String) m.get("id"), (String) m.get("api_key"));
     }
 
     private void createUser(String name) throws IOException {

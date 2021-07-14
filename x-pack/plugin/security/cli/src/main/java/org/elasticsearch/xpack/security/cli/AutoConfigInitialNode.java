@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
@@ -37,6 +38,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -81,7 +83,7 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
 
     public AutoConfigInitialNode() {
         super("Generates all the necessary configuration for the initial node of a new secure cluster");
-        // this is a special sort of command line tool which is hooked into the ES node startup script
+        // this is a special sort of command line tool because it is hooked into the ES node startup script
         // because it doesn't get its own executable it must contend with cmd line options that itself cannot understand
         // because they are destined for the ES node startup code
         parser.allowsUnrecognizedOptions();
@@ -94,7 +96,6 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         // Silently skipping security auto configuration because node restarted.
-        // It is an error if filesystem operations fail, and therefore cannot be determined if the node starts up for the first time or not.
         if (Files.isDirectory(env.dataFile()) && Files.list(env.dataFile()).findAny().isPresent()) {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because it appears that the node is not starting up for the first time.");
@@ -103,48 +104,72 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
                             "clusters only.");
             throw new UserException(ExitCodes.NOOP, null);
         }
-        // if the node is already configured check that auto-configuration can build on top of that without changing anything
-        checkExistingConfiguration(env, terminal);
-        final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
-        // The node's yml configuration is mounted read-only, which is a sign that the configuration mustn't change.
-        // Inform that auto-configuration will not run.
-        if (Files.exists(ymlPath) && false == Files.isWritable(ymlPath)) {
-            terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because " +
-                    "the configuration file [%s] is not writable", ymlPath));
-            throw new UserException(ExitCodes.NOOP, null);
-        }
-        // Best effort determine if the node's keystore is writable.
-        // Inform that auto-configuration will not run if keystore cannot be updated.
-        final Path keystorePath = env.configFile().resolve(KeyStoreWrapper.KEYSTORE_FILENAME);
-        if (Files.exists(keystorePath) && false == Files.isWritable(keystorePath)) {
-            terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because " +
-                    "the node keystore file [%s] is not writable", keystorePath));
-            throw new UserException(ExitCodes.NOOP, null);
+        // preflight checks for the files that are going to be changed
+        // Skipping security auto configuration if configuration files cannot be mutated (ie are read-only)
+        {
+            final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
+            // it is odd for the `elasticsearch.yml` file to be missing or not be a regular (the node won't start)
+            // but auto configuration should not be concerned with fixing (by creating the file) such an anomalous conditions
+            if (false == Files.exists(ymlPath) || false == Files.isRegularFile(ymlPath, LinkOption.NOFOLLOW_LINKS) ||
+                    false == Files.isReadable(ymlPath)) {
+                terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because " +
+                        "the configuration file [%s] is missing or is not a regular readable file", ymlPath));
+                throw new UserException(ExitCodes.CONFIG, null);
+            }
+            // If the node's yml configuration is mounted read-only, it is an indication that the configuration mustn't change,
+            // in which case auto-configuration is skipped.
+            if (false == Files.isWritable(ymlPath)) {
+                terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because " +
+                        "the configuration file [%s] is not writable", ymlPath));
+                throw new UserException(ExitCodes.NOOP, null);
+            }
+            // Best effort determine if the node's keystore is writable.
+            // Inform that auto-configuration will not run if keystore cannot be updated.
+            final Path keystorePath = env.configFile().resolve(KeyStoreWrapper.KEYSTORE_FILENAME);
+            if (Files.exists(keystorePath) && (false == Files.isRegularFile(keystorePath, LinkOption.NOFOLLOW_LINKS) ||
+                    false == Files.isReadable(keystorePath) || false == Files.isWritable(keystorePath))) {
+                terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because " +
+                        "the node keystore file [%s] is not a readable and writable regular file", keystorePath));
+                throw new UserException(ExitCodes.NOOP, null);
+            }
         }
 
-        // TODO round/truncate to day, as it is easier on the tests
-        //Rounding rounding = new Rounding.Builder(Rounding.DateTimeUnit.DAY_OF_MONTH).timeZone(ZoneOffset.UTC).build();
-        //ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.DAYS);
+        // TODO check that file permissions carry over
+        // TODO option to ignore noopt
+
+        // only perform auto-configuration if the existing configuration is not conflicting (eg Security already enabled)
+        // if it is, silently skip auto configuration
+        checkExistingConfiguration(env, terminal);
+
         final ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC);
-        final String instantAutoConfigName = "auto_generated_on_" + autoConfigDate.toInstant().getEpochSecond();
+        final String instantAutoConfigName = "auto_config_on_" + autoConfigDate.toInstant().getEpochSecond();
         final Path instantAutoConfigDir = env.configFile().resolve(instantAutoConfigName);
         try {
             // it is useful to pre-create the sub-config dir in order to check that the config dir is writable and that
             // file owners match (this auto-configuration script should not change the owners of config files)
             Files.createDirectory(instantAutoConfigDir);
-        } catch (IOException e) {
-            // the config dir is probably read-only
+            // set permissions to 660
+            PosixFileAttributeView view = Files.getFileAttributeView(instantAutoConfigDir, PosixFileAttributeView.class);
+            if (view != null) {
+                view.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
+            }
+        } catch (Exception e) {
+            Files.deleteIfExists(instantAutoConfigDir);
+            // TODO ignore this
+            // the config dir is probably read-only, which is to be expected sometimes
             // this will show a message to the console (the first time the node starts) and auto-configuration is effectively bypassed
             // the message will not be subsequently shown (because auto-configuration doesn't run for node restarts)
             throw new UserException(ExitCodes.CANT_CREATE, "Could not create auto configuration directory", e);
         }
 
-        // we aim that the files created or replaced by the auto-config script have the same owner as the config dir
+        // the files created or replaced by the auto-config script have the same owner as the config dir
         if (false == Files.getOwner(instantAutoConfigDir, LinkOption.NOFOLLOW_LINKS).equals(Files.getOwner(env.configFile(),
                 LinkOption.NOFOLLOW_LINKS))) {
             Files.deleteIfExists(instantAutoConfigDir);
             throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because it would change file owners");
         }
+
+        // beyond this point we're committing to auto configuration
 
         // the transport key-pair is the same across the cluster and is trusted without hostname verification (it is self-signed),
         final X500Principal certificatePrincipal = new X500Principal(buildDnFromDomain(System.getenv("HOSTNAME")));
@@ -163,36 +188,54 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
         X509Certificate httpCert = CertGenUtils.generateSignedCertificate(certificatePrincipal,
                 subjectAltNames, httpKeyPair, httpCACert, httpCAKeyPair.getPrivate(), false, HTTP_CERTIFICATE_DAYS, null);
 
-        Path httpCAPath = instantAutoConfigDir.resolve(HTTP_AUTOGENERATED_CA_NAME + ".pem");
-        fullyWriteFile(httpCAPath, stream -> {
-            try (JcaPEMWriter pemWriter = new JcaPEMWriter(new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8)))) {
-                pemWriter.writeObject(httpCACert);
+        // the HTTP CA PEM file is provided "just in case", the node configuration doesn't use it
+        // but clients (configured manually, outside of the enrollment process) might indeed need it and
+        // it is impossible to use the keystore because it is password protected because it contains the key
+        try {
+            fullyWriteFile(instantAutoConfigDir, HTTP_AUTOGENERATED_CA_NAME + ".pem", false, stream -> {
+                try (JcaPEMWriter pemWriter = new JcaPEMWriter(new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8)))) {
+                    pemWriter.writeObject(httpCACert);
+                }
+            });
+        } catch (Exception e) {
+            Files.deleteIfExists(instantAutoConfigDir);
+            throw e; // this is an error which mustn't be ignored during node startup
+        }
+
+        // save original keystore before updating (replacing)
+        Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
+        if (Files.exists(keystorePath)) {
+            Path keystoreBackupPath = instantAutoConfigDir.resolve(KeyStoreWrapper.KEYSTORE_FILENAME + ".orig");
+            try {
+                Files.copy(keystorePath, keystoreBackupPath, StandardCopyOption.COPY_ATTRIBUTES);
+            } catch (Exception e) {
+                Files.deleteIfExists(instantAutoConfigDir);
+                throw e;
             }
-        });
+        }
 
         try (SecureString nodeKeystorePassword = new SecureString(terminal.readSecret("", KeyStoreWrapper.MAX_PASSPHRASE_LENGTH));
              KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> nodeKeystorePassword)) {
-            // do not overwrite keystore entries, instead expect the user to manually remove them himself if they've been generated by a
-            // previous invocation of this tool
+            // do not overwrite keystore entries
+            // instead expect the user to manually remove them herself
             if (nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.keystore.secure_password") ||
                 nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.truststore.secure_password") ||
                 nodeKeystore.getSettingNames().contains("xpack.security.http.ssl.keystore.secure_password")) {
                 throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because the node keystore contains password " +
                         "settings already");
             }
-            Path transportKeystoreOutput = instantAutoConfigDir.resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12");
             try (SecureString transportKeystorePassword = newKeystorePassword()) {
                 KeyStore transportKeystore = KeyStore.getInstance("PKCS12");
                 transportKeystore.load(null);
                 // the PKCS12 keystore and the contained private key use the same password
                 transportKeystore.setKeyEntry(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME, transportKeyPair.getPrivate(),
                         transportKeystorePassword.getChars(), new Certificate[]{transportCert});
-                fullyWriteFile(transportKeystoreOutput, stream -> transportKeystore.store(stream, transportKeystorePassword.getChars()));
+                fullyWriteFile(instantAutoConfigDir, TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12", false,
+                        stream -> transportKeystore.store(stream, transportKeystorePassword.getChars()));
                 nodeKeystore.setString("xpack.security.transport.ssl.keystore.secure_password", transportKeystorePassword.getChars());
                 // we use the same PKCS12 file for the keystore and the truststore
                 nodeKeystore.setString("xpack.security.transport.ssl.truststore.secure_password", transportKeystorePassword.getChars());
             }
-            Path httpKeystoreOutput = instantAutoConfigDir.resolve(HTTP_AUTOGENERATED_KEYSTORE_NAME + ".p12");
             try (SecureString httpKeystorePassword = newKeystorePassword()) {
                 KeyStore httpKeystore = KeyStore.getInstance("PKCS12");
                 httpKeystore.load(null);
@@ -202,84 +245,106 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
                         httpKeystorePassword.getChars(), new Certificate[]{httpCACert});
                 httpKeystore.setKeyEntry(HTTP_AUTOGENERATED_KEYSTORE_NAME, httpKeyPair.getPrivate(),
                         httpKeystorePassword.getChars(), new Certificate[]{httpCert, httpCACert});
-                fullyWriteFile(httpKeystoreOutput, stream -> httpKeystore.store(stream, httpKeystorePassword.getChars()));
+                fullyWriteFile(instantAutoConfigDir, HTTP_AUTOGENERATED_KEYSTORE_NAME + ".p12", false,
+                        stream -> httpKeystore.store(stream, httpKeystorePassword.getChars()));
                 nodeKeystore.setString("xpack.security.http.ssl.keystore.secure_password", httpKeystorePassword.getChars());
             }
             // finally overwrites the node keystore (if the keystores have been successfully written)
             nodeKeystore.save(env.configFile(), nodeKeystorePassword.getChars());
+        } catch (Exception e) {
+            Files.deleteIfExists(instantAutoConfigDir);
+            throw e;
         }
 
-        // at this point the elasticsearch.keystore is updated but the elasticsearch.yml file not yet
+        // at this point the elasticsearch.keystore is updated (appended) but the elasticsearch.yml file still needs to
 
-        // TODO atomic write
-        try (BufferedWriter bw = Files.newBufferedWriter(ymlPath, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
-            bw.newLine();
-            bw.newLine();
-            bw.write("###################################################################################");
-            bw.newLine();
-            bw.write("# The following settings, and associated TLS certificates and keys configuration, #");
-            bw.newLine();
-            bw.write("# have been automatically generated in order to configure Security.               #");
-            bw.newLine();
-            bw.write("# These have been generated the first time that the new node was started, without #");
-            bw.newLine();
-            bw.write("# joining or enrolling to an existing cluster and only if Security had not been   #");
-            bw.newLine();
-            bw.write("# explicitly configured beforehand.                                               #");
-            bw.newLine();
-            bw.write(String.format(Locale.ROOT, "# %-79s #", ""));
-            bw.newLine();
-            bw.write(String.format(Locale.ROOT, "# %-79s #", autoConfigDate));
-            // TODO add link to docs
-            bw.newLine();
-            bw.write("###################################################################################");
-            bw.newLine();
-            bw.newLine();
-            bw.write(XPackSettings.SECURITY_ENABLED.getKey() + ": true");
-            bw.newLine();
-            bw.newLine();
-            if (false == env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())) {
-                bw.write(XPackSettings.ENROLLMENT_ENABLED.getKey() + ": true");
-                bw.newLine();
-                bw.newLine();
-            }
+        try {
+            List<String> existingConfigLines = Files.readAllLines(env.configFile().resolve("elasticsearch.yml"), StandardCharsets.UTF_8);
+            fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
+                try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
+                    // append the existing config lines
+                    for (String line : existingConfigLines) {
+                        bw.write(line);
+                        bw.newLine();
+                    }
+                    bw.newLine();
+                    bw.newLine();
+                    bw.write("###################################################################################");
+                    bw.newLine();
+                    bw.write("# The following settings, and associated TLS certificates and keys configuration, #");
+                    bw.newLine();
+                    bw.write("# have been automatically generated in order to configure Security.               #");
+                    bw.newLine();
+                    bw.write("# These have been generated the first time that the new node was started, without #");
+                    bw.newLine();
+                    bw.write("# joining or enrolling to an existing cluster and only if Security had not been   #");
+                    bw.newLine();
+                    bw.write("# explicitly configured beforehand.                                               #");
+                    bw.newLine();
+                    bw.write(String.format(Locale.ROOT, "# %-79s #", ""));
+                    bw.newLine();
+                    bw.write(String.format(Locale.ROOT, "# %-79s #", autoConfigDate));
+                    // TODO add link to docs
+                    bw.newLine();
+                    bw.write("###################################################################################");
+                    bw.newLine();
+                    bw.newLine();
+                    bw.write(XPackSettings.SECURITY_ENABLED.getKey() + ": true");
+                    bw.newLine();
+                    bw.newLine();
+                    if (false == env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())) {
+                        bw.write(XPackSettings.ENROLLMENT_ENABLED.getKey() + ": true");
+                        bw.newLine();
+                        bw.newLine();
+                    }
 
-            {
-                bw.write("xpack.security.transport.ssl.enabled: true");
-                bw.newLine();
-                bw.write("# All the nodes use the same key and certificate on the inter-node connection");
-                bw.newLine();
-                bw.write("xpack.security.transport.ssl.verification_mode: certificate");
-                bw.newLine();
-                bw.write("xpack.security.transport.ssl.keystore.path: " + instantAutoConfigDir
-                        .resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"));
-                bw.newLine();
-                // we use the keystore as a truststore in order to minimize the number of auto-generated resources,
-                // and also because a single file is more idiomatic to the scheme of a shared secret between the cluster nodes
-                // no one should only need the TLS cert without the associated key for the transport layer
-                bw.write("xpack.security.transport.ssl.truststore.path: " + instantAutoConfigDir
-                        .resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"));
-                bw.newLine();
-            }
+                    {
+                        bw.write("xpack.security.transport.ssl.enabled: true");
+                        bw.newLine();
+                        bw.write("# All the nodes use the same key and certificate on the inter-node connection");
+                        bw.newLine();
+                        bw.write("xpack.security.transport.ssl.verification_mode: certificate");
+                        bw.newLine();
+                        bw.write("xpack.security.transport.ssl.keystore.path: " + instantAutoConfigDir
+                                .resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"));
+                        bw.newLine();
+                        // we use the keystore as a truststore in order to minimize the number of auto-generated resources,
+                        // and also because a single file is more idiomatic to the scheme of a shared secret between the cluster nodes
+                        // no one should only need the TLS cert without the associated key for the transport layer
+                        bw.write("xpack.security.transport.ssl.truststore.path: " + instantAutoConfigDir
+                                .resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"));
+                        bw.newLine();
+                    }
 
-            {
-                bw.newLine();
-                bw.write("xpack.security.http.ssl.enabled: true");
-                bw.newLine();
-                bw.write("xpack.security.http.ssl.keystore.path: " + instantAutoConfigDir.resolve(HTTP_AUTOGENERATED_KEYSTORE_NAME +
-                        ".p12"));
-                bw.newLine();
-            }
+                    {
+                        bw.newLine();
+                        bw.write("xpack.security.http.ssl.enabled: true");
+                        bw.newLine();
+                        bw.write("xpack.security.http.ssl.keystore.path: " + instantAutoConfigDir.resolve(HTTP_AUTOGENERATED_KEYSTORE_NAME +
+                                ".p12"));
+                        bw.newLine();
+                    }
 
-            // TODO only HTTP HOST ? What if network host is set?
-            if (false == env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_HOST.getKey())) {
-                bw.newLine();
-                bw.write("# With security now configured, which includes user authentication over HTTPs, " +
-                        "it's reasonable to serve requests on the local network too");
-                bw.newLine();
-                bw.write(HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": [_local_, _site_]");
-                bw.newLine();
-            }
+                    // if any address settings have been set, assume the admin has thought it through wrt to addresses,
+                    // and don't try to be smart and mess with that
+                    if (false == (env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_HOST.getKey()) ||
+                            env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_BIND_HOST.getKey()) ||
+                            env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.getKey()) ||
+                            env.settings().hasValue(NetworkService.GLOBAL_NETWORK_HOST_SETTING.getKey()) ||
+                            env.settings().hasValue(NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.getKey()) ||
+                            env.settings().hasValue(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey()))) {
+                        bw.newLine();
+                        bw.write("# With security now configured, which includes user authentication over HTTPs, " +
+                                "it's reasonable to serve requests on the local network too");
+                        bw.newLine();
+                        bw.write(HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": [_local_, _site_]");
+                        bw.newLine();
+                    }
+                }
+            });
+        } catch (Exception e) {
+            Files.deleteIfExists(instantAutoConfigDir);
+            throw e;
         }
     }
 
@@ -297,6 +362,7 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 generalNameSet.add(new GeneralName(GeneralName.dNSName, reverseFQDN));
             }
         }
+        // TODO make this look reasonable
         // this is the unequivocal, non-standard, mark for a cert generated by this auto-config process
         generalNameSet.add(new GeneralName(GeneralName.otherName, new DERUTF8String(AutoConfigInitialNode.class.getName())));
         return new GeneralNames(generalNameSet.toArray(new GeneralName[0]));
@@ -368,20 +434,20 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
         // if disabled, it must be manually enabled back and, preferably, at the head of the realm chain
     }
 
-    private static void fullyWriteFile(Path file, CheckedConsumer<OutputStream, Exception> writer) throws Exception {
-        assert file != null;
-        assert writer != null;
-
+    private static void fullyWriteFile(Path basePath, String fileName, boolean replace,
+                                       CheckedConsumer<OutputStream, Exception> writer) throws Exception {
         boolean success = false;
-        if (Files.exists(file)) {
-            throw new UserException(ExitCodes.IO_ERROR, "Output file '" + file + "' already exists");
+        Path filePath = basePath.resolve(fileName);
+        if (false == replace && Files.exists(filePath)) {
+            throw new UserException(ExitCodes.IO_ERROR, String.format(Locale.ROOT, "Output file [%s] already exists and " +
+                    "will not be replaced", filePath));
         }
-        Path tmpFile = file.getParent().resolve(file.getFileName().toString() + ".tmp");
-        try (OutputStream outputStream = Files.newOutputStream(tmpFile, StandardOpenOption.CREATE_NEW)) {
+        Path tmpPath = basePath.resolve(fileName + "." + UUIDs.randomBase64UUID() + ".tmp");
+        try (OutputStream outputStream = Files.newOutputStream(tmpPath, StandardOpenOption.CREATE_NEW)) {
             writer.accept(outputStream);
 
             // set permissions to 660
-            PosixFileAttributeView view = Files.getFileAttributeView(tmpFile, PosixFileAttributeView.class);
+            PosixFileAttributeView view = Files.getFileAttributeView(tmpPath, PosixFileAttributeView.class);
             if (view != null) {
                 view.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
             }
@@ -389,9 +455,23 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
             success = true;
         } finally {
             if (success) {
-                Files.move(tmpFile, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                if (replace) {
+                    if (Files.exists(filePath, LinkOption.NOFOLLOW_LINKS) &&
+                            false == Files.getOwner(tmpPath, LinkOption.NOFOLLOW_LINKS).equals(Files.getOwner(filePath,
+                                    LinkOption.NOFOLLOW_LINKS))) {
+                        Files.deleteIfExists(tmpPath);
+                        String message = String.format(
+                                Locale.ROOT,
+                                "will not overwrite file at [%s], because this incurs changing the file owner",
+                                filePath);
+                        throw new UserException(ExitCodes.CONFIG, message);
+                    }
+                    Files.move(tmpPath, filePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                } else {
+                    Files.move(tmpPath, filePath, StandardCopyOption.ATOMIC_MOVE);
+                }
             }
-            Files.deleteIfExists(tmpFile);
+            Files.deleteIfExists(tmpPath);
         }
     }
 }

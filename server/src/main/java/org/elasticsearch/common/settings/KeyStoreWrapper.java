@@ -23,6 +23,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.hash.MessageDigests;
 
 import javax.crypto.AEADBadTagException;
@@ -509,7 +510,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
         Directory directory = new NIOFSDirectory(configDir);
         // write to tmp file first, then overwrite
-        String tmpFile = KEYSTORE_FILENAME + ".tmp";
+        String tmpFile = KEYSTORE_FILENAME + "." + UUIDs.randomBase64UUID() + ".tmp";
         Path keystoreTempFile = configDir.resolve(tmpFile);
         try (IndexOutput output = directory.createOutput(tmpFile, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, KEYSTORE_FILENAME, FORMAT_VERSION);
@@ -556,11 +557,10 @@ public class KeyStoreWrapper implements SecureSettings {
                 false == Files.getOwner(keystoreTempFile, LinkOption.NOFOLLOW_LINKS).equals(Files.getOwner(keystoreFile,
                         LinkOption.NOFOLLOW_LINKS))) {
             Files.deleteIfExists(keystoreTempFile);
-            final String message = String.format(
+            String message = String.format(
                     Locale.ROOT,
                     "will not overwrite keystore at [%s], because this incurs changing the file owner",
-                    keystoreFile,
-                    configDir);
+                    keystoreFile);
             throw new UserException(ExitCodes.CONFIG, message);
         }
         PosixFileAttributeView attrs = Files.getFileAttributeView(keystoreTempFile, PosixFileAttributeView.class);

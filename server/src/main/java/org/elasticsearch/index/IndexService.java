@@ -720,6 +720,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (shardId != null) {
                 final IndexShard shard = indexService.getShardOrNull(shardId.id());
                 if (shard != null) {
+                    long usage = ramUsage.ramBytesUsed();
                     shard.fieldData().onCache(shardId, fieldName, ramUsage);
                 }
             }

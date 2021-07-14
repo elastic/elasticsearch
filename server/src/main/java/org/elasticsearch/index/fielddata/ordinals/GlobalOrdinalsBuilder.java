@@ -15,11 +15,13 @@ import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -36,8 +38,9 @@ public enum GlobalOrdinalsBuilder {
     /**
      * Build global ordinals for the provided {@link IndexReader}.
      */
-    public static GlobalOrdinalsIndexFieldData build(final IndexReader indexReader, IndexOrdinalsFieldData indexFieldData,
-            Logger logger, Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) throws IOException {
+    public static IndexOrdinalsFieldData build(final IndexReader indexReader, IndexOrdinalsFieldData indexFieldData,
+            CircuitBreakerService breakerService, Logger logger,
+            Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) throws IOException {
         assert indexReader.leaves().size() > 1;
         long startTimeNS = System.nanoTime();
 
@@ -49,6 +52,7 @@ public enum GlobalOrdinalsBuilder {
         }
         final OrdinalMap ordinalMap = OrdinalMap.build(null, subs, PackedInts.DEFAULT);
         final long memorySizeInBytes = ordinalMap.ramBytesUsed();
+        breakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(memorySizeInBytes);
 
         if (logger.isDebugEnabled()) {
             logger.debug(

@@ -140,6 +140,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         return GlobalOrdinalsBuilder.build(
             indexReader,
             this,
+            breakerService,
             logger,
             scriptFunction
         );

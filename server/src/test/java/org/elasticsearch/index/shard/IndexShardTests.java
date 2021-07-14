@@ -85,7 +85,6 @@ import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -110,6 +109,7 @@ import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesQueryCache;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -2414,10 +2414,11 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // test global ordinals are evicted
         MappedFieldType foo = shard.mapperService().fieldType("foo");
+        CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(shard.indexSettings.getNodeSettings(),
-            new IndexFieldDataCache.Listener() {});
+            circuitBreakerService);
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(shard.indexSettings, indicesFieldDataCache,
-            new NoneCircuitBreakerService(), shard.mapperService());
+            circuitBreakerService, shard.mapperService());
         IndexFieldData.Global ifd = indexFieldDataService.getForField(foo, "test", () -> {
             throw new UnsupportedOperationException("search lookup not available");
         });

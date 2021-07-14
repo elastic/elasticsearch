@@ -47,6 +47,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.node.InternalSettingsPreparer;
@@ -346,10 +347,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
             mapperService = new MapperService(idxSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
                     () -> createShardContext(null), () -> false, ScriptCompiler.NONE);
-            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
-            });
+            CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, circuitBreakerService);
             indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache,
-                    new NoneCircuitBreakerService(), mapperService);
+                circuitBreakerService, mapperService);
             bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
                 @Override
                 public void onCache(ShardId shardId, Accountable accountable) {

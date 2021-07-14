@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexReader.CacheKey;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StaticCacheKeyDirectoryReaderWrapper;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,9 +49,18 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         Setting.memorySizeSetting("indices.fielddata.cache.size", new ByteSizeValue(-1), Property.NodeScope);
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
+    private final CircuitBreakerService circuitBreakerService;
 
-    public IndicesFieldDataCache(Settings settings, IndexFieldDataCache.Listener indicesFieldDataCacheListener) {
-        this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
+    public IndicesFieldDataCache(Settings settings, CircuitBreakerService circuitBreakerService) {
+        this.circuitBreakerService = circuitBreakerService;
+        this.indicesFieldDataCacheListener = new IndexFieldDataCache.Listener() {
+            @Override
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
+                assert sizeInBytes >= 0 : "When reducing circuit breaker, it should be adjusted with a number higher or " +
+                    "equal to 0 and not [" + sizeInBytes + "]";
+                circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(-sizeInBytes);
+            }
+        };
         final long sizeInBytes = INDICES_FIELDDATA_CACHE_SIZE_KEY.get(settings).getBytes();
         CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.<Key, Accountable>builder()
                 .removalListener(this);
@@ -65,7 +76,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     }
 
     public IndexFieldDataCache buildIndexFieldDataCache(IndexFieldDataCache.Listener listener, Index index, String fieldName) {
-        return new IndexFieldCache(logger, cache, index, fieldName, indicesFieldDataCacheListener, listener);
+        return new IndexFieldCache(logger, cache, index, fieldName, circuitBreakerService, indicesFieldDataCacheListener, listener);
     }
 
     public Cache<Key, Accountable> getCache() {
@@ -107,14 +118,17 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         final Index index;
         final String fieldName;
         private final Cache<Key, Accountable> cache;
+        private final CircuitBreakerService circuitBreakerService;
         private final Listener[] listeners;
 
-        IndexFieldCache(Logger logger,final Cache<Key, Accountable> cache, Index index, String fieldName, Listener... listeners) {
+        IndexFieldCache(Logger logger,final Cache<Key, Accountable> cache, Index index, String fieldName,
+                        CircuitBreakerService circuitBreakerService, Listener... listeners) {
             this.logger = logger;
             this.listeners = listeners;
             this.index = index;
             this.fieldName = fieldName;
             this.cache = cache;
+            this.circuitBreakerService = circuitBreakerService;
         }
 
         @Override
@@ -123,7 +137,9 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                                                                                   final IFD indexFieldData) throws Exception {
             if (StaticCacheKeyDirectoryReaderWrapper.hasStaticCacheKeyLeafReaderWrapper(context.reader())) {
                 // no caching as we would otherwise hold onto reader even when underlying resources are closed
-                return indexFieldData.loadDirect(context);
+                FD fd = indexFieldData.loadDirect(context);
+                circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(- fd.ramBytesUsed());
+                return fd;
             }
             final ShardId shardId = ShardUtils.extractShardId(context.reader());
             final IndexReader.CacheHelper cacheHelper = context.reader().getCoreCacheHelper();
@@ -154,7 +170,9 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                                                                                           final IFD indexFieldData) throws Exception {
             if (StaticCacheKeyDirectoryReaderWrapper.getStaticCacheKeyDirectoryReaderWrapper(indexReader) != null) {
                 // no caching as we would otherwise hold onto reader even when underlying resources are closed
-                return (IFD) indexFieldData.loadGlobalDirect(indexReader);
+                IFD ifd = (IFD) indexFieldData.loadGlobalDirect(indexReader);
+                circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(- ((Accountable) ifd).ramBytesUsed());
+                return ifd;
             }
             final ShardId shardId = ShardUtils.extractShardId(indexReader);
             final IndexReader.CacheHelper cacheHelper = indexReader.getReaderCacheHelper();

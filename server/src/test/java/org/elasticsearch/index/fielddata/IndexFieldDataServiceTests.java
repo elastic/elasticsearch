@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptCompiler;
@@ -289,9 +290,11 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     private void doTestRequireDocValues(MappedFieldType ft) {
         ThreadPool threadPool = new TestThreadPool("random_threadpool_name");
         try {
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
+            NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, circuitBreakerService);
             IndexFieldDataService ifds =
-                new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
+                new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, circuitBreakerService,
+                    null);
             if (ft.hasDocValues()) {
                 ifds.getForField(ft, "test", () -> {
                     throw new UnsupportedOperationException();

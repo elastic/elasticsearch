@@ -139,8 +139,8 @@ public class IndexSortSettingsTests extends ESTestCase {
         IndexSettings indexSettings = indexSettings(Settings.builder().put("index.sort.field", "field").build());
         IndexSortConfig config = indexSettings.getIndexSortConfig();
         assertTrue(config.hasIndexSort());
-        IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
         NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, circuitBreakerService);
         final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
         MappedFieldType fieldType = new MappedFieldType("field", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
             @Override
@@ -180,8 +180,8 @@ public class IndexSortSettingsTests extends ESTestCase {
         IndexSettings indexSettings = indexSettings(Settings.builder().put("index.sort.field", "field").build());
         IndexSortConfig config = indexSettings.getIndexSortConfig();
         assertTrue(config.hasIndexSort());
-        IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
         NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, circuitBreakerService);
         final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
         MappedFieldType mft = new KeywordFieldMapper.KeywordFieldType("aliased");
         Exception e = expectThrows(IllegalArgumentException.class, () -> config.buildIndexSort(
@@ -197,8 +197,8 @@ public class IndexSortSettingsTests extends ESTestCase {
             .put("index.sort.field", "field").build());
         IndexSortConfig config = indexSettings.getIndexSortConfig();
         assertTrue(config.hasIndexSort());
-        IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
         NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, circuitBreakerService);
         final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
         MappedFieldType mft = new KeywordFieldMapper.KeywordFieldType("aliased");
         config.buildIndexSort(

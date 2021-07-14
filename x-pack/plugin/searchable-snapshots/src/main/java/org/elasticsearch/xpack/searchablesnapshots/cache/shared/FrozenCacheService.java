@@ -59,7 +59,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class FrozenCacheService implements Releasable {
 

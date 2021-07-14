@@ -1,0 +1,217 @@
+---
+setup:
+  - skip:
+      version: " - 7.99.99"
+      reason: field usage stats API is introduced in 8.0
+
+---
+"Field usage stats":
+  - do:
+      indices.create:
+        index: testindex
+        body:
+          settings:
+            routing.rebalance.enable: none
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: text
+                "index_options": "offsets"
+                "term_vector" : "with_positions_offsets"
+              price:
+                type: double
+
+  - do:
+      index:
+        index: testindex
+        body: { "name": "foo", "price": 100, "day" : "2003/09/06" }
+
+  - do:
+      index:
+        index: testindex
+        body: { "name": "bar", "price": 120, "day" : "2003/09/07" }
+
+  - do:
+      index:
+        index: testindex
+        body: { "name": "baz", "price": 100, "day" : "2003/09/13" }
+
+  - do:
+      index:
+        index: testindex
+        body: { "name": "bar & baz", "price": 220 }
+  - do:
+      index:
+        index: testindex
+        id:    testid
+        body: { "name": "foo bar", "price": 150, "day" : "2003/09/07" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            bool:
+              must:
+                - match_phrase:
+                    name: "foo bar"
+                - range:
+                    day:
+                      gte: "2003/09/07"
+          sort: [ "price" ]
+
+  - do:
+      indices.field_usage_stats: { index: testindex }
+
+  - is_true: testindex
+  - length: { testindex.shards: 1 }
+  - is_true: testindex.shards.0.tracking_id
+  - gt: { testindex.shards.0.tracking_started_at_millis: 0 }
+  - is_true: testindex.shards.0.routing
+  - is_true: testindex.shards.0.routing.state
+  - is_true: testindex.shards.0.routing.primary
+  - is_true: testindex.shards.0.routing.node
+  - is_true: testindex.shards.0.stats
+
+  # all_fields
+  - set: { testindex.shards.0.stats.all_fields: stat }
+  - gt: { $stat.any: 0 }
+  - gt: { $stat.inverted_index.terms: 0 }
+  - gt: { $stat.inverted_index.postings: 0 }
+  - gt: { $stat.inverted_index.proximity: 0 }
+  - gt: { $stat.stored_fields: 0 }
+  - gt: { $stat.doc_values: 0 }
+  - gt: { $stat.points: 0 }
+  - match: { $stat.norms: 0 }
+  - match: { $stat.term_vectors: 0 }
+  - gt: { $stat.inverted_index.term_frequencies: 0 }
+  - gt: { $stat.inverted_index.positions: 0 }
+  - match: { $stat.inverted_index.offsets: 0 }
+  - match: { $stat.inverted_index.payloads: 0 }
+
+  # name
+  - set: { testindex.shards.0.stats.fields.name: stat }
+  - gt: { $stat.any: 0 }
+  - gt: { $stat.inverted_index.terms: 0 }
+  - gt: { $stat.inverted_index.postings: 0 }
+  - gt: { $stat.inverted_index.proximity: 0 }
+  - match: { $stat.stored_fields: 0 }
+  - match: { $stat.doc_values: 0 }
+  - match: { $stat.points: 0 }
+  - match: { $stat.norms: 0 }
+  - match: { $stat.term_vectors: 0 }
+  - gt: { $stat.inverted_index.term_frequencies: 0 }
+  - gt: { $stat.inverted_index.positions: 0 }
+  - match: { $stat.inverted_index.offsets: 0 }
+  - match: { $stat.inverted_index.payloads: 0 }
+
+  # price
+  - set: { testindex.shards.0.stats.fields.price: stat }
+  - gt: { $stat.any: 0 }
+  - match: { $stat.inverted_index.terms: 0 }
+  - match: { $stat.inverted_index.postings: 0 }
+  - match: { $stat.inverted_index.proximity: 0 }
+  - match: { $stat.stored_fields: 0 }
+  - gt: { $stat.doc_values: 0 }
+  - match: { $stat.points: 0 }
+  - match: { $stat.norms: 0 }
+  - match: { $stat.term_vectors: 0 }
+  - match: { $stat.inverted_index.term_frequencies: 0 }
+  - match: { $stat.inverted_index.positions: 0 }
+  - match: { $stat.inverted_index.offsets: 0 }
+  - match: { $stat.inverted_index.payloads: 0 }
+
+  # day
+  - set: { testindex.shards.0.stats.fields.day: stat }
+  - gt: { $stat.any: 0 }
+  - match: { $stat.inverted_index.terms: 0 }
+  - match: { $stat.inverted_index.postings: 0 }
+  - match: { $stat.inverted_index.proximity: 0 }
+  - match: { $stat.stored_fields: 0 }
+  - gt: { $stat.doc_values: 0 }
+  - gt: { $stat.points: 0 }
+  - match: { $stat.norms: 0 }
+  - match: { $stat.term_vectors: 0 }
+  - match: { $stat.inverted_index.term_frequencies: 0 }
+  - match: { $stat.inverted_index.positions: 0 }
+  - match: { $stat.inverted_index.offsets: 0 }
+  - match: { $stat.inverted_index.payloads: 0 }
+
+  # _source
+  - set: { testindex.shards.0.stats.fields._source: stat }
+  - gt: { $stat.any: 0 }
+  - match: { $stat.inverted_index.terms: 0 }
+  - match: { $stat.inverted_index.postings: 0 }
+  - match: { $stat.inverted_index.proximity: 0 }
+  - gt: { $stat.stored_fields: 0 }
+  - match: { $stat.doc_values: 0 }
+  - match: { $stat.points: 0 }
+  - match: { $stat.norms: 0 }
+  - match: { $stat.term_vectors: 0 }
+  - match: { $stat.inverted_index.term_frequencies: 0 }
+  - match: { $stat.inverted_index.positions: 0 }
+  - match: { $stat.inverted_index.offsets: 0 }
+  - match: { $stat.inverted_index.payloads: 0 }
+
+  # _id
+  - set: { testindex.shards.0.stats.fields._id: stat }
+  - gt: { $stat.any: 0 }
+  - match: { $stat.inverted_index.terms: 0 }
+  - match: { $stat.inverted_index.postings: 0 }
+  - match: { $stat.inverted_index.proximity: 0 }
+  - gt: { $stat.stored_fields: 0 }
+  - match: { $stat.doc_values: 0 }
+  - match: { $stat.points: 0 }
+  - match: { $stat.norms: 0 }
+  - match: { $stat.term_vectors: 0 }
+  - match: { $stat.inverted_index.term_frequencies: 0 }
+  - match: { $stat.inverted_index.positions: 0 }
+  - match: { $stat.inverted_index.offsets: 0 }
+  - match: { $stat.inverted_index.payloads: 0 }
+
+  - do:
+      termvectors:
+        index: testindex
+        id:    testid
+        term_statistics : true
+        fields: name
+
+  - do:
+      indices.field_usage_stats: { index: testindex }
+
+  # name
+  - set: { testindex.shards.0.stats.fields.name: stat }
+  - gt: { $stat.term_vectors: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match_phrase:
+              name: "foo bar"
+
+  - do:
+      indices.field_usage_stats: { index: testindex }
+
+  # name
+  - set: { testindex.shards.0.stats.fields.name: stat }
+  - gt: { $stat.norms: 0 }
+
+  - do:
+      search:
+        body: {
+          "query" : { "match_phrase" : { "name" : "foo bar" } },
+          "highlight" : { "type" : "unified", "fields" : { "*" : {} } } }
+
+  - do:
+      indices.field_usage_stats: { index: testindex }
+
+  # name
+  - set: { testindex.shards.0.stats.fields.name: stat }
+  - gt: { $stat.inverted_index.offsets: 0 }

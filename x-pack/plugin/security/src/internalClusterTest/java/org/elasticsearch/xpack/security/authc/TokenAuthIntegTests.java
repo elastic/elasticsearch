@@ -207,7 +207,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             invalidateRefreshTokenRequest, SECURITY_REQUEST_OPTIONS);
         assertThat(invalidateRefreshTokenResponse.getInvalidatedTokens(), equalTo(0));
         assertThat(invalidateRefreshTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
-        assertThat(invalidateRefreshTokenResponse.getErrors(), empty());
 
         // 99% of the time, this will already be empty, but if not ensure it goes to empty within the allowed timeframe
         if (false == invalidateRefreshTokenResponse.getErrors().isEmpty()) {

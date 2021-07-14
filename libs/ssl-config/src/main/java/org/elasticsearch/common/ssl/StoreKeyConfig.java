@@ -77,16 +77,4 @@ public class StoreKeyConfig extends SslKeystoreConfig {
         return result;
     }
 
-    @Override
-    public String toString() {
-        final StringBuilder sb = new StringBuilder("StoreKeyConfig{");
-        sb.append("path=").append(keystorePath);
-        sb.append(", storePassword=").append(getKeystorePassword().length == 0 ? "<empty>" : "<non-empty>");
-        sb.append(", type=").append(type);
-        sb.append(", keyPassword=").append(hasKeyPassword() ? "<set>" : "<not-set>");
-        sb.append(", algorithm=").append(getKeystoreAlgorithm());
-        sb.append('}');
-        return sb.toString();
-    }
-
 }

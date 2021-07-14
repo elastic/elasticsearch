@@ -41,13 +41,4 @@ public class Pkcs11KeyConfig extends SslKeystoreConfig {
         return "PKCS11";
     }
 
-    @Override
-    public String toString() {
-        final StringBuilder sb = new StringBuilder("Pkcs11KeyConfig{");
-        sb.append(", storePassword=").append(getKeystorePassword().length == 0 ? "<empty>" : "<non-empty>");
-        sb.append(", keyPassword=").append(hasKeyPassword() ? "<set>" : "<not-set>");
-        sb.append(", algorithm=").append(getKeystoreAlgorithm());
-        sb.append('}');
-        return sb.toString();
-    }
 }

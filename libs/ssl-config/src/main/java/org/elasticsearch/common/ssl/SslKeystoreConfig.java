@@ -28,13 +28,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public abstract class SslKeystoreConfig implements SslKeyConfig {
+abstract class SslKeystoreConfig implements SslKeyConfig {
     private final char[] storePassword;
     private final char[] keyPassword;
     private final String algorithm;
     private final Path configBasePath;
 
-    public SslKeystoreConfig(char[] storePassword, char[] keyPassword, String algorithm, Path configBasePath) {
+    protected SslKeystoreConfig(char[] storePassword, char[] keyPassword, String algorithm, Path configBasePath) {
         this.storePassword = Objects.requireNonNull(storePassword, "Keystore password cannot be null (but may be empty)");
         this.keyPassword = Objects.requireNonNull(keyPassword, "Key password cannot be null (but may be empty)");
         this.algorithm = Objects.requireNonNull(algorithm, "Keystore algorithm cannot be null");
@@ -65,10 +65,6 @@ public abstract class SslKeystoreConfig implements SslKeyConfig {
 
     public char[] getKeyPassword() {
         return keyPassword;
-    }
-
-    public boolean hasKeyPassword() {
-        return Arrays.equals(storePassword, keyPassword) == false;
     }
 
     public String getKeystoreAlgorithm() {
@@ -197,4 +193,29 @@ public abstract class SslKeystoreConfig implements SslKeyConfig {
         result = 31 * result + Arrays.hashCode(keyPassword);
         return result;
     }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder(getClass().getSimpleName());
+        sb.append('{');
+
+        String path = getKeystorePath();
+        if (path != null) {
+            sb.append("path=").append(path).append(", ");
+        }
+        sb.append("type=").append(getKeystoreType());
+        sb.append(", storePassword=").append(getKeystorePassword().length == 0 ? "<empty>" : "<non-empty>");
+        sb.append(", keyPassword=");
+        if (keyPassword.length == 0) {
+            sb.append("<empty>");
+        } else if (Arrays.equals(storePassword, keyPassword)) {
+            sb.append("<same-as-store-password>");
+        } else {
+            sb.append("<set>");
+        }
+        sb.append(", algorithm=").append(algorithm);
+        sb.append('}');
+        return sb.toString();
+    }
+
 }

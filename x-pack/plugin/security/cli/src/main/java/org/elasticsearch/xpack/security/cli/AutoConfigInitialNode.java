@@ -85,6 +85,9 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
         // because it doesn't get its own executable it must contend with cmd line options that itself cannot understand
         // because they are destined for the ES node startup code
         parser.allowsUnrecognizedOptions();
+        // This is exposed as a CLI tool so that we can call it from the postinst scripts of the packaged installations
+        // We have a mandatory undocumented parameter `explicitly-acknowledge-execution`, but not adding it to the parser
+        // so that we won't show it in the help message
     }
 
     public static void main(String[] args) throws Exception {
@@ -93,6 +96,10 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+
+        if (options.nonOptionArguments().contains("--explicitly-acknowledge-execution") == false) {
+            throw new UserException(ExitCodes.NOOP, "This command is not intended for end users");
+        }
         // Silently skipping security auto configuration because node restarted.
         // It is an error if filesystem operations fail, and therefore cannot be determined if the node starts up for the first time or not.
         if (Files.isDirectory(env.dataFile()) && Files.list(env.dataFile()).findAny().isPresent()) {

@@ -135,16 +135,16 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         @SuppressWarnings("unchecked")
         public <FD extends LeafFieldData, IFD extends IndexFieldData<FD>> FD load(final LeafReaderContext context,
                                                                                   final IFD indexFieldData) throws Exception {
-            if (StaticCacheKeyDirectoryReaderWrapper.hasStaticCacheKeyLeafReaderWrapper(context.reader())) {
-                // no caching as we would otherwise hold onto reader even when underlying resources are closed
-                FD fd = indexFieldData.loadDirect(context);
-                circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(- fd.ramBytesUsed());
-                return fd;
-            }
             final ShardId shardId = ShardUtils.extractShardId(context.reader());
             final IndexReader.CacheHelper cacheHelper = context.reader().getCoreCacheHelper();
             if (cacheHelper == null) {
                 throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
+            }
+            if (cacheHelper instanceof StaticCacheKeyDirectoryReaderWrapper.StaticCacheKeyHelper) {
+                // no caching as we would otherwise hold onto reader even when underlying resources are closed
+                FD fd = indexFieldData.loadDirect(context);
+                circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(- fd.ramBytesUsed());
+                return fd;
             }
             final Key key = new Key(this, cacheHelper.getKey(), shardId);
             final Accountable accountable = cache.computeIfAbsent(key, k -> {
@@ -168,16 +168,16 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         @SuppressWarnings("unchecked")
         public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final DirectoryReader indexReader,
                                                                                           final IFD indexFieldData) throws Exception {
-            if (StaticCacheKeyDirectoryReaderWrapper.getStaticCacheKeyDirectoryReaderWrapper(indexReader) != null) {
-                // no caching as we would otherwise hold onto reader even when underlying resources are closed
-                IFD ifd = (IFD) indexFieldData.loadGlobalDirect(indexReader);
-                circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(- ((Accountable) ifd).ramBytesUsed());
-                return ifd;
-            }
             final ShardId shardId = ShardUtils.extractShardId(indexReader);
             final IndexReader.CacheHelper cacheHelper = indexReader.getReaderCacheHelper();
             if (cacheHelper == null) {
                 throw new IllegalArgumentException("Reader " + indexReader + " does not support caching");
+            }
+            if (cacheHelper instanceof StaticCacheKeyDirectoryReaderWrapper.StaticCacheKeyHelper) {
+                // no caching as we would otherwise hold onto reader even when underlying resources are closed
+                IFD ifd = (IFD) indexFieldData.loadGlobalDirect(indexReader);
+                circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(- ((Accountable) ifd).ramBytesUsed());
+                return ifd;
             }
             final Key key = new Key(this, cacheHelper.getKey(), shardId);
             final Accountable accountable = cache.computeIfAbsent(key, k -> {

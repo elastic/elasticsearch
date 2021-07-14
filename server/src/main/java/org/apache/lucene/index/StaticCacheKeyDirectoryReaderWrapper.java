@@ -24,7 +24,7 @@ public class StaticCacheKeyDirectoryReaderWrapper extends FilterDirectoryReader 
                                                 List<Closeable> onCloseCallbacks) throws IOException {
         super(in, new StaticCacheKeySubReaderWrapper(cachedKeys, onCloseCallbacks));
         readerCacheHelper = in.getReaderCacheHelper() == null ? null :
-            createCacheHelper(cachedKeys, onCloseCallbacks, "$$dir_reader$$", in.getReaderCacheHelper().getKey());
+            createCacheHelper(cachedKeys, onCloseCallbacks, "$$dir_reader$$", in.getReaderCacheHelper());
     }
 
     @Override
@@ -55,37 +55,27 @@ public class StaticCacheKeyDirectoryReaderWrapper extends FilterDirectoryReader 
         final byte[] id = segmentInfo.getId();
         final String idString = Base64.getEncoder().encodeToString(id);
         final CacheHelper adaptedCoreCacheHelper =
-            createCacheHelper(cachedKeys, onCloseCallbacks, idString + "_core", segmentReader.getCoreCacheHelper().getKey());
+            createCacheHelper(cachedKeys, onCloseCallbacks, idString + "_core", segmentReader.getCoreCacheHelper());
         final CacheHelper adaptedReaderCacheHelper =
-            createCacheHelper(cachedKeys, onCloseCallbacks, idString + "_reader", segmentReader.getReaderCacheHelper().getKey());
+            createCacheHelper(cachedKeys, onCloseCallbacks, idString + "_reader", segmentReader.getReaderCacheHelper());
         return reader instanceof CodecReader ?
             new StaticCacheKeyFilterCodecReader((CodecReader) reader, adaptedCoreCacheHelper, adaptedReaderCacheHelper) :
             new StaticCacheKeyFilterLeafReader(reader, adaptedCoreCacheHelper, adaptedReaderCacheHelper);
     }
 
     private static CacheHelper createCacheHelper(Map<String, CacheKey> cachedKeys, List<Closeable> onCloseCallbacks, String idString,
-                                                 CacheKey originalCacheKey) {
-        final CacheKey coreCacheKey = cachedKeys.computeIfAbsent(idString, ignore -> originalCacheKey);
-        return new CacheHelper() {
-
-            @Override
-            public CacheKey getKey() {
-                return coreCacheKey;
-            }
-
-            @Override
-            public void addClosedListener(ClosedListener listener) {
-                onCloseCallbacks.add(() -> listener.onClose(coreCacheKey));
-            }
-        };
+                                                 CacheHelper cacheHelper) {
+        final CacheKey originalCacheKey = cacheHelper.getKey();
+        final CacheKey newCacheKey = cachedKeys.computeIfAbsent(idString, ignore -> originalCacheKey);
+        return new StaticCacheKeyHelper(newCacheKey, cacheHelper, onCloseCallbacks);
     }
 
-    public static final class StaticCacheKeyFilterCodecReader extends FilterCodecReader {
+    static final class StaticCacheKeyFilterCodecReader extends FilterCodecReader {
 
         private final CacheHelper coreCacheHelper;
         private final CacheHelper readerCacheHelper;
 
-        public StaticCacheKeyFilterCodecReader(CodecReader in, CacheHelper coreCacheHelper, CacheHelper readerCacheHelper) {
+        StaticCacheKeyFilterCodecReader(CodecReader in, CacheHelper coreCacheHelper, CacheHelper readerCacheHelper) {
             super(in);
             this.coreCacheHelper = coreCacheHelper;
             this.readerCacheHelper = readerCacheHelper;
@@ -102,12 +92,12 @@ public class StaticCacheKeyDirectoryReaderWrapper extends FilterDirectoryReader 
         }
     }
 
-    public static final class StaticCacheKeyFilterLeafReader extends FilterLeafReader {
+    static final class StaticCacheKeyFilterLeafReader extends FilterLeafReader {
 
         private final CacheHelper coreCacheHelper;
         private final CacheHelper readerCacheHelper;
 
-        public StaticCacheKeyFilterLeafReader(LeafReader in, CacheHelper coreCacheHelper, CacheHelper readerCacheHelper) {
+        StaticCacheKeyFilterLeafReader(LeafReader in, CacheHelper coreCacheHelper, CacheHelper readerCacheHelper) {
             super(in);
             this.coreCacheHelper = coreCacheHelper;
             this.readerCacheHelper = readerCacheHelper;
@@ -129,34 +119,31 @@ public class StaticCacheKeyDirectoryReaderWrapper extends FilterDirectoryReader 
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * Tries to unwrap the given reader until the first
-     * {@link StaticCacheKeyDirectoryReaderWrapper} instance is found or {@code null}
-     * if no instance is found.
-     */
-    public static StaticCacheKeyDirectoryReaderWrapper getStaticCacheKeyDirectoryReaderWrapper(DirectoryReader reader) {
-        if (reader instanceof FilterDirectoryReader) {
-            if (reader instanceof StaticCacheKeyDirectoryReaderWrapper) {
-                return (StaticCacheKeyDirectoryReaderWrapper) reader;
-            } else {
-                // We need to use FilterDirectoryReader#getDelegate and not FilterDirectoryReader#unwrap, because
-                // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
-                // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
-                // may be instance of StaticCacheKeyDirectoryReaderWrapper.
-                return getStaticCacheKeyDirectoryReaderWrapper(((FilterDirectoryReader) reader).getDelegate());
-            }
-        }
-        return null;
-    }
+    public static class StaticCacheKeyHelper implements CacheHelper {
 
-    public static boolean hasStaticCacheKeyLeafReaderWrapper(LeafReader reader) {
-        if (reader instanceof FilterLeafReader) {
-            if (reader instanceof StaticCacheKeyFilterCodecReader || reader instanceof StaticCacheKeyFilterLeafReader) {
-                return true;
-            } else {
-                return hasStaticCacheKeyLeafReaderWrapper(((FilterLeafReader) reader).getDelegate());
-            }
+        private final CacheKey coreCacheKey;
+        private final List<Closeable> onCloseCallbacks;
+        private final CacheHelper originalCacheHelper;
+
+        public StaticCacheKeyHelper(CacheKey coreCacheKey, CacheHelper originalCacheHelper, List<Closeable> onCloseCallbacks) {
+            this.coreCacheKey = coreCacheKey;
+            this.onCloseCallbacks = onCloseCallbacks;
+            this.originalCacheHelper = originalCacheHelper;
         }
-        return false;
+
+        @Override
+        public CacheKey getKey() {
+            return coreCacheKey;
+        }
+
+        @Override
+        public void addClosedListener(ClosedListener listener) {
+            onCloseCallbacks.add(() -> listener.onClose(coreCacheKey));
+        }
+
+        /** Allows setting a ClosedListener on the actual CacheHelper instance, to be notified about closing of the actual reader **/
+        public void addTrueClosedListener(ClosedListener listener) {
+            originalCacheHelper.addClosedListener(listener);
+        }
     }
 }

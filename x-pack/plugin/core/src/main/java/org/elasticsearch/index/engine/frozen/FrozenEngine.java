@@ -178,7 +178,9 @@ public final class FrozenEngine extends ReadOnlyEngine {
                     new StaticCacheKeyDirectoryReaderWrapper(dirReader, cachedKeys, onCloseCallbacks), readerWrapperFunction);
                 processReader(reader);
                 ElasticsearchDirectoryReader finalReader = reader;
-                reader.getReaderCacheHelper().addClosedListener(key -> this.onReaderClosed(finalReader, key));
+                assert reader.getReaderCacheHelper() instanceof StaticCacheKeyDirectoryReaderWrapper.StaticCacheKeyHelper;
+                ((StaticCacheKeyDirectoryReaderWrapper.StaticCacheKeyHelper) reader.getReaderCacheHelper()).addTrueClosedListener(
+                    key -> this.onReaderClosed(finalReader, key));
                 for (ReferenceManager.RefreshListener listeners : config().getInternalRefreshListener()) {
                     listeners.afterRefresh(true);
                 }

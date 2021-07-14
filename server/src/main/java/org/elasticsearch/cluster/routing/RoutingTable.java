@@ -256,6 +256,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return allShardsSatisfyingPredicate(indices, shardRouting -> true, false);
     }
 
+    public ShardsIterator allActiveShards(String[] indices) {
+        return allShardsSatisfyingPredicate(indices, ShardRouting::active, false);
+    }
+
     public ShardsIterator allShardsIncludingRelocationTargets(String[] indices) {
         return allShardsSatisfyingPredicate(indices, shardRouting -> true, true);
     }

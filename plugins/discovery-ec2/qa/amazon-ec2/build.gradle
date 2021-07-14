@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.AntFixture

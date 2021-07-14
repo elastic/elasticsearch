@@ -62,7 +62,6 @@ public class CopyRestTestsTask extends DefaultTask {
     private final ProjectLayout projectLayout;
     private final FileSystemOperations fileSystemOperations;
 
-
     @Inject
     public CopyRestTestsTask(
         ProjectLayout projectLayout,
@@ -142,7 +141,7 @@ public class CopyRestTestsTask extends DefaultTask {
                 c.from(coreConfigToFileTree.apply(coreConfig));
                 c.into(restTestOutputDir);
                 c.include(corePatternSet.getIncludes());
-                if(substitutions != null) {
+                if (substitutions != null) {
                     c.filter(Map.of("tokens", substitutions), ReplaceTokens.class);
                 }
             });
@@ -154,7 +153,7 @@ public class CopyRestTestsTask extends DefaultTask {
                 c.from(xpackConfigToFileTree.apply(xpackConfig));
                 c.into(restTestOutputDir);
                 c.include(xpackPatternSet.getIncludes());
-                if(substitutions != null) {
+                if (substitutions != null) {
                     c.filter(Map.of("tokens", substitutions), ReplaceTokens.class);
                 }
             });
@@ -164,7 +163,7 @@ public class CopyRestTestsTask extends DefaultTask {
             fileSystemOperations.copy(c -> {
                 c.from(additionalConfigToFileTree.apply(additionalConfig));
                 c.into(restTestOutputDir);
-                if(substitutions != null) {
+                if (substitutions != null) {
                     c.filter(Map.of("tokens", substitutions), ReplaceTokens.class);
                 }
             });

@@ -1,7 +1,6 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-
 import java.nio.file.Files
 import java.security.KeyPair
 import java.security.KeyPairGenerator

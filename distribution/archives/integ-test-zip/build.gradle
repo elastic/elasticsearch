@@ -8,7 +8,6 @@
 
 import org.apache.tools.ant.filters.ReplaceTokens
 
-
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 

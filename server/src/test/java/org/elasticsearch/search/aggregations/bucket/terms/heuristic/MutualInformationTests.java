@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
-import org.elasticsearch.test.AbstractSignificanceHeuristicTests;
+import org.elasticsearch.test.AbstractSignificanceHeuristicTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class MutualInformationTests extends AbstractSignificanceHeuristicTests {
+public class MutualInformationTests extends AbstractSignificanceHeuristicTestCase {
     @Override
     protected SignificanceHeuristic getHeuristic() {
         return new MutualInformation(randomBoolean(), randomBoolean());

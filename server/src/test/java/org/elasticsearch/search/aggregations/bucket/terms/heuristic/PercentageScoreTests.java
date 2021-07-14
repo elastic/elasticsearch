@@ -8,9 +8,9 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
-import org.elasticsearch.test.AbstractSignificanceHeuristicTests;
+import org.elasticsearch.test.AbstractSignificanceHeuristicTestCase;
 
-public class PercentageScoreTests extends AbstractSignificanceHeuristicTests {
+public class PercentageScoreTests extends AbstractSignificanceHeuristicTestCase {
     @Override
     protected SignificanceHeuristic getHeuristic() {
         return new PercentageScore();

@@ -84,7 +84,7 @@ setup:
               }
             }
           }
-  - close_to: { aggregations.significant_failures.buckets.0.score: {value: 2.6506552346661523, error: 0.000001}}
+  - close_to: { aggregations.significant_failures.buckets.0.score: {value: 1.957508054106207, error: 0.000001}}
   - match: {aggregations.significant_failures.buckets.0.key: VCR}
 
   - do:
@@ -104,5 +104,5 @@ setup:
               }
             }
           }
-  - close_to: { aggregations.significant_failures.buckets.0.score: {value: 2.6506552346661523, error: 0.000001}}
+  - close_to: { aggregations.significant_failures.buckets.0.score: {value: 1.957508054106207, error: 0.000001}}
   - match: {aggregations.significant_failures.buckets.0.key: VCR}

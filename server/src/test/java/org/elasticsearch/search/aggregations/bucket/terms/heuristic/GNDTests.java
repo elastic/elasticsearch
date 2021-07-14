@@ -8,11 +8,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
-import org.elasticsearch.test.AbstractSignificanceHeuristicTests;
+import org.elasticsearch.test.AbstractSignificanceHeuristicTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GNDTests extends AbstractSignificanceHeuristicTests {
+public class GNDTests extends AbstractSignificanceHeuristicTestCase {
     @Override
     protected SignificanceHeuristic getHeuristic() {
         return new GND(randomBoolean());

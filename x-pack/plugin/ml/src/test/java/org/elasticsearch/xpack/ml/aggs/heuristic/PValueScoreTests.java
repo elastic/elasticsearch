@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.elasticsearch.test.AbstractSignificanceHeuristicTests;
+import org.elasticsearch.test.AbstractSignificanceHeuristicTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.Arrays;
@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class PValueScoreTests extends AbstractSignificanceHeuristicTests {
+public class PValueScoreTests extends AbstractSignificanceHeuristicTestCase {
 
     private static final double eps = 0.00000001;
 

@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  * Abstract test case for testing significant term heuristics
  */
-public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
+public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
 
     /**
      * @return A random instance of the heuristic to test
@@ -152,8 +152,8 @@ public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
     /**
      * Testing heuristic specific assertions
      * Typically, this method would call either
-     * {@link AbstractSignificanceHeuristicTests#testBackgroundAssertions(SignificanceHeuristic, SignificanceHeuristic)}
-     * or {@link AbstractSignificanceHeuristicTests#testAssertions(SignificanceHeuristic)}
+     * {@link AbstractSignificanceHeuristicTestCase#testBackgroundAssertions(SignificanceHeuristic, SignificanceHeuristic)}
+     * or {@link AbstractSignificanceHeuristicTestCase#testAssertions(SignificanceHeuristic)}
      * depending on which was appropriate
      */
     public abstract void testAssertions();
@@ -208,9 +208,9 @@ public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
     // Create aggregations as they might come from three different shards and return as list.
     private List<InternalAggregation> createInternalAggregations() {
         SignificanceHeuristic significanceHeuristic = getHeuristic();
-        AbstractSignificanceHeuristicTests.TestAggFactory<?, ?> factory = randomBoolean() ?
-            new AbstractSignificanceHeuristicTests.StringTestAggFactory() :
-            new AbstractSignificanceHeuristicTests.LongTestAggFactory();
+        AbstractSignificanceHeuristicTestCase.TestAggFactory<?, ?> factory = randomBoolean() ?
+            new AbstractSignificanceHeuristicTestCase.StringTestAggFactory() :
+            new AbstractSignificanceHeuristicTestCase.LongTestAggFactory();
 
         List<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(factory.createAggregation(significanceHeuristic, 4, 10, 1, (f, i) -> f.createBucket(4, 4, 5, 10, 0)));

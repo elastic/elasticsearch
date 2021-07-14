@@ -182,7 +182,13 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
             DateHistogramInterval delay = in.readOptionalWriteable(DateHistogramInterval::new);
             ZoneId timeZone = in.readZoneId();
 
-            assertEqualInstances(reference, new DateHistogramGroupConfig.FixedInterval(field, interval, delay, timeZone.getId()));
+            if (reference instanceof DateHistogramGroupConfig.FixedInterval) {
+                assertEqualInstances(reference, new DateHistogramGroupConfig.FixedInterval(field, interval, delay, timeZone.getId()));
+            } else if (reference instanceof DateHistogramGroupConfig.CalendarInterval) {
+                assertEqualInstances(reference, new DateHistogramGroupConfig.CalendarInterval(field, interval, delay, timeZone.getId()));
+            } else {
+                fail("And you may ask yourself, how did I get here?");
+            }
         }
 
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {

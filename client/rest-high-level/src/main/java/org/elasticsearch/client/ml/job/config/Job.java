@@ -8,6 +8,7 @@
 package org.elasticsearch.client.ml.job.config;
 
 import org.elasticsearch.client.common.TimeUtil;
+import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -24,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * This class represents a configured and created Job. The creation time is set
@@ -60,6 +62,7 @@ public class Job implements ToXContentObject {
     public static final ParseField DELETING = new ParseField("deleting");
     public static final ParseField ALLOW_LAZY_OPEN = new ParseField("allow_lazy_open");
     public static final ParseField BLOCKED = new ParseField("blocked");
+    public static final ParseField DATAFEED_CONFIG = new ParseField("datafeed_config");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("job_details", true, Builder::new);
 
@@ -92,6 +95,7 @@ public class Job implements ToXContentObject {
         PARSER.declareBoolean(Builder::setDeleting, DELETING);
         PARSER.declareBoolean(Builder::setAllowLazyOpen, ALLOW_LAZY_OPEN);
         PARSER.declareObject(Builder::setBlocked, Blocked.PARSER, BLOCKED);
+        PARSER.declareObject(Builder::setDatafeed, DatafeedConfig.PARSER, DATAFEED_CONFIG);
     }
 
     private final String jobId;
@@ -116,6 +120,7 @@ public class Job implements ToXContentObject {
     private final Boolean deleting;
     private final Boolean allowLazyOpen;
     private final Blocked blocked;
+    private final DatafeedConfig datafeedConfig;
 
     private Job(String jobId, String jobType, List<String> groups, String description,
                 Date createTime, Date finishedTime,
@@ -123,7 +128,7 @@ public class Job implements ToXContentObject {
                 ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                 Long modelSnapshotRetentionDays, Long dailyModelSnapshotRetentionAfterDays, Long resultsRetentionDays,
                 Map<String, Object> customSettings, String modelSnapshotId, String resultsIndexName, Boolean deleting,
-                Boolean allowLazyOpen, Blocked blocked) {
+                Boolean allowLazyOpen, Blocked blocked, DatafeedConfig datafeedConfig) {
 
         this.jobId = jobId;
         this.jobType = jobType;
@@ -146,6 +151,7 @@ public class Job implements ToXContentObject {
         this.deleting = deleting;
         this.allowLazyOpen = allowLazyOpen;
         this.blocked = blocked;
+        this.datafeedConfig = datafeedConfig;
     }
 
     /**
@@ -286,6 +292,14 @@ public class Job implements ToXContentObject {
         return blocked;
     }
 
+    /**
+     * The currently configured datafeed for the job
+     * @return Optional of the datafeed config. Will be none if a datafeed is not configured for this job
+     */
+    public Optional<DatafeedConfig> getDatafeedConfig() {
+        return Optional.ofNullable(datafeedConfig);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -350,6 +364,9 @@ public class Job implements ToXContentObject {
         if (blocked != null) {
             builder.field(BLOCKED.getPreferredName(), blocked);
         }
+        if (datafeedConfig != null) {
+            builder.field(DATAFEED_CONFIG.getPreferredName(), datafeedConfig, params);
+        }
         builder.endObject();
         return builder;
     }
@@ -385,7 +402,8 @@ public class Job implements ToXContentObject {
             && Objects.equals(this.resultsIndexName, that.resultsIndexName)
             && Objects.equals(this.deleting, that.deleting)
             && Objects.equals(this.allowLazyOpen, that.allowLazyOpen)
-            && Objects.equals(this.blocked, that.blocked);
+            && Objects.equals(this.blocked, that.blocked)
+            && Objects.equals(this.datafeedConfig, that.datafeedConfig);
     }
 
     @Override
@@ -393,7 +411,7 @@ public class Job implements ToXContentObject {
         return Objects.hash(jobId, jobType, groups, description, createTime, finishedTime,
             analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
             backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-            customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen, blocked);
+            customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen, blocked, datafeedConfig);
     }
 
     @Override
@@ -428,6 +446,7 @@ public class Job implements ToXContentObject {
         private Boolean deleting;
         private Boolean allowLazyOpen;
         private Blocked blocked;
+        private DatafeedConfig.Builder datafeedConfig;
 
         private Builder() {
         }
@@ -458,6 +477,7 @@ public class Job implements ToXContentObject {
             this.deleting = job.getDeleting();
             this.allowLazyOpen = job.getAllowLazyOpen();
             this.blocked = job.getBlocked();
+            this.datafeedConfig = job.getDatafeedConfig().isPresent() ? new DatafeedConfig.Builder(job.datafeedConfig) : null;
         }
 
         public Builder setId(String id) {
@@ -569,6 +589,11 @@ public class Job implements ToXContentObject {
             return this;
         }
 
+        public Builder setDatafeed(DatafeedConfig.Builder datafeed) {
+            this.datafeedConfig = datafeed;
+            return this;
+        }
+
         /**
          * Builds a job.
          *
@@ -581,7 +606,8 @@ public class Job implements ToXContentObject {
                 id, jobType, groups, description, createTime, finishedTime,
                 analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-                customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen, blocked);
+                customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen, blocked,
+                datafeedConfig == null ? null : datafeedConfig.build());
         }
     }
 }

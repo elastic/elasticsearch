@@ -279,6 +279,38 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(response.jobs().stream().map(Job::getId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
     }
 
+    public void testGetJobWithDatafeed() throws Exception {
+        String jobId = "hlrc-job-with-datafeed";
+
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        String datafeedId = "datafeed-" + jobId;
+        DatafeedConfig datafeedConfig = DatafeedConfig.builder(datafeedId, jobId).setIndices("some_data_index").build();
+
+        execute(new PutDatafeedRequest(datafeedConfig), machineLearningClient::putDatafeed, machineLearningClient::putDatafeedAsync);
+
+        // Test getting specific job
+        GetJobResponse response = execute(new GetJobRequest(jobId), machineLearningClient::getJob, machineLearningClient::getJobAsync);
+        assertThat(response.jobs(), hasSize(1));
+        assertThat(response.jobs().get(0).getDatafeedConfig().orElse(null), is(notNullValue()));
+    }
+
+    public void testPutJobWithDatafeed() throws Exception {
+        String jobId = "hlrc-put-job-with-datafeed";
+
+        Job.Builder job = buildJobBuilder(jobId).setDatafeed(DatafeedConfig.builder(jobId, jobId).setIndices("some_data_index"));
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job.build()), RequestOptions.DEFAULT);
+
+        // Test getting specific job
+        GetJobResponse response = execute(new GetJobRequest(jobId), machineLearningClient::getJob, machineLearningClient::getJobAsync);
+        assertThat(response.jobs(), hasSize(1));
+        assertThat(response.jobs().get(0).getDatafeedConfig().orElse(null), is(notNullValue()));
+    }
+
     public void testDeleteJob_GivenWaitForCompletionIsTrue() throws Exception {
         String jobId = randomValidJobId();
         Job job = buildJob(jobId);
@@ -2810,6 +2842,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     public static Job buildJob(String jobId) {
+        return buildJobBuilder(jobId).build();
+    }
+
+    public static Job.Builder buildJobBuilder(String jobId) {
         Job.Builder builder = new Job.Builder(jobId);
         builder.setDescription(randomAlphaOfLength(10));
 
@@ -2828,8 +2864,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
         dataDescription.setTimeField("timestamp");
         builder.setDataDescription(dataDescription);
-
-        return builder.build();
+        return builder;
     }
 
     private void putJob(Job job) throws IOException {

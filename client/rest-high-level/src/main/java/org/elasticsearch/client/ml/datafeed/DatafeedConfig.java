@@ -8,7 +8,6 @@
 package org.elasticsearch.client.ml.datafeed;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -43,6 +42,7 @@ import java.util.Objects;
 public class DatafeedConfig implements ToXContentObject {
 
     public static final ParseField ID = new ParseField("datafeed_id");
+    public static final ParseField JOB_ID = new ParseField("job_id");
     public static final ParseField QUERY_DELAY = new ParseField("query_delay");
     public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField INDEXES = new ParseField("indexes");
@@ -61,7 +61,7 @@ public class DatafeedConfig implements ToXContentObject {
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
 
         PARSER.declareStringArray(Builder::setIndices, INDEXES);
         PARSER.declareStringArray(Builder::setIndices, INDICES);
@@ -189,7 +189,7 @@ public class DatafeedConfig implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
-        builder.field(Job.ID.getPreferredName(), jobId);
+        builder.field(JOB_ID.getPreferredName(), jobId);
         if (queryDelay != null) {
             builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
         }
@@ -312,7 +312,7 @@ public class DatafeedConfig implements ToXContentObject {
 
         public Builder(String id, String jobId) {
             this.id = Objects.requireNonNull(id, ID.getPreferredName());
-            this.jobId = Objects.requireNonNull(jobId, Job.ID.getPreferredName());
+            this.jobId = Objects.requireNonNull(jobId, JOB_ID.getPreferredName());
         }
 
         public Builder(DatafeedConfig config) {

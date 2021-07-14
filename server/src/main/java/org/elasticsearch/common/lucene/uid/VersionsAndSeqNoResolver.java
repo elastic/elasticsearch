@@ -42,6 +42,7 @@ public final class VersionsAndSeqNoResolver {
         // proved to be cheaper than having to perform a CHM and a TL get for every segment.
         // See https://github.com/elastic/elasticsearch/pull/19856.
         IndexReader.CacheHelper cacheHelper = reader.getReaderCacheHelper();
+        assert cacheHelper instanceof StaticCacheKeyDirectoryReaderWrapper.StaticCacheKeyHelper == false;
         CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]> ctl = lookupStates.get(cacheHelper.getKey());
         if (ctl == null) {
             // First time we are seeing this reader's core; make a new CTL:
@@ -121,6 +122,7 @@ public final class VersionsAndSeqNoResolver {
      */
     public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term, boolean loadSeqNo) throws IOException {
         if (reader.getReaderCacheHelper() instanceof StaticCacheKeyDirectoryReaderWrapper.StaticCacheKeyHelper) {
+            // can't cache as we hold onto reader-internal state
             return loadDocIdAndVersionUncached(reader, term, loadSeqNo);
         }
         PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field());
@@ -157,6 +159,7 @@ public final class VersionsAndSeqNoResolver {
      */
     public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, Term term) throws IOException {
         if (reader.getReaderCacheHelper() instanceof StaticCacheKeyDirectoryReaderWrapper.StaticCacheKeyHelper) {
+            // can't cache as we hold onto reader-internal state
             return loadDocIdAndSeqNoUncached(reader, term);
         }
         final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field());

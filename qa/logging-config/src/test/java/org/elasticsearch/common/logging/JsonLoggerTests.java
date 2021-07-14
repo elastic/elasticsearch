@@ -107,8 +107,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("message", "Deprecated field [deprecated_name] used, expected [new_name] instead"),
                             hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "deprecated_field_deprecated_name"),
                             hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
-                            hasEntry(Task.TRACE_ID, "someTraceId"),
-                            hasEntry("elasticsearch.event.category", "api")
+                            hasEntry(Task.TRACE_ID, "someTraceId")
                         ),
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
@@ -119,8 +118,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("message", "Deprecated field [deprecated_name2] used, expected [new_name] instead"),
                             hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "deprecated_field_deprecated_name2"),
                             hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
-                            hasEntry(Task.TRACE_ID, "someTraceId"),
-                            hasEntry("elasticsearch.event.category", "api")
+                            hasEntry(Task.TRACE_ID, "someTraceId")
                         )
 
                     )
@@ -157,8 +155,8 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
                             hasEntry("message", "deprecated message1"),
-                            hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "a key"),
-                            not(hasKey(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME))
+                            hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "someKey"),
+                            hasEntry("x-opaque-id", "someId")
                         )
                     )
                 );

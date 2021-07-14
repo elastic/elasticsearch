@@ -52,7 +52,7 @@ public final class TraceIdConverter extends LogEventPatternConverter {
     public void format(LogEvent event, StringBuilder toAppendTo) {
         String traceId = getTraceId();
         if (traceId != null) {
-            toAppendTo.append(traceId);
+            toAppendTo.append("\"trace.id\": \"" + traceId + "\"");
         }
     }
 

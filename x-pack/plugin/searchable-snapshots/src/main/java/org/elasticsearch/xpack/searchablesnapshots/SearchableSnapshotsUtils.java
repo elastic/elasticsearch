@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.searchablesnapshots;
+package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -32,9 +32,9 @@ public class SearchableSnapshotsUtils {
             // about using the oldest segments_N file is that a restore will find that we already have this file "locally",
             // avoid overwriting the real one with the bogus one, and then use the real one for the rest of the recovery.
             final String oldestSegmentsFile = Arrays.stream(directory.listAll())
-                    .filter(s -> s.startsWith(IndexFileNames.SEGMENTS + "_"))
-                    .min(SEGMENT_FILENAME_COMPARATOR)
-                    .orElseThrow(() -> new IOException("segments_N file not found"));
+                .filter(s -> s.startsWith(IndexFileNames.SEGMENTS + "_"))
+                .min(SEGMENT_FILENAME_COMPARATOR)
+                .orElseThrow(() -> new IOException("segments_N file not found"));
             final SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
             segmentInfos.updateGeneration(SegmentInfos.readCommit(directory, oldestSegmentsFile));
             return Lucene.getIndexCommit(segmentInfos, directory);

@@ -74,7 +74,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
         // Search for keys belong to an user
         assertQuery(API_KEY_ADMIN_AUTH_HEADER,
-            "{ \"query\": { \"term\": {\"owner_username\": \"api_key_user\"} } }",
+            "{ \"query\": { \"term\": {\"username\": \"api_key_user\"} } }",
             apiKeys -> {
                 assertThat(apiKeys.size(), equalTo(2));
                 assertThat(apiKeys.stream().map(m -> m.get("name")).collect(Collectors.toSet()),
@@ -83,7 +83,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
         // Search for keys belong to users from a realm
         assertQuery(API_KEY_ADMIN_AUTH_HEADER,
-            "{ \"query\": { \"term\": {\"owner_realm_name\": \"default_file\"} } }",
+            "{ \"query\": { \"term\": {\"realm_name\": \"default_file\"} } }",
             apiKeys -> {
                 assertThat(apiKeys.size(), equalTo(6));
                 // search using explicit IDs

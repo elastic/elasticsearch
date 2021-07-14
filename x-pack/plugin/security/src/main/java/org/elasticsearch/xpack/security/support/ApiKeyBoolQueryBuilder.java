@@ -148,8 +148,8 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
         static {
             FIELD_NAME_TRANSLATORS = List.of(
-                new ExactFieldNameTranslator(s -> "creator.principal", "owner_username"),
-                new ExactFieldNameTranslator(s -> "creator.realm", "owner_realm_name"),
+                new ExactFieldNameTranslator(s -> "creator.principal", "username"),
+                new ExactFieldNameTranslator(s -> "creator.realm", "realm_name"),
                 new ExactFieldNameTranslator(Function.identity(), "name"),
                 new ExactFieldNameTranslator(Function.identity(), "creation_time"),
                 new ExactFieldNameTranslator(Function.identity(), "expiration_time"),

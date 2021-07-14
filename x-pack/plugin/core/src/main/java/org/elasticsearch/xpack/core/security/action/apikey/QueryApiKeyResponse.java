@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -76,6 +77,21 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
 
     public static QueryApiKeyResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        QueryApiKeyResponse that = (QueryApiKeyResponse) o;
+        return Arrays.equals(foundApiKeysInfo, that.foundApiKeysInfo);
+    }
+
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(foundApiKeysInfo);
     }
 
     @Override

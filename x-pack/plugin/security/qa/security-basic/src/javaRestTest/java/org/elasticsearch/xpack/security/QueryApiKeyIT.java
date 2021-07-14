@@ -48,7 +48,9 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             });
 
         // An empty request body means search for all keys
-        assertQuery(API_KEY_ADMIN_AUTH_HEADER, "", apiKeys -> assertThat(apiKeys.size(), equalTo(6)));
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER,
+            randomBoolean() ? "" : "{\"query\":{\"match_all\":{}}}",
+            apiKeys -> assertThat(apiKeys.size(), equalTo(6)));
 
         assertQuery(API_KEY_ADMIN_AUTH_HEADER,
             "{\"query\":{\"bool\":{\"must\":[" +
@@ -112,7 +114,9 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             });
 
         // User with manage_own_api_key will only see its own keys
-        assertQuery(API_KEY_USER_AUTH_HEADER, "", apiKeys -> {
+        assertQuery(API_KEY_USER_AUTH_HEADER,
+            randomBoolean() ? "" : "{\"query\":{\"match_all\":{}}}",
+            apiKeys -> {
             assertThat(apiKeys.size(), equalTo(2));
             assertThat(apiKeys.stream().map(m -> m.get("name")).collect(Collectors.toSet()),
                 equalTo(Set.of("my-ingest-key-1", "my-alert-key-2")));

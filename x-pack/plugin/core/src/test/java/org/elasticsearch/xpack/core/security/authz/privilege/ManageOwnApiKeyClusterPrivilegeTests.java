@@ -13,6 +13,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
@@ -21,6 +23,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
@@ -113,6 +116,15 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             GetApiKeyRequest.usingRealmAndUserName("realm_b", "user_b"), authentication));
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate",
             InvalidateApiKeyRequest.usingRealmAndUserName("realm_b", "user_b"), authentication));
+    }
+
+    public void testWillFlagFilterForCurrentUserForQueryApiKeyRequest() {
+        final ClusterPermission clusterPermission =
+            ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder()).build();
+
+        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest();
+        clusterPermission.check(QueryApiKeyAction.NAME, queryApiKeyRequest, mock(Authentication.class));
+        assertTrue(queryApiKeyRequest.isFilterForCurrentUser());
     }
 
     private Authentication createMockAuthentication(String username, String realmName,

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.support;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -54,8 +55,9 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         finalQuery.filter(QueryBuilders.termQuery("doc_type", "api_key"));
 
         if (authentication != null) {
-            finalQuery.filter(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal()));
-            finalQuery.filter(QueryBuilders.termQuery("creator.realm", ApiKeyService.getCreatorRealmName(authentication)));
+            finalQuery
+                .filter(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal()))
+                .filter(QueryBuilders.termQuery("creator.realm", ApiKeyService.getCreatorRealmName(authentication)));
         }
         return finalQuery;
     }
@@ -63,14 +65,15 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
     private static QueryBuilder doProcess(QueryBuilder qb) {
         if (qb instanceof BoolQueryBuilder) {
             final BoolQueryBuilder query = (BoolQueryBuilder) qb;
-            final BoolQueryBuilder newQuery = QueryBuilders.boolQuery()
-                .minimumShouldMatch(query.minimumShouldMatch())
-                .adjustPureNegative(query.adjustPureNegative());
+            final BoolQueryBuilder newQuery =
+                QueryBuilders.boolQuery().minimumShouldMatch(query.minimumShouldMatch()).adjustPureNegative(query.adjustPureNegative());
             query.must().stream().map(ApiKeyBoolQueryBuilder::doProcess).forEach(newQuery::must);
             query.should().stream().map(ApiKeyBoolQueryBuilder::doProcess).forEach(newQuery::should);
             query.mustNot().stream().map(ApiKeyBoolQueryBuilder::doProcess).forEach(newQuery::mustNot);
             query.filter().stream().map(ApiKeyBoolQueryBuilder::doProcess).forEach(newQuery::filter);
             return newQuery;
+        } else if (qb instanceof MatchAllQueryBuilder) {
+            return qb;
         } else if (qb instanceof IdsQueryBuilder) {
             return qb;
         } else if (qb instanceof TermQueryBuilder) {
@@ -115,7 +118,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             }
             return newQuery.boost(query.boost());
         } else {
-            throw new IllegalArgumentException("Query type [" + qb.getClass() + "] is not supported for search");
+            throw new IllegalArgumentException("Query type [" + qb.getName() + "] is not supported for search");
         }
     }
 
@@ -144,7 +147,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
      * A class to translate query level field names to index level field names.
      */
     static class FieldNameTranslators {
-        private static final List<FieldNameTranslator> FIELD_NAME_TRANSLATORS;
+        static final List<FieldNameTranslator> FIELD_NAME_TRANSLATORS;
 
         static {
             FIELD_NAME_TRANSLATORS = List.of(

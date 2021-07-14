@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionSet;
-import org.bouncycastle.asn1.DERUTF8String;
+import joptsimple.OptionSpec;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
@@ -38,7 +38,6 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -81,6 +80,8 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
     private static final int HTTP_CERTIFICATE_DAYS = 2 * 365;
     private static final int HTTP_KEY_SIZE = 4096;
 
+    private final OptionSpec<Void> strictOption = parser.accepts("strict", "Error if auto config cannot be performed for any reason");
+
     public AutoConfigInitialNode() {
         super("Generates all the necessary configuration for the initial node of a new secure cluster");
         // this is a special sort of command line tool because it is hooked into the ES node startup script
@@ -102,11 +103,15 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "The node might already be part of a cluster and this auto setup utility is designed to configure Security for new " +
                             "clusters only.");
-            throw new UserException(ExitCodes.NOOP, null);
+            if (options.has(strictOption)) {
+                throw new UserException(ExitCodes.NOOP, null);
+            } else {
+                return; // silent error because we wish the node to start as usual (skip auto config) during a restart
+            }
         }
         // preflight checks for the files that are going to be changed
         // Skipping security auto configuration if configuration files cannot be mutated (ie are read-only)
-        {
+        try {
             final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
             // it is odd for the `elasticsearch.yml` file to be missing or not be a regular (the node won't start)
             // but auto configuration should not be concerned with fixing (by creating the file) such an anomalous conditions
@@ -132,14 +137,25 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
                         "the node keystore file [%s] is not a readable and writable regular file", keystorePath));
                 throw new UserException(ExitCodes.NOOP, null);
             }
+        } catch (UserException e) {
+            if (options.has(strictOption)) {
+                throw e;
+            } else {
+                return; // silent error because we wish the node to start as usual (skip auto config) if the configuration is read-only
+            }
         }
-
-        // TODO check that file permissions carry over
-        // TODO option to ignore noopt
 
         // only perform auto-configuration if the existing configuration is not conflicting (eg Security already enabled)
         // if it is, silently skip auto configuration
-        checkExistingConfiguration(env, terminal);
+        try {
+            checkExistingConfiguration(env, terminal);
+        } catch (UserException e) {
+            if (options.has(strictOption)) {
+                throw e;
+            } else {
+                return; // silent error because we wish the node to start as usual (skip auto config) if certain configurations are set
+            }
+        }
 
         final ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC);
         final String instantAutoConfigName = "auto_config_on_" + autoConfigDate.toInstant().getEpochSecond();
@@ -148,28 +164,37 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
             // it is useful to pre-create the sub-config dir in order to check that the config dir is writable and that
             // file owners match (this auto-configuration script should not change the owners of config files)
             Files.createDirectory(instantAutoConfigDir);
-            // set permissions to 660
+            // set permissions to 750 (don't rely on umask)
             PosixFileAttributeView view = Files.getFileAttributeView(instantAutoConfigDir, PosixFileAttributeView.class);
             if (view != null) {
-                view.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
+                view.setPermissions(PosixFilePermissions.fromString("rwxr-x---"));
             }
         } catch (Exception e) {
-            Files.deleteIfExists(instantAutoConfigDir);
-            // TODO ignore this
+            try {
+                Files.deleteIfExists(instantAutoConfigDir);
+            } catch (Exception ex) {
+                e.addSuppressed(ex);
+            }
             // the config dir is probably read-only, which is to be expected sometimes
             // this will show a message to the console (the first time the node starts) and auto-configuration is effectively bypassed
             // the message will not be subsequently shown (because auto-configuration doesn't run for node restarts)
-            throw new UserException(ExitCodes.CANT_CREATE, "Could not create auto configuration directory", e);
+            if (options.has(strictOption)) {
+                throw new UserException(ExitCodes.CANT_CREATE, "Could not create auto configuration directory", e);
+            } else {
+                return; // silent error because we wish the node to start as usual (skip auto config) if config dir is not writable
+            }
         }
 
         // the files created or replaced by the auto-config script have the same owner as the config dir
         if (false == Files.getOwner(instantAutoConfigDir, LinkOption.NOFOLLOW_LINKS).equals(Files.getOwner(env.configFile(),
                 LinkOption.NOFOLLOW_LINKS))) {
             Files.deleteIfExists(instantAutoConfigDir);
-            throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because it would change file owners");
+            if (options.has(strictOption)) {
+                throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because it would change file owners");
+            } else {
+                return; // if a different user runs ES compared to the user that installed it, auto configuration will not run
+            }
         }
-
-        // beyond this point we're committing to auto configuration
 
         // the transport key-pair is the same across the cluster and is trusted without hostname verification (it is self-signed),
         final X500Principal certificatePrincipal = new X500Principal(buildDnFromDomain(System.getenv("HOSTNAME")));
@@ -203,13 +228,17 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
         }
 
         // save original keystore before updating (replacing)
-        Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
+        final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
+        final Path keystoreBackupPath = instantAutoConfigDir.resolve(KeyStoreWrapper.KEYSTORE_FILENAME + ".orig");
         if (Files.exists(keystorePath)) {
-            Path keystoreBackupPath = instantAutoConfigDir.resolve(KeyStoreWrapper.KEYSTORE_FILENAME + ".orig");
             try {
                 Files.copy(keystorePath, keystoreBackupPath, StandardCopyOption.COPY_ATTRIBUTES);
             } catch (Exception e) {
-                Files.deleteIfExists(instantAutoConfigDir);
+                try {
+                    Files.deleteIfExists(instantAutoConfigDir);
+                } catch (Exception ex) {
+                    e.addSuppressed(ex);
+                }
                 throw e;
             }
         }
@@ -222,7 +251,7 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.truststore.secure_password") ||
                 nodeKeystore.getSettingNames().contains("xpack.security.http.ssl.keystore.secure_password")) {
                 throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because the node keystore contains password " +
-                        "settings already");
+                        "settings already"); // it is OK to silently ignore these because the node won't start
             }
             try (SecureString transportKeystorePassword = newKeystorePassword()) {
                 KeyStore transportKeystore = KeyStore.getInstance("PKCS12");
@@ -252,11 +281,22 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
             // finally overwrites the node keystore (if the keystores have been successfully written)
             nodeKeystore.save(env.configFile(), nodeKeystorePassword.getChars());
         } catch (Exception e) {
-            Files.deleteIfExists(instantAutoConfigDir);
-            throw e;
+            try {
+                Files.deleteIfExists(instantAutoConfigDir);
+            } catch (Exception ex) {
+                e.addSuppressed(ex);
+            }
+            if (false == (e instanceof UserException)) {
+                throw e;
+            }
+            if (options.has(strictOption)) {
+                throw e;
+            } else {
+                return; // if a different user runs ES compared to the user that installed it, auto configuration will not run
+            }
         }
 
-        // at this point the elasticsearch.keystore is updated (appended) but the elasticsearch.yml file still needs to
+        // at this point the elasticsearch.keystore is updated (appended) but elasticsearch.yml not yet
 
         try {
             List<String> existingConfigLines = Files.readAllLines(env.configFile().resolve("elasticsearch.yml"), StandardCharsets.UTF_8);
@@ -298,32 +338,28 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
                         bw.newLine();
                     }
 
-                    {
-                        bw.write("xpack.security.transport.ssl.enabled: true");
-                        bw.newLine();
-                        bw.write("# All the nodes use the same key and certificate on the inter-node connection");
-                        bw.newLine();
-                        bw.write("xpack.security.transport.ssl.verification_mode: certificate");
-                        bw.newLine();
-                        bw.write("xpack.security.transport.ssl.keystore.path: " + instantAutoConfigDir
-                                .resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"));
-                        bw.newLine();
-                        // we use the keystore as a truststore in order to minimize the number of auto-generated resources,
-                        // and also because a single file is more idiomatic to the scheme of a shared secret between the cluster nodes
-                        // no one should only need the TLS cert without the associated key for the transport layer
-                        bw.write("xpack.security.transport.ssl.truststore.path: " + instantAutoConfigDir
-                                .resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"));
-                        bw.newLine();
-                    }
+                    bw.write("xpack.security.transport.ssl.enabled: true");
+                    bw.newLine();
+                    bw.write("# All the nodes use the same key and certificate on the inter-node connection");
+                    bw.newLine();
+                    bw.write("xpack.security.transport.ssl.verification_mode: certificate");
+                    bw.newLine();
+                    bw.write("xpack.security.transport.ssl.keystore.path: " + instantAutoConfigDir
+                            .resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"));
+                    bw.newLine();
+                    // we use the keystore as a truststore in order to minimize the number of auto-generated resources,
+                    // and also because a single file is more idiomatic to the scheme of a shared secret between the cluster nodes
+                    // no one should only need the TLS cert without the associated key for the transport layer
+                    bw.write("xpack.security.transport.ssl.truststore.path: " + instantAutoConfigDir
+                            .resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"));
+                    bw.newLine();
 
-                    {
-                        bw.newLine();
-                        bw.write("xpack.security.http.ssl.enabled: true");
-                        bw.newLine();
-                        bw.write("xpack.security.http.ssl.keystore.path: " + instantAutoConfigDir.resolve(HTTP_AUTOGENERATED_KEYSTORE_NAME +
-                                ".p12"));
-                        bw.newLine();
-                    }
+                    bw.newLine();
+                    bw.write("xpack.security.http.ssl.enabled: true");
+                    bw.newLine();
+                    bw.write("xpack.security.http.ssl.keystore.path: " + instantAutoConfigDir.resolve(HTTP_AUTOGENERATED_KEYSTORE_NAME +
+                            ".p12"));
+                    bw.newLine();
 
                     // if any address settings have been set, assume the admin has thought it through wrt to addresses,
                     // and don't try to be smart and mess with that
@@ -343,7 +379,15 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 }
             });
         } catch (Exception e) {
-            Files.deleteIfExists(instantAutoConfigDir);
+            try {
+                if (Files.exists(keystoreBackupPath)) {
+                    Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE,
+                            StandardCopyOption.COPY_ATTRIBUTES);
+                }
+                Files.deleteIfExists(instantAutoConfigDir);
+            } catch (Exception ex) {
+                e.addSuppressed(ex);
+            }
             throw e;
         }
     }
@@ -362,9 +406,8 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 generalNameSet.add(new GeneralName(GeneralName.dNSName, reverseFQDN));
             }
         }
-        // TODO make this look reasonable
         // this is the unequivocal, non-standard, mark for a cert generated by this auto-config process
-        generalNameSet.add(new GeneralName(GeneralName.otherName, new DERUTF8String(AutoConfigInitialNode.class.getName())));
+        generalNameSet.add(new GeneralName(GeneralName.otherName, CertGenUtils.createCommonName(AutoConfigInitialNode.class.getName())));
         return new GeneralNames(generalNameSet.toArray(new GeneralName[0]));
     }
 
@@ -445,13 +488,11 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
         Path tmpPath = basePath.resolve(fileName + "." + UUIDs.randomBase64UUID() + ".tmp");
         try (OutputStream outputStream = Files.newOutputStream(tmpPath, StandardOpenOption.CREATE_NEW)) {
             writer.accept(outputStream);
-
             // set permissions to 660
             PosixFileAttributeView view = Files.getFileAttributeView(tmpPath, PosixFileAttributeView.class);
             if (view != null) {
                 view.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
             }
-
             success = true;
         } finally {
             if (success) {

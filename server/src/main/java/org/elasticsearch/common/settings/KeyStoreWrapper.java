@@ -556,12 +556,17 @@ public class KeyStoreWrapper implements SecureSettings {
         if (Files.exists(keystoreFile, LinkOption.NOFOLLOW_LINKS) &&
                 false == Files.getOwner(keystoreTempFile, LinkOption.NOFOLLOW_LINKS).equals(Files.getOwner(keystoreFile,
                         LinkOption.NOFOLLOW_LINKS))) {
-            Files.deleteIfExists(keystoreTempFile);
             String message = String.format(
                     Locale.ROOT,
                     "will not overwrite keystore at [%s], because this incurs changing the file owner",
                     keystoreFile);
-            throw new UserException(ExitCodes.CONFIG, message);
+            UserException userEx = new UserException(ExitCodes.CONFIG, message);
+            try {
+                Files.deleteIfExists(keystoreTempFile);
+            } catch (Exception e) {
+                userEx.addSuppressed(e);
+            }
+            throw userEx;
         }
         PosixFileAttributeView attrs = Files.getFileAttributeView(keystoreTempFile, PosixFileAttributeView.class);
         if (attrs != null) {

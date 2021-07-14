@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {

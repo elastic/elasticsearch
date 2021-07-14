@@ -43,9 +43,4 @@ public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry>
             onMalformed.accept(e);
         }
     }
-
-    @Override
-    protected Geometry toGeometry(Geometry geometry) {
-        return geometry;
-    }
 }

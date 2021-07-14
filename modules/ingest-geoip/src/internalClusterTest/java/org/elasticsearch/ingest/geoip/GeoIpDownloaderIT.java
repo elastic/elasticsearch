@@ -89,9 +89,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder()
-                .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), (String) null)
-                .put(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey(), (String) null)
-                .put("ingest.geoip.database_validity", (String) null))
+                .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
+                .putNull(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey())
+                .putNull("ingest.geoip.database_validity"))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
 
@@ -172,7 +172,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             client().admin().cluster()
                 .prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder()
-                    .put("ingest.geoip.database_validity", (String) null))
+                    .putNull("ingest.geoip.database_validity"))
                 .get();
         assertTrue(settingsResponse.isAcknowledged());
         assertBusy(() -> {

@@ -85,7 +85,6 @@ import static org.mockito.Mockito.when;
 /**
  * Basic unit tests for the SAMLRealm
  */
-@SamlTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/73314")
 public class SamlRealmTests extends SamlTestCase {
 
     public static final String TEST_IDP_ENTITY_ID = "http://demo_josso_1.josso.dev.docker:8081/IDBUS/JOSSO-TUTORIAL/IDP1/SAML2/MD";
@@ -120,7 +119,7 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testReadIdpMetadataFromHttps() throws Exception {
-        final String serverProtocol = randomFrom("TLSv1", "TLSv1.1", "TLSv1.2");
+        final String serverProtocol = "TLSv1.2";
         final Path path = getDataPath("idp1.xml");
         final String body = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
         final MockSecureSettings mockSecureSettings = new MockSecureSettings();

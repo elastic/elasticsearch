@@ -110,6 +110,8 @@ import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesA
 import org.elasticsearch.action.admin.indices.dangling.list.TransportListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
+import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageAction;
+import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportShardFlushAction;
@@ -150,9 +152,9 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
-import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageAction;
+import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
-import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
+import org.elasticsearch.action.admin.indices.stats.TransportFieldUsageAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
@@ -309,6 +311,7 @@ import org.elasticsearch.rest.action.admin.indices.RestDeleteComponentTemplateAc
 import org.elasticsearch.rest.action.admin.indices.RestDeleteComposableIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.RestFieldUsageStatsAction;
 import org.elasticsearch.rest.action.admin.indices.RestFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestForceMergeAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetAliasesAction;
@@ -584,6 +587,7 @@ public class ActionModule extends AbstractModule {
         actions.register(AutoCreateAction.INSTANCE, AutoCreateAction.TransportAction.class);
         actions.register(ResolveIndexAction.INSTANCE, ResolveIndexAction.TransportAction.class);
         actions.register(AnalyzeIndexDiskUsageAction.INSTANCE, TransportAnalyzeIndexDiskUsageAction.class);
+        actions.register(FieldUsageStatsAction.INSTANCE, TransportFieldUsageAction.class);
 
         //Indexed scripts
         actions.register(PutStoredScriptAction.INSTANCE, TransportPutStoredScriptAction.class);
@@ -796,6 +800,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestSnapshotAction());
         registerHandler.accept(new RestTemplatesAction());
         registerHandler.accept(new RestAnalyzeIndexDiskUsageAction());
+        registerHandler.accept(new RestFieldUsageStatsAction());
 
         registerHandler.accept(new RestUpgradeActionDeprecated());
 

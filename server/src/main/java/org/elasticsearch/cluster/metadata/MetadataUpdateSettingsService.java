@@ -208,7 +208,9 @@ public class MetadataUpdateSettingsService {
                 if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(normalizedSettings) ||
                     IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(normalizedSettings)) {
                     for (String index : actualIndices) {
-                        MetadataCreateIndexService.validateTranslogRetentionSettings(metadataBuilder.get(index).getSettings());
+                        final Settings settings = metadataBuilder.get(index).getSettings();
+                        MetadataCreateIndexService.validateTranslogRetentionSettings(settings);
+                        MetadataCreateIndexService.validateStoreTypeSetting(settings);
                     }
                 }
                 boolean changed = false;

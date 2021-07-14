@@ -137,7 +137,7 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapsho
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
-import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsUtils.emptyIndexCommit;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.emptyIndexCommit;
 
 /**
  * Plugin for Searchable Snapshots feature

@@ -227,7 +227,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                         logger.warn(new ParameterizedMessage("[{}] failed to create checkpoint.", getJobId()), createCheckpointException);
                         listener.onFailure(
                             new RuntimeException(
-                                "Failed to create checkpoint due to " + createCheckpointException.getMessage(),
+                                "Failed to create checkpoint due to: " + createCheckpointException.getMessage(),
                                 createCheckpointException
                             )
                         );
@@ -237,7 +237,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     logger.warn(new ParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()), getCheckPointException);
                     listener.onFailure(
                         new RuntimeException(
-                            "Failed to retrieve checkpoint due to " + getCheckPointException.getMessage(),
+                            "Failed to retrieve checkpoint due to: " + getCheckPointException.getMessage(),
                             getCheckPointException
                         )
                     );

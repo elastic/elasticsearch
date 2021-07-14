@@ -16,14 +16,15 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -65,6 +66,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     private final Logger logger = LogManager.getLogger(MlMemoryTracker.class);
     private final Map<String, Long> memoryRequirementByAnomalyDetectorJob = new ConcurrentHashMap<>();
     private final Map<String, Long> memoryRequirementByDataFrameAnalyticsJob = new ConcurrentHashMap<>();
+    private final Map<String, Long> memoryRequirementByTrainedModelTask = new ConcurrentHashMap<>();
     private final Map<String, Map<String, Long>> memoryRequirementByTaskName;
     private final List<ActionListener<Void>> fullRefreshCompletionListeners = new ArrayList<>();
 
@@ -91,6 +93,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         Map<String, Map<String, Long>> memoryRequirementByTaskName = new TreeMap<>();
         memoryRequirementByTaskName.put(MlTasks.JOB_TASK_NAME, memoryRequirementByAnomalyDetectorJob);
         memoryRequirementByTaskName.put(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryRequirementByDataFrameAnalyticsJob);
+        memoryRequirementByTaskName.put(MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME, memoryRequirementByTrainedModelTask);
         this.memoryRequirementByTaskName = Collections.unmodifiableMap(memoryRequirementByTaskName);
 
         setReassignmentRecheckInterval(PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings));
@@ -215,6 +218,17 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     }
 
     /**
+     * Get the memory requirement for a trained model task.
+     * This method only works on the master node.
+     * @param modelId The model ID.
+     * @return The memory requirement of the trained model task specified by {@code modelId},
+     *         or <code>null</code> if it cannot be found.
+     */
+    public Long getTrainedModelTaskMemoryRequirement(String modelId) {
+        return getJobMemoryRequirement(MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME, modelId);
+    }
+
+    /**
      * Get the memory requirement for the type of job corresponding to a specified persistent task name.
      * This method only works on the master node.
      * @param taskName The persistent task name.
@@ -321,6 +335,22 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         refresh(persistentTasks, listener);
     }
 
+    public void addTrainedModelMemoryAndRefreshAllOthers(String id, long mem, ActionListener<Void> listener) {
+        if (isMaster == false) {
+            listener.onFailure(new NotMasterException("Request to put trained model memory requirement on non-master node"));
+            return;
+        }
+
+        PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        refresh(persistentTasks, ActionListener.wrap(
+            aVoid -> {
+                memoryRequirementByTrainedModelTask.put(id, mem);
+                listener.onResponse(null);
+            },
+            listener::onFailure
+        ));
+    }
+
     /**
      * This refreshes the memory requirement for every ML job that has a corresponding persistent task.
      * It does NOT remove entries for jobs that no longer have a persistent task, because that would lead
@@ -372,6 +402,8 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         if (persistentTasks == null) {
             refreshComplete.onResponse(null);
         } else {
+            refreshTrainedModelTasks(persistentTasks);
+
             List<PersistentTasksCustomMetadata.PersistentTask<?>> mlDataFrameAnalyticsJobTasks = persistentTasks.tasks().stream()
                 .filter(task -> MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(task.getTaskName())).collect(Collectors.toList());
             ActionListener<Void> refreshDataFrameAnalyticsJobs =
@@ -381,6 +413,16 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             List<PersistentTasksCustomMetadata.PersistentTask<?>> mlAnomalyDetectorJobTasks = persistentTasks.tasks().stream()
                 .filter(task -> MlTasks.JOB_TASK_NAME.equals(task.getTaskName())).collect(Collectors.toList());
             iterateAnomalyDetectorJobTasks(mlAnomalyDetectorJobTasks.iterator(), refreshDataFrameAnalyticsJobs);
+        }
+    }
+
+    private void refreshTrainedModelTasks(PersistentTasksCustomMetadata persistentTasks) {
+        memoryRequirementByTrainedModelTask.clear();
+        List<PersistentTasksCustomMetadata.PersistentTask<?>> trainedModelTasks = persistentTasks.tasks().stream()
+            .filter(task -> MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME.equals(task.getTaskName())).collect(Collectors.toList());
+        for (PersistentTasksCustomMetadata.PersistentTask<?> task : trainedModelTasks) {
+            StartTrainedModelDeploymentAction.TaskParams taskParams = (StartTrainedModelDeploymentAction.TaskParams) task.getParams();
+            memoryRequirementByTrainedModelTask.put(taskParams.getModelId(), taskParams.estimateMemoryUsageBytes());
         }
     }
 

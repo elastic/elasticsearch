@@ -1515,7 +1515,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     metaForSnapshot,
                     snapshotInfo,
                     entry.version(),
-                    state -> stateWithoutSnapshot(state, snapshot),
+                    state -> stateWithoutSuccessfulSnapshot(state, snapshot),
                     ActionListener.wrap(newRepoData -> {
                         completeListenersIgnoringException(endAndGetListenersToResolve(snapshot), Tuple.tuple(newRepoData, snapshotInfo));
                         logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
@@ -1710,14 +1710,66 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         );
     }
 
+    private static ClusterState stateWithoutSuccessfulSnapshot(ClusterState state, Snapshot snapshot) {
+        SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+        ClusterState result = state;
+        int indexOfEntry = -1;
+        final List<SnapshotsInProgress.Entry> entryList = snapshots.entries();
+        for (int i = 0; i < entryList.size(); i++) {
+            SnapshotsInProgress.Entry entry = entryList.get(i);
+            if (entry.snapshot().equals(snapshot)) {
+                indexOfEntry = i;
+                break;
+            }
+        }
+        final List<SnapshotsInProgress.Entry> entries;
+        if (indexOfEntry == 0) {
+             entries = List.copyOf(entryList.subList(1, entryList.size()));
+        } else if (indexOfEntry > 0) {
+            entries = new ArrayList<>();
+            final SnapshotsInProgress.Entry removedEntry = entryList.get(indexOfEntry);
+            for (int i = 0; i < indexOfEntry; i++) {
+                final SnapshotsInProgress.Entry previousEntry = entryList.get(i);
+                if (previousEntry.repository().equals(removedEntry.repository())) {
+                    if (previousEntry.isClone()) {
+                        assert false : "todo";
+                    } else {
+                        assert false : "todo";
+                        for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> finishedShardEntry : removedEntry.shards()) {
+                            final ShardSnapshotStatus shardState = finishedShardEntry.value;
+                            if (shardState.state() == ShardState.SUCCESS) {
+                                final ShardSnapshotStatus stateToUpdate = previousEntry.shards().get(finishedShardEntry.key);
+                                if (stateToUpdate != null && stateToUpdate.state() == ShardState.SUCCESS) {
+
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    entries.add(previousEntry);
+                }
+            }
+            for (int i = indexOfEntry + 1; i < entryList.size(); i++) {
+                entries.add(entryList.get(i));
+            }
+        } else {
+            entries = null;
+        }
+        if (entries != null) {
+            result = ClusterState.builder(state).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(entries)).build();
+        }
+        return readyDeletions(result).v1();
+    }
+
     /**
-     * Computes the cluster state resulting from removing a given snapshot create operation from the given state.
+     * Computes the cluster state resulting from removing a given snapshot create operation from the given state after it has failed at
+     * any point before being finalized in the repository.
      *
      * @param state    current cluster state
      * @param snapshot snapshot for which to remove the snapshot operation
      * @return updated cluster state
      */
-    private static ClusterState stateWithoutSnapshot(ClusterState state, Snapshot snapshot) {
+    private static ClusterState stateWithoutFailedSnapshot(ClusterState state, Snapshot snapshot) {
         SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
         ClusterState result = state;
         boolean changed = false;
@@ -1751,7 +1803,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final ClusterState updatedState = stateWithoutSnapshot(currentState, snapshot);
+                final ClusterState updatedState = stateWithoutFailedSnapshot(currentState, snapshot);
                 // now check if there are any delete operations that refer to the just failed snapshot and remove the snapshot from them
                 return updateWithSnapshots(
                     updatedState,

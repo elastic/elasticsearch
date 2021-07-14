@@ -1450,56 +1450,39 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
     }
 
-    public void testOutOfOrderFinalizations() throws Exception {
+    public void testOutOfOrderFinalization() throws Exception {
         internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNodes(3);
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         final String index1 = "index-1";
         final String index2 = "index-2";
-        final String index3 = "index-3";
-        createIndexWithContent(index1);
-        createIndexWithContent(index2);
-        createIndexWithContent(index3);
+        createIndexWithContent(index1, dataNodes.get(0), dataNodes.get(1));
+        createIndexWithContent(index2, dataNodes.get(1), dataNodes.get(0));
 
         final String repository = "test-repo";
-        createRepository(repository, FsRepository.TYPE);
-        createFullSnapshot(repository, "first-snapshot");
+        createRepository(repository, "mock");
 
-        final BytesReference dummyDoc =
-                BytesReference.bytes(XContentFactory.contentBuilder(XContentType.SMILE).map(Map.of("foo", "bar")));
-        for (int i = 0; i < 100; i++) {
-            final ActionFuture<CreateSnapshotResponse> snapshot1 = clusterAdmin()
-                    .prepareCreateSnapshot(repository, "snapshot-1-" + i)
-                    .setIndices(index1, index2)
-                    .setWaitForCompletion(true)
-                    .execute();
+        blockNodeWithIndex(repository, index2);
 
-            startIndex(index1, UUIDs.randomBase64UUID(random()), dummyDoc, XContentType.SMILE);
-            startIndex(index2, UUIDs.randomBase64UUID(random()), dummyDoc, XContentType.SMILE);
-            startIndex(index3, UUIDs.randomBase64UUID(random()), dummyDoc, XContentType.SMILE);
+        final ActionFuture<CreateSnapshotResponse> snapshot1 = clusterAdmin()
+                .prepareCreateSnapshot(repository, "snapshot-1")
+                .setIndices(index1, index2)
+                .setWaitForCompletion(true)
+                .execute();
+        awaitNumberOfSnapshotsInProgress(1);
+        final ActionFuture<CreateSnapshotResponse> snapshot2 = clusterAdmin()
+                .prepareCreateSnapshot(repository, "snapshot-2")
+                .setIndices(index1)
+                .setWaitForCompletion(true)
+                .execute();
+        assertSuccessful(snapshot2);
+        unblockAllDataNodes(repository);
+        final SnapshotInfo sn1 = assertSuccessful(snapshot1);
+        assertAcked(startDeleteSnapshot(repository, sn1.snapshot().getSnapshotId().getName()).get());
 
-            final ActionFuture<CreateSnapshotResponse> snapshot2 = clusterAdmin()
-                    .prepareCreateSnapshot(repository, "snapshot-2-" + i)
-                    .setIndices(index2, index3)
-                    .setWaitForCompletion(true)
-                    .execute();
-
-            final ActionFuture<CreateSnapshotResponse> snapshot3 = clusterAdmin()
-                    .prepareCreateSnapshot(repository, "snapshot-3-" + i)
-                    .setIndices(index2)
-                    .setWaitForCompletion(true)
-                    .execute();
-
-            final ActionFuture<CreateSnapshotResponse> snapshot4 = clusterAdmin()
-                    .prepareCreateSnapshot(repository, "snapshot-4-" + i)
-                    .setIndices(index1, index2)
-                    .setWaitForCompletion(true)
-                    .execute();
-
-            assertSuccessful(snapshot1);
-            assertSuccessful(snapshot2);
-            assertSuccessful(snapshot3);
-            assertSuccessful(snapshot4);
-        }
+        assertThat(
+                clusterAdmin().prepareSnapshotStatus().setSnapshots("snapshot-2").setRepository(repository).get().getSnapshots(),
+                hasSize(1)
+        );
     }
 
     private static void assertSnapshotStatusCountOnRepo(String otherBlockedRepoName, int count) {

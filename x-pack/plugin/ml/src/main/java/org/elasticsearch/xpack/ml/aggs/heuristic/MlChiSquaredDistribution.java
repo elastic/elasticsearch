@@ -20,7 +20,7 @@ public class MlChiSquaredDistribution {
 
     public double survivalFunction(double x) {
         return x <= 0 ?
-            0 :
+            1 :
             Gamma.regularizedGammaQ(gamma.getShape(), x / gamma.getScale());
     }
 

@@ -161,7 +161,7 @@ public class PValueScore extends NXYSignificanceHeuristic {
             .logProbability((long)(docsContainTermNotInClass + epsAllDocsNotInClass));
 
         double logLikelihoodRatio = v1 + v2 - v3 - v4;
-        double pValue = CHI_SQUARED_DISTRIBUTION.survivalFunction(2.0 * logLikelihoodRatio) * 0.5;
+        double pValue = CHI_SQUARED_DISTRIBUTION.survivalFunction(2.0 * logLikelihoodRatio);
         return -FastMath.log(FastMath.max(pValue, Double.MIN_NORMAL));
     }
 

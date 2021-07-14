@@ -201,7 +201,7 @@ public class FeatureFactoryTests extends ESTestCase {
         FeatureFactory builder = new FeatureFactory(z, x, y, extent);
         {
             Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
-            List<Geometry> geometries = List.of(buildPolygon(r), buildLine(r));
+            List<Geometry> geometries = org.elasticsearch.core.List.of(buildPolygon(r), buildLine(r));
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
                 () -> builder.getFeatures(new GeometryCollection<>(geometries), new UserDataIgnoreConverter())

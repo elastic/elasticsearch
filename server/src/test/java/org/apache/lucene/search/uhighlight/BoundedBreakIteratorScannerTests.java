@@ -124,20 +124,4 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
             );
         }
     }
-
-    public void testTextThatEndsBeforeMaxLen() {
-        BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 1000);
-
-        final String text = "This is the first test sentence. Here is the second one.";
-
-        int offset = text.indexOf("first");
-        bi.setText(text);
-        assertEquals(0, bi.preceding(offset));
-        assertEquals(text.length(), bi.following(offset - 1));
-
-        offset = text.indexOf("second");
-        bi.setText(text);
-        assertEquals(33, bi.preceding(offset));
-        assertEquals(text.length(), bi.following(offset - 1));
-    }
 }

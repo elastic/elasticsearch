@@ -16,7 +16,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -24,11 +23,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.junit.After;
-import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -126,10 +125,8 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
 
     // see #3878
     public void testThatXContentSerializationInsideOfArrayWorks() throws Exception {
-        EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(0, 10), new Coordinate(10, 0));
-        GeoShapeQueryBuilder geoQuery = randomBoolean() ?
-            QueryBuilders.geoShapeQuery("searchGeometry", envelopeBuilder) :
-            QueryBuilders.geoShapeQuery("searchGeometry", envelopeBuilder.buildGeometry());
+        Rectangle rectangle = new Rectangle(0, 10, 10, 0);
+        GeoShapeQueryBuilder geoQuery = QueryBuilders.geoShapeQuery("searchGeometry", rectangle);
         JsonXContent.contentBuilder().startArray().value(geoQuery).endArray();
     }
 

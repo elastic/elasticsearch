@@ -813,7 +813,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         }
 
         private CertificateAndKey generateCertificateAndKey(CertificateInformation certificateInformation, CAInfo caInfo,
-                                                    int keySize, int days) throws Exception {
+                                                            int keySize, int days) throws Exception {
             KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
             Certificate certificate;
             if (caInfo != null) {
@@ -982,7 +982,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
      * @param file   the file that is being written to
      * @param writer writes the contents of the file
      */
-    static void fullyWriteFile(Path file, CheckedConsumer<OutputStream, Exception> writer) throws Exception {
+    private static void fullyWriteFile(Path file, CheckedConsumer<OutputStream, Exception> writer) throws Exception {
         assert file != null;
         assert writer != null;
 

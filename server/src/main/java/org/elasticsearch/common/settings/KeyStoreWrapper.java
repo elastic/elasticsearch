@@ -13,10 +13,11 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
@@ -45,6 +46,7 @@ import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFileAttributeView;
@@ -104,7 +106,7 @@ public class KeyStoreWrapper implements SecureSettings {
         "~!@#$%^&*-_=+?").toCharArray();
 
     /** The name of the keystore file to read and write. */
-    private static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
+    public static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
 
     /** The version of the metadata written before the keystore data. */
     static final int FORMAT_VERSION = 4;
@@ -232,7 +234,7 @@ public class KeyStoreWrapper implements SecureSettings {
             return null;
         }
 
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
+        Directory directory = new NIOFSDirectory(configDir);
         try (IndexInput indexInput = directory.openInput(KEYSTORE_FILENAME, IOContext.READONCE)) {
             ChecksumIndexInput input = new BufferedChecksumIndexInput(indexInput);
             final int formatVersion;
@@ -505,9 +507,10 @@ public class KeyStoreWrapper implements SecureSettings {
     public synchronized void save(Path configDir, char[] password) throws Exception {
         ensureOpen();
 
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
+        Directory directory = new NIOFSDirectory(configDir);
         // write to tmp file first, then overwrite
         String tmpFile = KEYSTORE_FILENAME + ".tmp";
+        Path keystoreTempFile = configDir.resolve(tmpFile);
         try (IndexOutput output = directory.createOutput(tmpFile, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, KEYSTORE_FILENAME, FORMAT_VERSION);
             output.writeByte(password.length == 0 ? (byte)0 : (byte)1);
@@ -541,18 +544,31 @@ public class KeyStoreWrapper implements SecureSettings {
             final String message = String.format(
                 Locale.ROOT,
                 "unable to create temporary keystore at [%s], write permissions required for [%s] or run [elasticsearch-keystore upgrade]",
-                configDir.resolve(tmpFile),
+                keystoreTempFile,
                 configDir);
+            Files.deleteIfExists(keystoreTempFile);
             throw new UserException(ExitCodes.CONFIG, message, e);
         }
 
         Path keystoreFile = keystorePath(configDir);
-        Files.move(configDir.resolve(tmpFile), keystoreFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        PosixFileAttributeView attrs = Files.getFileAttributeView(keystoreFile, PosixFileAttributeView.class);
+        // check that replace doesn't change the owner
+        if (Files.exists(keystoreFile, LinkOption.NOFOLLOW_LINKS) &&
+                false == Files.getOwner(keystoreTempFile, LinkOption.NOFOLLOW_LINKS).equals(Files.getOwner(keystoreFile,
+                        LinkOption.NOFOLLOW_LINKS))) {
+            Files.deleteIfExists(keystoreTempFile);
+            final String message = String.format(
+                    Locale.ROOT,
+                    "will not overwrite keystore at [%s], because this incurs changing the file owner",
+                    keystoreFile,
+                    configDir);
+            throw new UserException(ExitCodes.CONFIG, message);
+        }
+        PosixFileAttributeView attrs = Files.getFileAttributeView(keystoreTempFile, PosixFileAttributeView.class);
         if (attrs != null) {
             // don't rely on umask: ensure the keystore has minimal permissions
             attrs.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
         }
+        Files.move(keystoreTempFile, keystoreFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
     }
 
     /**

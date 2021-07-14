@@ -12,6 +12,7 @@ import com.google.api.client.googleapis.GoogleUtils;
 import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.util.SecurityUtils;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ServiceOptions;
@@ -34,6 +35,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
+import java.security.KeyStore;
 import java.util.Map;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -126,7 +128,13 @@ public class GoogleCloudStorageService {
             final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
             // requires java.lang.RuntimePermission "setFactory"
             // Pin the TLS trust certificates.
-            builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
+            // We manually load the key store from jks instead of using GoogleUtils.getCertificateTrustStore() because that uses a .p12
+            // store format not compatible with FIPS mode.
+            final KeyStore certTrustStore = SecurityUtils.getJavaKeyStore();
+            try (InputStream keyStoreStream = GoogleUtils.class.getResourceAsStream("google.jks")) {
+                SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");
+            }
+            builder.trustCertificates(certTrustStore);
             return builder.build();
         });
 

@@ -146,8 +146,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @SuppressForbidden(reason = "we manage references explicitly here")
-    private synchronized void onReaderClosed(ElasticsearchDirectoryReader finalReader, IndexReader.CacheKey key) {
-        // it might look awkward that we have to check here if the keys match but if we concurrently
+    private synchronized void onReaderClosed(ElasticsearchDirectoryReader finalReader) {
+        // it might look awkward that we have to check here if the readers match but if we concurrently
         // access the lastOpenedReader there might be 2 threads competing for the cached reference in
         // a way that thread 1 counts down the lastOpenedReader reference and before thread 1 can execute
         // the close listener we already open and assign a new reader to lastOpenedReader. In this case
@@ -180,7 +180,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 ElasticsearchDirectoryReader finalReader = reader;
                 assert reader.getReaderCacheHelper() instanceof StaticCacheKeyDirectoryReaderWrapper.StaticCacheKeyHelper;
                 ((StaticCacheKeyDirectoryReaderWrapper.StaticCacheKeyHelper) reader.getReaderCacheHelper()).addTrueClosedListener(
-                    key -> this.onReaderClosed(finalReader, key));
+                    key -> this.onReaderClosed(finalReader));
                 for (ReferenceManager.RefreshListener listeners : config().getInternalRefreshListener()) {
                     listeners.afterRefresh(true);
                 }

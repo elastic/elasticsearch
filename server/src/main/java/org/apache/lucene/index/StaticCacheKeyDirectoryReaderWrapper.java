@@ -129,6 +129,7 @@ public class StaticCacheKeyDirectoryReaderWrapper extends FilterDirectoryReader 
             this.coreCacheKey = coreCacheKey;
             this.onCloseCallbacks = onCloseCallbacks;
             this.originalCacheHelper = originalCacheHelper;
+            assert originalCacheHelper instanceof StaticCacheKeyHelper == false;
         }
 
         @Override

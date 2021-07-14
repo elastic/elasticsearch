@@ -362,7 +362,7 @@ public class SystemIndices {
                         return dataStreamDescriptor;
                     }
                 } else {
-                    assert accessLevel == SystemIndexAccessLevel.ALL || accessLevel == SystemIndexAccessLevel.NON_NET_NEW_ONLY;
+                    assert accessLevel == SystemIndexAccessLevel.ALL || accessLevel == SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY;
                     return dataStreamDescriptor;
                 }
             } else {
@@ -428,7 +428,14 @@ public class SystemIndices {
         ALL,
         NONE,
         RESTRICTED,
-        NON_NET_NEW_ONLY
+        /**
+         * This value exists because there was a desire for "net-new" system indices to opt in to the post-8.0 behavior of having
+         * access blocked in most cases, but this caused problems with certain APIs
+         * (see https://github.com/elastic/elasticsearch/issues/74687), so this access level was added as a workaround. Once we no longer
+         * have to support accessing existing system indices, this can and should be removed, along with the net-new property of
+         * system indices in general.
+         */
+        BACKWARDS_COMPATIBLE_ONLY
     }
 
     /**

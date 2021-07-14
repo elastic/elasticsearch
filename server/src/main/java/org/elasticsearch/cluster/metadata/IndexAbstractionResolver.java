@@ -142,7 +142,7 @@ public class IndexAbstractionResolver {
                         return false;
                     case RESTRICTED:
                         return resolver.getSystemIndexAccessPredicate().test(indexAbstraction.getName());
-                    case NON_NET_NEW_ONLY:
+                    case BACKWARDS_COMPATIBLE_ONLY:
                         return resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName());
                     default:
                         assert false : "unexpected system index access level [" + level + "]";
@@ -173,7 +173,7 @@ public class IndexAbstractionResolver {
                         return false;
                     case RESTRICTED:
                         return resolver.getSystemIndexAccessPredicate().test(indexAbstraction.getName());
-                    case NON_NET_NEW_ONLY:
+                    case BACKWARDS_COMPATIBLE_ONLY:
                         return resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName());
                     default:
                         assert false : "unexpected system index access level [" + level + "]";
@@ -195,7 +195,7 @@ public class IndexAbstractionResolver {
                         return false;
                     case RESTRICTED:
                         return resolver.getSystemIndexAccessPredicate().test(indexAbstraction.getName());
-                    case NON_NET_NEW_ONLY:
+                    case BACKWARDS_COMPATIBLE_ONLY:
                         return resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName());
                     default:
                         assert false : "unexpected system index access level [" + level + "]";

@@ -87,7 +87,7 @@ public class IndexNameExpressionResolver {
      */
     public String[] concreteIndexNamesWithSystemIndexAccess(ClusterState state, IndicesRequest request) {
         Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(),
-            SystemIndexAccessLevel.NON_NET_NEW_ONLY, name -> true, this.getNetNewSystemIndexPredicate());
+            SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY, name -> true, this.getNetNewSystemIndexPredicate());
         return concreteIndexNames(context, request.indices());
     }
 
@@ -364,7 +364,7 @@ public class IndexNameExpressionResolver {
     }
 
     private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, IndexMetadata index) {
-        if (context.systemIndexAccessLevel == SystemIndexAccessLevel.NON_NET_NEW_ONLY
+        if (context.systemIndexAccessLevel == SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY
             && context.netNewSystemIndexPredicate.test(index.getIndex().getName())) {
             // Exclude this one as it's a net-new system index, and we explicitly don't want those.
             return false;
@@ -756,7 +756,7 @@ public class IndexNameExpressionResolver {
         final Predicate<String> systemIndexAccessLevelPredicate;
         if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
             systemIndexAccessLevelPredicate = s -> false;
-        } else if (systemIndexAccessLevel == SystemIndexAccessLevel.NON_NET_NEW_ONLY) {
+        } else if (systemIndexAccessLevel == SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY) {
             systemIndexAccessLevelPredicate = getNetNewSystemIndexPredicate();
         } else if (systemIndexAccessLevel == SystemIndexAccessLevel.ALL) {
             systemIndexAccessLevelPredicate = s -> true;
@@ -1159,7 +1159,7 @@ public class IndexNameExpressionResolver {
                             assert abstraction != null : "null abstraction for " + name + " but was in array of all indices";
                             if (abstraction.isSystem()) {
                                 if (context.netNewSystemIndexPredicate.test(name)) {
-                                    if (SystemIndexAccessLevel.NON_NET_NEW_ONLY.equals(context.systemIndexAccessLevel)) {
+                                    if (SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY.equals(context.systemIndexAccessLevel)) {
                                         return false;
                                     } else {
                                         return context.systemIndexAccessPredicate.test(name);

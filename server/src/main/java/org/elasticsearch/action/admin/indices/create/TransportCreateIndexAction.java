@@ -82,7 +82,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                         throw systemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
                     }
                 } else {
-                    // NON_NET_NEW_ONLY should never be a possibility here, as it cannot be returned from getSystemIndexAccessLevel.
+                    // BACKWARDS_COMPATIBLE_ONLY should never be a possibility here, it cannot be returned from getSystemIndexAccessLevel
                     assert systemIndexAccessLevel == SystemIndexAccessLevel.NONE :
                         "Expected no system index access but level is " + systemIndexAccessLevel;
                     throw systemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));

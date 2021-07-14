@@ -32,6 +32,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.shard.SimpleShardStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -96,6 +97,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
     @Nullable
     public BulkStats bulk;
 
+    @Nullable
+    public SimpleShardStats shards;
+
     public CommonStats() {
         this(CommonStatsFlags.NONE);
     }
@@ -155,6 +159,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     break;
                 case Bulk:
                     bulk = new BulkStats();
+                    break;
+                case Shards:
+                    shards = new SimpleShardStats();
                     break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
@@ -218,6 +225,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Bulk:
                         bulk = indexShard.bulkStats();
                         break;
+                    case Shards:
+                        shards = new SimpleShardStats(1);
+                        break;
                     default:
                         throw new IllegalStateException("Unknown Flag: " + flag);
                 }
@@ -246,6 +256,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             bulk = in.readOptionalWriteable(BulkStats::new);
+            shards = in.readOptionalWriteable(SimpleShardStats::new);
         }
     }
 
@@ -269,6 +280,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(recoveryStats);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalWriteable(bulk);
+            out.writeOptionalWriteable(shards);
         }
     }
 
@@ -410,6 +422,14 @@ public class CommonStats implements Writeable, ToXContentFragment {
         } else {
             bulk.add(stats.getBulk());
         }
+        if (stats.shards != null) {
+            if (shards == null) {
+                shards = stats.shards;
+            }
+            else {
+                shards = shards.add(stats.shards);
+            }
+        }
     }
 
     @Nullable
@@ -522,7 +542,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final Stream<ToXContent> stream = Arrays.stream(new ToXContent[] {
-            docs, store, indexing, get, search, merge, refresh, flush, warmer, queryCache,
+            docs, shards, store, indexing, get, search, merge, refresh, flush, warmer, queryCache,
             fieldData, completion, segments, translog, requestCache, recoveryStats, bulk})
             .filter(Objects::nonNull);
         for (ToXContent toXContent : ((Iterable<ToXContent>)stream::iterator)) {

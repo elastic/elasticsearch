@@ -17,6 +17,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -72,8 +73,9 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
         }
         List<X509Certificate> caCertificates;
         try {
-            caCertificates = ((StoreKeyConfig) keyConfig).x509Certificates(environment)
+            caCertificates = ((StoreKeyConfig) keyConfig).getPrivateKeyEntries(environment)
                 .stream()
+                .map(Tuple::v2)
                 .filter(x509Certificate -> x509Certificate.getBasicConstraints() != -1)
                 .collect(Collectors.toList());
         } catch (Exception e) {
@@ -99,7 +101,7 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
             final char[] password = generateKibanaSystemPassword();
             final ChangePasswordRequest changePasswordRequest =
                 new ChangePasswordRequestBuilder(client).username("kibana_system")
-                    .password(password, Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(environment.settings())))
+                    .password(password.clone(), Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(environment.settings())))
                     .request();
             client.execute(ChangePasswordAction.INSTANCE, changePasswordRequest, ActionListener.wrap(response -> {
                 logger.debug("Successfully set the password for user [kibana_system] during kibana enrollment");

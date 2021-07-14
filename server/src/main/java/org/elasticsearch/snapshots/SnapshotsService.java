@@ -1047,7 +1047,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             : "Found shard snapshot waiting to be assigned in [" + entry + "] but it is not blocked by any running delete";
                     } else if (value.value.isActive()) {
                         assert reposWithRunningDelete.contains(entry.repository()) == false
-                            : "Found shard snapshot actively executing in [" + entry + "] when it should be blocked by a running delete";
+                            : "Found shard snapshot actively executing in ["
+                                + entry
+                                + "] when it should be blocked by a running delete ["
+                                + Strings.toString(snapshotDeletionsInProgress)
+                                + "]";
                     }
                 }
             }
@@ -2076,7 +2080,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             // Entry is writing to the repo because it's finalizing on master
             return true;
         }
-        for (ObjectCursor<ShardSnapshotStatus> value : entry.shards().values()) {
+        for (ObjectCursor<ShardSnapshotStatus> value : (entry.isClone() ? entry.clones() : entry.shards()).values()) {
             if (value.value.isActive()) {
                 // Entry is writing to the repo because it's writing to a shard on a data node or waiting to do so for a concrete shard
                 return true;
@@ -2695,7 +2699,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         final Set<Index> indices = new HashSet<>();
         for (final SnapshotsInProgress.Entry entry : snapshots.entries()) {
-            if (entry.partial() == false) {
+            if (entry.partial() == false && entry.isClone() == false) {
                 for (String indexName : entry.indices().keySet()) {
                     IndexMetadata indexMetadata = currentState.metadata().index(indexName);
                     if (indexMetadata != null && indicesToCheck.contains(indexMetadata.getIndex())) {

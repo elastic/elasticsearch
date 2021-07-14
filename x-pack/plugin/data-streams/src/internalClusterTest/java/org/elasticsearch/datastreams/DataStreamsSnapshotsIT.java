@@ -997,4 +997,25 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreInfo.failedShards(), is(0));
         assertThat(restoreInfo.successfulShards(), is(1));
     }
+
+    public void testRestoreSnapshotFully() throws Exception {
+        final String snapshotName = "test-snapshot";
+        final String indexName = "test-idx";
+        createIndexWithContent(indexName);
+        createFullSnapshot(REPO, snapshotName);
+
+        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "*" })).get());
+        assertAcked(client.admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.lenientExpandOpenHidden()).get());
+
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, snapshotName)
+            .setWaitForCompletion(true)
+            .get();
+        assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
+
+        GetDataStreamAction.Request getRequest = new GetDataStreamAction.Request(new String[] { "*" });
+        assertThat(client.execute(GetDataStreamAction.INSTANCE, getRequest).get().getDataStreams(), hasSize(2));
+        assertNotNull(client.admin().indices().prepareGetIndex().setIndices(indexName).get());
+    }
 }

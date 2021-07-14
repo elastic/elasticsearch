@@ -9,6 +9,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.LeafReaderContext;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -186,7 +188,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     @Override
-    protected void index(ParseContext context, GeoPoint geometry) throws IOException {
+    protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
         if (fieldType().isSearchable()) {
             context.doc().add(new LatLonPoint(fieldType().name(), geometry.lat(), geometry.lon()));
         }
@@ -203,10 +205,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     @Override
-    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
         this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, point -> {
             try {
-                index(parseContext, point);
+                index(documentParserContext, point);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);  // only thrown by MultiFields which is always null
             }
@@ -259,9 +262,17 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (luceneGeometries.length == 0) {
                 return new MatchNoDocsQuery();
             }
-            Query query = LatLonPoint.newGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+            final ShapeField.QueryRelation luceneRelation;
+            if (shape.type() == ShapeType.POINT && relation == ShapeRelation.INTERSECTS) {
+                // For point queries and intersects, lucene does not match points that are encoded to Integer.MAX_VALUE.
+                // We use contains instead.
+                luceneRelation = ShapeField.QueryRelation.CONTAINS;
+            } else {
+                luceneRelation = relation.getLuceneRelation();
+            }
+            Query query = LatLonPoint.newGeometryQuery(fieldName, luceneRelation, luceneGeometries);
             if (hasDocValues()) {
-                Query dvQuery = LatLonDocValuesField.newSlowGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+                Query dvQuery = LatLonDocValuesField.newSlowGeometryQuery(fieldName, luceneRelation, luceneGeometries);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
             }
             return query;

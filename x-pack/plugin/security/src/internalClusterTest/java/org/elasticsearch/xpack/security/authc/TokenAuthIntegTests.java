@@ -198,7 +198,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // Weird testing behaviour ahead...
         // invalidating by access token (above) is a Get, but invalidating by refresh token (below) is a Search
         // In a multi node cluster, in a small % of cases, the search might find a document that has been deleted but not yet refreshed
-        // from that node's shard.
+        // in that node's shard.
         // Our assertion, therefore, is that an attempt to invalidate the refresh token must not actually invalidate
         // anything (concurrency controls must prevent that), nor may return any errors,
         // but it might _temporarily_ find an "already deleted" token.

@@ -22,10 +22,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
+
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.core.Tuple;
+
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -96,12 +98,16 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(TransformTaskParams params,
-                                                                  Collection<DiscoveryNode> candidateNodes,
-                                                                  ClusterState clusterState) {
+    public PersistentTasksCustomMetadata.Assignment getAssignment(
+        TransformTaskParams params,
+        Collection<DiscoveryNode> candidateNodes,
+        ClusterState clusterState
+    ) {
         if (TransformMetadata.getTransformMetadata(clusterState).isResetMode()) {
-            return new PersistentTasksCustomMetadata.Assignment(null,
-                "Transform task will not be assigned as a feature reset is in progress.");
+            return new PersistentTasksCustomMetadata.Assignment(
+                null,
+                "Transform task will not be assigned as a feature reset is in progress."
+            );
         }
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver);
         if (unavailableIndices.size() != 0) {
@@ -184,10 +190,9 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         //
         // We want the rest of the state to be populated in the task when it is loaded on the node so that users can force start it again
         // later if they want.
-        final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder().setAuditor(auditor)
-            .setClient(buildTask.getParentTaskClient())
-            .setTransformsCheckpointService(transformServices.getCheckpointService())
-            .setTransformsConfigManager(transformServices.getConfigManager());
+        final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder().setClient(buildTask.getParentTaskClient())
+            .setTransformServices(transformServices);
+
 
         final SetOnce<TransformState> stateHolder = new SetOnce<>();
 
@@ -304,14 +309,19 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             ValidationException validationException = config.validate(null);
             if (validationException == null) {
                 indexerBuilder.setTransformConfig(config);
-                SchemaUtil.getDestinationFieldMappings(buildTask.getParentTaskClient(), config.getDestination().getIndex(),
-                        getFieldMappingsListener);
+                SchemaUtil.getDestinationFieldMappings(
+                    buildTask.getParentTaskClient(),
+                    config.getDestination().getIndex(),
+                    getFieldMappingsListener
+                );
             } else {
                 auditor.error(transformId, validationException.getMessage());
                 markAsFailed(
                     buildTask,
                     TransformMessages.getMessage(
-                        TransformMessages.TRANSFORM_CONFIGURATION_INVALID, transformId, validationException.getMessage()
+                        TransformMessages.TRANSFORM_CONFIGURATION_INVALID,
+                        transformId,
+                        validationException.getMessage()
                     )
                 );
             }
@@ -333,8 +343,11 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         );
 
         // <1> Check the index templates are installed
-        TransformInternalIndex.ensureLatestIndexAndTemplateInstalled(clusterService, buildTask.getParentTaskClient(),
-                templateCheckListener);
+        TransformInternalIndex.ensureLatestIndexAndTemplateInstalled(
+            clusterService,
+            buildTask.getParentTaskClient(),
+            templateCheckListener
+        );
     }
 
     private static IndexerState currentIndexerState(TransformState previousState) {

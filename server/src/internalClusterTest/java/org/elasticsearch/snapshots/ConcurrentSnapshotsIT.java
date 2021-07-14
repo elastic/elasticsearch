@@ -9,6 +9,7 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
@@ -27,14 +28,20 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -44,10 +51,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -1444,6 +1448,58 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             }
         }
         awaitNoMoreRunningOperations();
+    }
+
+    public void testOutOfOrderFinalizations() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNodes(3);
+        final String index1 = "index-1";
+        final String index2 = "index-2";
+        final String index3 = "index-3";
+        createIndexWithContent(index1);
+        createIndexWithContent(index2);
+        createIndexWithContent(index3);
+
+        final String repository = "test-repo";
+        createRepository(repository, FsRepository.TYPE);
+        createFullSnapshot(repository, "first-snapshot");
+
+        final BytesReference dummyDoc =
+                BytesReference.bytes(XContentFactory.contentBuilder(XContentType.SMILE).map(Map.of("foo", "bar")));
+        for (int i = 0; i < 100; i++) {
+            final ActionFuture<CreateSnapshotResponse> snapshot1 = clusterAdmin()
+                    .prepareCreateSnapshot(repository, "snapshot-1-" + i)
+                    .setIndices(index1, index2)
+                    .setWaitForCompletion(true)
+                    .execute();
+
+            startIndex(index1, UUIDs.randomBase64UUID(random()), dummyDoc, XContentType.SMILE);
+            startIndex(index2, UUIDs.randomBase64UUID(random()), dummyDoc, XContentType.SMILE);
+            startIndex(index3, UUIDs.randomBase64UUID(random()), dummyDoc, XContentType.SMILE);
+
+            final ActionFuture<CreateSnapshotResponse> snapshot2 = clusterAdmin()
+                    .prepareCreateSnapshot(repository, "snapshot-2-" + i)
+                    .setIndices(index2, index3)
+                    .setWaitForCompletion(true)
+                    .execute();
+
+            final ActionFuture<CreateSnapshotResponse> snapshot3 = clusterAdmin()
+                    .prepareCreateSnapshot(repository, "snapshot-3-" + i)
+                    .setIndices(index2)
+                    .setWaitForCompletion(true)
+                    .execute();
+
+            final ActionFuture<CreateSnapshotResponse> snapshot4 = clusterAdmin()
+                    .prepareCreateSnapshot(repository, "snapshot-4-" + i)
+                    .setIndices(index1, index2)
+                    .setWaitForCompletion(true)
+                    .execute();
+
+            assertSuccessful(snapshot1);
+            assertSuccessful(snapshot2);
+            assertSuccessful(snapshot3);
+            assertSuccessful(snapshot4);
+        }
     }
 
     private static void assertSnapshotStatusCountOnRepo(String otherBlockedRepoName, int count) {

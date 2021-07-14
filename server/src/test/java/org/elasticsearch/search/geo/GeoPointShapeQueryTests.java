@@ -34,7 +34,6 @@ public class GeoPointShapeQueryTests extends GeoPointShapeQueryTestCase {
         client().admin().indices().prepareCreate(indexName).setMapping(xcb).setSettings(settings).get();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75103")
     public void testFieldAlias() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()

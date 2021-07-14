@@ -748,7 +748,10 @@ public class IndexNameExpressionResolver {
     }
 
     public SystemIndexAccessLevel getSystemIndexAccessLevel() {
-        return systemIndices.getSystemIndexAccessLevel(threadContext);
+        final SystemIndexAccessLevel accessLevel = systemIndices.getSystemIndexAccessLevel(threadContext);
+        assert accessLevel != SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY
+            : "BACKWARDS_COMPATIBLE_ONLY access level should never be used automatically, it should only be used in known special cases";
+        return accessLevel;
     }
 
     public Predicate<String> getSystemIndexAccessPredicate() {

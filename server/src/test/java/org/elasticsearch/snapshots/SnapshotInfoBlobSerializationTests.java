@@ -9,9 +9,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.AbstractWireTestCase;
@@ -32,11 +30,13 @@ public class SnapshotInfoBlobSerializationTests extends AbstractWireTestCase<Sna
 
     @Override
     protected SnapshotInfo copyInstance(SnapshotInfo instance, Version version) throws IOException {
-        final PlainActionFuture<SnapshotInfo> future = new PlainActionFuture<>();
-        BlobStoreRepository.SNAPSHOT_FORMAT.serialize(instance, "test", randomBoolean(), BigArrays.NON_RECYCLING_INSTANCE,
-                bytes -> ActionListener.completeWith(future,
-                        () -> BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(NamedXContentRegistry.EMPTY, bytes.streamInput())));
-        return future.actionGet();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        BlobStoreRepository.SNAPSHOT_FORMAT.serialize(instance, "test", randomBoolean(), out);
+        return BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(
+            instance.repository(),
+            NamedXContentRegistry.EMPTY,
+            out.bytes().streamInput()
+        );
     }
 
 }

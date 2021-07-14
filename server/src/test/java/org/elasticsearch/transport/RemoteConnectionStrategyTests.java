@@ -11,7 +11,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.mockito.Mockito.mock;
@@ -45,7 +45,8 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
     public void testChangeInConnectionProfileMeansTheStrategyMustBeRebuilt() {
         ClusterConnectionManager connectionManager = new ClusterConnectionManager(TestProfiles.LIGHT_PROFILE, mock(Transport.class));
         assertEquals(TimeValue.MINUS_ONE, connectionManager.getConnectionProfile().getPingInterval());
-        assertEquals(false, connectionManager.getConnectionProfile().getCompressionEnabled());
+        assertEquals(Compression.Enabled.FALSE, connectionManager.getConnectionProfile().getCompressionEnabled());
+        assertEquals(Compression.Scheme.DEFLATE, connectionManager.getConnectionProfile().getCompressionScheme());
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
             RemoteConnectionStrategy.ConnectionStrategy.PROXY);
@@ -53,11 +54,23 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         Settings.Builder newBuilder = Settings.builder();
         newBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy");
         newBuilder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300");
-        if (randomBoolean()) {
+        String ping = "ping";
+        String compress = "compress";
+        String compressionScheme = "compression_scheme";
+        String change = randomFrom(ping, compress, compressionScheme);
+        if (change.equals(ping)) {
             newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace("cluster-alias").getKey(),
                 TimeValue.timeValueSeconds(5));
+        } else if (change.equals(compress)) {
+            newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
+                randomFrom(Compression.Enabled.INDEXING_DATA, Compression.Enabled.TRUE));
+        } else if (change.equals(compressionScheme)) {
+            newBuilder.put(
+                RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace("cluster-alias").getKey(),
+                Compression.Scheme.LZ4
+            );
         } else {
-            newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), true);
+            throw new AssertionError("Unexpected option: " + change);
         }
         assertTrue(first.shouldRebuildConnection(newBuilder.build()));
     }

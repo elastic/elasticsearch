@@ -11,7 +11,7 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;

@@ -27,6 +27,10 @@ import java.util.Locale;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.BetweenFunctionProcessor.doProcess;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FOURTH;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isBoolean;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -58,22 +62,22 @@ public class Between extends CaseInsensitiveScalarFunction implements OptionalAr
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isStringAndExact(input, sourceText(), Expressions.ParamOrdinal.FIRST);
+        TypeResolution resolution = isStringAndExact(input, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        resolution = isStringAndExact(left, sourceText(), Expressions.ParamOrdinal.SECOND);
+        resolution = isStringAndExact(left, sourceText(), SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        resolution = isStringAndExact(right, sourceText(), Expressions.ParamOrdinal.THIRD);
+        resolution = isStringAndExact(right, sourceText(), THIRD);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        return isBoolean(greedy, sourceText(), Expressions.ParamOrdinal.FOURTH);
+        return isBoolean(greedy, sourceText(), FOURTH);
     }
 
     public Expression input() {

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -89,6 +89,10 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
 
     @Override
     protected LifecyclePolicyMetadata createTestInstance() {
+        return createRandomPolicyMetadata(lifecycleName);
+    }
+
+    public static LifecyclePolicyMetadata createRandomPolicyMetadata(String lifecycleName) {
         Map<String, String> headers = new HashMap<>();
         int numberHeaders = between(0, 10);
         for (int i = 0; i < numberHeaders; i++) {

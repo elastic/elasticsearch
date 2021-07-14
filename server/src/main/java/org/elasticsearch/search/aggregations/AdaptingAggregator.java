@@ -10,7 +10,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.profile.aggregation.InternalAggregationProfileTree;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ public abstract class AdaptingAggregator extends Aggregator {
     public AdaptingAggregator(
         Aggregator parent,
         AggregatorFactories subAggregators,
-        CheckedFunction<AggregatorFactories, Aggregator, IOException> delegate
+        CheckedFunction<AggregatorFactories, ? extends Aggregator, IOException> delegate
     ) throws IOException {
         // Its important we set parent first or else when we build the sub-aggregators they can fail because they'll call this.parent.
         this.parent = parent;

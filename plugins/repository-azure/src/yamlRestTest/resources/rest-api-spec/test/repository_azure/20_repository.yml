@@ -28,9 +28,6 @@ setup:
 
 ---
 "Snapshot/Restore with repository-azure":
-  - skip:
-      version: " - 7.99.99"
-      reason: "8.0 changes get snapshots response format"
 
   # Get repository
   - do:
@@ -130,9 +127,9 @@ setup:
         repository: repository
         snapshot: snapshot-one,snapshot-two
 
-  - is_true: responses.0.snapshots
-  - match: { responses.0.snapshots.0.state: SUCCESS }
-  - match: { responses.0.snapshots.1.state: SUCCESS }
+  - is_true: snapshots
+  - match: { snapshots.0.state : SUCCESS }
+  - match: { snapshots.1.state : SUCCESS }
 
   # Delete the index
   - do:
@@ -212,17 +209,12 @@ setup:
 
 ---
 "Get a non existing snapshot":
-  - skip:
-      version: " - 7.99.99"
-      reason: "8.0 changes get snapshots response format"
 
   - do:
+      catch: /snapshot_missing_exception/
       snapshot.get:
         repository: repository
         snapshot: missing
-
-  - is_true: responses.0.error
-  - match: { responses.0.error.type: snapshot_missing_exception }
 
 ---
 "Delete a non existing snapshot":

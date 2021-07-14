@@ -9,7 +9,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -55,9 +55,22 @@ public class EsExecutors {
         return NODE_PROCESSORS_SETTING.get(settings);
     }
 
-    public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(String name, ThreadFactory threadFactory,
-                                                                        ThreadContext contextHolder, ScheduledExecutorService timer) {
-        return new PrioritizedEsThreadPoolExecutor(name, 1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory, contextHolder, timer);
+    public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(
+            String name,
+            ThreadFactory threadFactory,
+            ThreadContext contextHolder,
+            ScheduledExecutorService timer,
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher starvationWatcher) {
+        return new PrioritizedEsThreadPoolExecutor(
+            name,
+            1,
+            1,
+            0L,
+            TimeUnit.MILLISECONDS,
+            threadFactory,
+            contextHolder,
+            timer,
+            starvationWatcher);
     }
 
     public static EsThreadPoolExecutor newScaling(String name, int min, int max, long keepAliveTime, TimeUnit unit,

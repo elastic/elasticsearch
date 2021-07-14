@@ -6,16 +6,21 @@
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
+import org.elasticsearch.xpack.core.security.support.CacheKey;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -64,7 +69,7 @@ public class IndicesAccessControl {
     /**
      * Encapsulates the field and document permissions for an index.
      */
-    public static class IndexAccessControl {
+    public static class IndexAccessControl implements CacheKey {
 
         private final boolean granted;
         private final FieldPermissions fieldPermissions;
@@ -131,6 +136,38 @@ public class IndicesAccessControl {
                     ", fieldPermissions=" + fieldPermissions +
                     ", documentPermissions=" + documentPermissions +
                     '}';
+        }
+
+        @Override
+        public void buildCacheKey(StreamOutput out, DlsQueryEvaluationContext context) throws IOException {
+            if (documentPermissions.hasDocumentLevelPermissions()) {
+                out.writeBoolean(true);
+                documentPermissions.buildCacheKey(out, context);
+            } else {
+                out.writeBoolean(false);
+            }
+            if (fieldPermissions.hasFieldLevelSecurity()) {
+                out.writeBoolean(true);
+                fieldPermissions.buildCacheKey(out, context);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            IndexAccessControl that = (IndexAccessControl) o;
+            return granted == that.granted && Objects.equals(fieldPermissions, that.fieldPermissions) && Objects.equals(documentPermissions,
+                that.documentPermissions);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(granted, fieldPermissions, documentPermissions);
         }
     }
 

@@ -12,8 +12,6 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import nebula.plugin.info.InfoBrokerPlugin;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
-import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Action;
@@ -52,28 +50,20 @@ import java.util.stream.Stream;
 import static org.elasticsearch.gradle.internal.conventions.util.Util.toStringable;
 
 /**
- * A wrapper around Gradle's Java plugin that applies our common configuration.
+ * A wrapper around Gradle's Java plugin that applies our
+ * common configuration for production code.
  */
 public class ElasticsearchJavaPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
-        // make sure the global build info plugin is applied to the root project
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        // common repositories setup
-        project.getPluginManager().apply(RepositoriesSetupPlugin.class);
+        project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);
-        project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
-        project.getPluginManager().apply(PrecommitTaskPlugin.class);
 
         configureConfigurations(project);
-        configureCompile(project);
-        configureInputNormalization(project);
         configureJars(project);
         configureJarManifest(project);
         configureJavadoc(project);
-
-        // convenience access to common versions used in dependencies
-        project.getExtensions().getExtraProperties().set("versions", VersionProperties.getVersions());
+        testCompileOnlyDeps(project);
     }
 
     /**
@@ -93,11 +83,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
      * to iterate the transitive dependencies and add excludes.
      */
     public static void configureConfigurations(Project project) {
-        // we want to test compileOnly deps!
-        Configuration compileOnlyConfig = project.getConfigurations().getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
-        Configuration testImplementationConfig = project.getConfigurations().getByName(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
-        testImplementationConfig.extendsFrom(compileOnlyConfig);
-
         // we are not shipping these jars, we act like dumb consumers of these things
         if (project.getPath().startsWith(":test:fixtures") || project.getPath().equals(":build-tools")) {
             return;
@@ -111,119 +96,57 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             configuration.resolutionStrategy(ResolutionStrategy::failOnVersionConflict);
         });
 
-        // force all dependencies added directly to compile/testImplementation to be non-transitive, except for ES itself
-        Consumer<String> disableTransitiveDeps = configName -> {
-            Configuration config = project.getConfigurations().getByName(configName);
-            config.getDependencies().all(dep -> {
-                if (dep instanceof ModuleDependency
-                    && dep instanceof ProjectDependency == false
-                    && dep.getGroup().startsWith("org.elasticsearch") == false) {
-                    ((ModuleDependency) dep).setTransitive(false);
-                }
-            });
-        };
-
         // disable transitive dependency management
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         sourceSets.all(sourceSet -> disableTransitiveDependenciesForSourceSet(project, sourceSet));
     }
 
-    /**
-     * Adds compiler settings to the project
-     */
-    public static void configureCompile(Project project) {
-        project.getExtensions().getExtraProperties().set("compactProfile", "full");
-
-        JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
-        java.setSourceCompatibility(BuildParams.getMinimumRuntimeVersion());
-        java.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
-
-        project.afterEvaluate(p -> {
-            project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
-                CompileOptions compileOptions = compileTask.getOptions();
-                /*
-                 * -path because gradle will send in paths that don't always exist.
-                 * -missing because we have tons of missing @returns and @param.
-                 * -serial because we don't use java serialization.
-                 */
-                // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
-                // fail on all javac warnings.
-                // TODO Discuss moving compileOptions.getCompilerArgs() to use provider api with Gradle team.
-                List<String> compilerArgs = compileOptions.getCompilerArgs();
-                compilerArgs.add("-Werror");
-                compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try");
-                compilerArgs.add("-Xdoclint:all");
-                compilerArgs.add("-Xdoclint:-missing");
-                // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly
-                // defined
-                if (compilerArgs.contains("-processor") == false) {
-                    compilerArgs.add("-proc:none");
-                }
-
-                compileOptions.setEncoding("UTF-8");
-                compileOptions.setIncremental(true);
-                // workaround for https://github.com/gradle/gradle/issues/14141
-                compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
-                compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
-                compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
-            });
-            // also apply release flag to groovy, which is used in build-tools
-            project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
-                // TODO: this probably shouldn't apply to groovy at all?
-                compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
-            });
-        });
-    }
-
-    private static Provider<Integer> releaseVersionProviderFromCompileTask(Project project, AbstractCompile compileTask) {
-        return project.provider(() -> {
-            JavaVersion javaVersion = JavaVersion.toVersion(compileTask.getTargetCompatibility());
-            return Integer.parseInt(javaVersion.getMajorVersion());
-        });
-    }
-
-    /**
-     * Apply runtime classpath input normalization so that changes in JAR manifests don't break build cacheability
-     */
-    public static void configureInputNormalization(Project project) {
-        project.getNormalization().getRuntimeClasspath().ignore("META-INF/MANIFEST.MF");
+    private static void testCompileOnlyDeps(Project project) {
+        // we want to test compileOnly deps!
+        Configuration compileOnlyConfig = project.getConfigurations().getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
+        Configuration testImplementationConfig = project.getConfigurations().getByName(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
+        testImplementationConfig.extendsFrom(compileOnlyConfig);
     }
 
     /**
      * Adds additional manifest info to jars
      */
     static void configureJars(Project project) {
-        project.getTasks().withType(Jar.class).configureEach(jarTask -> {
-            // we put all our distributable files under distributions
-            jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
-            // fixup the jar manifest
-            // Explicitly using an Action interface as java lambdas
-            // are not supported by Gradle up-to-date checks
-            jarTask.doFirst(new Action<Task>() {
-                @Override
-                public void execute(Task task) {
-                    // this doFirst is added before the info plugin, therefore it will run
-                    // after the doFirst added by the info plugin, and we can override attributes
-                    jarTask.getManifest()
-                        .attributes(
-                            Map.of("Build-Date", BuildParams.getBuildDate(), "Build-Java-Version", BuildParams.getGradleJavaVersion())
-                        );
-                }
-            });
-        });
+        project.getTasks().withType(Jar.class).configureEach(
+            jarTask -> {
+                // we put all our distributable files under distributions
+                jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
+                // fixup the jar manifest
+                // Explicitly using an Action interface as java lambdas
+                // are not supported by Gradle up-to-date checks
+                jarTask.doFirst(new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        // this doFirst is added before the info plugin, therefore it will run
+                        // after the doFirst added by the info plugin, and we can override attributes
+                        jarTask.getManifest()
+                            .attributes(
+                                Map.of("Build-Date", BuildParams.getBuildDate(), "Build-Java-Version", BuildParams.getGradleJavaVersion()
+                                )
+                            );
+                    }
+                });
+            }
+        );
         project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
             project.getTasks().withType(ShadowJar.class).configureEach(shadowJar -> {
-                /*
-                 * Replace the default "-all" classifier with null
-                 * which will leave the classifier off of the file name.
-                 */
-                shadowJar.getArchiveClassifier().set((String) null);
-                /*
-                 * Not all cases need service files merged but it is
-                 * better to be safe
-                 */
-                shadowJar.mergeServiceFiles();
-            });
+                    /*
+                     * Replace the default "-all" classifier with null
+                     * which will leave the classifier off of the file name.
+                     */
+                    shadowJar.getArchiveClassifier().set((String) null);
+                    /*
+                     * Not all cases need service files merged but it is
+                     * better to be safe
+                     */
+                    shadowJar.mergeServiceFiles();
+                }
+            );
             // Add "original" classifier to the non-shadowed JAR to distinguish it from the shadow JAR
             project.getTasks().named(JavaPlugin.JAR_TASK_NAME, Jar.class).configure(jar -> jar.getArchiveClassifier().set("original"));
             // Make sure we assemble the shadow jar
@@ -273,6 +196,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         Stream.of(
             sourceSet.getApiConfigurationName(),
             sourceSet.getImplementationConfigurationName(),
+            sourceSet.getImplementationConfigurationName(),
             sourceSet.getCompileOnlyConfigurationName(),
             sourceSet.getRuntimeOnlyConfigurationName()
         )
@@ -280,4 +204,5 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             .filter(Objects::nonNull)
             .forEach(GradleUtils::disableTransitiveDependencies);
     }
+
 }

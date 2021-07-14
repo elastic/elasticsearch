@@ -25,7 +25,14 @@ import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.HppcMaps;
@@ -37,12 +44,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -1196,20 +1197,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStream : null;
                 alias = new DataStreamAlias(aliasName, List.of(dataStream), writeDataStream);
             } else {
-                Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
-                String writeDataStream = alias.getWriteDataStream();
-                if (isWriteDataStream == null || isWriteDataStream == false) {
-                    if (dataStream.equals(writeDataStream)) {
-                        writeDataStream = null;
-                    }
-                } else if (isWriteDataStream) {
-                    writeDataStream = dataStream;
-                }
-                boolean added = dataStreams.add(dataStream);
-                if (added == false && Objects.equals(alias.getWriteDataStream(), writeDataStream)) {
+                DataStreamAlias copy = alias.addDataStream(dataStream, isWriteDataStream);
+                if (copy == alias) {
                     return false;
                 }
-                alias = new DataStreamAlias(aliasName, List.copyOf(dataStreams), writeDataStream);
+                alias = copy;
             }
             dataStreamAliases.put(aliasName, alias);
 
@@ -1232,18 +1224,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             Set<String> aliasesToDelete = new HashSet<>();
             List<DataStreamAlias> aliasesToUpdate = new ArrayList<>();
             for (var alias : existingDataStreamAliases.values()) {
-                Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
-                if (dataStreams.contains(name)) {
-                    dataStreams.remove(name);
-                    if (dataStreams.isEmpty()) {
-                        aliasesToDelete.add(alias.getName());
-                    } else {
-                        String writeDataStream = alias.getWriteDataStream();
-                        if (dataStreams.contains(writeDataStream) == false) {
-                            writeDataStream = null;
-                        }
-                        aliasesToUpdate.add(new DataStreamAlias(alias.getName(), List.copyOf(dataStreams), writeDataStream));
+                DataStreamAlias copy = alias.removeDataStream(name);
+                if (copy != null) {
+                    if (copy == alias) {
+                        continue;
                     }
+                    aliasesToUpdate.add(copy);
+                } else {
+                    aliasesToDelete.add(alias.getName());
                 }
             }
             for (DataStreamAlias alias : aliasesToUpdate) {
@@ -1269,19 +1257,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             } else if (existing == null) {
                 return false;
             }
-            Set<String> dataStreams = new HashSet<>(existing.getDataStreams());
-            dataStreams.remove(dataStreamName);
-            if (dataStreams.isEmpty()) {
-                dataStreamAliases.remove(aliasName);
-            } else {
-                String writeDataStream = existing.getWriteDataStream();
-                if (dataStreamName.equals(writeDataStream)) {
-                    writeDataStream = null;
-                }
-                dataStreamAliases.put(aliasName,
-                    new DataStreamAlias(existing.getName(), List.copyOf(dataStreams), writeDataStream));
+            DataStreamAlias copy = existing.removeDataStream(dataStreamName);
+            if (copy == existing) {
+                return false;
             }
-
+            if (copy != null) {
+                dataStreamAliases.put(aliasName, copy);
+            } else {
+                dataStreamAliases.remove(aliasName);
+            }
             Map<String, DataStream> existingDataStream =
                 Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
                     .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
@@ -1670,22 +1654,17 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 token = parser.nextToken();
                 if (token == XContentParser.Token.START_OBJECT) {
                     // move to the field name (meta-data)
-                    token = parser.nextToken();
-                    if (token != XContentParser.Token.FIELD_NAME) {
-                        throw new IllegalArgumentException("Expected a field name but got " + token);
-                    }
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
                     // move to the next object
                     token = parser.nextToken();
                 }
                 currentFieldName = parser.currentName();
             }
 
-            if ("meta-data".equals(parser.currentName()) == false) {
+            if ("meta-data".equals(currentFieldName) == false) {
                 throw new IllegalArgumentException("Expected [meta-data] as a field name but got " + currentFieldName);
             }
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new IllegalArgumentException("Expected a START_OBJECT but got " + token);
-            }
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -1728,6 +1707,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     throw new IllegalArgumentException("Unexpected token " + token);
                 }
             }
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
             return builder.build();
         }
     }

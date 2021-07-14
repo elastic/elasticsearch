@@ -25,7 +25,7 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 == {api-description-title}
 
 You can get a single filter or all filters. For more information, see 
-{ml-docs}/ml-rules.html[Machine learning custom rules].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-rules[Custom rules].
 
 [[ml-get-filter-path-parms]]
 == {api-path-parms-title}
@@ -38,10 +38,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter-id]
 == {api-query-parms-title}
 
 `from`::
-    (Optional, integer) Skips the specified number of filters.
+    (Optional, integer) Skips the specified number of filters. Defaults to `0`.
 
 `size`::
     (Optional, integer) Specifies the maximum number of filters to obtain.
+    Defaults to `100`.
 
 [[ml-get-filter-results]]
 == {api-response-body-title}

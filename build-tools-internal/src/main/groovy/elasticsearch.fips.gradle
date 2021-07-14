@@ -9,6 +9,7 @@
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.TestDistribution
+import org.elasticsearch.gradle.testclusters.TestClustersAware
 
 // Common config when running with a FIPS-140 runtime JVM
 if (BuildParams.inFipsJvm) {
@@ -51,6 +52,9 @@ if (BuildParams.inFipsJvm) {
             }
           }
         }
+        tasks.withType(TestClustersAware) {
+          dependsOn 'fipsResources'
+        }
         testClusters.all {
           setTestDistribution(TestDistribution.DEFAULT)
           extraConfigFile "fips_java.security", fipsSecurity
@@ -72,7 +76,7 @@ if (BuildParams.inFipsJvm) {
         }
       }
       project.tasks.withType(Test).configureEach { Test task ->
-        task.dependsOn('fipsResources')
+        dependsOn 'fipsResources'
         task.systemProperty('javax.net.ssl.trustStorePassword', 'password')
         task.systemProperty('javax.net.ssl.keyStorePassword', 'password')
         task.systemProperty('javax.net.ssl.trustStoreType', 'BCFKS')

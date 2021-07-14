@@ -28,7 +28,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -1432,12 +1433,14 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                                 startsWith("master not discovered or elected yet, an election requires at least 2 nodes with ids from ["));
 
                             final List<ClusterNode> matchingNodes = cluster.clusterNodes.stream()
-                                .filter(n -> event.getContextData().<String>getValue(NODE_ID_LOG_CONTEXT_KEY)
-                                    .equals(getNodeIdForLogContext(n.getLocalNode()))).collect(Collectors.toList());
+                                .filter(n -> event.getContextData().<String>getValue(DeterministicTaskQueue.NODE_ID_LOG_CONTEXT_KEY)
+                                    .equals(DeterministicTaskQueue.getNodeIdForLogContext(n.getLocalNode()))).collect(Collectors.toList());
                             assertThat(matchingNodes, hasSize(1));
 
-                            assertTrue(Regex.simpleMatch(
-                                "*have discovered *" + matchingNodes.get(0).toString() + "*discovery will continue*",
+                            assertTrue(
+                                message,
+                                Regex.simpleMatch(
+                                    "*have only discovered non-quorum *" + matchingNodes.get(0).toString() + "*discovery will continue*",
                                 message));
 
                             nodesLogged.add(matchingNodes.get(0).getLocalNode());

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.EnclosedAgg;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -16,6 +15,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isExact;
 import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isNumericOrDateOrTime;
 
@@ -51,9 +51,9 @@ public class Max extends NumericAggregate implements EnclosedAgg {
     @Override
     protected TypeResolution resolveType() {
         if (DataTypes.isString(field().dataType())) {
-            return isExact(field(), sourceText(), ParamOrdinal.DEFAULT);
+            return isExact(field(), sourceText(), DEFAULT);
         } else {
-            return isNumericOrDateOrTime(field(), sourceText(), ParamOrdinal.DEFAULT);
+            return isNumericOrDateOrTime(field(), sourceText(), DEFAULT);
         }
     }
 }

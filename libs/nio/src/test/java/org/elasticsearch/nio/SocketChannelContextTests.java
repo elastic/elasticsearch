@@ -8,8 +8,8 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;

@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.List;
@@ -32,7 +33,7 @@ final class UnfollowFollowerIndexStep extends AbstractUnfollowIndexStep {
 
     @Override
     void innerPerformAction(String followerIndex, ClusterState currentClusterState, ActionListener<Boolean> listener) {
-        UnfollowAction.Request request = new UnfollowAction.Request(followerIndex);
+        UnfollowAction.Request request = new UnfollowAction.Request(followerIndex).masterNodeTimeout(TimeValue.MAX_VALUE);
         getClient().execute(UnfollowAction.INSTANCE, request, ActionListener.wrap(
             r -> {
                 if (r.isAcknowledged() == false) {

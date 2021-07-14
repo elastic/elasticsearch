@@ -90,9 +90,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         GitInfo gitInfo = GitInfo.gitInfo(rootDir);
 
         BuildParams.init(params -> {
-            // Initialize global build parameters
-            boolean isInternal = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null && explicitDisabledInternal(project) == false;
-
             params.reset();
             params.setRuntimeJavaHome(runtimeJavaHome);
             params.setRuntimeJavaVersion(determineJavaVersion("runtime java.home", runtimeJavaHome, minimumRuntimeVersion));
@@ -108,28 +105,17 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setBuildDate(ZonedDateTime.now(ZoneOffset.UTC));
             params.setTestSeed(getTestSeed());
             params.setIsCi(System.getenv("JENKINS_URL") != null);
-            params.setIsInternal(isInternal);
             params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
-            if (isInternal) {
-                params.setBwcVersions(resolveBwcVersions(rootDir));
-            }
+            params.setBwcVersions(providers.provider(() -> resolveBwcVersions(rootDir)));
         });
 
-        // When building Elasticsearch, enforce the minimum compiler version
-        BuildParams.withInternalBuild(() -> assertMinimumCompilerVersion(minimumCompilerVersion));
+        // Enforce the minimum compiler version
+        assertMinimumCompilerVersion(minimumCompilerVersion);
 
         // Print global build info header just before task execution
         project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo());
-    }
-
-    @NotNull
-    private Boolean explicitDisabledInternal(Project project) {
-        return project.getProviders().systemProperty("test.external")
-                .forUseAtConfigurationTime()
-                .map(sysProp -> sysProp.equals("true"))
-                .getOrElse(false);
     }
 
     private String formatJavaVendorDetails(JvmInstallationMetadata runtimeJdkMetaData) {
@@ -255,7 +241,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     private static void assertMinimumCompilerVersion(JavaVersion minimumCompilerVersion) {
         JavaVersion currentVersion = Jvm.current().getJavaVersion();
-        if (minimumCompilerVersion.compareTo(currentVersion) > 0) {
+        if (System.getProperty("idea.active", "false").equals("true") == false && minimumCompilerVersion.compareTo(currentVersion) > 0) {
             throw new GradleException(
                 "Project requires Java version of " + minimumCompilerVersion + " or newer but Gradle JAVA_HOME is " + currentVersion
             );

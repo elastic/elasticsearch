@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public abstract class TransformTests extends GradleUnitTestCase {
@@ -125,8 +126,8 @@ public abstract class TransformTests extends GradleUnitTestCase {
 
     protected List<RestTestTransform<?>> getTransformations() {
         List<RestTestTransform<?>> transformations = new ArrayList<>();
-        transformations.add(new InjectHeaders(headers1));
-        transformations.add(new InjectHeaders(headers2));
+        transformations.add(new InjectHeaders(headers1, Collections.emptySet()));
+        transformations.add(new InjectHeaders(headers2, Collections.emptySet()));
         return transformations;
     }
 

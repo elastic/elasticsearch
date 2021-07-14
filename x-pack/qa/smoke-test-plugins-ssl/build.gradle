@@ -93,6 +93,6 @@ tasks.named("processTestResources").configure {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     include '**/*.yml'
     inputs.properties(expansions)
-    it.filter("tokens" : expansions, ReplaceTokens.class)
+    filter("tokens" : expansions, ReplaceTokens.class)
   }
 }

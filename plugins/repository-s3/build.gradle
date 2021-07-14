@@ -156,7 +156,7 @@ tasks.named("processYamlRestTestResources").configure {
     'disable_chunked_encoding': s3DisableChunkedEncoding.toString(), //TODO: ensure string is OK here
   ]
   inputs.properties(expansions)
-  it.filter("tokens" : expansions, ReplaceTokens.class)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 tasks.named("internalClusterTest").configure {

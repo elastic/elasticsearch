@@ -34,7 +34,7 @@ Map<String, Object> expansions = [
 
 tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
-  it.filter("tokens" : expansions, ReplaceTokens.class)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 // disable default yamlRestTest task, use spezialized ones below

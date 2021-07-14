@@ -64,14 +64,14 @@ void addProcessFilesTask(String type, boolean oss, boolean jdk) {
     with copySpec {
       from 'src/common'
       from "src/${type}"
-      it.filter("tokens" : expansionsForDistribution(type, oss, jdk), ReplaceTokens.class)
+      filter("tokens" : expansionsForDistribution(type, oss, jdk), ReplaceTokens.class)
     }
 
     into('etc/elasticsearch') {
       with configFiles(type, oss, jdk)
     }
 
-    it.filter("tokens" : expansionsForDistribution(type, oss, jdk), ReplaceTokens.class)
+    filter("tokens" : expansionsForDistribution(type, oss, jdk), ReplaceTokens.class)
 
     doLast {
       // create empty dirs, we set the permissions when configuring the packages

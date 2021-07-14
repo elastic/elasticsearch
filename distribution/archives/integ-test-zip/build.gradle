@@ -18,7 +18,7 @@ group = "org.elasticsearch.distribution.integ-test-zip"
 
 tasks.named("processTestResources").configure {
   inputs.properties(project(':distribution').restTestExpansions)
-  it.filter("tokens" : project(':distribution').restTestExpansions, ReplaceTokens.class)
+  filter("tokens" : project(':distribution').restTestExpansions, ReplaceTokens.class)
 }
 
 // make the pom file name use elasticsearch instead of the project name

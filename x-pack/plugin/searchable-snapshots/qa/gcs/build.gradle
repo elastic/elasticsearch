@@ -77,7 +77,7 @@ Map<String, Object> expansions = [
 
 tasks.named("processTestResources").configure {
   inputs.properties(expansions)
-  it.filter("tokens" : expansions, ReplaceTokens.class)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 if (useFixture) {

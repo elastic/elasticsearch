@@ -26,7 +26,7 @@ ext.expansions = [
 
 tasks.named("processTestResources").configure {
   inputs.properties(project.expansions)
-  it.filter("tokens" : expansions, ReplaceTokens.class)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 testClusters.matching { it.name == "integTest" }.configureEach {

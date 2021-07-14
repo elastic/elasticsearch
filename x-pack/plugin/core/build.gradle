@@ -75,7 +75,7 @@ tasks.named("processResources").configure {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     exclude '**/public.key'
     inputs.properties(expansions)
-    it.filter("tokens" : expansions, ReplaceTokens.class)
+    filter("tokens" : expansions, ReplaceTokens.class)
   }
   String licenseKey = System.getProperty("license.key")
   if (licenseKey != null) {

@@ -262,10 +262,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (luceneGeometries.length == 0) {
                 return new MatchNoDocsQuery();
             }
-            // For point queries and intersects, lucene does not match points that are encoded to Integer.MAX_VALUE. Use contains
-            // instead that returns the expected results.
-            ShapeField.QueryRelation luceneRelation = relation == ShapeRelation.INTERSECTS && shape.type() == ShapeType.POINT ?
-                    ShapeField.QueryRelation.CONTAINS : relation.getLuceneRelation();
+            final ShapeField.QueryRelation luceneRelation;
+            if (shape.type() == ShapeType.POINT && relation == ShapeRelation.INTERSECTS) {
+                // For point queries and intersects, lucene does not match points that are encoded to Integer.MAX_VALUE.
+                // We use contains instead.
+                luceneRelation = ShapeField.QueryRelation.CONTAINS;
+            } else {
+                luceneRelation = relation.getLuceneRelation();
+            }
             Query query = LatLonPoint.newGeometryQuery(fieldName, luceneRelation, luceneGeometries);
             if (hasDocValues()) {
                 Query dvQuery = LatLonDocValuesField.newSlowGeometryQuery(fieldName, luceneRelation, luceneGeometries);

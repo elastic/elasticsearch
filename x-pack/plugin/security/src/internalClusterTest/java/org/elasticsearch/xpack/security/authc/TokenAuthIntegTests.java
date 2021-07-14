@@ -197,22 +197,23 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
         // Weird testing behaviour ahead...
         // invalidating by access token (above) is a Get, but invalidating by refresh token (below) is a Search
-        // In a multi node cluster, in a small % of cases, the search might find a document that has been invalidated but not yet deleted
+        // In a multi node cluster, in a small % of cases, the search might find a document that has been deleted but not yet refreshed
         // from that node's shard.
-        // Our assertion, therefore, is that an attempt to invalidate the (already invalidated) refresh token must not actually invalidate
+        // Our assertion, therefore, is that an attempt to invalidate the refresh token must not actually invalidate
         // anything (concurrency controls must prevent that), nor may return any errors,
-        // but it might _temporarily_ find an "already invalidated" token.
+        // but it might _temporarily_ find an "already deleted" token.
         final InvalidateTokenRequest invalidateRefreshTokenRequest = InvalidateTokenRequest.refreshToken(refreshToken);
         InvalidateTokenResponse invalidateRefreshTokenResponse = restClient.security().invalidateToken(
             invalidateRefreshTokenRequest, SECURITY_REQUEST_OPTIONS);
         assertThat(invalidateRefreshTokenResponse.getInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateRefreshTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
         assertThat(invalidateRefreshTokenResponse.getErrors(), empty());
 
-        // 99% of the time, this will already be zero, but if not ensure it goes to zero within the allowed timeframe
-        if (invalidateRefreshTokenResponse.getPreviouslyInvalidatedTokens() > 0) {
+        // 99% of the time, this will already be empty, but if not ensure it goes to empty within the allowed timeframe
+        if (false == invalidateRefreshTokenResponse.getErrors().isEmpty()) {
             assertBusy(() -> {
                 var newResponse = restClient.security().invalidateToken(invalidateRefreshTokenRequest, SECURITY_REQUEST_OPTIONS);
-                assertThat(newResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+                assertThat(newResponse.getErrors(), empty());
             });
         }
     }

@@ -6,7 +6,8 @@
 
 experimental[]
 
-Returns field usage information for each field of an index.
+Returns field usage information for each shard and field
+of an index.
 Field usage statistics are automatically captured when
 queries are running on a cluster. A shard-level search
 request that accesses a given field, even if multiple times
@@ -71,7 +72,7 @@ POST /my-index-000001/_search
     "message_stats": {
       "string_stats": {
         "field": "message.keyword",
-        "show_distribution": true  <1>
+        "show_distribution": true
       }
     }
   }
@@ -113,11 +114,11 @@ The API returns the following response:
                 },
                 "stats" : {
                     "all_fields": {
-                        "any": "6",
+                        "any": "6", <1>
                         "inverted_index": {
                             "terms" : 1,
                             "postings" : 1,
-                            "proximity" : 1,
+                            "proximity" : 1, <2>
                             "positions" : 0,
                             "term_frequencies" : 1,
                             "offsets" : 0,
@@ -160,3 +161,7 @@ The API returns the following response:
 // TESTRESPONSE[s/: \{\.\.\.\}/: $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
+<1> denotes any kind of use of the field, either inverted index,
+    or stored fields, or doc values, etc.
+<2> denotes any kind of use of either positions, offsets or
+    payloads.

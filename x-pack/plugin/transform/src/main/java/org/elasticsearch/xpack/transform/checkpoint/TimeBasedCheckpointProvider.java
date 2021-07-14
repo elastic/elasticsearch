@@ -27,13 +27,18 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.time.Clock;
+import java.util.function.Function;
 import java.util.Map;
+
+import static java.util.function.Function.identity;
 
 class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
     private static final Logger logger = LogManager.getLogger(TimeBasedCheckpointProvider.class);
 
     private final TimeSyncConfig timeSyncConfig;
+    // function aligning the given timestamp with date histogram interval or identity function is aligning is not possible
+    private final Function<Long, Long> alignTimestamp;
 
     TimeBasedCheckpointProvider(
         final Clock clock,
@@ -45,11 +50,12 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
     ) {
         super(clock, client, remoteClusterResolver, transformConfigManager, transformAuditor, transformConfig);
         timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
+        alignTimestamp = createAlignTimestampFunction(transformConfig);
     }
 
     @Override
     public void sourceHasChanged(TransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener) {
-        final long timestamp = alignTimestamp(clock.millis(), transformConfig);
+        final long timestamp = alignTimestamp.apply(clock.millis());
 
         BoolQueryBuilder queryBuilder = new BoolQueryBuilder()
             .filter(transformConfig.getSource().getQueryConfig().getQuery())
@@ -86,7 +92,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
     @Override
     public void createNextCheckpoint(final TransformCheckpoint lastCheckpoint, final ActionListener<TransformCheckpoint> listener) {
-        final long timestamp = alignTimestamp(clock.millis(), transformConfig);
+        final long timestamp = alignTimestamp.apply(clock.millis());
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
         // for time based synchronization
@@ -107,29 +113,28 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
     /**
      * Aligns the timestamp with date histogram group source interval (if it is provided).
      *
-     * @param timestamp timestamp to be aligned
      * @param transformConfig transform configuration
-     * @return timestamp aligned with date histogram interval
+     * @return function aligning the given timestamp with date histogram interval
      */
-    private static long alignTimestamp(long timestamp, TransformConfig transformConfig) {
+    private static Function<Long, Long> createAlignTimestampFunction(TransformConfig transformConfig) {
         if (Boolean.FALSE.equals(transformConfig.getSettings().getInterimResults()) == false) {
-            return timestamp;
+            return identity();
         }
         if (transformConfig.getPivotConfig() == null) {
-            return timestamp;
+            return identity();
         }
         if (transformConfig.getPivotConfig().getGroupConfig() == null) {
-            return timestamp;
+            return identity();
         }
         Map<String, SingleGroupSource> groups = transformConfig.getPivotConfig().getGroupConfig().getGroups();
         if (groups == null || groups.isEmpty()) {
-            return timestamp;
+            return identity();
         }
         Map.Entry<String, SingleGroupSource> topLevelGroupEntry = groups.entrySet().iterator().next();
         if ((topLevelGroupEntry.getValue() instanceof DateHistogramGroupSource) == false) {
-            return timestamp;
+            return identity();
         }
         DateHistogramGroupSource dateHistogramGroupSource = (DateHistogramGroupSource) topLevelGroupEntry.getValue();
-        return dateHistogramGroupSource.getRounding().round(timestamp);
+        return dateHistogramGroupSource.getRounding()::round;
     }
 }

@@ -225,6 +225,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
+            clock,
             client,
             remoteClusterResolver,
             transformConfigManager,

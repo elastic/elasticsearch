@@ -39,15 +39,23 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
     public static class TestAsyncResponse implements AsyncResponse<TestAsyncResponse> {
         public final String test;
         public final long expirationTimeMillis;
+        private String failure;
 
         public TestAsyncResponse(String test, long expirationTimeMillis) {
             this.test = test;
             this.expirationTimeMillis = expirationTimeMillis;
         }
 
+        public TestAsyncResponse(String test, long expirationTimeMillis, String failure) {
+            this.test = test;
+            this.expirationTimeMillis = expirationTimeMillis;
+            this.failure = failure;
+        }
+
         public TestAsyncResponse(StreamInput input) throws IOException {
             test = input.readOptionalString();
             this.expirationTimeMillis = input.readLong();
+            failure = input.readOptionalString();
         }
 
         @Override
@@ -57,13 +65,14 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public TestAsyncResponse withExpirationTime(long expirationTime) {
-            return new TestAsyncResponse(test, expirationTime);
+            return new TestAsyncResponse(test, expirationTime, failure);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(test);
             out.writeLong(expirationTimeMillis);
+            out.writeOptionalString(failure);
         }
 
         @Override
@@ -72,20 +81,26 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             if (o == null || getClass() != o.getClass()) return false;
             TestAsyncResponse that = (TestAsyncResponse) o;
             return expirationTimeMillis == that.expirationTimeMillis &&
-                Objects.equals(test, that.test);
+                Objects.equals(test, that.test) && Objects.equals(failure, that.failure);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(test, expirationTimeMillis);
+            return Objects.hash(test, expirationTimeMillis, failure);
         }
 
         @Override
         public String toString() {
             return "TestAsyncResponse{" +
                 "test='" + test + '\'' +
+                "failure='" + failure + '\'' +
                 ", expirationTimeMillis=" + expirationTimeMillis +
                 '}';
+        }
+
+        @Override
+        public TestAsyncResponse convertToFailure(Exception exc) {
+            return new TestAsyncResponse("", expirationTimeMillis, exc.getMessage());
         }
     }
 
@@ -221,7 +236,8 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             TestAsyncResponse initialResponse = new TestAsyncResponse(testMessage, expirationTime);
             PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
             indexService.createResponse(executionId.getDocId(), Collections.emptyMap(), initialResponse, createFuture);
-            expectThrows(CircuitBreakingException.class, createFuture::actionGet);
+            CircuitBreakingException e = expectThrows(CircuitBreakingException.class, createFuture::actionGet);
+            assertEquals(0, e.getSuppressed().length); // no other suppressed exceptions
             assertThat(circuitBreaker.getUsed(), equalTo(0L));
         }
         {
@@ -261,7 +277,8 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 PlainActionFuture<UpdateResponse> updateFuture = new PlainActionFuture<>();
                 TestAsyncResponse updateResponse = new TestAsyncResponse(randomAlphaOfLength(100), randomLong());
                 indexService.updateResponse(executionId.getDocId(), Collections.emptyMap(), updateResponse, updateFuture);
-                expectThrows(CircuitBreakingException.class, updateFuture::actionGet);
+                CircuitBreakingException e = expectThrows(CircuitBreakingException.class, updateFuture::actionGet);
+                assertEquals(0, e.getSuppressed().length); // no other suppressed exceptions
                 assertThat(circuitBreaker.getUsed(), equalTo(0L));
             }
             if (randomBoolean()) {
@@ -280,5 +297,52 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 assertBusy(() -> assertThat(circuitBreaker.getUsed(), equalTo(0L)));
             }
         }
+    }
+
+    public void testCircuitBreakerRecordsFailure() throws Exception {
+        AdjustableLimitCircuitBreaker circuitBreaker = new AdjustableLimitCircuitBreaker("test");
+        CircuitBreakerService circuitBreakerService = new CircuitBreakerService() {
+            @Override
+            public CircuitBreaker getBreaker(String name) {
+                return circuitBreaker;
+            }
+            @Override
+            public AllCircuitBreakerStats stats() {
+                return null;
+            }
+            @Override
+            public CircuitBreakerStats stats(String name) {
+                return null;
+            }
+        };
+
+        BigArrays bigArrays = new BigArrays(null, circuitBreakerService, CircuitBreaker.REQUEST);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        TransportService transportService = getInstanceFromNode(TransportService.class);
+        indexService = new AsyncTaskIndexService<>("test", clusterService, transportService.getThreadPool().getThreadContext(),
+            client(), ASYNC_SEARCH_ORIGIN, TestAsyncResponse::new, writableRegistry(), bigArrays);
+        circuitBreaker.adjustLimit(1000); // Choose a limit so the update will fail, but we can still put a failure response.
+
+        TestAsyncResponse initialResponse = new TestAsyncResponse(randomAlphaOfLength(10), randomLong());
+        AsyncExecutionId executionId = new AsyncExecutionId(
+            Long.toString(randomNonNegativeLong()),
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
+
+        PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
+        indexService.createResponse(executionId.getDocId(), Collections.emptyMap(), initialResponse, createFuture);
+        createFuture.actionGet();
+
+        PlainActionFuture<UpdateResponse> updateFuture = new PlainActionFuture<>();
+        TestAsyncResponse updateResponse = new TestAsyncResponse(randomAlphaOfLength(1000), randomLong());
+        indexService.updateResponse(executionId.getDocId(), Collections.emptyMap(), updateResponse, updateFuture);
+
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, updateFuture::actionGet);
+        assertEquals(0, e.getSuppressed().length); // no other suppressed exceptions
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+
+        PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
+        indexService.getResponse(executionId, false, getFuture);
+        TestAsyncResponse getResponse = getFuture.actionGet();
+        assertNotNull(getResponse.failure);
     }
 }

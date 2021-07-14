@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.async;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -46,6 +47,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -211,7 +214,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             try {
                 final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
                 final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
-                listener = ActionListener.runBefore(listener, source::close);
+                listener = ActionListener.runBefore(listener, buffer::close);
                 source
                     .startObject()
                     .field(HEADERS_FIELD, headers)
@@ -236,14 +239,22 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Stores the final response if the place-holder document is still present (update).
      */
     public void updateResponse(String docId,
-                            Map<String, List<String>> responseHeaders,
-                            R response,
-                            ActionListener<UpdateResponse> outerListener) {
+                               Map<String, List<String>> responseHeaders,
+                               R response,
+                               ActionListener<UpdateResponse> listener) {
+        updateResponse(docId, responseHeaders, response, listener, false);
+    }
+
+    private void updateResponse(String docId,
+                               Map<String, List<String>> responseHeaders,
+                               R response,
+                               ActionListener<UpdateResponse> outerListener,
+                               boolean isFailure) {
         createIndexIfNecessary(outerListener.delegateFailure((listener, ignored) -> {
             try {
                 final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
                 final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
-                listener = ActionListener.runBefore(listener, source::close);
+                listener = ActionListener.runBefore(listener, buffer::close);
                 source
                     .startObject()
                     .field(RESPONSE_HEADERS_FIELD, responseHeaders)
@@ -259,9 +270,41 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                     .retryOnConflict(5);
                 clientWithOrigin.update(request, listener);
             } catch (Exception e) {
-                listener.onFailure(e);
+                // even if we expect updating with a failure always succeed
+                // this is just an extra precaution not to create infinite loops
+                if (isFailure) {
+                    listener.onFailure(e);
+                } else {
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof DocumentMissingException == false && cause instanceof VersionConflictEngineException == false) {
+                        logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", docId), e);
+                        ActionListener<UpdateResponse> newListener = listener;
+                        updateStoredResponseWithFailure(
+                            docId,
+                            responseHeaders,
+                            response,
+                            e,
+                            // at end, we should report a failure to the listener
+                            ActionListener.wrap(() -> newListener.onFailure(e))
+                        );
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
             }
         }));
+    }
+
+    /**
+     * Update the initial stored response with a failure
+     */
+    private void updateStoredResponseWithFailure(String docId,
+                                                 Map<String, List<String>> responseHeaders,
+                                                 R response,
+                                                 Exception updateException,
+                                                 ActionListener<UpdateResponse> listener) {
+        R failureResponse = response.convertToFailure(updateException);
+        updateResponse(docId, responseHeaders, failureResponse, listener, true);
     }
 
     /**

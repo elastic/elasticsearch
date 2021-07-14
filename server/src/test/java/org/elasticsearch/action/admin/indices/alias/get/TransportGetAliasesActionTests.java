@@ -222,7 +222,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo"), null)));
     }
 
-    public void testNetNetSystemIndicesDontErrorWhenNotRequested() {
+    public void testNetNewSystemIndicesDontErrorWhenNotRequested() {
         GetAliasesRequest aliasesRequest = new GetAliasesRequest();
         // `.b` will be the "net new" system index this test case
         ClusterState clusterState = systemIndexTestClusterState();

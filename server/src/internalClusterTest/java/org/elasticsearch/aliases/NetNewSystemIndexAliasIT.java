@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.hamcrest.Matchers.is;
 
 public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
@@ -66,15 +67,19 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();
                 {
-                    builder.startObject("_meta");
-                    builder.field("version", Version.CURRENT.toString());
-                    builder.endObject();
-
-                    builder.field("dynamic", "strict");
-                    builder.startObject("properties");
+                    builder.startObject(SINGLE_MAPPING_NAME);
                     {
-                        builder.startObject("some_field");
-                        builder.field("type", "keyword");
+                        builder.startObject("_meta");
+                        builder.field("version", Version.CURRENT.toString());
+                        builder.endObject();
+
+                        builder.field("dynamic", "strict");
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("some_field");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+                        }
                         builder.endObject();
                     }
                     builder.endObject();

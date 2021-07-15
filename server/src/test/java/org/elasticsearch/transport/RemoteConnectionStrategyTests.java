@@ -56,19 +56,13 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         newBuilder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300");
         String ping = "ping";
         String compress = "compress";
-        String compressionScheme = "compression_scheme";
-        String change = randomFrom(ping, compress, compressionScheme);
+        String change = randomFrom(ping, compress);
         if (change.equals(ping)) {
             newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace("cluster-alias").getKey(),
                 TimeValue.timeValueSeconds(5));
         } else if (change.equals(compress)) {
             newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
                 randomFrom(Compression.Enabled.INDEXING_DATA, Compression.Enabled.TRUE));
-        } else if (change.equals(compressionScheme)) {
-            newBuilder.put(
-                RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace("cluster-alias").getKey(),
-                Compression.Scheme.LZ4
-            );
         } else {
             throw new AssertionError("Unexpected option: " + change);
         }

@@ -116,7 +116,7 @@ a bike theft. This is a significant seven-fold increase in frequency and so this
 The problem with using a query to spot anomalies is it only gives us one subset to use for comparisons.
 To discover all the other police forces' anomalies we would have to repeat the query for each of the different forces.
 
-This can be a tedious way to look for unusual patterns in an index
+This can be a tedious way to look for unusual patterns in an index.
 
 
 
@@ -385,6 +385,21 @@ Google normalized distance as described in https://arxiv.org/pdf/cs/0412098v3.pd
 // NOTCONSOLE
 `gnd` also accepts the `background_is_superset` parameter.
 
+
+===== p-value score
+
+[NOTE]
+====
+As p-value score heuristic is provided by the {ml} plugin. To use it, you must 
+have the {subscriptions}[appropriate subscription].
+====
+
+The p-value is the probability of obtaining test results at least as extreme as 
+the results actually observed, under the assumption that the null hypothesis is 
+correct. The p-value is calculated assuming that the foreground set and the 
+background set are independent 
+https://en.wikipedia.org/wiki/Bernoulli_trial[Bernoulli trials], with the null 
+hypothesis that the probabilities are the same.
 
 ===== Percentage
 A simple calculation of the number of documents in the foreground sample with a term divided by the number of documents in the background with the term.

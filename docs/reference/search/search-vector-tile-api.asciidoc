@@ -88,8 +88,8 @@ a bounding box.
 on the `<field>`. The search only includes this aggregation if the
 `exact_bounds` parameter is `true`.
 
-For example, {es} may translate search vector tile API request with an
-`exact_bounds` of `true` into the following search.
+For example, {es} may translate a search vector tile API request with an
+`exact_bounds` argument of `true` into the following search:
 
 [source,console]
 ----
@@ -139,10 +139,10 @@ GET my-index/_search
 ----
 // TEST[continued]
 
-The API returns results as a binary Mapbox vector tile. The tile uses the
-https://github.com/mapbox/vector-tile-spec[Mapbox vector tile specification] and
-is encoded as a https://github.com/protocolbuffers/protobuf[Google Protobuf
-(PBF)]. By default, it contains three layers:
+The API returns results as a binary
+https://github.com/mapbox/vector-tile-spec[Mapbox vector tile]. Mapbox vector
+tiles are encoded as https://github.com/protocolbuffers/protobuf[Google
+Protobufs (PBF)]. By default, the tile contains three layers:
 
 * A `hits` layer containing a feature for each document matching the
 `geo_bounding_box` query.
@@ -152,7 +152,7 @@ The layer only contains features for cells with matching data.
 
 * A `meta` layer containing:
 ** A feature containing a bounding box. By default, this is the bounding box of
-the returned tile.
+the tile.
 ** Value ranges for any sub-aggregations on the `geotile_grid`.
 ** Metadata for the search.
 
@@ -175,17 +175,17 @@ aggregation types:
 
 `exact_bounds`::
 (Optional, Boolean)
-If `false`, the `meta` layer's feature is the bounding box of the returned tile.
-Defaults to `false`.
+If `false`, the `meta` layer's feature is the bounding box of the tile. Defaults
+to `false`.
 +
-If `true`, the `meta` layer's feature is the result of a
+If `true`, the `meta` layer's feature is a bounding box resulting from a
 <<search-aggregations-metrics-geobounds-aggregation,`geo_bounds`>> aggregation.
 The aggregation runs on `<field>` values that intersect the `<zoom>/<x>/<y>`
 tile with `wrap_longitude` set to `false`.
 
 `extent`::
-(Optional, integer) Size, in pixels, of a side of the returned vector tile.
-Vector tiles are square with equal sides. Defaults to `4096`.
+(Optional, integer) Size, in pixels, of a side of the tile. Vector tiles are
+square with equal sides. Defaults to `4096`.
 
 `fields`::
 (Optional, array of strings and objects) Fields to return in the `hits` layer.
@@ -213,8 +213,8 @@ Other field data types do not support this parameter.
 ====
 
 `grid_precision`::
-(Optional, integer) Determines grid size for the `geotile_grid`. Accepts
-`0`-`8`. If `0`, results don't include the `aggs` layer. Defaults to `8`.
+(Optional, integer) Determines the grid size of the `geotile_grid`. Accepts
+`0`-`8`. Defaults to `8`. If `0`, results don't include the `aggs` layer.
 +
 The request calculates the grid size as:
 +
@@ -224,14 +224,14 @@ For example, a value of `8` divides the tile into a grid of 256 x 256 cells. The
 `aggs` layer only contains features for cells with matching data.
 
 `grid_type`::
-(Optional, string) Determines the geometry of features in the `aggs` layer. In
-the `aggs` layer, each feature represents a cell of the `geotile_grid`. Accepts:
+(Optional, string) Determines feature geometry for the `aggs` layer. In the
+`aggs` layer, each feature represents a `geotile_grid` cell. Accepts:
 
 `grid` (Default):::
-A polygon of the cell's bounding box.
+Each feature is a `Polygon` of the cell's bounding box.
 
 `point`:::
-A point that's the centroid of the cell.
+Each feature is a `Point` that's the centroid of the cell.
 
 `query`::
 (Optional, object) <<query-dsl,Query DSL>> used to filter documents for the
@@ -241,10 +241,11 @@ include::{es-repo-dir}/search/search.asciidoc[tag=runtime-mappings-def]
 
 `size`::
 (Optional, integer) Maximum number of features to return in the `hits` layer.
-Defaults to `1000`. If `0`, results don't include the `hits` layer.
+Accepts `0`-`10000`. Defaults to `1000`. If `0`, results don't include the
+`hits` layer.
 
 `sort`::
-(Optional, array of <<sort-search-results,sort objects>>) Sort features in the
+(Optional, array of <<sort-search-results,sort objects>>) Sorts features in the
 `hits` layer.
 
 [role="child_attributes"]
@@ -261,8 +262,8 @@ Returned vector tiles contain the following data:
 ====
 // tag::extent[]
 `extent`::
-(integer) Size, in pixels, of a side of the vector tile. Vector tiles are square
-with equal sides.
+(integer) Size, in pixels, of a side of the tile. Vector tiles are square with
+equal sides.
 // end::extent[]
 
 // tag::version[]
@@ -376,9 +377,7 @@ include::search-vector-tile-api.asciidoc[tag=extent]
 include::search-vector-tile-api.asciidoc[tag=version]
 
 `features`::
-(array of objects) Contains one feature for a bounding box. By default, the
-feature is the `geo_bounds` aggregation results. If request's `exact_bounds`
-argument was `false`, the feature is the vector tile's bounding box.
+(array of objects) Contains a feature for a bounding box.
 +
 .Properties of `features` objects
 [%collapsible%open]
@@ -468,7 +467,8 @@ include::search-vector-tile-api.asciidoc[tag=feature-type]
 [[search-vector-tile-api-api-example]]
 ==== {api-examples-title}
 
-The following requests create an index containing several geospatial values.
+The following requests create the `museum` index and adds several geospatial
+`location` values.
 
 [source,console]
 ----
@@ -503,8 +503,8 @@ POST museums/_bulk?refresh
 { "location": "52.371667,4.914722", "name": "Amsterdam Centre for Architecture", "price":0, "included": true }
 ----
 
-The following request searches the `13/4207/2692` vector tile for intersecting
-values.
+The following request searches the index for `location` values that intersect
+the `13/4207/2692` vector tile.
 
 [source,console]
 ----
@@ -541,8 +541,8 @@ GET museums/_mvt/location/13/4207/2692
 ----
 // TEST[continued]
 
-The API returns a binary vector tile. When decoded into JSON, the tile contains
-the following results:
+The API returns results in a binary vector tile. When decoded into JSON, the
+tile contains the following results:
 
 [source,js]
 ----

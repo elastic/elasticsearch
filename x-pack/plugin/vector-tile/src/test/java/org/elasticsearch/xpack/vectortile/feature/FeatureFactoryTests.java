@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.vectortile.feature;
 
 import com.wdtinc.mapbox_vector_tile.VectorTile;
-import com.wdtinc.mapbox_vector_tile.adapt.jts.UserDataIgnoreConverter;
 
 import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.geometry.Geometry;
@@ -25,6 +24,7 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -32,7 +32,7 @@ import java.util.List;
 public class FeatureFactoryTests extends ESTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75325")
-    public void testPoint() {
+    public void testPoint() throws IOException {
         int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);
@@ -42,21 +42,19 @@ public class FeatureFactoryTests extends ESTestCase {
         {
             double lat = randomValueOtherThanMany((l) -> rectangle.getMinY() > l || rectangle.getMaxY() < l, GeoTestUtil::nextLatitude);
             double lon = randomValueOtherThanMany((l) -> rectangle.getMinX() > l || rectangle.getMaxX() < l, GeoTestUtil::nextLongitude);
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(new Point(lon, lat), new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(1));
-            VectorTile.Tile.Feature feature = features.get(0);
+            VectorTile.Tile.Feature feature = VectorTile.Tile.Feature.parseFrom(builder.getFeature(new Point(lon, lat)));
+            assertThat(feature, Matchers.notNullValue());
             assertThat(feature.getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POINT));
         }
         {
             double lat = randomValueOtherThanMany((l) -> rectangle.getMinY() <= l && rectangle.getMaxY() >= l, GeoTestUtil::nextLatitude);
             double lon = randomValueOtherThanMany((l) -> rectangle.getMinX() <= l && rectangle.getMaxX() >= l, GeoTestUtil::nextLongitude);
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(new Point(lon, lat), new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(0));
+            assertThat(builder.getFeature(new Point(lon, lat)).length, Matchers.equalTo(0));
         }
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75325")
-    public void testMultiPoint() {
+    public void testMultiPoint() throws IOException {
         int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);
@@ -72,9 +70,8 @@ public class FeatureFactoryTests extends ESTestCase {
             for (int i = 0; i < numPoints - 1; i++) {
                 points.add(new Point(GeoTestUtil.nextLongitude(), GeoTestUtil.nextLatitude()));
             }
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(new MultiPoint(points), new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(1));
-            VectorTile.Tile.Feature feature = features.get(0);
+            VectorTile.Tile.Feature feature = VectorTile.Tile.Feature.parseFrom(builder.getFeature(new MultiPoint(points)));
+            assertThat(feature, Matchers.notNullValue());
             assertThat(feature.getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POINT));
         }
         {
@@ -90,12 +87,11 @@ public class FeatureFactoryTests extends ESTestCase {
                 );
                 points.add(new Point(lon, lat));
             }
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(new MultiPoint(points), new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(0));
+            assertThat(builder.getFeature(new MultiPoint(points)).length, Matchers.equalTo(0));
         }
     }
 
-    public void testRectangle() {
+    public void testRectangle() throws IOException {
         int z = randomIntBetween(3, 10);
         int x = randomIntBetween(2, (1 << z) - 1);
         int y = randomIntBetween(2, (1 << z) - 1);
@@ -103,19 +99,17 @@ public class FeatureFactoryTests extends ESTestCase {
         FeatureFactory builder = new FeatureFactory(z, x, y, extent);
         {
             Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(r, new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(1));
-            VectorTile.Tile.Feature feature = features.get(0);
+            VectorTile.Tile.Feature feature = VectorTile.Tile.Feature.parseFrom(builder.getFeature(r));
+            assertThat(feature, Matchers.notNullValue());
             assertThat(feature.getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POLYGON));
         }
         {
             Rectangle r = GeoTileUtils.toBoundingBox(x - 2, y, z);
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(r, new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(0));
+            assertThat(builder.getFeature(r).length, Matchers.equalTo(0));
         }
     }
 
-    public void testLine() {
+    public void testLine() throws IOException {
         int z = randomIntBetween(3, 10);
         int x = randomIntBetween(2, (1 << z) - 1);
         int y = randomIntBetween(2, (1 << z) - 1);
@@ -123,19 +117,17 @@ public class FeatureFactoryTests extends ESTestCase {
         FeatureFactory builder = new FeatureFactory(z, x, y, extent);
         {
             Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(buildLine(r), new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(1));
-            VectorTile.Tile.Feature feature = features.get(0);
+            VectorTile.Tile.Feature feature = VectorTile.Tile.Feature.parseFrom(builder.getFeature(buildLine(r)));
+            assertThat(feature, Matchers.notNullValue());
             assertThat(feature.getType(), Matchers.equalTo(VectorTile.Tile.GeomType.LINESTRING));
         }
         {
             Rectangle r = GeoTileUtils.toBoundingBox(x - 2, y, z);
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(buildLine(r), new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(0));
+            assertThat(builder.getFeature(buildLine(r)).length, Matchers.equalTo(0));
         }
     }
 
-    public void testMultiLine() {
+    public void testMultiLine() throws IOException {
         int z = randomIntBetween(3, 10);
         int x = randomIntBetween(2, (1 << z) - 1);
         int y = randomIntBetween(2, (1 << z) - 1);
@@ -143,19 +135,17 @@ public class FeatureFactoryTests extends ESTestCase {
         FeatureFactory builder = new FeatureFactory(z, x, y, extent);
         {
             Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(buildMultiLine(r), new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(1));
-            VectorTile.Tile.Feature feature = features.get(0);
+            VectorTile.Tile.Feature feature = VectorTile.Tile.Feature.parseFrom(builder.getFeature(buildMultiLine(r)));
+            assertThat(feature, Matchers.notNullValue());
             assertThat(feature.getType(), Matchers.equalTo(VectorTile.Tile.GeomType.LINESTRING));
         }
         {
             Rectangle r = GeoTileUtils.toBoundingBox(x - 2, y, z);
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(buildMultiLine(r), new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(0));
+            assertThat(builder.getFeature(buildMultiLine(r)).length, Matchers.equalTo(0));
         }
     }
 
-    public void testPolygon() {
+    public void testPolygon() throws IOException {
         int z = randomIntBetween(3, 10);
         int x = randomIntBetween(2, (1 << z) - 1);
         int y = randomIntBetween(2, (1 << z) - 1);
@@ -163,19 +153,17 @@ public class FeatureFactoryTests extends ESTestCase {
         FeatureFactory builder = new FeatureFactory(z, x, y, extent);
         {
             Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(buildPolygon(r), new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(1));
-            VectorTile.Tile.Feature feature = features.get(0);
+            VectorTile.Tile.Feature feature = VectorTile.Tile.Feature.parseFrom(builder.getFeature(buildPolygon(r)));
+            assertThat(feature, Matchers.notNullValue());
             assertThat(feature.getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POLYGON));
         }
         {
             Rectangle r = GeoTileUtils.toBoundingBox(x - 2, y, z);
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(buildPolygon(r), new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(0));
+            assertThat(builder.getFeature(buildPolygon(r)).length, Matchers.equalTo(0));
         }
     }
 
-    public void testMultiPolygon() {
+    public void testMultiPolygon() throws IOException {
         int z = randomIntBetween(3, 10);
         int x = randomIntBetween(2, (1 << z) - 1);
         int y = randomIntBetween(2, (1 << z) - 1);
@@ -183,15 +171,14 @@ public class FeatureFactoryTests extends ESTestCase {
         FeatureFactory builder = new FeatureFactory(z, x, y, extent);
         {
             Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(buildMultiPolygon(r), new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(1));
-            VectorTile.Tile.Feature feature = features.get(0);
+            VectorTile.Tile.Feature feature = VectorTile.Tile.Feature.parseFrom(builder.getFeature(buildMultiPolygon(r)));
+            assertThat(feature, Matchers.notNullValue());
             assertThat(feature.getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POLYGON));
         }
         {
             Rectangle r = GeoTileUtils.toBoundingBox(x - 2, y, z);
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(buildMultiPolygon(r), new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(0));
+            assertThat(builder.getFeature(buildMultiPolygon(r)).length, Matchers.equalTo(0));
+
         }
     }
 
@@ -206,7 +193,7 @@ public class FeatureFactoryTests extends ESTestCase {
             List<Geometry> geometries = List.of(buildPolygon(r), buildLine(r));
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> builder.getFeatures(new GeometryCollection<>(geometries), new UserDataIgnoreConverter())
+                () -> builder.getFeature(new GeometryCollection<>(geometries))
             );
             assertThat(ex.getMessage(), Matchers.equalTo("GeometryCollection is not supported"));
         }

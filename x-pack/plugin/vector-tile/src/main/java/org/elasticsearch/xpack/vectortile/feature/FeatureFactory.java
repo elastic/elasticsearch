@@ -12,9 +12,11 @@ import com.wdtinc.mapbox_vector_tile.adapt.jts.IGeometryFilter;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.IUserDataConverter;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.JtsAdapter;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.TileGeomResult;
+import com.wdtinc.mapbox_vector_tile.adapt.jts.UserDataIgnoreConverter;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerParams;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 
+import org.elasticsearch.common.geo.SphericalMercatorUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -40,10 +42,13 @@ import java.util.List;
  */
 public class FeatureFactory {
 
+    private static final byte[] EMPTY = new byte[0];
+
     private final IGeometryFilter acceptAllGeomFilter = geometry -> true;
     private final MvtLayerParams layerParams;
     private final GeometryFactory geomFactory = new GeometryFactory();
     private final MvtLayerProps layerProps = new MvtLayerProps();
+    private final IUserDataConverter ignoreDataConverter = new UserDataIgnoreConverter();
     private final JTSGeometryBuilder builder;
 
     private final Envelope tileEnvelope;
@@ -59,7 +64,7 @@ public class FeatureFactory {
         this.layerParams = new MvtLayerParams(extent, extent);
     }
 
-    public List<VectorTile.Tile.Feature> getFeatures(Geometry geometry, IUserDataConverter userData) {
+    public byte[] getFeature(Geometry geometry) {
         TileGeomResult tileGeom = JtsAdapter.createTileGeom(
             JtsAdapter.flatFeatureList(geometry.visit(builder)),
             tileEnvelope,
@@ -69,11 +74,8 @@ public class FeatureFactory {
             acceptAllGeomFilter
         );
         // MVT tile geometry to MVT features
-        return JtsAdapter.toFeatures(tileGeom.mvtGeoms, layerProps, userData);
-    }
-
-    public MvtLayerProps getLayerProps() {
-        return layerProps;
+        List<VectorTile.Tile.Feature> features = JtsAdapter.toFeatures(tileGeom.mvtGeoms, layerProps, ignoreDataConverter);
+        return features.size() == 0 ? EMPTY : features.get(0).toByteArray();
     }
 
     private static class JTSGeometryBuilder implements GeometryVisitor<org.locationtech.jts.geom.Geometry, IllegalArgumentException> {

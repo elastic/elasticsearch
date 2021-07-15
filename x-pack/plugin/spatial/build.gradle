@@ -15,6 +15,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
   api project(path: ':modules:geo')
+  api project(path: xpackModule('vector-tile'))
   restTestConfig project(path: ':modules:geo', configuration: 'restTests')
 }
 

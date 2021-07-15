@@ -15,14 +15,15 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoShapeUtils;
-import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractLatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
+import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -174,7 +176,17 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         @Override
         protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
-            return GeometryFormatterFactory.getFormatter(format, Function.identity());
+            return GeoFormatterFactory.getFormatter(format, Function.identity(),
+                (z, x, y, extent) -> {
+                    final FeatureFactory featureFactory = new FeatureFactory(z, x, y, extent);
+                    return geometries -> {
+                        if (geometries.size() == 1) {
+                            return List.of(featureFactory.getFeature(geometries.get(0)));
+                        } else {
+                            return List.of(featureFactory.getFeature(new GeometryCollection<>(geometries)));
+                        }
+                    };
+                });
         }
     }
 

@@ -385,7 +385,7 @@ Google normalized distance as described in https://arxiv.org/pdf/cs/0412098v3.pd
 // NOTCONSOLE
 `gnd` also accepts the `background_is_superset` parameter.
 
-[p-value-score]
+[[p-value-score]]
 ===== p-value score
 
 [NOTE]

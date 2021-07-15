@@ -21,18 +21,25 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
+import java.security.Key;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A variety of utility methods for working with or constructing {@link KeyStore} instances.
  */
-final class KeyStoreUtil {
+public final class KeyStoreUtil {
 
     private KeyStoreUtil() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -42,8 +49,8 @@ final class KeyStoreUtil {
      * Make a best guess about the "type" (see {@link KeyStore#getType()}) of the keystore file located at the given {@code Path}.
      * This method only references the <em>file name</em> of the keystore, it does not look at its contents.
      */
-    static String inferKeyStoreType(Path path) {
-        String name = path == null ? "" : path.toString().toLowerCase(Locale.ROOT);
+    public static String inferKeyStoreType(String path) {
+        String name = path == null ? "" : path.toLowerCase(Locale.ROOT);
         if (name.endsWith(".p12") || name.endsWith(".pfx") || name.endsWith(".pkcs12")) {
             return "PKCS12";
         } else {
@@ -57,32 +64,25 @@ final class KeyStoreUtil {
      * @throws SslConfigException       If there is a problem reading from the provided path
      * @throws GeneralSecurityException If there is a problem with the keystore contents
      */
-    static KeyStore readKeyStore(Path path, String type, char[] password) throws GeneralSecurityException {
-        if (Files.notExists(path)) {
-            throw new SslConfigException("cannot read a [" + type + "] keystore from [" + path.toAbsolutePath()
-                + "] because the file does not exist");
-        }
-        try {
-            KeyStore keyStore = KeyStore.getInstance(type);
+    public static KeyStore readKeyStore(Path path, String ksType, char[] password) throws GeneralSecurityException, IOException {
+        KeyStore keyStore = KeyStore.getInstance(ksType);
+        if (path != null) {
             try (InputStream in = Files.newInputStream(path)) {
                 keyStore.load(in, password);
             }
-            return keyStore;
-        } catch (IOException e) {
-            throw new SslConfigException("cannot read a [" + type + "] keystore from [" + path.toAbsolutePath() + "] - " + e.getMessage(),
-                e);
         }
+        return keyStore;
     }
 
     /**
      * Construct an in-memory keystore with a single key entry.
-     * @param certificateChain A certificate chain (ordered from subject to issuer)
-     * @param privateKey The private key that corresponds to the subject certificate (index 0 of {@code certificateChain})
-     * @param password The password for the private key
      *
+     * @param certificateChain A certificate chain (ordered from subject to issuer)
+     * @param privateKey       The private key that corresponds to the subject certificate (index 0 of {@code certificateChain})
+     * @param password         The password for the private key
      * @throws GeneralSecurityException If there is a problem with the provided certificates/key
      */
-    static KeyStore buildKeyStore(Collection<Certificate> certificateChain, PrivateKey privateKey, char[] password)
+    public static KeyStore buildKeyStore(Collection<Certificate> certificateChain, PrivateKey privateKey, char[] password)
         throws GeneralSecurityException {
         KeyStore keyStore = buildNewKeyStore();
         keyStore.setKeyEntry("key", privateKey, password, certificateChain.toArray(new Certificate[0]));
@@ -91,9 +91,10 @@ final class KeyStoreUtil {
 
     /**
      * Construct an in-memory keystore with multiple trusted cert entries.
+     *
      * @param certificates The root certificates to trust
      */
-    static KeyStore buildTrustStore(Iterable<Certificate> certificates) throws GeneralSecurityException {
+    public static KeyStore buildTrustStore(Iterable<Certificate> certificates) throws GeneralSecurityException {
         assert certificates != null : "Cannot create keystore with null certificates";
         KeyStore store = buildNewKeyStore();
         int counter = 0;
@@ -116,9 +117,19 @@ final class KeyStoreUtil {
     }
 
     /**
+     * Returns a {@link X509ExtendedKeyManager} that is built from the provided private key and certificate chain
+     */
+    public static X509ExtendedKeyManager createKeyManager(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
+        throws GeneralSecurityException, IOException {
+        KeyStore keyStore = buildKeyStore(List.of(certificateChain), privateKey, password);
+        return createKeyManager(keyStore, password, KeyManagerFactory.getDefaultAlgorithm());
+    }
+
+    /**
      * Creates a {@link X509ExtendedKeyManager} based on the key material in the provided {@link KeyStore}
      */
-    static X509ExtendedKeyManager createKeyManager(KeyStore keyStore, char[] password, String algorithm) throws GeneralSecurityException {
+    public static X509ExtendedKeyManager createKeyManager(KeyStore keyStore, char[] password,
+                                                          String algorithm) throws GeneralSecurityException {
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
         kmf.init(keyStore, password);
         KeyManager[] keyManagers = kmf.getKeyManagers();
@@ -134,7 +145,7 @@ final class KeyStoreUtil {
     /**
      * Creates a {@link X509ExtendedTrustManager} based on the trust material in the provided {@link KeyStore}
      */
-    static X509ExtendedTrustManager createTrustManager(@Nullable KeyStore trustStore, String algorithm)
+    public static X509ExtendedTrustManager createTrustManager(@Nullable KeyStore trustStore, String algorithm)
         throws NoSuchAlgorithmException, KeyStoreException {
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(algorithm);
         tmf.init(trustStore);
@@ -146,6 +157,119 @@ final class KeyStoreUtil {
         }
         throw new SslConfigException("failed to find a X509ExtendedTrustManager in the trust manager factory for [" + algorithm
             + "] and truststore [" + trustStore + "]");
+    }
+
+    /**
+     * Creates a {@link X509ExtendedTrustManager} based on the provided certificates
+     *
+     * @param certificates the certificates to trust
+     * @return a trust manager that trusts the provided certificates
+     */
+    public static X509ExtendedTrustManager createTrustManager(Collection<Certificate> certificates) throws GeneralSecurityException {
+        KeyStore store = buildTrustStore(certificates);
+        return createTrustManager(store, TrustManagerFactory.getDefaultAlgorithm());
+    }
+
+    static Stream<KeyStoreEntry> stream(KeyStore keyStore,
+                                        Function<GeneralSecurityException, ? extends RuntimeException> exceptionHandler) {
+        try {
+            return Collections.list(keyStore.aliases()).stream().map(a -> new KeyStoreEntry(keyStore, a, exceptionHandler));
+        } catch (KeyStoreException e) {
+            throw exceptionHandler.apply(e);
+        }
+    }
+
+    static class KeyStoreEntry {
+        private final KeyStore store;
+        private final String alias;
+        private final Function<GeneralSecurityException, ? extends RuntimeException> exceptionHandler;
+
+        KeyStoreEntry(KeyStore store, String alias, Function<GeneralSecurityException, ? extends RuntimeException> exceptionHandler) {
+            this.store = store;
+            this.alias = alias;
+            this.exceptionHandler = exceptionHandler;
+        }
+
+        public String getAlias() {
+            return alias;
+        }
+
+        /**
+         * If this entry is a <em>private key entry</em> (see {@link #isKeyEntry()}),
+         * and the entry includes a certificate chain,
+         * and the leaf (first) element of that chain is an X.509 certificate,
+         * then that leaf certificate is returned.
+         *
+         * If this entry is a <em>trusted certificate entry</em>
+         * and the trusted certificate is an X.509 certificate,
+         * then the trusted certificate is returned.
+         *
+         * In all other cases, returns {@code null}.
+         *
+         * @see KeyStore#getCertificate(String)
+         */
+        public X509Certificate getX509Certificate() {
+            try {
+                final Certificate c = store.getCertificate(alias);
+                if (c instanceof X509Certificate) {
+                    return (X509Certificate) c;
+                } else {
+                    return null;
+                }
+            } catch (KeyStoreException e) {
+                throw exceptionHandler.apply(e);
+            }
+        }
+
+        /**
+         * @see KeyStore#isKeyEntry(String)
+         */
+        public boolean isKeyEntry() {
+            try {
+                return store.isKeyEntry(alias);
+            } catch (KeyStoreException e) {
+                throw exceptionHandler.apply(e);
+            }
+        }
+
+        /**
+         * If the current entry stores a private key, returns that key.
+         * Otherwise returns {@code null}.
+         *
+         * @see KeyStore#getKey(String, char[])
+         */
+        public PrivateKey getKey(char[] password) {
+            try {
+                final Key key = store.getKey(alias, password);
+                if (key instanceof PrivateKey) {
+                    return (PrivateKey) key;
+                }
+                return null;
+            } catch (GeneralSecurityException e) {
+                throw exceptionHandler.apply(e);
+            }
+        }
+
+        /**
+         * If this entry is a private key entry (see {@link #isKeyEntry()}), returns the certificate chain that is stored in the entry.
+         * If the entry contains any certificates that are not X.509 certificates, they are ignored.
+         * If the entry is not a private key entry, or it does not contain any X.509 certificates, then an empty list is returned.
+         */
+        public List<? extends X509Certificate> getX509CertificateChain() {
+            try {
+                final Certificate[] certificates = store.getCertificateChain(alias);
+                if (certificates == null || certificates.length == 0) {
+                    return List.of();
+                }
+                return Stream.of(certificates)
+                    .filter(c -> c instanceof X509Certificate)
+                    .map(X509Certificate.class::cast)
+                    .collect(Collectors.toUnmodifiableList());
+            } catch (KeyStoreException e) {
+                throw exceptionHandler.apply(e);
+            }
+        }
+
     }
 
 

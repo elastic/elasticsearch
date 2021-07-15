@@ -411,6 +411,7 @@ not contain the counts of the foreground set as they are filtered out.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
   "query": {
     "bool": {
@@ -476,7 +477,7 @@ not contain the counts of the foreground set as they are filtered out.
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TEST[s/_search/_search?size=0/]
 
 ===== Percentage
 A simple calculation of the number of documents in the foreground sample with a term divided by the number of documents in the background with the term.

@@ -9,6 +9,9 @@
     "headers": {
       "accept": [
         "application/json"
+      ],
+      "content_type": [
+        "application/vnd.mapbox-vector-tile"
       ]
     },
     "url": {

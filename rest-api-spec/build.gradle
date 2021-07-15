@@ -92,8 +92,6 @@ tasks.named("yamlRestCompatTest").configure {
     'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion without specifying nodes',
     'indices.flush/10_basic/Index synced flush rest test',
     'indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set',
-    'indices.open/10_basic/?wait_for_active_shards default is deprecated',
-    'indices.open/10_basic/?wait_for_active_shards=index-setting',
     // not fixing this in #70966
     'indices.put_template/11_basic_with_types/Put template with empty mappings',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
@@ -224,6 +222,11 @@ tasks.named("transformV7RestTests").configure({ task ->
   )
   task.replaceValueInMatch("_all.primaries.indexing.types._doc.index_total", 2)
 
+  //override for "indices.open/10_basic/?wait_for_active_shards default is deprecated" and "indices.open/10_basic/?wait_for_active_shards=index-setting"
+  task.addAllowedWarningRegexForTest("\\?wait_for_active_shards=index-setting is now the default behaviour.*", "?wait_for_active_shards=index-setting")
+  task.removeWarningForTest("the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; " +
+    "specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+    , "?wait_for_active_shards default is deprecated")
 })
 
 tasks.register('enforceYamlTestConvention').configure {

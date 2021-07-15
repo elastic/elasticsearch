@@ -20,6 +20,7 @@ import java.util.List;
 
 public class SimpleFeatureFactoryTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75358")
     public void testPoint() throws IOException {
         int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
@@ -39,6 +40,7 @@ public class SimpleFeatureFactoryTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75358")
     public void testMultiPoint() throws IOException {
         int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);

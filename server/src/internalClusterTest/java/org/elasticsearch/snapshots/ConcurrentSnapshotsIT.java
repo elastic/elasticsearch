@@ -1480,6 +1480,51 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    public void testOutOfOrderAndConcurrentFinalization() throws Exception {
+        final String master = internalCluster().startMasterOnlyNode();
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        final String index1 = "index-1";
+        final String index2 = "index-2";
+        createIndexWithContent(index1, dataNodes.get(0), dataNodes.get(1));
+        createIndexWithContent(index2, dataNodes.get(1), dataNodes.get(0));
+
+        final String repository = "test-repo";
+        createRepository(repository, "mock");
+
+        blockNodeWithIndex(repository, index2);
+
+        final ActionFuture<CreateSnapshotResponse> snapshot1 = clusterAdmin().prepareCreateSnapshot(repository, "snapshot-1")
+                .setIndices(index1, index2)
+                .setWaitForCompletion(true)
+                .execute();
+        awaitNumberOfSnapshotsInProgress(1);
+
+        blockMasterOnWriteIndexFile(repository);
+        final ActionFuture<CreateSnapshotResponse> snapshot2 = clusterAdmin().prepareCreateSnapshot(repository, "snapshot-2")
+                .setIndices(index1)
+                .setWaitForCompletion(true)
+                .execute();
+
+        awaitClusterState(state -> {
+            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+            return snapshotsInProgress.entries().size() == 2 && snapshotsInProgress.entries().get(1).state().completed();
+        });
+
+        unblockAllDataNodes(repository);
+        awaitClusterState(state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().get(0).state().completed());
+
+        unblockNode(repository, master);
+        assertSuccessful(snapshot2);
+
+        final SnapshotInfo sn1 = assertSuccessful(snapshot1);
+        assertAcked(startDeleteSnapshot(repository, sn1.snapshot().getSnapshotId().getName()).get());
+
+        assertThat(
+                clusterAdmin().prepareSnapshotStatus().setSnapshots("snapshot-2").setRepository(repository).get().getSnapshots(),
+                hasSize(1)
+        );
+    }
+
     public void testOutOfOrderFinalizationWithConcurrentClone() throws Exception {
         internalCluster().startMasterOnlyNode();
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);

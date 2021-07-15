@@ -244,6 +244,19 @@ public class SystemIndexManagerTests extends ESTestCase {
         verify(client, times(1)).execute(any(PutMappingAction.class), any(PutMappingRequest.class), any());
     }
 
+    /**
+     * Check that this
+     */
+    public void testCanHandleIntegerMetaVersion() {
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
+
+        final ClusterState.Builder clusterStateBuilder = createClusterState(Strings.toString(getMappings(3)));
+        markShardsAvailable(clusterStateBuilder);
+
+        assertThat(manager.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE));
+    }
+
     private static ClusterState.Builder createClusterState() {
         return createClusterState(SystemIndexManagerTests.DESCRIPTOR.getMappings());
     }
@@ -371,6 +384,34 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     private static XContentBuilder getMappings(String version) {
+        try {
+            final XContentBuilder builder = jsonBuilder();
+
+            builder.startObject();
+            {
+                builder.startObject("_meta");
+                builder.field("version", version);
+                builder.endObject();
+
+                builder.field("dynamic", "strict");
+                builder.startObject("properties");
+                {
+                    builder.startObject("completed");
+                    builder.field("type", "boolean");
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+
+            builder.endObject();
+            return builder;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build " + SYSTEM_INDEX_NAME + " index mappings", e);
+        }
+    }
+
+    // Prior to 7.12.0, .tasks had _meta.version: 3 so we need to be sure we can handle that
+    private static XContentBuilder getMappings(int version) {
         try {
             final XContentBuilder builder = jsonBuilder();
 

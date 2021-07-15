@@ -1359,7 +1359,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 repositoriesService.repository(repoName).getRepositoryData(new ActionListener<>() {
                     @Override
                     public void onResponse(RepositoryData repositoryData) {
-                        finalizeSnapshotEntry(entry, metadata, repositoryData);
+                        finalizeSnapshotEntry(entry.snapshot(), metadata, repositoryData);
                     }
 
                     @Override
@@ -1371,7 +1371,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 });
             } else {
-                finalizeSnapshotEntry(entry, metadata, repositoryData);
+                finalizeSnapshotEntry(entry.snapshot(), metadata, repositoryData);
             }
         } else {
             if (newFinalization) {
@@ -1401,11 +1401,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         assert removed;
     }
 
-    private void finalizeSnapshotEntry(SnapshotsInProgress.Entry entry, Metadata metadata, RepositoryData repositoryData) {
-        assert currentlyFinalizing.contains(entry.repository());
+    private void finalizeSnapshotEntry(Snapshot snapshot, Metadata metadata, RepositoryData repositoryData) {
+        assert currentlyFinalizing.contains(snapshot.getRepository());
         try {
+            SnapshotsInProgress.Entry entry =
+                    clusterService.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).snapshot(snapshot);
             final String failure = entry.failure();
-            final Snapshot snapshot = entry.snapshot();
             logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
             final ShardGenerations shardGenerations = buildGenerations(entry, metadata);
             final List<String> finalIndices = shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList());
@@ -1520,12 +1521,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         completeListenersIgnoringException(endAndGetListenersToResolve(snapshot), Tuple.tuple(newRepoData, snapshotInfo));
                         logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
                         runNextQueuedOperation(newRepoData, repository, true);
-                    }, e -> handleFinalizationFailure(e, entry, repositoryData))
+                    }, e -> handleFinalizationFailure(e, snapshot, repositoryData))
                 );
-            }, e -> handleFinalizationFailure(e, entry, repositoryData));
+            }, e -> handleFinalizationFailure(e, snapshot, repositoryData));
         } catch (Exception e) {
             assert false : new AssertionError(e);
-            handleFinalizationFailure(e, entry, repositoryData);
+            handleFinalizationFailure(e, snapshot, repositoryData);
         }
     }
 
@@ -1574,11 +1575,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * operations if there are any.
      *
      * @param e              exception encountered
-     * @param entry          snapshot entry that failed to finalize
+     * @param snapshot       snapshot that failed to finalize
      * @param repositoryData current repository data for the snapshot's repository
      */
-    private void handleFinalizationFailure(Exception e, SnapshotsInProgress.Entry entry, RepositoryData repositoryData) {
-        Snapshot snapshot = entry.snapshot();
+    private void handleFinalizationFailure(Exception e, Snapshot snapshot, RepositoryData repositoryData) {
         if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
             // Failure due to not being master any more, don't try to remove snapshot from cluster state the next master
             // will try ending this snapshot again
@@ -1613,7 +1613,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         } else {
             logger.trace("Moving on to finalizing next snapshot [{}]", nextFinalization);
-            finalizeSnapshotEntry(nextFinalization.v1(), nextFinalization.v2(), repositoryData);
+            finalizeSnapshotEntry(nextFinalization.v1().snapshot(), nextFinalization.v2(), repositoryData);
         }
     }
 

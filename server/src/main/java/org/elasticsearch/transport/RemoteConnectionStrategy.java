@@ -125,8 +125,6 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
             .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
             .setCompressionEnabled(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
-            .setCompressionScheme(RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME
-                .getConcreteSettingForNamespace(clusterAlias).get(settings))
             .setPingInterval(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .addConnections(0, TransportRequestOptions.Type.BULK, TransportRequestOptions.Type.STATE,
                 TransportRequestOptions.Type.RECOVERY, TransportRequestOptions.Type.PING)
@@ -281,9 +279,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             Compression.Enabled compressionEnabled = RemoteClusterService.REMOTE_CLUSTER_COMPRESS
                 .getConcreteSettingForNamespace(clusterAlias)
                 .get(newSettings);
-            Compression.Scheme compressionScheme = RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME
-                .getConcreteSettingForNamespace(clusterAlias)
-                .get(newSettings);
+            Compression.Scheme compressionScheme = TransportSettings.TRANSPORT_COMPRESSION_SCHEME.get(newSettings);
             TimeValue pingSchedule = RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE
                 .getConcreteSettingForNamespace(clusterAlias)
                 .get(newSettings);

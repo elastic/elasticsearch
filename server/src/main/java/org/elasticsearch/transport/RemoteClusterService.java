@@ -156,12 +156,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         (ns, key) -> enumSetting(Compression.Enabled.class, key, TransportSettings.TRANSPORT_COMPRESS,
             new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope));
 
-    public static final Setting.AffixSetting<Compression.Scheme> REMOTE_CLUSTER_COMPRESSION_SCHEME = Setting.affixKeySetting(
-        "cluster.remote.",
-        "transport.compression_scheme",
-        (ns, key) -> enumSetting(Compression.Scheme.class, key, TransportSettings.TRANSPORT_COMPRESSION_SCHEME,
-            new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope));
-
     private final boolean enabled;
 
     public boolean isEnabled() {

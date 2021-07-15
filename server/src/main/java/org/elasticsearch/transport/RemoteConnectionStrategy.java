@@ -125,6 +125,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
             .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
             .setCompressionEnabled(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
+            .setCompressionScheme(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.get(settings))
             .setPingInterval(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .addConnections(0, TransportRequestOptions.Type.BULK, TransportRequestOptions.Type.STATE,
                 TransportRequestOptions.Type.RECOVERY, TransportRequestOptions.Type.PING)

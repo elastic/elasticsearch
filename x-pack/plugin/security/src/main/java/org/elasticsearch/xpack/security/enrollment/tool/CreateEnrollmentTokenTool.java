@@ -71,10 +71,10 @@ public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
     }
 
     @Override
-    protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        final String username = getUsername();
+    protected void executeCommand(Terminal terminal, OptionSet options, Environment env, String username, SecureString password)
+        throws Exception {
         final String tokenScope = scope.value(options);
-        try (SecureString password = getPassword()) {
+        try {
             CreateEnrollmentToken createEnrollmentTokenService = createEnrollmentTokenFunction.apply(env);
             if (tokenScope.equals("node")) {
                 terminal.println(createEnrollmentTokenService.createNodeEnrollmentToken(username, password));

@@ -60,8 +60,6 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     private final OptionSpecBuilder force;
     private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
-    private SecureString password;
-    private String username;
     final SecureRandom secureRandom = new SecureRandom();
 
     public BaseRunAsSuperuserCommand(
@@ -77,15 +75,9 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     }
 
     @Override
-    public void close() {
-        if (password != null) {
-            password.close();
-        }
-    }
-
-    @Override
     protected final void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         validate(terminal, options, env);
+        ensureFileRealmEnabled(env.settings());
         KeyStoreWrapper keyStoreWrapper = keyStoreFunction.apply(env);
         final Environment newEnv;
         final Settings settings;
@@ -103,12 +95,9 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
             settings = env.settings();
         }
 
-        ensureFileRealmEnabled(settings);
-        try {
+        final String username = generateUsername();
+        try (SecureString password = new SecureString(generatePassword(PASSWORD_LENGTH))){
             final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
-            password = new SecureString(generatePassword(PASSWORD_LENGTH));
-            username = generateUsername();
-
             final Path passwordFile = FileUserPasswdStore.resolveFile(newEnv);
             final Path rolesFile = FileUserRolesStore.resolveFile(newEnv);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(passwordFile, rolesFile);
@@ -131,8 +120,8 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
 
             attributesChecker.check(terminal);
             final boolean forceExecution = options.has(force);
-            checkClusterHealthWithRetries(newEnv, terminal, 5, forceExecution);
-            executeCommand(terminal, options, newEnv);
+            checkClusterHealthWithRetries(newEnv, terminal, username, password, 5, forceExecution);
+            executeCommand(terminal, options, newEnv, username, password);
         } catch (Exception e) {
             int exitCode;
             if (e instanceof UserException) {
@@ -142,14 +131,14 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
             }
             throw new UserException(exitCode, e.getMessage());
         } finally {
-            cleanup(terminal, newEnv);
+            cleanup(terminal, newEnv, username);
         }
     }
 
     /**
      * Removes temporary file realm user from users and roles file
      */
-    private void cleanup(Terminal terminal, Environment env) throws Exception {
+    private void cleanup(Terminal terminal, Environment env, String username) throws Exception {
         final Path passwordFile = FileUserPasswdStore.resolveFile(env);
         final Path rolesFile = FileUserRolesStore.resolveFile(env);
         final List<String> errorMessages = new ArrayList<>();
@@ -184,14 +173,6 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
         attributesChecker.check(terminal);
     }
 
-    protected SecureString getPassword() {
-        return password;
-    }
-
-    protected String getUsername() {
-        return username;
-    }
-
     private void ensureFileRealmEnabled(Settings settings) throws Exception {
         final Map<RealmConfig.RealmIdentifier, Settings> realms = RealmSettings.getRealmSettings(settings);
         Map<RealmConfig.RealmIdentifier, Settings> fileRealmSettings = realms.entrySet().stream()
@@ -211,7 +192,8 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
      * retries as the file realm might not have reloaded the users file yet in order to authenticate our
      * newly created file realm user.
      */
-    private void checkClusterHealthWithRetries(Environment env, Terminal terminal, int retries, boolean force) throws Exception {
+    private void checkClusterHealthWithRetries(Environment env, Terminal terminal, String username, SecureString password, int retries,
+                                               boolean force) throws Exception {
         CommandLineHttpClient client = clientFunction.apply(env);
         final URL clusterHealthUrl = createURL(new URL(client.getDefaultURL()), "_cluster/health", "?pretty");
         final HttpResponse response;
@@ -234,7 +216,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
                 );
                 Thread.sleep(1000);
                 retries -= 1;
-                checkClusterHealthWithRetries(env, terminal, retries, force);
+                checkClusterHealthWithRetries(env, terminal, username, password, retries, force);
             } else {
                 throw new UserException(
                     ExitCodes.DATA_ERROR,
@@ -299,15 +281,16 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
 
     /**
      * This is called after we have created a temporary superuser in the file realm and verified that its
-     * credentials work. The username and password αρε available to classes extending {@link BaseRunAsSuperuserCommand}
-     * using {@link BaseRunAsSuperuserCommand#getPassword}
+     * credentials work. The username and password of the generated user are passed as parameters. Overriding methods should
+     * not try to close the password.
      */
-    protected abstract void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception;
+    protected abstract void executeCommand(Terminal terminal, OptionSet options, Environment env, String username, SecureString password)
+        throws Exception;
 
     /**
      * This method is called before we attempt to crete a temporary superuser in the file realm. Commands that
      * implement {@link BaseRunAsSuperuserCommand} can do preflight checks such as parsing and validating options without
      * the need to go through the process of attempting to create and remove the temporary user unnecessarily.
      */
-    protected abstract void validate(Terminal terminal, OptionSet options, Environment env) throws Exception;
+    protected abstract void validate(Terminal terminal, OptionSet options, Environment env) throws Exception ;
 }

@@ -264,10 +264,9 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
     }
 
     /**
-     * {@link DummyRunAsSuperuserCommand#executeCommand(Terminal, OptionSet, Environment)} is executed while the file realm user
-     * is persisted in file and still valid. We check that the username and the password that would be exposed to extending
-     * Classes via {@link BaseRunAsSuperuserCommand#getUsername()} and {@link BaseRunAsSuperuserCommand#getPassword()} is
-     * what is actually created and stored in the file realm.
+     * {@link DummyRunAsSuperuserCommand#executeCommand(Terminal, OptionSet, Environment, String, SecureString)} is executed while the file
+     * realm user is persisted in file and still valid. We check that the username and the password that would be passed to extending
+     * Classes as parameters are what is actually created and stored in the file realm.
      */
     static class DummyRunAsSuperuserCommand extends BaseRunAsSuperuserCommand {
         DummyRunAsSuperuserCommand(
@@ -278,9 +277,8 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
         }
 
         @Override
-        protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
-            final String username = getUsername();
-            final SecureString password = getPassword();
+        protected void executeCommand(Terminal terminal, OptionSet options, Environment env, String username, SecureString password)
+            throws Exception {
             final Path confDir = jimfs.getPath(env.settings().get("path.home")).resolve("config");
             List<String> lines = Files.readAllLines(confDir.resolve("users"), StandardCharsets.UTF_8);
             assertThat(lines.size(), equalTo(1));

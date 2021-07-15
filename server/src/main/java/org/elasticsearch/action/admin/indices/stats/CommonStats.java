@@ -517,6 +517,11 @@ public class CommonStats implements Writeable, ToXContentFragment {
         return bulk;
     }
 
+    @Nullable
+    public SimpleShardStats getShards() {
+        return shards;
+    }
+
     /**
      * Utility method which computes total memory by adding
      * FieldData, PercolatorCache, Segments (memory, index writer, version map)

@@ -1712,6 +1712,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         );
     }
 
+    /**
+     * Computes the cluster state resulting from removing a given snapshot create operation that was finalized in the repository from the
+     * given state. This method will update the shard generations of snapshots that the given snapshot depended on so that finalizing them
+     * will not cause rolling back to an outdated shard generation.
+     *
+     * @param state    current cluster state
+     * @param snapshot snapshot for which to remove the snapshot operation
+     * @return updated cluster state
+     */
     private static ClusterState stateWithoutSuccessfulSnapshot(ClusterState state, Snapshot snapshot) {
         // TODO: updating snapshots here leaks their outdated generation files, we should add logic to clean those up and enhance
         // BlobStoreTestUtil to catch this leak
@@ -1726,11 +1735,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 break;
             }
         }
-        final List<SnapshotsInProgress.Entry> entries;
-        if (indexOfEntry == 0) {
-            entries = List.copyOf(entryList.subList(1, entryList.size()));
-        } else if (indexOfEntry > 0) {
-            entries = new ArrayList<>();
+        if (indexOfEntry >= 0) {
+            final List<SnapshotsInProgress.Entry> entries = new ArrayList<>(entryList.size() - 1);
             final SnapshotsInProgress.Entry removedEntry = entryList.get(indexOfEntry);
             for (int i = 0; i < indexOfEntry; i++) {
                 final SnapshotsInProgress.Entry previousEntry = entryList.get(i);
@@ -1749,71 +1755,51 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     );
                                 }
                             }
-                            if (updatedShardAssignments == null) {
-                                entries.add(previousEntry);
-                            } else {
-                                final ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> updatedStatus = ImmutableOpenMap
-                                    .builder(previousEntry.clones());
-                                updatedStatus.putAll(updatedShardAssignments.build());
-                                entries.add(previousEntry.withClones(updatedStatus.build()));
-                            }
+                            addCloneEntry(entries, previousEntry, updatedShardAssignments);
                         } else {
                             ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedShardAssignments = null;
                             for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> finishedShardEntry : removedEntry.clones()) {
                                 final ShardSnapshotStatus shardState = finishedShardEntry.value;
-                                if (shardState.state() == ShardState.SUCCESS) {
-                                    final RepositoryShardId repoShardId = finishedShardEntry.key;
-                                    final IndexMetadata indexMeta = state.metadata().index(repoShardId.indexName());
-                                    if (indexMeta == null) {
-                                        // The index name that finished cloning does not exist in the cluster state so it isn't relevant
-                                        // to the running snapshot
-                                        continue;
-                                    }
-                                    updatedShardAssignments = maybeAddUpdatedAssignment(
-                                        updatedShardAssignments,
-                                        shardState,
-                                        new ShardId(indexMeta.getIndex(), repoShardId.shardId()),
-                                        previousEntry.shards()
-                                    );
+                                if (shardState.state() != ShardState.SUCCESS) {
+                                    continue;
                                 }
-                            }
-                            if (updatedShardAssignments == null) {
-                                entries.add(previousEntry);
-                            } else {
-                                final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedStatus = ImmutableOpenMap.builder(
+                                final RepositoryShardId repoShardId = finishedShardEntry.key;
+                                final IndexMetadata indexMeta = state.metadata().index(repoShardId.indexName());
+                                if (indexMeta == null) {
+                                    // The index name that finished cloning does not exist in the cluster state so it isn't relevant
+                                    // to the running snapshot
+                                    continue;
+                                }
+                                updatedShardAssignments = maybeAddUpdatedAssignment(
+                                    updatedShardAssignments,
+                                    shardState,
+                                    new ShardId(indexMeta.getIndex(), repoShardId.shardId()),
                                     previousEntry.shards()
                                 );
-                                updatedStatus.putAll(updatedShardAssignments.build());
-                                entries.add(previousEntry.withShardStates(updatedStatus.build()));
                             }
+                            addSnapshotEntry(entries, previousEntry, updatedShardAssignments);
                         }
                     } else {
                         if (previousEntry.isClone()) {
                             ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> updatedShardAssignments = null;
                             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> finishedShardEntry : removedEntry.shards()) {
+                                final ShardSnapshotStatus shardState = finishedShardEntry.value;
+                                if (shardState.state() != ShardState.SUCCESS) {
+                                    continue;
+                                }
                                 final ShardId shardId = finishedShardEntry.key;
                                 final IndexId indexId = removedEntry.indices().get(shardId.getIndexName());
                                 if (indexId == null) {
                                     continue;
                                 }
-                                final ShardSnapshotStatus shardState = finishedShardEntry.value;
-                                if (shardState.state() == ShardState.SUCCESS) {
-                                    updatedShardAssignments = maybeAddUpdatedAssignment(
-                                        updatedShardAssignments,
-                                        shardState,
-                                        new RepositoryShardId(indexId, shardId.getId()),
-                                        previousEntry.clones()
-                                    );
-                                }
+                                updatedShardAssignments = maybeAddUpdatedAssignment(
+                                    updatedShardAssignments,
+                                    shardState,
+                                    new RepositoryShardId(indexId, shardId.getId()),
+                                    previousEntry.clones()
+                                );
                             }
-                            if (updatedShardAssignments == null) {
-                                entries.add(previousEntry);
-                            } else {
-                                final ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> updatedStatus = ImmutableOpenMap
-                                    .builder(previousEntry.clones());
-                                updatedStatus.putAll(updatedShardAssignments.build());
-                                entries.add(previousEntry.withClones(updatedStatus.build()));
-                            }
+                            addCloneEntry(entries, previousEntry, updatedShardAssignments);
                         } else {
                             ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedShardAssignments = null;
                             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> finishedShardEntry : removedEntry.shards()) {
@@ -1827,15 +1813,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     );
                                 }
                             }
-                            if (updatedShardAssignments == null) {
-                                entries.add(previousEntry);
-                            } else {
-                                final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedStatus = ImmutableOpenMap.builder(
-                                    previousEntry.shards()
-                                );
-                                updatedStatus.putAll(updatedShardAssignments.build());
-                                entries.add(previousEntry.withShardStates(updatedStatus.build()));
-                            }
+                            addSnapshotEntry(entries, previousEntry, updatedShardAssignments);
                         }
                     }
                 } else {
@@ -1845,15 +1823,42 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             for (int i = indexOfEntry + 1; i < entryList.size(); i++) {
                 entries.add(entryList.get(i));
             }
-        } else {
-            entries = null;
-        }
-        if (entries != null) {
             result = ClusterState.builder(state).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(entries)).build();
         }
         return readyDeletions(result).v1();
     }
 
+    private static void addSnapshotEntry(
+        List<SnapshotsInProgress.Entry> entries,
+        SnapshotsInProgress.Entry entryToUpdate,
+        @Nullable ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedShardAssignments
+    ) {
+        if (updatedShardAssignments == null) {
+            entries.add(entryToUpdate);
+        } else {
+            final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedStatus = ImmutableOpenMap.builder(entryToUpdate.shards());
+            updatedStatus.putAll(updatedShardAssignments.build());
+            entries.add(entryToUpdate.withShardStates(updatedStatus.build()));
+        }
+    }
+
+    private static void addCloneEntry(
+        List<SnapshotsInProgress.Entry> entries,
+        SnapshotsInProgress.Entry entryToUpdate,
+        @Nullable ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> updatedShardAssignments
+    ) {
+        if (updatedShardAssignments == null) {
+            entries.add(entryToUpdate);
+        } else {
+            final ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> updatedStatus = ImmutableOpenMap.builder(
+                entryToUpdate.clones()
+            );
+            updatedStatus.putAll(updatedShardAssignments.build());
+            entries.add(entryToUpdate.withClones(updatedStatus.build()));
+        }
+    }
+
+    @Nullable
     private static <T> ImmutableOpenMap.Builder<T, ShardSnapshotStatus> maybeAddUpdatedAssignment(
         @Nullable ImmutableOpenMap.Builder<T, ShardSnapshotStatus> updatedShardAssignments,
         ShardSnapshotStatus finishedShardState,

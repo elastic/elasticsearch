@@ -25,9 +25,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
@@ -96,7 +96,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
             IndexMetadata indexMetaData = state.metadata().index(concreteIndex);
             if (indexMetaData != null) {
                 Settings indexSettings = indexMetaData.getSettings();
-                if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings)) {
+                if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
                     searchableSnapshotIndices.add(concreteIndex);
                 }
             }

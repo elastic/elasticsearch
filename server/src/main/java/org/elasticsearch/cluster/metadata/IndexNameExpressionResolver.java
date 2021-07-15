@@ -87,7 +87,7 @@ public class IndexNameExpressionResolver {
      */
     public String[] concreteIndexNamesWithSystemIndexAccess(ClusterState state, IndicesRequest request) {
         Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(),
-            SystemIndexAccessLevel.ALL, name -> true, name -> false);
+            SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY, name -> true, this.getNetNewSystemIndexPredicate());
         return concreteIndexNames(context, request.indices());
     }
 
@@ -130,11 +130,6 @@ public class IndexNameExpressionResolver {
         Context context = new Context(state, options, false, false, request.includeDataStreams(),
             getSystemIndexAccessLevel(), getSystemIndexAccessPredicate(), getNetNewSystemIndexPredicate());
         return concreteIndexNames(context, request.indices());
-    }
-
-    public String[] concreteIndexNamesWithSystemIndexAccess(ClusterState state, IndicesOptions options, String... indexExpressions) {
-        Context context = new Context(state, options, SystemIndexAccessLevel.ALL, name -> true, name -> false);
-        return concreteIndexNames(context, indexExpressions);
     }
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
@@ -369,6 +364,11 @@ public class IndexNameExpressionResolver {
     }
 
     private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, IndexMetadata index) {
+        if (context.systemIndexAccessLevel == SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY
+            && context.netNewSystemIndexPredicate.test(index.getIndex().getName())) {
+            // Exclude this one as it's a net-new system index, and we explicitly don't want those.
+            return false;
+        }
         if (index.getState() == IndexMetadata.State.CLOSE) {
             if (options.forbidClosedIndices() && options.ignoreUnavailable() == false) {
                 throw new IndexClosedException(index.getIndex());
@@ -748,7 +748,10 @@ public class IndexNameExpressionResolver {
     }
 
     public SystemIndexAccessLevel getSystemIndexAccessLevel() {
-        return systemIndices.getSystemIndexAccessLevel(threadContext);
+        final SystemIndexAccessLevel accessLevel = systemIndices.getSystemIndexAccessLevel(threadContext);
+        assert accessLevel != SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY
+            : "BACKWARDS_COMPATIBLE_ONLY access level should never be used automatically, it should only be used in known special cases";
+        return accessLevel;
     }
 
     public Predicate<String> getSystemIndexAccessPredicate() {
@@ -756,6 +759,8 @@ public class IndexNameExpressionResolver {
         final Predicate<String> systemIndexAccessLevelPredicate;
         if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
             systemIndexAccessLevelPredicate = s -> false;
+        } else if (systemIndexAccessLevel == SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY) {
+            systemIndexAccessLevelPredicate = getNetNewSystemIndexPredicate();
         } else if (systemIndexAccessLevel == SystemIndexAccessLevel.ALL) {
             systemIndexAccessLevelPredicate = s -> true;
         } else {
@@ -1157,7 +1162,11 @@ public class IndexNameExpressionResolver {
                             assert abstraction != null : "null abstraction for " + name + " but was in array of all indices";
                             if (abstraction.isSystem()) {
                                 if (context.netNewSystemIndexPredicate.test(name)) {
-                                    return context.systemIndexAccessPredicate.test(name);
+                                    if (SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY.equals(context.systemIndexAccessLevel)) {
+                                        return false;
+                                    } else {
+                                        return context.systemIndexAccessPredicate.test(name);
+                                    }
                                 } else if (abstraction.getType() == Type.DATA_STREAM || abstraction.getParentDataStream() != null) {
                                     return context.systemIndexAccessPredicate.test(name);
                                 }

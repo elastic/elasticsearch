@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -117,16 +118,19 @@ public class DataTiersFeatureSet implements XPackFeatureSet {
                     .collect(Collectors.toSet());
                 indexCount += indicesOnNode.size();
                 indicesOnNode.forEach(index -> {
-                    nodeStats.getIndices().getShardStats(index).stream()
-                        .filter(shardStats -> shardStats.getPrimary().getStore() != null)
-                        .forEach(shardStats -> {
-                            StoreStats primaryStoreStats = shardStats.getPrimary().getStore();
-                            // If storeStats is null, it means this is not a replica
-                            primaryShardCount.incrementAndGet();
-                            long primarySize = primaryStoreStats.getSizeInBytes();
-                            primaryByteCount.addAndGet(primarySize);
-                            valueSketch.add(primarySize);
-                        });
+                    final List<IndexShardStats> allShardStats = nodeStats.getIndices().getShardStats(index);
+                    if (allShardStats != null) {
+                        allShardStats.stream()
+                            .filter(shardStats -> shardStats.getPrimary().getStore() != null)
+                            .forEach(shardStats -> {
+                                StoreStats primaryStoreStats = shardStats.getPrimary().getStore();
+                                // If storeStats is null, it means this is not a replica
+                                primaryShardCount.incrementAndGet();
+                                long primarySize = primaryStoreStats.getSizeInBytes();
+                                primaryByteCount.addAndGet(primarySize);
+                                valueSketch.add(primarySize);
+                            });
+                    }
                 });
             }
         }

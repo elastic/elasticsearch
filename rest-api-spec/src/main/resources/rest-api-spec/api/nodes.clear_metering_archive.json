@@ -12,7 +12,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_nodes/{node_id}/_repositories_metering/{max_version_to_clear}",
+          "path":"/_nodes/{node_id}/_repositories_metering/{max_archive_version}",
           "methods":[
             "DELETE"
           ],
@@ -21,7 +21,7 @@
               "type":"list",
               "description":"Comma-separated list of node IDs or names used to limit returned information."
             },
-            "max_version_to_clear":{
+            "max_archive_version":{
               "type":"long",
               "description":"Specifies the maximum archive_version to be cleared from the archive."
             }

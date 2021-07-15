@@ -255,11 +255,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         deleting = in.readBoolean();
         allowLazyOpen = in.readBoolean();
         blocked = new Blocked(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
-        } else {
-            this.datafeedConfig = null;
-        }
+        this.datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
     }
 
     /**
@@ -541,9 +537,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         out.writeBoolean(deleting);
         out.writeBoolean(allowLazyOpen);
         blocked.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalWriteable(datafeedConfig);
-        }
+        out.writeOptionalWriteable(datafeedConfig);
     }
 
     @Override
@@ -789,9 +783,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             deleting = in.readBoolean();
             allowLazyOpen = in.readBoolean();
             blocked = new Blocked(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                datafeedConfig = in.readOptionalWriteable(DatafeedConfig.Builder::new);
-            }
+            datafeedConfig = in.readOptionalWriteable(DatafeedConfig.Builder::new);
         }
 
         public Builder setId(String id) {
@@ -1015,9 +1007,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeBoolean(deleting);
             out.writeBoolean(allowLazyOpen);
             blocked.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalWriteable(datafeedConfig);
-            }
+            out.writeOptionalWriteable(datafeedConfig);
         }
 
         public boolean equals(Object o) {

@@ -24,8 +24,9 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 
 You can create a forecast job based on an {anomaly-job} to extrapolate future 
 behavior. Refer to
-{ml-docs}/ml-ad-overview.html#ml-forecasting[Forecasting the future] and 
-{ml-docs}/ml-limitations.html#ml-forecast-limitations[forecast limitations] to 
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-forecast[Forecasting the future]
+and 
+{ml-docs}/ml-limitations.html#ml-forecast-limitations[Forecast limitations] to 
 learn more.
 
 You can delete a forecast by using the 

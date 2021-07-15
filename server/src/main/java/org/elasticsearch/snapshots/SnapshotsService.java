@@ -1741,15 +1741,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> finishedShardEntry : removedEntry.clones()) {
                                 final ShardSnapshotStatus shardState = finishedShardEntry.value;
                                 if (shardState.state() == ShardState.SUCCESS) {
-                                    final RepositoryShardId shardId = finishedShardEntry.key;
-                                    final ShardSnapshotStatus stateToUpdate = previousEntry.clones().get(shardId);
-                                    final String newGeneration = shardState.generation();
-                                    if (shardRequiresUpdatedGeneration(stateToUpdate, newGeneration)) {
-                                        if (updatedShardAssignments == null) {
-                                            updatedShardAssignments = ImmutableOpenMap.builder();
-                                        }
-                                        updatedShardAssignments.put(shardId, stateToUpdate.withUpdatedGeneration(newGeneration));
-                                    }
+                                    updatedShardAssignments = maybeAddUpdatedAssignment(
+                                        updatedShardAssignments,
+                                        shardState,
+                                        finishedShardEntry.key,
+                                        previousEntry.clones()
+                                    );
                                 }
                             }
                             if (updatedShardAssignments == null) {
@@ -1772,15 +1769,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         // to the running snapshot
                                         continue;
                                     }
-                                    final ShardId routingShardId = new ShardId(indexMeta.getIndex(), repoShardId.shardId());
-                                    final ShardSnapshotStatus stateToUpdate = previousEntry.shards().get(routingShardId);
-                                    final String newGeneration = shardState.generation();
-                                    if (shardRequiresUpdatedGeneration(stateToUpdate, newGeneration)) {
-                                        if (updatedShardAssignments == null) {
-                                            updatedShardAssignments = ImmutableOpenMap.builder();
-                                        }
-                                        updatedShardAssignments.put(routingShardId, stateToUpdate.withUpdatedGeneration(newGeneration));
-                                    }
+                                    updatedShardAssignments = maybeAddUpdatedAssignment(
+                                        updatedShardAssignments,
+                                        shardState,
+                                        new ShardId(indexMeta.getIndex(), repoShardId.shardId()),
+                                        previousEntry.shards()
+                                    );
                                 }
                             }
                             if (updatedShardAssignments == null) {
@@ -1804,15 +1798,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 }
                                 final ShardSnapshotStatus shardState = finishedShardEntry.value;
                                 if (shardState.state() == ShardState.SUCCESS) {
-                                    final RepositoryShardId repoShardId = new RepositoryShardId(indexId, shardId.getId());
-                                    final ShardSnapshotStatus stateToUpdate = previousEntry.clones().get(repoShardId);
-                                    final String newGeneration = shardState.generation();
-                                    if (shardRequiresUpdatedGeneration(stateToUpdate, newGeneration)) {
-                                        if (updatedShardAssignments == null) {
-                                            updatedShardAssignments = ImmutableOpenMap.builder();
-                                        }
-                                        updatedShardAssignments.put(repoShardId, stateToUpdate.withUpdatedGeneration(newGeneration));
-                                    }
+                                    updatedShardAssignments = maybeAddUpdatedAssignment(
+                                        updatedShardAssignments,
+                                        shardState,
+                                        new RepositoryShardId(indexId, shardId.getId()),
+                                        previousEntry.clones()
+                                    );
                                 }
                             }
                             if (updatedShardAssignments == null) {
@@ -1828,15 +1819,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> finishedShardEntry : removedEntry.shards()) {
                                 final ShardSnapshotStatus shardState = finishedShardEntry.value;
                                 if (shardState.state() == ShardState.SUCCESS) {
-                                    final ShardId shardId = finishedShardEntry.key;
-                                    final ShardSnapshotStatus stateToUpdate = previousEntry.shards().get(shardId);
-                                    final String newGeneration = shardState.generation();
-                                    if (shardRequiresUpdatedGeneration(stateToUpdate, newGeneration)) {
-                                        if (updatedShardAssignments == null) {
-                                            updatedShardAssignments = ImmutableOpenMap.builder();
-                                        }
-                                        updatedShardAssignments.put(shardId, stateToUpdate.withUpdatedGeneration(newGeneration));
-                                    }
+                                    updatedShardAssignments = maybeAddUpdatedAssignment(
+                                        updatedShardAssignments,
+                                        shardState,
+                                        finishedShardEntry.key,
+                                        previousEntry.shards()
+                                    );
                                 }
                             }
                             if (updatedShardAssignments == null) {
@@ -1866,10 +1854,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return readyDeletions(result).v1();
     }
 
-    private static boolean shardRequiresUpdatedGeneration(ShardSnapshotStatus stateToUpdate, String newGeneration) {
-        return stateToUpdate != null
+    private static <T> ImmutableOpenMap.Builder<T, ShardSnapshotStatus> maybeAddUpdatedAssignment(
+        @Nullable ImmutableOpenMap.Builder<T, ShardSnapshotStatus> updatedShardAssignments,
+        ShardSnapshotStatus finishedShardState,
+        T shardId,
+        ImmutableOpenMap<T, ShardSnapshotStatus> statesToUpdate
+    ) {
+        final String newGeneration = finishedShardState.generation();
+        final ShardSnapshotStatus stateToUpdate = statesToUpdate.get(shardId);
+        if (stateToUpdate != null
             && stateToUpdate.state() == ShardState.SUCCESS
-            && Objects.equals(newGeneration, stateToUpdate.generation()) == false;
+            && Objects.equals(newGeneration, stateToUpdate.generation()) == false) {
+            if (updatedShardAssignments == null) {
+                updatedShardAssignments = ImmutableOpenMap.builder();
+            }
+            updatedShardAssignments.put(shardId, stateToUpdate.withUpdatedGeneration(newGeneration));
+        }
+        return updatedShardAssignments;
     }
 
     /**

@@ -124,6 +124,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
 
         private static final ParseField MODEL_BYTES = new ParseField("model_bytes");
 
+        /**
+         * This has been found to be approximately 300MB on linux by manual testing.
+         * TODO Check if it is substantially different in other platforms.
+         */
         private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(300);
 
         private final String modelId;

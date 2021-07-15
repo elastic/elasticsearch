@@ -444,11 +444,14 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 if (metadata == null) {
                     return true;
                 }
-                if (metadata.isCloseToExpiration()) {
+
+                boolean valid = metadata.isValid(currentState.metadata().settings());
+                if (valid && metadata.isCloseToExpiration()) {
                     HeaderWarning.addWarning("database [{}] was not updated for over 25 days, geoip processor will stop working if there " +
                         "is no update for 30 days", databaseFile);
                 }
-                return metadata.isValid(currentState.metadata().settings());
+
+                return valid;
             };
             return new GeoIpProcessor(processorTag, description, ipField, supplier, isValid, targetField, properties, ignoreMissing,
                 firstOnly);

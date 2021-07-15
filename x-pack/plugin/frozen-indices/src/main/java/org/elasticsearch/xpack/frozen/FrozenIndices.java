@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin {
 

@@ -406,7 +406,7 @@ hypothesis that the probabilities are the same.
 This example calculates the p-value score for terms `user_agent.version` given 
 the foreground set of "ended in failure" versus "NOT ended in failure".
 
-NOTE: `"background_is_superset": false` indicates that the background set does 
+`"background_is_superset": false` indicates that the background set does 
 not contain the counts of the foreground set as they are filtered out.
 
 [source,js]

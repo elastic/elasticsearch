@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -117,7 +118,7 @@ public class DependencyLicensesTask extends DefaultTask {
     /**
      *  Names of files that should be ignored by the check
      */
-    private Set<String> ignoreFiles = new HashSet<>();
+    private LinkedHashSet<String> ignoreFiles = new LinkedHashSet<>();
 
     /**
      * Add a mapping from a regex pattern for the jar name, to a prefix to find
@@ -352,6 +353,12 @@ public class DependencyLicensesTask extends DefaultTask {
         }
 
         return fileName;
+    }
+
+    @Input
+    @Optional
+    public LinkedHashSet<String> getIgnoreFiles() {
+        return new LinkedHashSet<>(ignoreFiles);
     }
 
     @Input

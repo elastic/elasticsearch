@@ -1472,6 +1472,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(snapshot2);
         unblockAllDataNodes(repository);
         final SnapshotInfo sn1 = assertSuccessful(snapshot1);
+
         assertAcked(startDeleteSnapshot(repository, sn1.snapshot().getSnapshotId().getName()).get());
 
         assertThat(
@@ -1541,7 +1542,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         blockNodeWithIndex(repository, index2);
 
-        final ActionFuture<CreateSnapshotResponse> snapshot1 = clusterAdmin().prepareCreateSnapshot(repository, "snapshot-1")
+        final String sn1 = "snapshot-1";
+        final ActionFuture<CreateSnapshotResponse> snapshot1 = clusterAdmin().prepareCreateSnapshot(repository, sn1)
             .setIndices(index1, index2)
             .setWaitForCompletion(true)
             .execute();
@@ -1554,9 +1556,10 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertAcked(clone.get());
 
         unblockAllDataNodes(repository);
-        final SnapshotInfo sn1 = assertSuccessful(snapshot1);
-        assertAcked(startDeleteSnapshot(repository, sn1.snapshot().getSnapshotId().getName()).get());
-        assertAcked(startDeleteSnapshot(repository, sourceSnapshot).get());
+        assertSuccessful(snapshot1);
+
+        logger.info("--> deleting snapshots [{},{}] from repo [{}]", sn1, sourceSnapshot, repository);
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(repository).setSnapshots(sn1, sourceSnapshot).get());
 
         assertThat(
             clusterAdmin().prepareSnapshotStatus().setSnapshots(targetSnapshot).setRepository(repository).get().getSnapshots(),

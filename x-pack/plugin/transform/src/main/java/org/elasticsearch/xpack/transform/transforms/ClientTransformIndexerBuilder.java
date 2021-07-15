@@ -15,20 +15,16 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
-import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
-import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 class ClientTransformIndexerBuilder {
     private ParentTaskAssigningClient parentTaskClient;
-    private TransformConfigManager transformsConfigManager;
-    private TransformCheckpointService transformsCheckpointService;
-    private TransformAuditor auditor;
+    private TransformServices transformServices;
     private Map<String, String> fieldMappings;
     private TransformConfig transformConfig;
     private TransformIndexerStats initialStats;
@@ -45,16 +41,16 @@ class ClientTransformIndexerBuilder {
     }
 
     ClientTransformIndexer build(ThreadPool threadPool, TransformContext context) {
-        CheckpointProvider checkpointProvider = transformsCheckpointService.getCheckpointProvider(parentTaskClient, transformConfig);
+        CheckpointProvider checkpointProvider = transformServices.getCheckpointService()
+            .getCheckpointProvider(parentTaskClient, transformConfig);
 
         return new ClientTransformIndexer(
             threadPool,
-            transformsConfigManager,
+            transformServices,
             checkpointProvider,
             new AtomicReference<>(this.indexerState),
             initialPosition,
             parentTaskClient,
-            auditor,
             initialStats,
             transformConfig,
             fieldMappings,
@@ -77,18 +73,8 @@ class ClientTransformIndexerBuilder {
         return this;
     }
 
-    ClientTransformIndexerBuilder setTransformsConfigManager(TransformConfigManager transformsConfigManager) {
-        this.transformsConfigManager = transformsConfigManager;
-        return this;
-    }
-
-    ClientTransformIndexerBuilder setTransformsCheckpointService(TransformCheckpointService transformsCheckpointService) {
-        this.transformsCheckpointService = transformsCheckpointService;
-        return this;
-    }
-
-    ClientTransformIndexerBuilder setAuditor(TransformAuditor auditor) {
-        this.auditor = auditor;
+    ClientTransformIndexerBuilder setTransformServices(TransformServices transformServices) {
+        this.transformServices = transformServices;
         return this;
     }
 

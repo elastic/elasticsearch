@@ -1127,7 +1127,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         deprecationLogger.compatibleApiWarning(
                             "search-api-size-1",
                             "Using search size of -1 is deprecated and will be removed in future versions. "
-                                + "Instead, don't use the `size` parameter if you don't want to set it explicitely."
+                                + "Instead, don't use the `size` parameter if you don't want to set it explicitly."
                         );
                     } else {
                         size(parsedSize);

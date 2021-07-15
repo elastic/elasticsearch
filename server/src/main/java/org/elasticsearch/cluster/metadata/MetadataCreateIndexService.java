@@ -105,6 +105,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
+
 /**
  * Service responsible for submitting create index requests
  */
@@ -1138,6 +1140,9 @@ public class MetadataCreateIndexService {
      */
     static List<String> validateShrinkIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
+        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+            throw new IllegalArgumentException("can't shrink searchable snapshot index [" + sourceIndex + ']');
+        }
         assert INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings);
         IndexMetadata.selectShrinkShards(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
 
@@ -1169,6 +1174,9 @@ public class MetadataCreateIndexService {
 
     static void validateSplitIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
+        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+            throw new IllegalArgumentException("can't split searchable snapshot index [" + sourceIndex + ']');
+        }
         IndexMetadata.selectSplitShard(0, sourceMetadata, IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
         if (sourceMetadata.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
             // ensure we have a single type since this would make the splitting code considerably more complex
@@ -1180,6 +1188,15 @@ public class MetadataCreateIndexService {
 
     static void validateCloneIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
+        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+            for (Setting<?> nonCloneableSetting : Arrays.asList(INDEX_STORE_TYPE_SETTING, INDEX_RECOVERY_TYPE_SETTING)) {
+                if (nonCloneableSetting.exists(targetIndexSettings) == false) {
+                    throw new IllegalArgumentException("can't clone searchable snapshot index [" + sourceIndex + "]; setting ["
+                        + nonCloneableSetting.getKey()
+                        + "] should be overridden");
+                }
+            }
+        }
         IndexMetadata.selectCloneShard(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
     }
 

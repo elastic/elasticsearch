@@ -467,7 +467,7 @@ include::search-vector-tile-api.asciidoc[tag=feature-type]
 [[search-vector-tile-api-api-example]]
 ==== {api-examples-title}
 
-The following requests create the `museum` index and adds several geospatial
+The following requests create the `museum` index and add several geospatial
 `location` values.
 
 [source,console]

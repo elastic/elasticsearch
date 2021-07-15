@@ -78,7 +78,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -104,8 +103,10 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.repositories.RepositoriesService.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
-import static org.elasticsearch.repositories.RepositoriesService.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY;
 import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
 import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 
@@ -313,7 +314,14 @@ public class RestoreService implements ClusterStateApplier {
             metadataBuilder = Metadata.builder();
         }
 
-        List<String> requestIndices = new ArrayList<>(Arrays.asList(request.indices()));
+        final String[] indicesInRequest = request.indices();
+        List<String> requestIndices = new ArrayList<>(indicesInRequest.length);
+        if (indicesInRequest.length == 0) {
+            // no specific indices request means restore everything
+            requestIndices.add("*");
+        } else {
+            Collections.addAll(requestIndices, indicesInRequest);
+        }
 
         // Get data stream metadata for requested data streams
         Tuple<Map<String, DataStream>, Map<String, DataStreamAlias>> result = getDataStreamsToRestore(
@@ -1531,8 +1539,8 @@ public class RestoreService implements ClusterStateApplier {
             final Settings indexSettings = metadata.getIndexSafe(index).getSettings();
             assert "snapshot".equals(INDEX_STORE_TYPE_SETTING.get(indexSettings)) : "not a snapshot backed index: " + index;
 
-            final String repositoryUuid = indexSettings.get(RepositoriesService.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
-            final String repositoryName = indexSettings.get(RepositoriesService.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
+            final String repositoryUuid = indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
+            final String repositoryName = indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
             final String snapshotUuid = indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY);
 
             final boolean deleteSnapshot = indexSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false);
@@ -1565,8 +1573,8 @@ public class RestoreService implements ClusterStateApplier {
                 if (Objects.equals(snapshotUuid, otherSnapshotUuid) == false) {
                     continue; // other index is backed by a different snapshot, skip
                 }
-                final String otherRepositoryUuid = otherSettings.get(RepositoriesService.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
-                final String otherRepositoryName = otherSettings.get(RepositoriesService.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
+                final String otherRepositoryUuid = otherSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
+                final String otherRepositoryName = otherSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
                 if (matchRepository(repositoryUuid, repositoryName, otherRepositoryUuid, otherRepositoryName) == false) {
                     continue; // other index is backed by a snapshot from a different repository, skip
                 }

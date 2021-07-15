@@ -38,7 +38,6 @@ public class XPackInfoFeatureAction extends ActionType<XPackInfoFeatureResponse>
     public static final XPackInfoFeatureAction SNAPSHOT_LIFECYCLE = new XPackInfoFeatureAction(XPackField.SNAPSHOT_LIFECYCLE);
     public static final XPackInfoFeatureAction CCR = new XPackInfoFeatureAction(XPackField.CCR);
     public static final XPackInfoFeatureAction TRANSFORM = new XPackInfoFeatureAction(XPackField.TRANSFORM);
-    public static final XPackInfoFeatureAction VECTORS = new XPackInfoFeatureAction(XPackField.VECTORS);
     public static final XPackInfoFeatureAction VOTING_ONLY = new XPackInfoFeatureAction(XPackField.VOTING_ONLY);
     public static final XPackInfoFeatureAction FROZEN_INDICES = new XPackInfoFeatureAction(XPackField.FROZEN_INDICES);
     public static final XPackInfoFeatureAction SPATIAL = new XPackInfoFeatureAction(XPackField.SPATIAL);
@@ -54,7 +53,7 @@ public class XPackInfoFeatureAction extends ActionType<XPackInfoFeatureResponse>
         final List<XPackInfoFeatureAction> actions = new ArrayList<>();
         actions.addAll(Arrays.asList(
             SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, EQL, SQL, ROLLUP, INDEX_LIFECYCLE, SNAPSHOT_LIFECYCLE, CCR,
-            TRANSFORM, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, ENRICH, DATA_STREAMS, SEARCHABLE_SNAPSHOTS, DATA_TIERS,
+            TRANSFORM, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, ENRICH, DATA_STREAMS, SEARCHABLE_SNAPSHOTS, DATA_TIERS,
             AGGREGATE_METRIC
         ));
         ALL = Collections.unmodifiableList(actions);

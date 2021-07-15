@@ -73,7 +73,7 @@ this parameter or use `*` or `_all`.
 [[search-vector-tile-api-desc]]
 ==== {api-description-title}
 
-Internally, {es} translates requests for the search vector tile API into a
+Internally, {es} translates a search vector tile API request into a
 <<search-search,search>> containing:
 
 * A <<query-dsl-geo-bounding-box-query,`geo_bounding_box`>> query on the

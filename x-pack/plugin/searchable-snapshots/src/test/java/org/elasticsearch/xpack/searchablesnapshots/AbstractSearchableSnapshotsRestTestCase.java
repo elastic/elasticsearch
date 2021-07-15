@@ -26,7 +26,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
 import java.util.List;
@@ -523,8 +522,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     @SuppressWarnings("unchecked")
     protected static void waitForIdlingSearchableSnapshotsThreadPools() throws Exception {
         final Set<String> searchableSnapshotsThreadPools = org.elasticsearch.core.Set.of(
-            SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
-            SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+            SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME
         );
         assertBusy(() -> {
             final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "/_nodes/stats/thread_pool"));

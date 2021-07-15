@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class PValueScoreTests extends AbstractSignificanceHeuristicTestCase {
 
-    private static final double eps = 0.00000001;
+    private static final double eps = 1e-9;
 
     @Override
     protected SignificanceHeuristic getHeuristic() {
@@ -147,16 +147,16 @@ public class PValueScoreTests extends AbstractSignificanceHeuristicTestCase {
 
     public void testLargerValues() {
         assertThat(
-            FastMath.exp(-new PValueScore(false).getScore(11000, 100000, 50000, 500000)),
-            closeTo(7.793257010208823e-05, eps)
+            FastMath.exp(-new PValueScore(false).getScore(110000, 1000000, 500000, 5000000)),
+            closeTo(8.140090736936504E-36, eps)
         );
         assertThat(
-            FastMath.exp(-new PValueScore(false).getScore(12000, 100000, 50000, 500000)),
-            closeTo(8.408915778589325e-32, eps)
+            FastMath.exp(-new PValueScore(false).getScore(120000, 1000000, 500000, 5000000)),
+            closeTo(1.9321217649971426e-301, eps)
         );
         assertThat(
-            FastMath.exp(-new PValueScore(false).getScore(13000, 100000, 50000, 500000)),
-            closeTo(1.2693369753977792e-83, eps)
+            FastMath.exp(-new PValueScore(false).getScore(130000, 1000000, 500000, 5000000)),
+            closeTo(0.0, eps)
         );
     }
 

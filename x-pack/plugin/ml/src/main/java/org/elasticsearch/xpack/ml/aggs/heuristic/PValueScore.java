@@ -115,18 +115,10 @@ public class PValueScore extends NXYSignificanceHeuristic {
 
         // Adjust counts to ignore ratio changes which are less than 5%
         // casting to `long` to round down to nearest whole number
-        if (docsContainTermInClass * allDocsNotInClass < docsContainTermNotInClass * allDocsInClass) {
-            docsContainTermInClass = (long)(Math.min(
-                1.05 * docsContainTermInClass,
-                docsContainTermNotInClass / allDocsNotInClass * allDocsInClass
-            ) + 0.5);
-        }
-        if (docsContainTermInClass * allDocsNotInClass > docsContainTermNotInClass * allDocsInClass) {
-            docsContainTermNotInClass = (long)(Math.min(
-                1.05 * docsContainTermNotInClass,
-                docsContainTermInClass / allDocsInClass * allDocsNotInClass
-            ) + 0.5);
-        }
+        docsContainTermNotInClass = (long)(Math.min(
+            1.05 * docsContainTermNotInClass,
+            docsContainTermInClass / allDocsInClass * allDocsNotInClass
+        ) + 0.5);
 
         // casting to `long` to round down to nearest whole number
         double epsAllDocsInClass = (long)eps(allDocsInClass);

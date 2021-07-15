@@ -409,7 +409,7 @@ the foreground set of "ended in failure" versus "NOT ended in failure".
 `"background_is_superset": false` indicates that the background set does 
 not contain the counts of the foreground set as they are filtered out.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {

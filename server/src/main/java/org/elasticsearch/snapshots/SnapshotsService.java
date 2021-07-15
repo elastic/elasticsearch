@@ -1734,15 +1734,29 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     if (previousEntry.isClone()) {
                         assert false : "todo";
                     } else {
-                        assert false : "todo";
+                        ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedShardAssignments = null;
                         for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> finishedShardEntry : removedEntry.shards()) {
                             final ShardSnapshotStatus shardState = finishedShardEntry.value;
                             if (shardState.state() == ShardState.SUCCESS) {
                                 final ShardSnapshotStatus stateToUpdate = previousEntry.shards().get(finishedShardEntry.key);
                                 if (stateToUpdate != null && stateToUpdate.state() == ShardState.SUCCESS) {
-
+                                    if (updatedShardAssignments == null) {
+                                        updatedShardAssignments = ImmutableOpenMap.builder();
+                                    }
+                                    updatedShardAssignments.put(
+                                            finishedShardEntry.key,
+                                            stateToUpdate.withUpdatedGeneration(shardState.generation())
+                                    );
                                 }
                             }
+                        }
+                        if (updatedShardAssignments == null) {
+                            entries.add(previousEntry);
+                        } else {
+                            final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedStatus =
+                                    ImmutableOpenMap.builder(previousEntry.shards());
+                            updatedStatus.putAll(updatedShardAssignments.build());
+                            entries.add(previousEntry.withShardStates(updatedStatus.build()));
                         }
                     }
                 } else {

@@ -107,9 +107,9 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             if (interval instanceof Long) {
                 wrapper.fixedInterval(new DateHistogramInterval(interval + "ms"));
             } else {
-                try {
+                if (interval != null && DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(interval.toString())) {
                     wrapper.calendarInterval((DateHistogramInterval) interval);
-                } catch (IllegalArgumentException e) {
+                } else {
                     wrapper.fixedInterval((DateHistogramInterval) interval);
                 }
             }

@@ -203,10 +203,6 @@ public class RollupJobIdentifierUtils {
         return interval;
     }
 
-    private static boolean isCalendarInterval(DateHistogramInterval interval) {
-        return interval != null && DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(interval.toString());
-    }
-
     static boolean validateCalendarInterval(DateHistogramInterval requestInterval,
                                                     DateHistogramInterval configInterval) {
         if (requestInterval == null || configInterval == null) {

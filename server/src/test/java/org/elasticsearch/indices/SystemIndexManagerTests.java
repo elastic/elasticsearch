@@ -244,6 +244,9 @@ public class SystemIndexManagerTests extends ESTestCase {
         verify(client, times(1)).execute(any(PutMappingAction.class), any(PutMappingRequest.class), any());
     }
 
+    /**
+     * Check that this
+     */
     public void testCanHandleIntegerMetaVersion() {
         SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
@@ -251,7 +254,7 @@ public class SystemIndexManagerTests extends ESTestCase {
         final ClusterState.Builder clusterStateBuilder = createClusterState(Strings.toString(getMappings(3)));
         markShardsAvailable(clusterStateBuilder);
 
-        manager.clusterChanged(event(clusterStateBuilder));
+        assertThat(manager.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE));
     }
 
     private static ClusterState.Builder createClusterState() {

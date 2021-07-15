@@ -135,6 +135,19 @@ public final class XCombinedFieldQuery extends Query implements Accountable {
       this.field = field;
       this.weight = weight;
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+      FieldAndWeight that = (FieldAndWeight) o;
+      return Float.compare(that.weight, weight) == 0 && Objects.equals(field, that.field);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(field, weight);
+    }
   }
 
   // sorted map for fields.

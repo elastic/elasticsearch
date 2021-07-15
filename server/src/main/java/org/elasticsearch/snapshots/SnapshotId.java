@@ -11,8 +11,11 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -24,6 +27,13 @@ public final class SnapshotId implements Comparable<SnapshotId>, Writeable, ToXC
 
     private static final String NAME = "name";
     private static final String UUID = "uuid";
+
+    private static final ConstructingObjectParser<SnapshotId, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
+        args -> new SnapshotId((String) args[0], (String) args[1]));
+    static {
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(NAME));
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(UUID));
+    }
 
     private final String name;
     private final String uuid;
@@ -116,5 +126,9 @@ public final class SnapshotId implements Comparable<SnapshotId>, Writeable, ToXC
         builder.field(UUID, uuid);
         builder.endObject();
         return builder;
+    }
+
+    public static SnapshotId parse(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

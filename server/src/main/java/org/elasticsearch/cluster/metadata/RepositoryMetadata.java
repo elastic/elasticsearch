@@ -12,9 +12,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -38,6 +42,11 @@ public class RepositoryMetadata implements Writeable {
     private final long pendingGeneration;
 
     /**
+     * List of {@link org.elasticsearch.snapshots.SnapshotId} marked as "to delete"
+     */
+    private final List<SnapshotId> snapshotsToDelete;
+
+    /**
      * Constructs new repository metadata
      *
      * @param name     repository name
@@ -45,20 +54,29 @@ public class RepositoryMetadata implements Writeable {
      * @param settings repository settings
      */
     public RepositoryMetadata(String name, String type, Settings settings) {
-        this(name, RepositoryData.MISSING_UUID, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN);
+        this(name, RepositoryData.MISSING_UUID, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN, List.of());
     }
 
     public RepositoryMetadata(RepositoryMetadata metadata, long generation, long pendingGeneration) {
-        this(metadata.name, metadata.uuid, metadata.type, metadata.settings, generation, pendingGeneration);
+        this(metadata.name, metadata.uuid, metadata.type, metadata.settings, generation, pendingGeneration, List.of());
     }
 
-    public RepositoryMetadata(String name, String uuid, String type, Settings settings, long generation, long pendingGeneration) {
+    public RepositoryMetadata(
+        String name,
+        String uuid,
+        String type,
+        Settings settings,
+        long generation,
+        long pendingGeneration,
+        List<SnapshotId> snapshotsToDelete
+    ) {
         this.name = name;
         this.uuid = uuid;
         this.type = type;
         this.settings = settings;
         this.generation = generation;
         this.pendingGeneration = pendingGeneration;
+        this.snapshotsToDelete = snapshotsToDelete;
         assert generation <= pendingGeneration :
             "Pending generation [" + pendingGeneration + "] must be greater or equal to generation [" + generation + "]";
     }
@@ -127,6 +145,20 @@ public class RepositoryMetadata implements Writeable {
         return pendingGeneration;
     }
 
+    /**
+     * Returns the list of snapshots from this repository that have been marked as "to delete" after a searchable snapshot index with the
+     * delete_searchable_snapshot setting got deleted. These snapshots will be deleted as soon as possible.
+     *
+     * @return a {@link List} of {@link SnapshotId} to delete
+     */
+    public List<SnapshotId> snapshotsToDelete() {
+        return snapshotsToDelete;
+    }
+
+    public boolean hasSnapshotsToDelete() {
+        return snapshotsToDelete.isEmpty() == false;
+    }
+
     public RepositoryMetadata(StreamInput in) throws IOException {
         name = in.readString();
         if (in.getVersion().onOrAfter(SnapshotsService.UUIDS_IN_REPO_DATA_VERSION)) {
@@ -138,6 +170,11 @@ public class RepositoryMetadata implements Writeable {
         settings = Settings.readSettingsFromStream(in);
         generation = in.readLong();
         pendingGeneration = in.readLong();
+        if (in.getVersion().onOrAfter(SnapshotsService.DELETE_SEARCHABLE_SNAPSHOT_ON_INDEX_DELETION_VERSION)) {
+            snapshotsToDelete = List.copyOf(in.readList(SnapshotId::new));
+        } else {
+            snapshotsToDelete = List.of();
+        }
     }
 
     /**
@@ -155,6 +192,9 @@ public class RepositoryMetadata implements Writeable {
         Settings.writeSettingsToStream(settings, out);
         out.writeLong(generation);
         out.writeLong(pendingGeneration);
+        if (out.getVersion().onOrAfter(SnapshotsService.DELETE_SEARCHABLE_SNAPSHOT_ON_INDEX_DELETION_VERSION)) {
+            out.writeList(snapshotsToDelete);
+        }
     }
 
     /**
@@ -164,7 +204,11 @@ public class RepositoryMetadata implements Writeable {
      * @return {@code true} if both instances equal in all fields but the generation fields
      */
     public boolean equalsIgnoreGenerations(RepositoryMetadata other) {
-        return name.equals(other.name) && uuid.equals(other.uuid()) && type.equals(other.type()) && settings.equals(other.settings());
+        return name.equals(other.name)
+            && uuid.equals(other.uuid())
+            && type.equals(other.type())
+            && settings.equals(other.settings())
+            && Objects.equals(snapshotsToDelete, other.snapshotsToDelete);
     }
 
     @Override
@@ -179,25 +223,44 @@ public class RepositoryMetadata implements Writeable {
         if (type.equals(that.type) == false) return false;
         if (generation != that.generation) return false;
         if (pendingGeneration != that.pendingGeneration) return false;
-        return settings.equals(that.settings);
+        if (settings.equals(that.settings) == false) return false;
+        return Objects.equals(snapshotsToDelete, that.snapshotsToDelete);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, uuid, type, settings, generation, pendingGeneration);
+        return Objects.hash(name, uuid, type, settings, generation, pendingGeneration, snapshotsToDelete);
     }
 
     @Override
     public String toString() {
         return "RepositoryMetadata{" + name + "}{" + uuid + "}{" + type + "}{" + settings + "}{"
-                + generation + "}{" + pendingGeneration + "}";
+                + generation + "}{" + pendingGeneration + "}{" + snapshotsToDelete + '}';
     }
 
     public RepositoryMetadata withUuid(String uuid) {
-        return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration);
+        return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration, snapshotsToDelete);
     }
 
     public RepositoryMetadata withSettings(Settings settings) {
-        return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration);
+        return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration, snapshotsToDelete);
+    }
+
+    public RepositoryMetadata addSnapshotsToDelete(Collection<SnapshotId> snapshotsToDelete) {
+        final List<SnapshotId> snapshots = new ArrayList<>(this.snapshotsToDelete);
+        for (SnapshotId snapshotToDelete : snapshotsToDelete) {
+            assert snapshots.contains(snapshotToDelete) == false : name + " found duplicate snapshot to delete: " + snapshotToDelete;
+            snapshots.add(snapshotToDelete);
+        }
+        return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration, List.copyOf(snapshots));
+    }
+
+    public RepositoryMetadata removeSnapshotsToDelete(Collection<SnapshotId> snapshotsToDelete) {
+        final List<SnapshotId> snapshots = new ArrayList<>(this.snapshotsToDelete);
+        if (snapshots.removeAll(snapshotsToDelete)) {
+            return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration, List.copyOf(snapshots));
+        } else {
+            return this;
+        }
     }
 }

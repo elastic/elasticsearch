@@ -22,12 +22,16 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /**
@@ -44,6 +48,12 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
      * in {@link org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse}.
      */
     public static final String HIDE_GENERATIONS_PARAM = "hide_generations";
+
+    /**
+     * Serialization parameter used to hide the {@link RepositoryMetadata#snapshotsToDelete()}
+     * in {@link org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse}.
+     */
+    public static final String HIDE_SNAPSHOTS_TO_DELETE = "hide_snapshots_to_delete";
 
     private final List<RepositoryMetadata> repositories;
 
@@ -77,6 +87,14 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
      */
     public RepositoriesMetadata withUuid(String repoName, String uuid) {
         return withUpdate(repoName, repositoryMetadata -> repositoryMetadata.withUuid(uuid));
+    }
+
+    public RepositoriesMetadata addSnapshotsToDelete(String repoName, Collection<SnapshotId> snapshotsToDelete) {
+        return withUpdate(repoName, repositoryMetadata -> repositoryMetadata.addSnapshotsToDelete(snapshotsToDelete));
+    }
+
+    public RepositoriesMetadata removeSnapshotsToDelete(String repoName, Collection<SnapshotId> snapshotsToDelete) {
+        return withUpdate(repoName, repositoryMetadata -> repositoryMetadata.removeSnapshotsToDelete(snapshotsToDelete));
     }
 
     private RepositoriesMetadata withUpdate(String repoName, UnaryOperator<RepositoryMetadata> update) {
@@ -200,6 +218,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                 Settings settings = Settings.EMPTY;
                 long generation = RepositoryData.UNKNOWN_REPO_GEN;
                 long pendingGeneration = RepositoryData.EMPTY_REPO_GEN;
+                final List<SnapshotId> snapshotsToDelete = new ArrayList<>();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         String currentFieldName = parser.currentName();
@@ -228,6 +247,13 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                                 throw new ElasticsearchParseException("failed to parse repository [{}], unknown type", name);
                             }
                             pendingGeneration = parser.longValue();
+                        } else if ("snapshots_to_delete".equals(currentFieldName)) {
+                            if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
+                                throw new ElasticsearchParseException("failed to parse repository [{}], unknown type", name);
+                            }
+                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                snapshotsToDelete.add(SnapshotId.parse(parser));
+                            }
                         } else {
                             throw new ElasticsearchParseException("failed to parse repository [{}], unknown field [{}]",
                                 name, currentFieldName);
@@ -239,7 +265,9 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                 if (type == null) {
                     throw new ElasticsearchParseException("failed to parse repository [{}], missing repository type", name);
                 }
-                repository.add(new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration));
+                repository.add(
+                    new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration, List.copyOf(snapshotsToDelete))
+                );
             } else {
                 throw new ElasticsearchParseException("failed to parse repositories");
             }
@@ -283,6 +311,13 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
         if (params.paramAsBoolean(HIDE_GENERATIONS_PARAM, false) == false) {
             builder.field("generation", repository.generation());
             builder.field("pending_generation", repository.pendingGeneration());
+        }
+        if (params.paramAsBoolean(HIDE_SNAPSHOTS_TO_DELETE, false) == false) {
+            builder.startArray("snapshots_to_delete");
+            for (SnapshotId snapshotToDelete : repository.snapshotsToDelete()) {
+                builder.value(snapshotToDelete);
+            }
+            builder.endArray();
         }
         builder.endObject();
     }

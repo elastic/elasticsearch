@@ -385,7 +385,7 @@ Google normalized distance as described in https://arxiv.org/pdf/cs/0412098v3.pd
 // NOTCONSOLE
 `gnd` also accepts the `background_is_superset` parameter.
 
-
+[p-value-score]
 ===== p-value score
 
 [NOTE]
@@ -400,6 +400,82 @@ correct. The p-value is calculated assuming that the foreground set and the
 background set are independent 
 https://en.wikipedia.org/wiki/Bernoulli_trial[Bernoulli trials], with the null 
 hypothesis that the probabilities are the same.
+
+====== Example usage
+
+This example calculates the p-value score for terms `user_agent.version` given 
+the foreground set of "ended in failure" versus "NOT ended in failure".
+
+NOTE: `"background_is_superset": false` indicates that the background set does 
+not contain the counts of the foreground set as they are filtered out.
+
+[source,js]
+--------------------------------------------------
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "term": {
+            "event.outcome": "failure"
+          }
+        },
+        {
+          "range": {
+            "@timestamp": {
+              "gte": "2021-02-01",
+              "lt": "2021-02-04"
+            }
+          }
+        },
+        {
+          "term": {
+            "service.name": {
+              "value": "frontend-node"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "aggs": {
+    "failure_p_value": {
+      "significant_terms": {
+        "field": "user_agent.version",
+        "background_filter": {
+          "bool": {
+            "must_not": [
+              {
+                "term": {
+                  "event.outcome": "failure"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "@timestamp": {
+                    "gte": "2021-02-01",
+                    "lt": "2021-02-04"
+                  }
+                }
+              },
+              {
+                "term": {
+                  "service.name": {
+                    "value": "frontend-node"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "p_value": {"background_is_superset": false}
+      }
+    }
+  }
+}
+--------------------------------------------------
 
 ===== Percentage
 A simple calculation of the number of documents in the foreground sample with a term divided by the number of documents in the background with the term.

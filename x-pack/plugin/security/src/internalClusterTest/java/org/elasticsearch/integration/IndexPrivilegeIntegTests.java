@@ -472,12 +472,10 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_refresh");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_flush");
-                    assertAccessIsAllowed(user, "POST", "/" + index + "/_flush/synced");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_forcemerge");
                 } else {
                     assertAccessIsDenied(user, "POST", "/" + index + "/_refresh");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_flush");
-                    assertAccessIsDenied(user, "POST", "/" + index + "/_flush/synced");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_forcemerge");
                 }
                 break;

@@ -84,9 +84,9 @@ aggregation on the `<field>`. The aggregation uses the `<zoom>/<x>/<y>` tile as
 a bounding box.
 
 * Optionally, a
-<<search-aggregations-metrics-geobounds-aggregation,`geo_bounds`>> aggregation.
-The search only includes this aggregation if the `exact_bounds` parameter is
-`true`.
+<<search-aggregations-metrics-geobounds-aggregation,`geo_bounds`>> aggregation
+on the `<field>`. The search only includes this aggregation if the
+`exact_bounds` parameter is `true`.
 
 For example, {es} may translate a vector tile API request with an `exact_bounds`
 of `true` into the following search.
@@ -220,12 +220,12 @@ The request calculates the grid size as:
 +
 `(2^grid_precision) x (2^grid_precision)`
 +
-For example, a value of `8` divides the tile into a grid of 128 x 128 cells. The
+For example, a value of `8` divides the tile into a grid of 256 x 256 cells. The
 `aggs` layer only contains features for cells with matching data.
 
 `grid_type`::
-(Optional, string) Determines the geometry of features in the `aggs`
-layer. Each feature is a cell of the `geotile_grid`. Accepts:
+(Optional, string) Determines the geometry of features in the `aggs` layer. In
+the `aggs` layer, each feature represents a cell of the `geotile_grid`. Accepts:
 
 `grid` (Default):::
 A polygon of the cell's bounding box.
@@ -251,7 +251,7 @@ Defaults to `1000`. If `0`, results don't include the `hits` layer.
 [[vector-tile-api-response]]
 ==== Response
 
-When decoded into JSON, returned vector tiles contain the following data:
+Returned vector tiles contain the following data:
 
 `hits`::
 (object) Layer containing results for the `geo_bounding_box` query.

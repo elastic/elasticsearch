@@ -390,8 +390,8 @@ Google normalized distance as described in https://arxiv.org/pdf/cs/0412098v3.pd
 
 [NOTE]
 ====
-As p-value score heuristic is provided by the {ml} plugin. To use it, you must 
-have the {subscriptions}[appropriate subscription].
+To use this heuristic, you must
+have the {subscriptions}[appropriate subscription] for {ml-features}.
 ====
 
 The p-value is the probability of obtaining test results at least as extreme as 

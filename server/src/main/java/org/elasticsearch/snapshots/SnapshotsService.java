@@ -1347,19 +1347,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param entry snapshot
      */
     private void endSnapshot(SnapshotsInProgress.Entry entry, Metadata metadata, @Nullable RepositoryData repositoryData) {
+        final Snapshot snapshot = entry.snapshot();
         if (entry.isClone() && entry.state() == State.FAILED) {
             logger.debug("Removing failed snapshot clone [{}] from cluster state", entry);
-            removeFailedSnapshotFromClusterState(entry.snapshot(), new SnapshotException(entry.snapshot(), entry.failure()), null);
+            removeFailedSnapshotFromClusterState(snapshot, new SnapshotException(snapshot, entry.failure()), null);
             return;
         }
-        final boolean newFinalization = endingSnapshots.add(entry.snapshot());
-        final String repoName = entry.repository();
+        final boolean newFinalization = endingSnapshots.add(snapshot);
+        final String repoName = snapshot.getRepository();
         if (tryEnterRepoLoop(repoName)) {
             if (repositoryData == null) {
                 repositoriesService.repository(repoName).getRepositoryData(new ActionListener<>() {
                     @Override
                     public void onResponse(RepositoryData repositoryData) {
-                        finalizeSnapshotEntry(entry.snapshot(), metadata, repositoryData);
+                        finalizeSnapshotEntry(snapshot, metadata, repositoryData);
                     }
 
                     @Override
@@ -1371,11 +1372,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 });
             } else {
-                finalizeSnapshotEntry(entry.snapshot(), metadata, repositoryData);
+                finalizeSnapshotEntry(snapshot, metadata, repositoryData);
             }
         } else {
             if (newFinalization) {
-                repositoryOperations.addFinalization(entry, metadata);
+                repositoryOperations.addFinalization(snapshot, metadata);
             }
         }
     }
@@ -1404,8 +1405,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void finalizeSnapshotEntry(Snapshot snapshot, Metadata metadata, RepositoryData repositoryData) {
         assert currentlyFinalizing.contains(snapshot.getRepository());
         try {
-            SnapshotsInProgress.Entry entry =
-                    clusterService.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).snapshot(snapshot);
+            SnapshotsInProgress.Entry entry = clusterService.state()
+                .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .snapshot(snapshot);
             final String failure = entry.failure();
             logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
             final ShardGenerations shardGenerations = buildGenerations(entry, metadata);
@@ -1604,7 +1606,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private void runNextQueuedOperation(RepositoryData repositoryData, String repository, boolean attemptDelete) {
         assert currentlyFinalizing.contains(repository);
-        final Tuple<SnapshotsInProgress.Entry, Metadata> nextFinalization = repositoryOperations.pollFinalization(repository);
+        final Tuple<Snapshot, Metadata> nextFinalization = repositoryOperations.pollFinalization(repository);
         if (nextFinalization == null) {
             if (attemptDelete) {
                 runReadyDeletions(repositoryData, repository);
@@ -1613,7 +1615,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         } else {
             logger.trace("Moving on to finalizing next snapshot [{}]", nextFinalization);
-            finalizeSnapshotEntry(nextFinalization.v1().snapshot(), nextFinalization.v2(), repositoryData);
+            finalizeSnapshotEntry(nextFinalization.v1(), nextFinalization.v2(), repositoryData);
         }
     }
 
@@ -3490,9 +3492,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 failure
             );
             synchronized (currentlyFinalizing) {
-                Tuple<SnapshotsInProgress.Entry, Metadata> finalization;
+                Tuple<Snapshot, Metadata> finalization;
                 while ((finalization = repositoryOperations.pollFinalization(repository)) != null) {
-                    assert snapshotsToFail.contains(finalization.v1().snapshot())
+                    assert snapshotsToFail.contains(finalization.v1())
                         : "[" + finalization.v1() + "] not found in snapshots to fail " + snapshotsToFail;
                 }
                 leaveRepoLoop(repository);
@@ -3510,10 +3512,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static final class OngoingRepositoryOperations {
 
         /**
-         * Map of repository name to a deque of {@link SnapshotsInProgress.Entry} that need to be finalized for the repository and the
+         * Map of repository name to a deque of {@link Snapshot} that need to be finalized for the repository and the
          * {@link Metadata to use when finalizing}.
          */
-        private final Map<String, Deque<SnapshotsInProgress.Entry>> snapshotsToFinalize = new HashMap<>();
+        private final Map<String, Deque<Snapshot>> snapshotsToFinalize = new HashMap<>();
 
         /**
          * Set of delete operations currently being executed against the repository. The values in this set are the delete UUIDs returned
@@ -3525,16 +3527,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         private Metadata latestKnownMetaData;
 
         @Nullable
-        synchronized Tuple<SnapshotsInProgress.Entry, Metadata> pollFinalization(String repository) {
+        synchronized Tuple<Snapshot, Metadata> pollFinalization(String repository) {
             assertConsistent();
-            final SnapshotsInProgress.Entry nextEntry;
-            final Deque<SnapshotsInProgress.Entry> queued = snapshotsToFinalize.get(repository);
+            final Snapshot nextEntry;
+            final Deque<Snapshot> queued = snapshotsToFinalize.get(repository);
             if (queued == null) {
                 return null;
             }
             nextEntry = queued.pollFirst();
             assert nextEntry != null;
-            final Tuple<SnapshotsInProgress.Entry, Metadata> res = Tuple.tuple(nextEntry, latestKnownMetaData);
+            final Tuple<Snapshot, Metadata> res = Tuple.tuple(nextEntry, latestKnownMetaData);
             if (queued.isEmpty()) {
                 snapshotsToFinalize.remove(repository);
             }
@@ -3553,8 +3555,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             runningDeletions.remove(deleteUUID);
         }
 
-        synchronized void addFinalization(SnapshotsInProgress.Entry entry, Metadata metadata) {
-            snapshotsToFinalize.computeIfAbsent(entry.repository(), k -> new LinkedList<>()).add(entry);
+        synchronized void addFinalization(Snapshot snapshot, Metadata metadata) {
+            snapshotsToFinalize.computeIfAbsent(snapshot.getRepository(), k -> new LinkedList<>()).add(snapshot);
             this.latestKnownMetaData = metadata;
             assertConsistent();
         }
@@ -3576,7 +3578,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         synchronized boolean assertNotQueued(Snapshot snapshot) {
             assert snapshotsToFinalize.getOrDefault(snapshot.getRepository(), new LinkedList<>())
                 .stream()
-                .noneMatch(entry -> entry.snapshot().equals(snapshot)) : "Snapshot [" + snapshot + "] is still in finalization queue";
+                .noneMatch(entry -> entry.equals(snapshot)) : "Snapshot [" + snapshot + "] is still in finalization queue";
             return true;
         }
 

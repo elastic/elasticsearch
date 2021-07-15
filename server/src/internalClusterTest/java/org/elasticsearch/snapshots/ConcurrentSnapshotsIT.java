@@ -1494,16 +1494,16 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         blockNodeWithIndex(repository, index2);
 
         final ActionFuture<CreateSnapshotResponse> snapshot1 = clusterAdmin().prepareCreateSnapshot(repository, "snapshot-1")
-                .setIndices(index1, index2)
-                .setWaitForCompletion(true)
-                .execute();
+            .setIndices(index1, index2)
+            .setWaitForCompletion(true)
+            .execute();
         awaitNumberOfSnapshotsInProgress(1);
 
         blockMasterOnWriteIndexFile(repository);
         final ActionFuture<CreateSnapshotResponse> snapshot2 = clusterAdmin().prepareCreateSnapshot(repository, "snapshot-2")
-                .setIndices(index1)
-                .setWaitForCompletion(true)
-                .execute();
+            .setIndices(index1)
+            .setWaitForCompletion(true)
+            .execute();
 
         awaitClusterState(state -> {
             final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
@@ -1520,8 +1520,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertAcked(startDeleteSnapshot(repository, sn1.snapshot().getSnapshotId().getName()).get());
 
         assertThat(
-                clusterAdmin().prepareSnapshotStatus().setSnapshots("snapshot-2").setRepository(repository).get().getSnapshots(),
-                hasSize(1)
+            clusterAdmin().prepareSnapshotStatus().setSnapshots("snapshot-2").setRepository(repository).get().getSnapshots(),
+            hasSize(1)
         );
     }
 

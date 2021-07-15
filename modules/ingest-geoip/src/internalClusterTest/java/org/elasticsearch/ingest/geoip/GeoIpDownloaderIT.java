@@ -149,7 +149,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             for (Path geoIpTmpDir : geoIpTmpDirs) {
                 try (Stream<Path> files = Files.list(geoIpTmpDir)) {
-                    Set<String> names = files.map(f -> f.getFileName().toString()).collect(Collectors.toSet());
+                    java.util.Set<String> names = files.map(f -> f.getFileName().toString()).collect(Collectors.toSet());
                     assertThat(names, hasItems("GeoLite2-ASN.mmdb","GeoLite2-City.mmdb","GeoLite2-Country.mmdb"));
                 }
             }

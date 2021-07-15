@@ -205,8 +205,8 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         bulkBuilder.add(client.prepareIndex("index", "type", "7").setSource("d", "2014-07-01T00:00:00"));
         bulkBuilder.add(client.prepareIndex("index", "type", "8").setSource("d", "2014-08-01T00:00:00"));
         bulkBuilder.add(client.prepareIndex("index", "type", "9").setSource("d", "2014-09-01T00:00:00"));
-        BulkResponse actionGet = bulkBuilder.execute().actionGet();
-        assertThat(actionGet.hasFailures() ? actionGet.buildFailureMessage() : "", actionGet.hasFailures(), equalTo(false));
+        BulkResponse bulkResponse = bulkBuilder.execute().actionGet();
+        assertThat(bulkResponse.hasFailures() ? bulkResponse.buildFailureMessage() : "", bulkResponse.hasFailures(), equalTo(false));
         ensureSearchable("index");
         refresh("index");
         assertCacheState(client, "index", 0, 0);
@@ -256,8 +256,8 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         bulkBuilder.add(client.prepareIndex("index-3", "type", "7").setSource("d", now.minusDays(6)));
         bulkBuilder.add(client.prepareIndex("index-3", "type", "8").setSource("d", now.minusDays(7)));
         bulkBuilder.add(client.prepareIndex("index-3", "type", "9").setSource("d", now.minusDays(8)));
-        BulkResponse actionGet = bulkBuilder.execute().actionGet();
-        assertThat(actionGet.hasFailures() ? actionGet.buildFailureMessage() : "", actionGet.hasFailures(), equalTo(false));
+        BulkResponse bulkResponse = bulkBuilder.execute().actionGet();
+        assertThat(bulkResponse.hasFailures() ? bulkResponse.buildFailureMessage() : "", bulkResponse.hasFailures(), equalTo(false));
         ensureSearchable("index-1", "index-2", "index-3");
         refresh("index-1", "index-2", "index-3");
 

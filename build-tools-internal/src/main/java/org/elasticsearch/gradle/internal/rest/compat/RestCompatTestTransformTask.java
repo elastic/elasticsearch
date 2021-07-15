@@ -310,6 +310,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     /**
      * Adds one or more allowed regular expression warnings
      * @param allowedWarningsRegex the regex warning(s) to add
+     * @testName the test name to add a allowedWarningRegex
      */
     public void addAllowedWarningRegexForTest(String allowedWarningsRegex, String testName) {
         transformations.add(new InjectAllowedWarnings(true, Arrays.asList(allowedWarningsRegex), testName));

@@ -43,14 +43,14 @@ public final class PemKeyConfig implements SslKeyConfig {
     private final Path configBasePath;
 
     /**
-     * @param certificate    Path to the PEM formatted certificate
-     * @param key            Path to the PEM formatted private key for {@code certificate}
-     * @param keyPassword    Password for the private key (or empty is the key is not encrypted)
-     * @param configBasePath The base directory from which config files should be read (used for diagnostic exceptions)
+     * @param certificatePath Path to the PEM formatted certificate
+     * @param keyPath         Path to the PEM formatted private key for {@code certificate}
+     * @param keyPassword     Password for the private key (or empty is the key is not encrypted)
+     * @param configBasePath  The base directory from which config files should be read (used for diagnostic exceptions)
      */
-    public PemKeyConfig(String certificate, String key, char[] keyPassword, Path configBasePath) {
-        this.certificate = Objects.requireNonNull(certificate, "Certificate cannot be null");
-        this.key = Objects.requireNonNull(key, "Key cannot be null");
+    public PemKeyConfig(String certificatePath, String keyPath, char[] keyPassword, Path configBasePath) {
+        this.certificate = Objects.requireNonNull(certificatePath, "Certificate path cannot be null");
+        this.key = Objects.requireNonNull(keyPath, "Key path cannot be null");
         this.keyPassword = Objects.requireNonNull(keyPassword, "Key password cannot be null (but may be empty)");
         this.configBasePath = Objects.requireNonNull(configBasePath, "Config base path cannot be null");
     }
@@ -70,7 +70,7 @@ public final class PemKeyConfig implements SslKeyConfig {
     }
 
     @Override
-    public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+    public Collection<StoredCertificate> getConfiguredCertificates() {
         final List<Certificate> certificates = getCertificates(resolve(this.certificate));
         final List<StoredCertificate> info = new ArrayList<>(certificates.size());
         boolean first = true;
@@ -106,9 +106,9 @@ public final class PemKeyConfig implements SslKeyConfig {
         if (certificates.isEmpty()) {
             return List.of();
         }
-        final Certificate certificate = certificates.get(0);
-        if (certificate instanceof X509Certificate) {
-            return List.of(Tuple.tuple(getPrivateKey(keyPath), (X509Certificate) certificate));
+        final Certificate leafCertificate = certificates.get(0);
+        if (leafCertificate instanceof X509Certificate) {
+            return List.of(Tuple.tuple(getPrivateKey(keyPath), (X509Certificate) leafCertificate));
         } else {
             return List.of();
         }

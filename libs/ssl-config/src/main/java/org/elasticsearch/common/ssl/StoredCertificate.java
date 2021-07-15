@@ -17,7 +17,7 @@ import java.util.Objects;
  * Information about a certificate that is locally stored.It includes a reference to the {@link X509Certificate} itself,
  * as well as information about where it was loaded from.
  */
-public class StoredCertificate {
+public final class StoredCertificate {
 
     private final X509Certificate certificate;
 

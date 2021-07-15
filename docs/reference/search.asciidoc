@@ -43,7 +43,7 @@ ifdef::permanently-unreleased-branch[]
 [discrete]
 [[geo-search-apis]]
 === Geospatial search
-* <<vector-tile-api>>
+* <<search-vector-tile-api>>
 endif::[]
 
 include::search/search.asciidoc[]
@@ -83,5 +83,5 @@ include::search/field-caps.asciidoc[]
 include::search/rank-eval.asciidoc[]
 
 ifdef::permanently-unreleased-branch[]
-include::search/vector-tile-api.asciidoc[]
+include::search/search-vector-tile-api.asciidoc[]
 endif::[]

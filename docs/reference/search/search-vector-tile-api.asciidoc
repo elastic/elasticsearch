@@ -1,7 +1,7 @@
-[[vector-tile-api]]
-=== Vector tile API
+[[search-vector-tile-api]]
+=== Search vector tile API
 ++++
-<titleabbrev>Vector tile</titleabbrev>
+<titleabbrev>Search vector tile</titleabbrev>
 ++++
 
 Searches a vector tile for geospatial values. Returns results as a binary
@@ -34,12 +34,12 @@ GET my-index/_mvt/my-geo-field/15/5271/12710
 ----
 // TEST[continued]
 
-[[vector-tile-api-request]]
+[[search-vector-tile-api-request]]
 ==== {api-request-title}
 
 `GET <target>/_mvt/<field>/<zoom>/<x>/<y>`
 
-[[vector-tile-api-prereqs]]
+[[search-vector-tile-api-prereqs]]
 ==== {api-prereq-title}
 
 * Before using this API, you should be familiar with the
@@ -49,7 +49,7 @@ https://github.com/mapbox/vector-tile-spec[Mapbox vector tile specification].
 <<privileges-list-indices,index privilege>> for the target data stream, index,
 or alias.
 
-[[vector-tile-api-path-params]]
+[[search-vector-tile-api-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
@@ -70,10 +70,10 @@ this parameter or use `*` or `_all`.
 `<y>`::
 (Required, integer) Y coordinate for the vector tile to search.
 
-[[vector-tile-api-desc]]
+[[search-vector-tile-api-desc]]
 ==== {api-description-title}
 
-Internally, {es} translates a vector tile API request into a
+Internally, {es} translates requests for this API into a
 <<search-search,search>> containing:
 
 * A <<query-dsl-geo-bounding-box-query,`geo_bounding_box`>> query on the
@@ -88,8 +88,8 @@ a bounding box.
 on the `<field>`. The search only includes this aggregation if the
 `exact_bounds` parameter is `true`.
 
-For example, {es} may translate a vector tile API request with an `exact_bounds`
-of `true` into the following search.
+For example, {es} may translate search vector tile API request with an
+`exact_bounds` of `true` into the following search.
 
 [source,console]
 ----
@@ -159,7 +159,7 @@ the returned tile.
 The API returns errors as UTF-8 encoded JSON.
 
 [role="child_attributes"]
-[[vector-tile-api-request-body]]
+[[search-vector-tile-api-request-body]]
 ==== {api-request-body-title}
 
 `aggs`::
@@ -248,7 +248,7 @@ Defaults to `1000`. If `0`, results don't include the `hits` layer.
 `hits` layer.
 
 [role="child_attributes"]
-[[vector-tile-api-response]]
+[[search-vector-tile-api-response]]
 ==== Response
 
 Returned vector tiles contain the following data:
@@ -333,9 +333,9 @@ sub-aggregations.
 .Properties of `aggs`
 [%collapsible%open]
 ====
-include::vector-tile-api.asciidoc[tag=extent]
+include::search-vector-tile-api.asciidoc[tag=extent]
 
-include::vector-tile-api.asciidoc[tag=version]
+include::search-vector-tile-api.asciidoc[tag=version]
 
 `features`::
 (array of objects) Array of features. Contains a feature for each cell of the
@@ -344,7 +344,7 @@ include::vector-tile-api.asciidoc[tag=version]
 .Properties of `features` objects
 [%collapsible%open]
 =====
-include::vector-tile-api.asciidoc[tag=geometry]
+include::search-vector-tile-api.asciidoc[tag=geometry]
 
 `properties`::
 (object) Properties for the feature.
@@ -359,9 +359,9 @@ include::vector-tile-api.asciidoc[tag=geometry]
 Sub-aggregation results for the cell. Only returned for sub-aggregations in the
 `aggs` parameter.
 ======
-include::vector-tile-api.asciidoc[tag=feature-id]
+include::search-vector-tile-api.asciidoc[tag=feature-id]
 
-include::vector-tile-api.asciidoc[tag=feature-type]
+include::search-vector-tile-api.asciidoc[tag=feature-type]
 =====
 ====
 
@@ -371,9 +371,9 @@ include::vector-tile-api.asciidoc[tag=feature-type]
 .Properties of `meta`
 [%collapsible%open]
 ====
-include::vector-tile-api.asciidoc[tag=extent]
+include::search-vector-tile-api.asciidoc[tag=extent]
 
-include::vector-tile-api.asciidoc[tag=version]
+include::search-vector-tile-api.asciidoc[tag=version]
 
 `features`::
 (array of objects) Contains one feature for a bounding box. By default, the
@@ -383,7 +383,7 @@ argument was `false`, the feature is the vector tile's bounding box.
 .Properties of `features` objects
 [%collapsible%open]
 =====
-include::vector-tile-api.asciidoc[tag=geometry]
+include::search-vector-tile-api.asciidoc[tag=geometry]
 
 `properties`::
 (object) Properties for the feature.
@@ -459,13 +459,13 @@ partial or empty.
 (integer) Milliseconds it took {es} to run the search. See the search API's
 <<search-api-took,`took`>> response property.
 ======
-include::vector-tile-api.asciidoc[tag=feature-id]
+include::search-vector-tile-api.asciidoc[tag=feature-id]
 
-include::vector-tile-api.asciidoc[tag=feature-type]
+include::search-vector-tile-api.asciidoc[tag=feature-type]
 =====
 ====
 
-[[vector-tile-api-api-example]]
+[[search-vector-tile-api-api-example]]
 ==== {api-examples-title}
 
 The following requests create an index containing several geospatial values.
@@ -503,8 +503,8 @@ POST museums/_bulk?refresh
 { "location": "52.371667,4.914722", "name": "Amsterdam Centre for Architecture", "price":0, "included": true }
 ----
 
-The following vector tile API request searches the `13/4207/2692` vector tile
-for intersecting values.
+The following request searches the `13/4207/2692` vector tile for intersecting
+values.
 
 [source,console]
 ----

@@ -79,100 +79,94 @@ setup:
   - is_true: testindex.shards.0.stats
 
   # all_fields
-  - set: { testindex.shards.0.stats.all_fields: stat }
-  - gt: { $stat.any: 0 }
-  - gt: { $stat.inverted_index.terms: 0 }
-  - gt: { $stat.inverted_index.postings: 0 }
-  - gt: { $stat.inverted_index.proximity: 0 }
-  - gt: { $stat.stored_fields: 0 }
-  - gt: { $stat.doc_values: 0 }
-  - gt: { $stat.points: 0 }
-  - match: { $stat.norms: 0 }
-  - match: { $stat.term_vectors: 0 }
-  - gt: { $stat.inverted_index.term_frequencies: 0 }
-  - gt: { $stat.inverted_index.positions: 0 }
-  - match: { $stat.inverted_index.offsets: 0 }
-  - match: { $stat.inverted_index.payloads: 0 }
+  - gt: { testindex.shards.0.stats.all_fields.any: 0 }
+  - gt: { testindex.shards.0.stats.all_fields.inverted_index.terms: 0 }
+  - gt: { testindex.shards.0.stats.all_fields.inverted_index.postings: 0 }
+  - gt: { testindex.shards.0.stats.all_fields.inverted_index.proximity: 0 }
+  - gt: { testindex.shards.0.stats.all_fields.stored_fields: 0 }
+  - gt: { testindex.shards.0.stats.all_fields.doc_values: 0 }
+  - gt: { testindex.shards.0.stats.all_fields.points: 0 }
+  - match: { testindex.shards.0.stats.all_fields.norms: 0 }
+  - match: { testindex.shards.0.stats.all_fields.term_vectors: 0 }
+  - gt: { testindex.shards.0.stats.all_fields.inverted_index.term_frequencies: 0 }
+  - gt: { testindex.shards.0.stats.all_fields.inverted_index.positions: 0 }
+  - match: { testindex.shards.0.stats.all_fields.inverted_index.offsets: 0 }
+  - match: { testindex.shards.0.stats.all_fields.inverted_index.payloads: 0 }
 
   # name
-  - set: { testindex.shards.0.stats.fields.name: stat }
-  - gt: { $stat.any: 0 }
-  - gt: { $stat.inverted_index.terms: 0 }
-  - gt: { $stat.inverted_index.postings: 0 }
-  - gt: { $stat.inverted_index.proximity: 0 }
-  - match: { $stat.stored_fields: 0 }
-  - match: { $stat.doc_values: 0 }
-  - match: { $stat.points: 0 }
-  - match: { $stat.norms: 0 }
-  - match: { $stat.term_vectors: 0 }
-  - gt: { $stat.inverted_index.term_frequencies: 0 }
-  - gt: { $stat.inverted_index.positions: 0 }
-  - match: { $stat.inverted_index.offsets: 0 }
-  - match: { $stat.inverted_index.payloads: 0 }
+  - gt: { testindex.shards.0.stats.fields.name.any: 0 }
+  - gt: { testindex.shards.0.stats.fields.name.inverted_index.terms: 0 }
+  - gt: { testindex.shards.0.stats.fields.name.inverted_index.postings: 0 }
+  - gt: { testindex.shards.0.stats.fields.name.inverted_index.proximity: 0 }
+  - match: { testindex.shards.0.stats.fields.name.stored_fields: 0 }
+  - match: { testindex.shards.0.stats.fields.name.doc_values: 0 }
+  - match: { testindex.shards.0.stats.fields.name.points: 0 }
+  - match: { testindex.shards.0.stats.fields.name.norms: 0 }
+  - match: { testindex.shards.0.stats.fields.name.term_vectors: 0 }
+  - gt: { testindex.shards.0.stats.fields.name.inverted_index.term_frequencies: 0 }
+  - gt: { testindex.shards.0.stats.fields.name.inverted_index.positions: 0 }
+  - match: { testindex.shards.0.stats.fields.name.inverted_index.offsets: 0 }
+  - match: { testindex.shards.0.stats.fields.name.inverted_index.payloads: 0 }
 
   # price
-  - set: { testindex.shards.0.stats.fields.price: stat }
-  - gt: { $stat.any: 0 }
-  - match: { $stat.inverted_index.terms: 0 }
-  - match: { $stat.inverted_index.postings: 0 }
-  - match: { $stat.inverted_index.proximity: 0 }
-  - match: { $stat.stored_fields: 0 }
-  - gt: { $stat.doc_values: 0 }
-  - match: { $stat.points: 0 }
-  - match: { $stat.norms: 0 }
-  - match: { $stat.term_vectors: 0 }
-  - match: { $stat.inverted_index.term_frequencies: 0 }
-  - match: { $stat.inverted_index.positions: 0 }
-  - match: { $stat.inverted_index.offsets: 0 }
-  - match: { $stat.inverted_index.payloads: 0 }
+  - gt: { testindex.shards.0.stats.fields.price.any: 0 }
+  - match: { testindex.shards.0.stats.fields.price.inverted_index.terms: 0 }
+  - match: { testindex.shards.0.stats.fields.price.inverted_index.postings: 0 }
+  - match: { testindex.shards.0.stats.fields.price.inverted_index.proximity: 0 }
+  - match: { testindex.shards.0.stats.fields.price.stored_fields: 0 }
+  - gt: { testindex.shards.0.stats.fields.price.doc_values: 0 }
+  - match: { testindex.shards.0.stats.fields.price.points: 0 }
+  - match: { testindex.shards.0.stats.fields.price.norms: 0 }
+  - match: { testindex.shards.0.stats.fields.price.term_vectors: 0 }
+  - match: { testindex.shards.0.stats.fields.price.inverted_index.term_frequencies: 0 }
+  - match: { testindex.shards.0.stats.fields.price.inverted_index.positions: 0 }
+  - match: { testindex.shards.0.stats.fields.price.inverted_index.offsets: 0 }
+  - match: { testindex.shards.0.stats.fields.price.inverted_index.payloads: 0 }
 
   # day
-  - set: { testindex.shards.0.stats.fields.day: stat }
-  - gt: { $stat.any: 0 }
-  - match: { $stat.inverted_index.terms: 0 }
-  - match: { $stat.inverted_index.postings: 0 }
-  - match: { $stat.inverted_index.proximity: 0 }
-  - match: { $stat.stored_fields: 0 }
-  - gt: { $stat.doc_values: 0 }
-  - gt: { $stat.points: 0 }
-  - match: { $stat.norms: 0 }
-  - match: { $stat.term_vectors: 0 }
-  - match: { $stat.inverted_index.term_frequencies: 0 }
-  - match: { $stat.inverted_index.positions: 0 }
-  - match: { $stat.inverted_index.offsets: 0 }
-  - match: { $stat.inverted_index.payloads: 0 }
+  - gt: { testindex.shards.0.stats.fields.day.any: 0 }
+  - match: { testindex.shards.0.stats.fields.day.inverted_index.terms: 0 }
+  - match: { testindex.shards.0.stats.fields.day.inverted_index.postings: 0 }
+  - match: { testindex.shards.0.stats.fields.day.inverted_index.proximity: 0 }
+  - match: { testindex.shards.0.stats.fields.day.stored_fields: 0 }
+  - gt: { testindex.shards.0.stats.fields.day.doc_values: 0 }
+  - gt: { testindex.shards.0.stats.fields.day.points: 0 }
+  - match: { testindex.shards.0.stats.fields.day.norms: 0 }
+  - match: { testindex.shards.0.stats.fields.day.term_vectors: 0 }
+  - match: { testindex.shards.0.stats.fields.day.inverted_index.term_frequencies: 0 }
+  - match: { testindex.shards.0.stats.fields.day.inverted_index.positions: 0 }
+  - match: { testindex.shards.0.stats.fields.day.inverted_index.offsets: 0 }
+  - match: { testindex.shards.0.stats.fields.day.inverted_index.payloads: 0 }
 
   # _source
-  - set: { testindex.shards.0.stats.fields._source: stat }
-  - gt: { $stat.any: 0 }
-  - match: { $stat.inverted_index.terms: 0 }
-  - match: { $stat.inverted_index.postings: 0 }
-  - match: { $stat.inverted_index.proximity: 0 }
-  - gt: { $stat.stored_fields: 0 }
-  - match: { $stat.doc_values: 0 }
-  - match: { $stat.points: 0 }
-  - match: { $stat.norms: 0 }
-  - match: { $stat.term_vectors: 0 }
-  - match: { $stat.inverted_index.term_frequencies: 0 }
-  - match: { $stat.inverted_index.positions: 0 }
-  - match: { $stat.inverted_index.offsets: 0 }
-  - match: { $stat.inverted_index.payloads: 0 }
+  - gt: { testindex.shards.0.stats.fields._source.any: 0 }
+  - match: { testindex.shards.0.stats.fields._source.inverted_index.terms: 0 }
+  - match: { testindex.shards.0.stats.fields._source.inverted_index.postings: 0 }
+  - match: { testindex.shards.0.stats.fields._source.inverted_index.proximity: 0 }
+  - gt: { testindex.shards.0.stats.fields._source.stored_fields: 0 }
+  - match: { testindex.shards.0.stats.fields._source.doc_values: 0 }
+  - match: { testindex.shards.0.stats.fields._source.points: 0 }
+  - match: { testindex.shards.0.stats.fields._source.norms: 0 }
+  - match: { testindex.shards.0.stats.fields._source.term_vectors: 0 }
+  - match: { testindex.shards.0.stats.fields._source.inverted_index.term_frequencies: 0 }
+  - match: { testindex.shards.0.stats.fields._source.inverted_index.positions: 0 }
+  - match: { testindex.shards.0.stats.fields._source.inverted_index.offsets: 0 }
+  - match: { testindex.shards.0.stats.fields._source.inverted_index.payloads: 0 }
 
   # _id
-  - set: { testindex.shards.0.stats.fields._id: stat }
-  - gt: { $stat.any: 0 }
-  - match: { $stat.inverted_index.terms: 0 }
-  - match: { $stat.inverted_index.postings: 0 }
-  - match: { $stat.inverted_index.proximity: 0 }
-  - gt: { $stat.stored_fields: 0 }
-  - match: { $stat.doc_values: 0 }
-  - match: { $stat.points: 0 }
-  - match: { $stat.norms: 0 }
-  - match: { $stat.term_vectors: 0 }
-  - match: { $stat.inverted_index.term_frequencies: 0 }
-  - match: { $stat.inverted_index.positions: 0 }
-  - match: { $stat.inverted_index.offsets: 0 }
-  - match: { $stat.inverted_index.payloads: 0 }
+  - gt: { testindex.shards.0.stats.fields._id.any: 0 }
+  - match: { testindex.shards.0.stats.fields._id.inverted_index.terms: 0 }
+  - match: { testindex.shards.0.stats.fields._id.inverted_index.postings: 0 }
+  - match: { testindex.shards.0.stats.fields._id.inverted_index.proximity: 0 }
+  - gt: { testindex.shards.0.stats.fields._id.stored_fields: 0 }
+  - match: { testindex.shards.0.stats.fields._id.doc_values: 0 }
+  - match: { testindex.shards.0.stats.fields._id.points: 0 }
+  - match: { testindex.shards.0.stats.fields._id.norms: 0 }
+  - match: { testindex.shards.0.stats.fields._id.term_vectors: 0 }
+  - match: { testindex.shards.0.stats.fields._id.inverted_index.term_frequencies: 0 }
+  - match: { testindex.shards.0.stats.fields._id.inverted_index.positions: 0 }
+  - match: { testindex.shards.0.stats.fields._id.inverted_index.offsets: 0 }
+  - match: { testindex.shards.0.stats.fields._id.inverted_index.payloads: 0 }
 
   - do:
       termvectors:
@@ -185,8 +179,7 @@ setup:
       indices.field_usage_stats: { index: testindex }
 
   # name
-  - set: { testindex.shards.0.stats.fields.name: stat }
-  - gt: { $stat.term_vectors: 0 }
+  - gt: { testindex.shards.0.stats.fields.name.term_vectors: 0 }
 
   - do:
       search:
@@ -200,8 +193,7 @@ setup:
       indices.field_usage_stats: { index: testindex }
 
   # name
-  - set: { testindex.shards.0.stats.fields.name: stat }
-  - gt: { $stat.norms: 0 }
+  - gt: { testindex.shards.0.stats.fields.name.norms: 0 }
 
   - do:
       search:
@@ -213,5 +205,4 @@ setup:
       indices.field_usage_stats: { index: testindex }
 
   # name
-  - set: { testindex.shards.0.stats.fields.name: stat }
-  - gt: { $stat.inverted_index.offsets: 0 }
+  - gt: { testindex.shards.0.stats.fields.name.inverted_index.offsets: 0 }

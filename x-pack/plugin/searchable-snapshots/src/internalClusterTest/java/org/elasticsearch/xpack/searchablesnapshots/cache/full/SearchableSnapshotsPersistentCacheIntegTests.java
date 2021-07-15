@@ -199,6 +199,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
 
         assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
         assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
+        waitForRelocation();
 
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(mountedIndexName).get();
         assertTrue(recoveryResponse.shardRecoveryStates().containsKey(mountedIndexName));

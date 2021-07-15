@@ -300,6 +300,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             if (randomBoolean()) {
                 logger.info("--> closing index [{}]", restoredIndexName);
                 final Request closeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_close");
+                closeRequest.addParameter("wait_for_active_shards", "all");
                 assertOK(client().performRequest(closeRequest));
             }
 

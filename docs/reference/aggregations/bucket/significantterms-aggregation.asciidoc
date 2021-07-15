@@ -476,6 +476,7 @@ not contain the counts of the foreground set as they are filtered out.
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 ===== Percentage
 A simple calculation of the number of documents in the foreground sample with a term divided by the number of documents in the background with the term.

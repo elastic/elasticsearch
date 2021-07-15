@@ -1579,3 +1579,8 @@ include::redirects.asciidoc[tag=frozen-index-redirect]
 === Glossary
 
 See the {glossary}/terms.html[Elastic glossary].
+
+[role="exclude",id="indices-field-usage-stats"]
+=== Field usage stats API
+
+See <<field-usage-stats>>.

@@ -18,7 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.FrozenEngine;
+import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin {
 
@@ -82,10 +82,15 @@ public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin 
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         return Collections.singletonList(new RestFreezeIndexAction());
     }
 }

@@ -989,7 +989,7 @@ public class MetadataTests extends ESTestCase {
                 .numberOfReplicas(1)
                 .build(), false)
             .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(idx.getIndex())));
+                org.elasticsearch.core.List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(),
@@ -1005,7 +1005,7 @@ public class MetadataTests extends ESTestCase {
         Metadata.Builder b = Metadata.builder()
             .put(idx, false)
             .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(idx.getIndex())));
+                org.elasticsearch.core.List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(),
@@ -1024,7 +1024,7 @@ public class MetadataTests extends ESTestCase {
                 .put(idx, false)
                 .put(new DataStream(
                     dataStreamName,
-                    createTimestampField("@timestamp"), org.elasticsearch.common.collect.List.of(idx.getIndex()))
+                    createTimestampField("@timestamp"), org.elasticsearch.core.List.of(idx.getIndex()))
                 );
         b.build();
         assertWarnings("aliases [" + conflictingName + "] cannot refer to backing indices of data streams");
@@ -1233,7 +1233,7 @@ public class MetadataTests extends ESTestCase {
             }
         }
         DataStreamMetadata dataStreamMetadata =
-            new DataStreamMetadata(org.elasticsearch.common.collect.Map.of(dataStreamName, dataStream), Collections.emptyMap());
+            new DataStreamMetadata(org.elasticsearch.core.Map.of(dataStreamName, dataStream), Collections.emptyMap());
 
         // prefixed indices with a lower generation than the data stream's generation are allowed even if the non-prefixed, matching the
         // data stream backing indices naming pattern, indices are already in the system

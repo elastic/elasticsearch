@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.OS
-
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.internal-es-plugin'
@@ -29,10 +27,5 @@ dependencies {
         exclude group: 'javax.xml.bind', module: 'jaxb-api'
     }
     // for encrypted GCS repository integ tests
-    internalClusterTestRuntimeOnly 'com.google.guava:guava:26.0-jre'
-}
-
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/73539
-tasks.named("internalClusterTest").configure {
-  onlyIf { OS.current() != OS.WINDOWS }
+    internalClusterTestRuntimeOnly 'com.google.guava:guava:30.1.1-jre'
 }

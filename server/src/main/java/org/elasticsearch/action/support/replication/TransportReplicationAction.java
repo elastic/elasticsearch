@@ -34,16 +34,16 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -61,6 +61,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -1098,7 +1099,8 @@ public abstract class TransportReplicationAction<
     }
 
     /** a wrapper class to encapsulate a request when being sent to a specific allocation id **/
-    public static class ConcreteShardRequest<R extends TransportRequest> extends TransportRequest {
+    public static class ConcreteShardRequest<R extends TransportRequest> extends TransportRequest
+        implements RawIndexingDataTransportRequest {
 
         /** {@link AllocationId#getId()} of the shard this request is sent to **/
         private final String targetAllocationID;
@@ -1187,6 +1189,14 @@ public abstract class TransportReplicationAction<
 
         public long getPrimaryTerm() {
             return primaryTerm;
+        }
+
+        @Override
+        public boolean isRawIndexingData() {
+            if (request instanceof RawIndexingDataTransportRequest) {
+                return ((RawIndexingDataTransportRequest) request).isRawIndexingData();
+            }
+            return false;
         }
 
         @Override

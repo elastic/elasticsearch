@@ -60,19 +60,19 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))
                 )
             );
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                GeoPointScriptFieldType ft = build("fromLatLon", org.elasticsearch.common.collect.Map.of());
+                GeoPointScriptFieldType ft = build("fromLatLon", org.elasticsearch.core.Map.of());
                 GeoPointScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -99,7 +99,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                         };
                     }
                 });
-                assertThat(results, equalTo(org.elasticsearch.common.collect.List.of(new GeoPoint(45.0, 45.0), new GeoPoint(0.0, 0.0))));
+                assertThat(results, equalTo(org.elasticsearch.core.List.of(new GeoPoint(45.0, 45.0), new GeoPoint(0.0, 0.0))));
             }
         }
     }
@@ -115,12 +115,12 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))
                 )
             );
@@ -135,7 +135,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
                     @Override
                     public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(org.elasticsearch.common.collect.Map.of(), searchContext.lookup(), ctx) {
+                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchContext.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.GeoPoints points = (ScriptDocValues.GeoPoints) getDoc().get("test");
@@ -152,12 +152,12 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))
                 )
             );
@@ -200,7 +200,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     public void testTermsQuery() {
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of("0.0,0.0", "45.0,45.0"), mockContext())
+            () -> simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of("0.0,0.0", "45.0,45.0"), mockContext())
         );
 
         assertThat(
@@ -256,6 +256,6 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     }
 
     private static GeoPointScriptFieldType build(Script script) {
-        return new GeoPointScriptFieldType("test", factory(script), script, emptyMap(), (builder, params) -> builder);
+        return new GeoPointScriptFieldType("test", factory(script), script, emptyMap());
     }
 }

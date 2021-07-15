@@ -8,9 +8,10 @@
 package org.elasticsearch.client.ml.job.config;
 
 import org.elasticsearch.client.common.TimeUtil;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -24,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * This class represents a configured and created Job. The creation time is set
@@ -59,6 +61,8 @@ public class Job implements ToXContentObject {
     public static final ParseField RESULTS_INDEX_NAME = new ParseField("results_index_name");
     public static final ParseField DELETING = new ParseField("deleting");
     public static final ParseField ALLOW_LAZY_OPEN = new ParseField("allow_lazy_open");
+    public static final ParseField BLOCKED = new ParseField("blocked");
+    public static final ParseField DATAFEED_CONFIG = new ParseField("datafeed_config");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("job_details", true, Builder::new);
 
@@ -90,6 +94,8 @@ public class Job implements ToXContentObject {
         PARSER.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
         PARSER.declareBoolean(Builder::setDeleting, DELETING);
         PARSER.declareBoolean(Builder::setAllowLazyOpen, ALLOW_LAZY_OPEN);
+        PARSER.declareObject(Builder::setBlocked, Blocked.PARSER, BLOCKED);
+        PARSER.declareObject(Builder::setDatafeed, DatafeedConfig.PARSER, DATAFEED_CONFIG);
     }
 
     private final String jobId;
@@ -113,6 +119,8 @@ public class Job implements ToXContentObject {
     private final String resultsIndexName;
     private final Boolean deleting;
     private final Boolean allowLazyOpen;
+    private final Blocked blocked;
+    private final DatafeedConfig datafeedConfig;
 
     private Job(String jobId, String jobType, List<String> groups, String description,
                 Date createTime, Date finishedTime,
@@ -120,7 +128,7 @@ public class Job implements ToXContentObject {
                 ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                 Long modelSnapshotRetentionDays, Long dailyModelSnapshotRetentionAfterDays, Long resultsRetentionDays,
                 Map<String, Object> customSettings, String modelSnapshotId, String resultsIndexName, Boolean deleting,
-                Boolean allowLazyOpen) {
+                Boolean allowLazyOpen, Blocked blocked, DatafeedConfig datafeedConfig) {
 
         this.jobId = jobId;
         this.jobType = jobType;
@@ -142,6 +150,8 @@ public class Job implements ToXContentObject {
         this.resultsIndexName = resultsIndexName;
         this.deleting = deleting;
         this.allowLazyOpen = allowLazyOpen;
+        this.blocked = blocked;
+        this.datafeedConfig = datafeedConfig;
     }
 
     /**
@@ -278,6 +288,18 @@ public class Job implements ToXContentObject {
         return allowLazyOpen;
     }
 
+    public Blocked getBlocked() {
+        return blocked;
+    }
+
+    /**
+     * The currently configured datafeed for the job
+     * @return Optional of the datafeed config. Will be none if a datafeed is not configured for this job
+     */
+    public Optional<DatafeedConfig> getDatafeedConfig() {
+        return Optional.ofNullable(datafeedConfig);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -339,6 +361,12 @@ public class Job implements ToXContentObject {
         if (allowLazyOpen != null) {
             builder.field(ALLOW_LAZY_OPEN.getPreferredName(), allowLazyOpen);
         }
+        if (blocked != null) {
+            builder.field(BLOCKED.getPreferredName(), blocked);
+        }
+        if (datafeedConfig != null) {
+            builder.field(DATAFEED_CONFIG.getPreferredName(), datafeedConfig, params);
+        }
         builder.endObject();
         return builder;
     }
@@ -373,7 +401,9 @@ public class Job implements ToXContentObject {
             && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
             && Objects.equals(this.resultsIndexName, that.resultsIndexName)
             && Objects.equals(this.deleting, that.deleting)
-            && Objects.equals(this.allowLazyOpen, that.allowLazyOpen);
+            && Objects.equals(this.allowLazyOpen, that.allowLazyOpen)
+            && Objects.equals(this.blocked, that.blocked)
+            && Objects.equals(this.datafeedConfig, that.datafeedConfig);
     }
 
     @Override
@@ -381,7 +411,7 @@ public class Job implements ToXContentObject {
         return Objects.hash(jobId, jobType, groups, description, createTime, finishedTime,
             analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
             backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-            customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen);
+            customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen, blocked, datafeedConfig);
     }
 
     @Override
@@ -415,6 +445,8 @@ public class Job implements ToXContentObject {
         private String resultsIndexName;
         private Boolean deleting;
         private Boolean allowLazyOpen;
+        private Blocked blocked;
+        private DatafeedConfig.Builder datafeedConfig;
 
         private Builder() {
         }
@@ -444,6 +476,8 @@ public class Job implements ToXContentObject {
             this.resultsIndexName = job.getResultsIndexNameNoPrefix();
             this.deleting = job.getDeleting();
             this.allowLazyOpen = job.getAllowLazyOpen();
+            this.blocked = job.getBlocked();
+            this.datafeedConfig = job.getDatafeedConfig().isPresent() ? new DatafeedConfig.Builder(job.datafeedConfig) : null;
         }
 
         public Builder setId(String id) {
@@ -550,6 +584,16 @@ public class Job implements ToXContentObject {
             return this;
         }
 
+        Builder setBlocked(Blocked blocked) {
+            this.blocked = blocked;
+            return this;
+        }
+
+        public Builder setDatafeed(DatafeedConfig.Builder datafeed) {
+            this.datafeedConfig = datafeed;
+            return this;
+        }
+
         /**
          * Builds a job.
          *
@@ -562,7 +606,8 @@ public class Job implements ToXContentObject {
                 id, jobType, groups, description, createTime, finishedTime,
                 analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-                customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen);
+                customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen, blocked,
+                datafeedConfig == null ? null : datafeedConfig.build());
         }
     }
 }

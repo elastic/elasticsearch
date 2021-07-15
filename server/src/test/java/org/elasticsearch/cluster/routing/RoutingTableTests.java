@@ -398,7 +398,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     public void testRemoveReplicasInRightOrder() {
-        final List<ShardRoutingState> rightRemoveOrder = org.elasticsearch.common.collect.List.of(UNASSIGNED, INITIALIZING, STARTED);
+        final List<ShardRoutingState> rightRemoveOrder = org.elasticsearch.core.List.of(UNASSIGNED, INITIALIZING, STARTED);
         Index index = new Index("index", "uuid");
         ShardId shardId = new ShardId(index, 0);
         List<ShardRouting> shards = new ArrayList<>();

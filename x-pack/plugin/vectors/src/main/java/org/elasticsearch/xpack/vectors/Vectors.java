@@ -11,7 +11,6 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.vectors.mapper.SparseVectorFieldMapper;
 
@@ -27,9 +26,7 @@ public class Vectors extends Plugin implements MapperPlugin {
     public Vectors() { }
 
     public Collection<Module> createGuiceModules() {
-        return Collections.singletonList(b -> {
-            XPackPlugin.bindFeatureSet(b, VectorsFeatureSet.class);
-        });
+        return Collections.emptyList();
     }
 
     @Override

@@ -10,16 +10,14 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RetryableActionTests extends ESTestCase {
@@ -29,8 +27,7 @@ public class RetryableActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
-        taskQueue = new DeterministicTaskQueue(settings, random());
+        taskQueue = new DeterministicTaskQueue();
     }
 
     public void testRetryableActionNoRetries() {

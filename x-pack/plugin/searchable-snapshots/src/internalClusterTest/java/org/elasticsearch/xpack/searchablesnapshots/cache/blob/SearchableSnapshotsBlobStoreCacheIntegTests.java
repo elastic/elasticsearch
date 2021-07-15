@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotR
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
 import org.elasticsearch.xpack.searchablesnapshots.BaseFrozenSearchableSnapshotsIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
@@ -60,7 +60,7 @@ import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.pageAligned;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -368,16 +368,16 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
         @Override
         public List<Setting<?>> getSettings() {
-            return org.elasticsearch.common.collect.List.of(ENABLED);
+            return org.elasticsearch.core.List.of(ENABLED);
         }
 
         @Override
         public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
             if (ENABLED.get(settings) == false) {
-                return org.elasticsearch.common.collect.List.of();
+                return org.elasticsearch.core.List.of();
             }
             final String name = "wait_for_snapshot_blob_cache_shards_active";
-            return org.elasticsearch.common.collect.List.of(new AllocationDecider() {
+            return org.elasticsearch.core.List.of(new AllocationDecider() {
 
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -387,7 +387,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
                     final IndexMetadata indexMetadata = allocation.metadata().index(shardRouting.index());
-                    if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexMetadata.getSettings()) == false) {
+                    if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings()) == false) {
                         return allocation.decision(Decision.YES, name, "index is not a searchable snapshot shard - can allocate");
                     }
                     if (allocation.metadata().hasIndex(SNAPSHOT_BLOB_CACHE_INDEX) == false) {

@@ -20,7 +20,7 @@ import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -30,7 +30,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -684,7 +684,7 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         String dateAsString = context.parser().textOrNull();
 
         long timestamp;
@@ -709,7 +709,7 @@ public final class DateFieldMapper extends FieldMapper {
         indexValue(context, timestamp);
     }
 
-    private void indexValue(ParseContext context, long timestamp) {
+    private void indexValue(DocumentParserContext context, long timestamp) {
         if (indexed) {
             context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }
@@ -724,8 +724,9 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
-        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, v -> indexValue(parseContext, v));
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
+        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, v -> indexValue(documentParserContext, v));
     }
 
     public boolean getIgnoreMalformed() {

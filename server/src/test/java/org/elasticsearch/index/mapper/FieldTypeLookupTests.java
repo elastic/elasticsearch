@@ -8,7 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.collect.List;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.index.mapper.TypeFieldMapper.TypeFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -65,7 +66,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldAliasMapper alias2 = new FieldAliasMapper("barometer", "barometer", "bar");
 
         TestRuntimeField runtimeField = new TestRuntimeField("baz", "type");
-        TestRuntimeField multi = new TestRuntimeField("flat", "multi",
+        TestRuntimeField multi = new TestRuntimeField("flat",
             List.of(new TestRuntimeField.TestRuntimeFieldType("flat.first", "first"),
                 new TestRuntimeField.TestRuntimeFieldType("flat.second", "second")));
 
@@ -129,8 +130,8 @@ public class FieldTypeLookupTests extends ESTestCase {
 
         FieldTypeLookup lookup = new FieldTypeLookup("_doc", Arrays.asList(field, otherField), emptyList(), emptyList());
 
-        assertEquals(org.elasticsearch.common.collect.Set.of("other_field", "field"), lookup.sourcePaths("field"));
-        assertEquals(org.elasticsearch.common.collect.Set.of("other_field", "field"), lookup.sourcePaths("field.subfield1"));
+        assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field"));
+        assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field.subfield1"));
     }
 
     public void testTypeLookup() {
@@ -145,7 +146,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper concrete = new MockFieldMapper("concrete");
         TestRuntimeField runtimeLong = new TestRuntimeField("multi.outside", "date");
         TestRuntimeField runtime = new TestRuntimeField("string", "type");
-        TestRuntimeField multi = new TestRuntimeField("multi", "multi", List.of(
+        TestRuntimeField multi = new TestRuntimeField("multi", List.of(
             new TestRuntimeField.TestRuntimeFieldType("multi.string", "string"),
             new TestRuntimeField.TestRuntimeFieldType("multi.long", "long")));
 
@@ -169,7 +170,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper subfield = new MockFieldMapper("object.subfield");
         MockFieldMapper concrete = new MockFieldMapper("concrete");
         TestRuntimeField fieldOverride = new TestRuntimeField("field", "string");
-        TestRuntimeField subfieldOverride = new TestRuntimeField("object", "multi",
+        TestRuntimeField subfieldOverride = new TestRuntimeField("object",
             Collections.singleton(new TestRuntimeField.TestRuntimeFieldType("object.subfield", "leaf")));
         TestRuntimeField runtime = new TestRuntimeField("runtime", "type");
         TestRuntimeField flattenedRuntime = new TestRuntimeField("flattened.runtime", "type");
@@ -331,7 +332,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             assertEquals(iae.getMessage(), "Found two runtime fields with same name [field]");
         }
         {
-            TestRuntimeField multi = new TestRuntimeField("multi", "multi",
+            TestRuntimeField multi = new TestRuntimeField("multi",
                 Collections.singleton(new TestRuntimeField.TestRuntimeFieldType("multi.first", "leaf")));
             TestRuntimeField runtime = new TestRuntimeField("multi.first", "runtime");
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new FieldTypeLookup(
@@ -339,7 +340,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             assertEquals(iae.getMessage(), "Found two runtime fields with same name [multi.first]");
         }
         {
-            TestRuntimeField multi = new TestRuntimeField("multi", "multi",
+            TestRuntimeField multi = new TestRuntimeField("multi",
                 List.of(new TestRuntimeField.TestRuntimeFieldType("multi", "leaf"),
                     new TestRuntimeField.TestRuntimeFieldType("multi", "leaf")));
 
@@ -351,7 +352,7 @@ public class FieldTypeLookupTests extends ESTestCase {
 
     public void testRuntimeFieldNameOutsideContext() {
         {
-            TestRuntimeField multi = new TestRuntimeField("multi", "multi",
+            TestRuntimeField multi = new TestRuntimeField("multi",
                 List.of(new TestRuntimeField.TestRuntimeFieldType("first", "leaf"),
                     new TestRuntimeField.TestRuntimeFieldType("second", "leaf"),
                     new TestRuntimeField.TestRuntimeFieldType("multi.third", "leaf")));
@@ -361,7 +362,7 @@ public class FieldTypeLookupTests extends ESTestCase {
                 ise.getMessage());
         }
         {
-            TestRuntimeField multi = new TestRuntimeField("multi", "multi",
+            TestRuntimeField multi = new TestRuntimeField("multi",
                 List.of(new TestRuntimeField.TestRuntimeFieldType("multi.", "leaf"),
                     new TestRuntimeField.TestRuntimeFieldType("multi.f", "leaf")));
             IllegalStateException ise = expectThrows(IllegalStateException.class, () -> new FieldTypeLookup(

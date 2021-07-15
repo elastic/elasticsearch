@@ -341,7 +341,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -982,8 +982,8 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public GetSnapshotsRequestBuilder prepareGetSnapshots(String repository) {
-            return new GetSnapshotsRequestBuilder(this, GetSnapshotsAction.INSTANCE, repository);
+        public GetSnapshotsRequestBuilder prepareGetSnapshots(String... repositories) {
+            return new GetSnapshotsRequestBuilder(this, GetSnapshotsAction.INSTANCE, repositories);
         }
 
 

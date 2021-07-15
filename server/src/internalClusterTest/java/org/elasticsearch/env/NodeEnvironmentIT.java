@@ -10,9 +10,9 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.collect.Set;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Set;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.indices.IndicesService;

@@ -33,14 +33,13 @@ import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
@@ -59,12 +58,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.Is.is;
 
@@ -88,7 +85,7 @@ import static org.hamcrest.core.Is.is;
  *       - sync config for continuous mode
  *       - page size 10 to trigger paging
  *       - count field to test how many buckets
- *       - max run field to check what was the hight run field, see below for more details
+ *       - max run field to check what was the highest run field, see below for more details
  *       - a test ingest pipeline
  *    - execute 10 rounds ("run"):
  *      - set run = #round
@@ -155,7 +152,6 @@ public class TransformContinuousIT extends ESRestTestCase {
         deletePipeline(ContinuousTestCase.INGEST_PIPELINE);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67887")
     public void testContinousEvents() throws Exception {
         String sourceIndexName = ContinuousTestCase.CONTINUOUS_EVENTS_SOURCE_INDEX;
         DecimalFormat numberFormat = new DecimalFormat("000", new DecimalFormatSymbols(Locale.ROOT));
@@ -229,7 +225,7 @@ public class TransformContinuousIT extends ESRestTestCase {
                 Integer metric = metric_bucket.get((numDoc + randomIntBetween(0, 50)) % 50);
                 if (metric != null) {
                     // randomize, but ensure it falls into the same bucket
-                    int randomizedMetric = metric + randomIntBetween(0, 99);
+                    int randomizedMetric = run * ContinuousTestCase.METRIC_TREND + metric + randomIntBetween(0, 99);
                     source.append("\"metric\":").append(randomizedMetric).append(",");
                 }
 
@@ -485,6 +481,7 @@ public class TransformContinuousIT extends ESRestTestCase {
                 .isAcknowledged()
         );
 
+
     }
 
     private GetTransformStatsResponse getTransformStats(String id) throws IOException {
@@ -514,7 +511,7 @@ public class TransformContinuousIT extends ESRestTestCase {
                     stats.getCheckpointingInfo().getLastSearchTime(),
                     greaterThan(waitUntil)
                 );
-            }, 20, TimeUnit.SECONDS);
+            }, 30, TimeUnit.SECONDS);
         }
     }
 
@@ -549,6 +546,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.transform().putTransform(new PutTransformRequest(config), RequestOptions.DEFAULT);
 
+
         }
     }
 
@@ -563,6 +561,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.ingest().deletePipeline(new DeletePipelineRequest(id), RequestOptions.DEFAULT);
 
+
         }
     }
 
@@ -575,6 +574,7 @@ public class TransformContinuousIT extends ESRestTestCase {
     private StartTransformResponse startTransform(String id) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.transform().startTransform(new StartTransformRequest(id), RequestOptions.DEFAULT);
+
 
         }
     }

@@ -14,7 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -284,7 +284,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             bucketCountThresholds.getShardSize(),
             showTermDocCountError,
             otherDocCount,
-            org.elasticsearch.common.collect.List.of(topBuckets),
+            org.elasticsearch.core.List.of(topBuckets),
             0,
             formats,
             keyConverters,

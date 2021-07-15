@@ -79,18 +79,18 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
     public void testMergeObjectAndNested() throws Exception {
         DocumentMapper objectMapper = createDocumentMapper(mapping(b -> b.startObject("obj").field("type", "object").endObject()));
-        DocumentMapper nestedMapper = createDocumentMapper(mapping(b -> b.startObject("obj").field("type", "nested").endObject()));
+        DocumentMapper nestedMapper = createDocumentMapper((mapping(b -> b.startObject("obj").field("type", "nested").endObject())));
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
 
         {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> MapperService.mergeMappings(objectMapper, nestedMapper.mapping(), reason));
-            assertThat(e.getMessage(), containsString("can't merge a nested mapping [obj] with a non-nested mapping"));
+            assertThat(e.getMessage(), containsString("cannot change object mapping from non-nested to nested"));
         }
         {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> MapperService.mergeMappings(nestedMapper, objectMapper.mapping(), reason));
-            assertThat(e.getMessage(), containsString("can't merge a non nested mapping [obj] with a nested mapping"));
+            assertThat(e.getMessage(), containsString("cannot change object mapping from nested to non-nested"));
         }
     }
 
@@ -249,9 +249,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Map<String, Object> expected = org.elasticsearch.common.collect.Map.of(
+        Map<String, Object> expected = org.elasticsearch.core.Map.of(
             "field", "value",
-            "object", org.elasticsearch.common.collect.Map.of("field1", "value1", "field2", "value2"));
+            "object", org.elasticsearch.core.Map.of("field1", "value1", "field2", "value2"));
         assertThat(initMapper.mapping().getMeta(), equalTo(expected));
 
         DocumentMapper updatedMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
@@ -273,9 +273,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         }));
         merged = merged.merge(updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE);
 
-        expected = org.elasticsearch.common.collect.Map.of(
+        expected = org.elasticsearch.core.Map.of(
             "field", "value",
-            "object", org.elasticsearch.common.collect.Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
+            "object", org.elasticsearch.core.Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
         assertThat(merged.getMeta(), equalTo(expected));
     }
 

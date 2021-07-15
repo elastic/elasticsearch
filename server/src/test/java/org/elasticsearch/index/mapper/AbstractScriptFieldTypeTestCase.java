@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.function.BiConsumer;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -107,7 +108,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             b.field("copy_to", "target");
         });
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping [_doc]: runtime field [field] does not support [copy_to]", exception.getMessage());
+        assertThat(exception.getMessage(), containsString("unknown parameter [copy_to] on runtime field"));
     }
 
     public void testMultiFieldsIsNotSupported() throws IOException {
@@ -116,7 +117,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             b.startObject("fields").startObject("test").field("type", "keyword").endObject().endObject();
         });
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping [_doc]: runtime field [field] does not support [fields]", exception.getMessage());
+        assertThat(exception.getMessage(), containsString("unknown parameter [fields] on runtime field"));
     }
 
     public void testStoredScriptsAreNotSupported() throws Exception {

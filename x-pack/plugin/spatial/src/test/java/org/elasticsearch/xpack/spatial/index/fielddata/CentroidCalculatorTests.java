@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.elasticsearch.common.collect.List;
+import org.elasticsearch.core.List;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;

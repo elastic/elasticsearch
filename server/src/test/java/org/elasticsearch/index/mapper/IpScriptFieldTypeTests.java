@@ -62,17 +62,17 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0\"]}")))
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0\"]}")))
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.2\", \"192.168.1\"]}"))
                 )
             );
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                IpScriptFieldType ft = build("append_param", org.elasticsearch.common.collect.Map.of("param", ".1"));
+                IpScriptFieldType ft = build("append_param", org.elasticsearch.core.Map.of("param", ".1"));
                 BinaryScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 DocValueFormat format = ft.docValueFormat(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
@@ -99,7 +99,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
                         };
                     }
                 });
-                assertThat(results, equalTo(org.elasticsearch.common.collect.List.of("192.168.0.1", "192.168.1.1", "192.168.2.1")));
+                assertThat(results, equalTo(org.elasticsearch.core.List.of("192.168.0.1", "192.168.1.1", "192.168.2.1")));
             }
         }
     }
@@ -108,13 +108,13 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     public void testSort() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}")))
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}")))
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.4\"]}")))
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.4\"]}")))
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.2\"]}")))
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.2\"]}")))
             );
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
@@ -141,13 +141,13 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}")))
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}")))
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.4\"]}")))
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.4\"]}")))
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.2\"]}")))
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.2\"]}")))
             );
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
@@ -160,7 +160,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
 
                     @Override
                     public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(org.elasticsearch.common.collect.Map.of(), searchContext.lookup(), ctx) {
+                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchContext.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 IpScriptFieldData.IpScriptDocValues bytes = (IpScriptFieldData.IpScriptDocValues) getDoc().get("test");
@@ -177,9 +177,9 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}")))
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}")))
             );
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(1));
@@ -191,12 +191,12 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}")))
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}")))
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0.1\"]}")))
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0.1\"]}")))
             );
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"1.1.1.1\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"1.1.1.1\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
@@ -218,15 +218,15 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0\"]}")))
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0\"]}")))
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.1\"]}")))
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.1\"]}")))
             );
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                IpScriptFieldType fieldType = build("append_param", org.elasticsearch.common.collect.Map.of("param", ".1"));
+                IpScriptFieldType fieldType = build("append_param", org.elasticsearch.core.Map.of("param", ".1"));
                 assertThat(searcher.count(fieldType.termQuery("192.168.0.1", mockContext())), equalTo(1));
                 assertThat(searcher.count(fieldType.termQuery("192.168.0.7", mockContext())), equalTo(0));
                 assertThat(searcher.count(fieldType.termQuery("192.168.0.0/16", mockContext())), equalTo(2));
@@ -244,21 +244,21 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     public void testTermsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}")))
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}")))
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.1.1\"]}")))
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.1.1\"]}")))
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0.1\"]}")))
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0.1\"]}")))
             );
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"1.1.1.1\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"1.1.1.1\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
                     searcher.count(
                         simpleMappedFieldType().termsQuery(
-                            org.elasticsearch.common.collect.List.of("192.168.0.1", "1.1.1.1"),
+                            org.elasticsearch.core.List.of("192.168.0.1", "1.1.1.1"),
                             mockContext()
                         )
                     ),
@@ -267,7 +267,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
                 assertThat(
                     searcher.count(
                         simpleMappedFieldType().termsQuery(
-                            org.elasticsearch.common.collect.List.of("192.168.0.0/16", "1.1.1.1"),
+                            org.elasticsearch.core.List.of("192.168.0.0/16", "1.1.1.1"),
                             mockContext()
                         )
                     ),
@@ -333,6 +333,6 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     }
 
     private static IpScriptFieldType build(Script script) {
-        return new IpScriptFieldType("test", factory(script), script, emptyMap(), (builder, params) -> builder);
+        return new IpScriptFieldType("test", factory(script), script, emptyMap());
     }
 }

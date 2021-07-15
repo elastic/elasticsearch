@@ -23,6 +23,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
@@ -190,10 +191,10 @@ public class ShardLimitValidatorTests extends ESTestCase {
         DiscoveryNode mock = mock(DiscoveryNode.class);
         if (ShardLimitValidator.FROZEN_GROUP.equals(group)) {
             when(mock.getRoles()).thenReturn(randomBoolean() ? DiscoveryNodeRole.BUILT_IN_ROLES :
-                org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE));
+                Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE));
         } else {
             when(mock.getRoles()).thenReturn(randomBoolean() ? DiscoveryNodeRole.BUILT_IN_ROLES :
-                org.elasticsearch.common.collect.Set.of(randomFrom(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
+                Set.of(randomFrom(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
                     DiscoveryNodeRole.DATA_WARM_NODE_ROLE, DiscoveryNodeRole.DATA_COLD_NODE_ROLE)));
         }
         return mock;

@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
@@ -42,16 +42,16 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -121,14 +121,14 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        final Map<String, String> ccrMetadata = followerIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+        final Map<String, String> ccrMetadata = followerIndexMetadata.getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY);
         if (ccrMetadata == null) {
             throw new IllegalArgumentException("follow index ["+ request.getFollowerIndex() + "] does not have ccr metadata");
         }
-        final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
+        final String leaderCluster = ccrMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
         // Validates whether the leader cluster has been configured properly:
         client.getRemoteClusterClient(leaderCluster);
-        final String leaderIndex = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
+        final String leaderIndex = ccrMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
             client,
             leaderCluster,
@@ -183,12 +183,12 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         final MapperService followerMapperService) {
         FollowParameters parameters = request.getParameters();
 
-        Map<String, String> ccrIndexMetadata = followIndex.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+        Map<String, String> ccrIndexMetadata = followIndex.getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY);
         if (ccrIndexMetadata == null) {
             throw new IllegalArgumentException("follow index ["+ followIndex.getIndex().getName() + "] does not have ccr metadata");
         }
         String leaderIndexUUID = leaderIndex.getIndex().getUUID();
-        String recordedLeaderIndexUUID = ccrIndexMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+        String recordedLeaderIndexUUID = ccrIndexMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
         if (leaderIndexUUID.equals(recordedLeaderIndexUUID) == false) {
             throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] should reference [" +
                 leaderIndexUUID + "] as leader index but instead reference [" + recordedLeaderIndexUUID + "] as leader index");
@@ -209,7 +209,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
                 "] does not have soft deletes enabled");
         }
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(leaderIndex.getSettings())) {
+        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndex.getSettings())) {
             throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
                 "] is a searchable snapshot index and cannot be used for cross-cluster replication purpose");
         }
@@ -217,7 +217,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() +
                 "] does not have soft deletes enabled");
         }
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(followIndex.getSettings())) {
+        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(followIndex.getSettings())) {
             throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() +
                 "] is a searchable snapshot index and cannot be used for cross-cluster replication purpose");
         }
@@ -352,7 +352,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
     }
 
     static String[] extractLeaderShardHistoryUUIDs(Map<String, String> ccrIndexMetadata) {
-        String historyUUIDs = ccrIndexMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS);
+        String historyUUIDs = ccrIndexMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS);
         if (historyUUIDs == null) {
             throw new IllegalArgumentException("leader index shard UUIDs are missing");
         }

@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -68,5 +70,11 @@ public class GeoShapeWithDocValuesQueryBuilderTests extends AbstractQueryTestCas
         MappedFieldType fieldType = context.getFieldType("test");
         boolean IndexOrDocValuesQuery = fieldType.hasDocValues();
         assertThat(IndexOrDocValuesQuery, equalTo(geoShapeQuery instanceof IndexOrDocValuesQuery));
+    }
+
+    @Override
+    protected Map<String, String> getObjectsHoldingArbitraryContent() {
+        // shape field can accept any element but expects a type
+        return Collections.singletonMap("shape", "Required [type]");
     }
 }

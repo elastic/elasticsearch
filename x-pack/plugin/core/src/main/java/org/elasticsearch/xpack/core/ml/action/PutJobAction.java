@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -35,9 +36,9 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         super(NAME, Response::new);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<Request> {
 
-        public static Request parseRequest(String jobId, XContentParser parser) {
+        public static Request parseRequest(String jobId, XContentParser parser, IndicesOptions indicesOptions) {
             Job.Builder jobBuilder = Job.STRICT_PARSER.apply(parser, null);
             if (jobBuilder.getId() == null) {
                 jobBuilder.setId(jobId);
@@ -46,7 +47,7 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(),
                         jobBuilder.getId(), jobId));
             }
-
+            jobBuilder.setDatafeedIndicesOptionsIfRequired(indicesOptions);
             return new Request(jobBuilder);
         }
 
@@ -94,12 +95,6 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            jobBuilder.toXContent(builder, params);
-            return builder;
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -110,11 +105,6 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         @Override
         public int hashCode() {
             return Objects.hash(jobBuilder);
-        }
-
-        @Override
-        public final String toString() {
-            return Strings.toString(this);
         }
     }
 

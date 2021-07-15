@@ -22,7 +22,7 @@ import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.support.ApiKey;
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.user.privileges.Role;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -33,8 +33,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase {
     private RestHighLevelClient highLevelAdminClient;

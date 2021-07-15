@@ -10,6 +10,7 @@ package org.elasticsearch.packaging.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.DockerRun;
 import org.elasticsearch.packaging.util.Installation;
@@ -27,7 +28,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -93,10 +93,7 @@ public class DockerTests extends PackagingTestCase {
 
     @Before
     public void setupTest() throws IOException {
-        installation = runContainer(
-            distribution(),
-            builder().envVars(Collections.singletonMap("ingest.geoip.downloader.enabled", "false"))
-        );
+        installation = runContainer(distribution(), builder().envVars(singletonMap("ingest.geoip.downloader.enabled", "false")));
         tempDir = createTempDir(DockerTests.class.getSimpleName());
     }
 
@@ -110,7 +107,7 @@ public class DockerTests extends PackagingTestCase {
      * Checks that the Docker image can be run, and that it passes various checks.
      */
     public void test010Install() {
-        verifyContainerInstallation(installation, distribution());
+        verifyContainerInstallation(installation);
     }
 
     /**
@@ -487,6 +484,50 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that settings are applied when they are supplied as environment variables with names that are:
+     * <ul>
+     *     <li>Prefixed with {@code ES_}</li>
+     *     <li>All uppercase</li>
+     *     <li>Dots (periods) are converted to underscores</li>
+     *     <li>Underscores in setting names are escaped by doubling them</li>
+     * </ul>
+     */
+    public void test086EnvironmentVariablesInSnakeCaseAreTranslated() {
+        // Note the double-underscore in the var name here, which retains the underscore in translation
+        installation = runContainer(distribution(), builder().envVars(singletonMap("ES_XPACK_SECURITY_FIPS__MODE_ENABLED", "false")));
+
+        final Optional<String> commandLine = Arrays.stream(sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.split("\n"))
+            .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
+            .findFirst();
+
+        assertThat(commandLine.isPresent(), equalTo(true));
+
+        assertThat(commandLine.get(), containsString("-Expack.security.fips_mode.enabled=false"));
+    }
+
+    /**
+     * Check that environment variables that do not match the criteria for translation to settings are ignored.
+     */
+    public void test087EnvironmentVariablesInIncorrectFormatAreIgnored() {
+        final Map<String, String> envVars = new HashMap<>();
+        // No ES_ prefix
+        envVars.put("XPACK_SECURITY_FIPS__MODE_ENABLED", "false");
+        // Not underscore-separated
+        envVars.put("ES.XPACK.SECURITY.FIPS_MODE.ENABLED", "false");
+        // Not uppercase
+        envVars.put("es_xpack_security_fips__mode_enabled", "false");
+        installation = runContainer(distribution(), builder().envVars(envVars));
+
+        final Optional<String> commandLine = Arrays.stream(sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.split("\n"))
+            .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
+            .findFirst();
+
+        assertThat(commandLine.isPresent(), equalTo(true));
+
+        assertThat(commandLine.get(), not(containsString("-Expack.security.fips_mode.enabled=false")));
+    }
+
+    /**
      * Check whether the elasticsearch-certutil tool has been shipped correctly,
      * and if present then it can execute.
      */
@@ -772,7 +813,7 @@ public class DockerTests extends PackagingTestCase {
         Files.write(jvmOptionsPath, jvmOptions);
 
         // Now run the container, being explicit about the available memory
-        runContainer(distribution(), builder().memory("942m").volumes(Collections.singletonMap(jvmOptionsPath, containerJvmOptionsPath)));
+        runContainer(distribution(), builder().memory("942m").volumes(singletonMap(jvmOptionsPath, containerJvmOptionsPath)));
         waitForElasticsearch(installation);
 
         // Grab the container output and find the line where it print the JVM arguments. This will

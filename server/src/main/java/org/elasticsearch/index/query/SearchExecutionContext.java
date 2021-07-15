@@ -19,7 +19,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
@@ -44,7 +44,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RuntimeField;
@@ -313,7 +313,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mappingLookup.hasMappings();
     }
 
-    public List<NestedObjectMapper> nestedMappings() {
+    public List<ObjectMapper> nestedMappings() {
         return mappingLookup.getNestedMappers();
     }
 
@@ -398,7 +398,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 "[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
             type = "keyword";
         }
-        Mapper.TypeParser.ParserContext parserContext = mapperService.parserContext();
+        MappingParserContext parserContext = mapperService.parserContext();
         Mapper.TypeParser typeParser = parserContext.typeParser(type);
         if (typeParser == null) {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");

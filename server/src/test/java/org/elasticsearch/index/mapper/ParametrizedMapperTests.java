@@ -44,7 +44,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     public static class TestPlugin extends Plugin implements MapperPlugin {
         @Override
         public Map<String, Mapper.TypeParser> getMappers() {
-            return org.elasticsearch.common.collect.Map.of("test_mapper", new TypeParser());
+            return org.elasticsearch.core.Map.of("test_mapper", new TypeParser());
         }
     }
 
@@ -137,7 +137,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder parse(String name,
+                                    Map<String, Object> node,
+                                    MappingParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             builder.parse(name, parserContext, node);
             return builder;
@@ -178,7 +180,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) {
+        protected void parseCreateField(DocumentParserContext context) {
 
         }
 
@@ -191,13 +193,13 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     private static TestMapper fromMapping(String mapping, Version version, boolean fromDynamicTemplate) {
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
-            org.elasticsearch.common.collect.Map.of(
+            org.elasticsearch.core.Map.of(
                 "_standard", Lucene.STANDARD_ANALYZER,
                 "_keyword", Lucene.KEYWORD_ANALYZER,
                 "default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Collections.emptyMap(), Collections.emptyMap());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        Mapper.TypeParser.ParserContext pc = new Mapper.TypeParser.ParserContext(s -> null, s -> {
+        MappingParserContext pc = new MappingParserContext(s -> null, s -> {
             if (Objects.equals("keyword", s)) {
                 return KeywordFieldMapper.PARSER;
             }
@@ -210,7 +212,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             throw new UnsupportedOperationException();
         });
         if (fromDynamicTemplate) {
-            pc = pc.createDynamicTemplateFieldContext(pc);
+            pc = new MappingParserContext.DynamicTemplateParserContext(pc);
         }
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)

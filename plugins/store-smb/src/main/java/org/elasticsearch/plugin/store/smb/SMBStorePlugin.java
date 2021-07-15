@@ -8,8 +8,8 @@
 
 package org.elasticsearch.plugin.store.smb;
 
-import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsDirectoryFactory;
-import org.elasticsearch.index.store.smbsimplefs.SmbSimpleFsDirectoryFactory;
+import org.elasticsearch.index.store.smb.SmbMmapFsDirectoryFactory;
+import org.elasticsearch.index.store.smb.SmbNIOFSDirectoryFactory;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 
@@ -23,7 +23,8 @@ public class SMBStorePlugin extends Plugin implements IndexStorePlugin {
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         final Map<String, DirectoryFactory> indexStoreFactories = new HashMap<>(2);
         indexStoreFactories.put("smb_mmap_fs", new SmbMmapFsDirectoryFactory());
-        indexStoreFactories.put("smb_simple_fs", new SmbSimpleFsDirectoryFactory());
+        indexStoreFactories.put("smb_simple_fs", new SmbNIOFSDirectoryFactory());
+        indexStoreFactories.put("smb_nio_fs", new SmbNIOFSDirectoryFactory());
         return Collections.unmodifiableMap(indexStoreFactories);
     }
 

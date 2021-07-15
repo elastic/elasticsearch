@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -26,7 +28,7 @@ public class RestPutJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             Route.builder(PUT, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}")
                 .replaces(PUT, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}", RestApiVersion.V_7).build()
         );
@@ -41,7 +43,8 @@ public class RestPutJobAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
-        PutJobAction.Request putJobRequest = PutJobAction.Request.parseRequest(jobId, parser);
+        IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        PutJobAction.Request putJobRequest = PutJobAction.Request.parseRequest(jobId, parser, indicesOptions);
         putJobRequest.timeout(restRequest.paramAsTime("timeout", putJobRequest.timeout()));
         putJobRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", putJobRequest.masterNodeTimeout()));
 

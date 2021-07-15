@@ -15,6 +15,7 @@ import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.SearchSlowLog;
@@ -22,7 +23,6 @@ import org.elasticsearch.index.SlowLogLevel;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,7 +50,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "Index created before 7.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
                 "breaking-changes-8.0.html",
-            "This index was created using version: " + createdWith);
+            "This index was created using version: " + createdWith, null);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
         assertEquals(singletonList(expected), issues);
     }
@@ -106,7 +106,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "This index has [" + fieldCount + "] fields, which exceeds the automatic field expansion limit of 1024 " +
                 "and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING.getKey() + "] set, which may cause queries which use " +
                 "automatic field expansion, such as query_string, simple_query_string, and multi_match to fail if fields are not " +
-                "explicitly specified in the query.");
+                "explicitly specified in the query.", null);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(tooManyFieldsIndex));
         assertEquals(singletonList(expected), issues);
 
@@ -164,7 +164,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "Multi-fields within multi-fields",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
                 "#_defining_multi_fields_within_multi_fields",
-            "The names of fields that contain chained multi-fields: [[type: _doc, field: invalid-field]]");
+            "The names of fields that contain chained multi-fields: [[type: _doc, field: invalid-field]]", null);
         assertEquals(singletonList(expected), issues);
     }
 
@@ -217,7 +217,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "suggestion: 'C' century of era is no longer supported." +
                 "; "+
                 "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.]"+
-                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
+                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, null);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertThat(issues, hasItem(expected));
     }
@@ -239,7 +239,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "This index has date fields with deprecated formats: ["+
                 "[type: _doc, field: date_time_field_Y, format: dd-YYYY||MM-YYYY, " +
                 "suggestion: 'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.]"+
-                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
+                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, null);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertThat(issues, hasItem(expected));
     }
@@ -261,7 +261,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "This index has date fields with deprecated formats: ["+
                 "[type: _doc, field: date_time_field_Y, format: strictWeekyearWeek||MM-YYYY, " +
                 "suggestion: 'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.]"+
-                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
+                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, null);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertThat(issues, hasItem(expected));
     }
@@ -315,7 +315,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "[type: _doc, field: date_time_field_z, format: HH:mmz, " +
                 "suggestion: 'z' time zone text. Will print 'Z' for Zulu given UTC timezone." +
                 "]"+
-                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
+                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, null);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertThat(issues, hasItem(expected));
     }
@@ -342,7 +342,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "'C' century of era is no longer supported.; " +
                 "'x' weak-year should be replaced with 'Y'. Use 'x' for zone-offset." +
                 "]"+
-                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
+                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, null);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertThat(issues, hasItem(expected));
     }
@@ -404,7 +404,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "translog retention settings are ignored",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",
                 "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored " +
-                    "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)")
+                    "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)", null)
         ));
     }
 
@@ -457,8 +457,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "setting [index.data_path] is deprecated and will be removed in a future version",
                 expectedUrl,
-                "Found index data path configured. Discontinue use of this setting."
-        )));
+                "Found index data path configured. Discontinue use of this setting.",
+                null)));
     }
 
     public void testSlowLogLevel() {
@@ -473,12 +473,27 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "setting [index.search.slowlog.level] is deprecated and will be removed in a future version",
                 expectedUrl,
-                "Found [index.search.slowlog.level] configured. Discontinue use of this setting. Use thresholds."
+                "Found [index.search.slowlog.level] configured. Discontinue use of this setting. Use thresholds.", null
             ),
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "setting [index.indexing.slowlog.level] is deprecated and will be removed in a future version",
                 expectedUrl,
-                "Found [index.indexing.slowlog.level] configured. Discontinue use of this setting. Use thresholds."
+                "Found [index.indexing.slowlog.level] configured. Discontinue use of this setting. Use thresholds.", null
             )));
+    }
+
+    public void testSimpleFSSetting() {
+        Settings.Builder settings = settings(Version.CURRENT);
+        settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "simplefs");
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        assertThat(issues, contains(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "[simplefs] is deprecated and will be removed in future versions",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-store.html",
+                "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
+                    "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
+                    "as it offers superior or equivalent performance to [simplefs].", null)
+        ));
     }
 }

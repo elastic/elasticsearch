@@ -9,8 +9,8 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.collect.Map;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 

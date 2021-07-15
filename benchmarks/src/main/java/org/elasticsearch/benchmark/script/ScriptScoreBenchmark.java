@@ -24,9 +24,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -74,14 +75,14 @@ public class ScriptScoreBenchmark {
         null,
         null,
         PathUtils.get(System.getProperty("plugins.dir")),
-        org.elasticsearch.common.collect.List.of()
+        List.of()
     );
     private final ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, pluginsService.filterPlugins(ScriptPlugin.class));
 
-    private final Map<String, MappedFieldType> fieldTypes = org.elasticsearch.common.collect.Map.ofEntries(
-        org.elasticsearch.common.collect.Map.entry(
+    private final Map<String, MappedFieldType> fieldTypes = org.elasticsearch.core.Map.ofEntries(
+        org.elasticsearch.core.Map.entry(
             "n",
-            new NumberFieldType("n", NumberType.LONG, false, false, true, true, null, org.elasticsearch.common.collect.Map.of(), null)
+            new NumberFieldType("n", NumberType.LONG, false, false, true, true, null, org.elasticsearch.core.Map.of(), null)
         )
     );
     private final IndexFieldDataCache fieldDataCache = new IndexFieldDataCache.None();
@@ -106,7 +107,7 @@ public class ScriptScoreBenchmark {
         switch (script) {
             case "expression":
                 factory = scriptModule.engines.get("expression")
-                    .compile("test", "doc['n'].value", ScoreScript.CONTEXT, org.elasticsearch.common.collect.Map.of());
+                    .compile("test", "doc['n'].value", ScoreScript.CONTEXT, org.elasticsearch.core.Map.of());
                 break;
             case "metal":
                 factory = bareMetalScript();
@@ -117,12 +118,12 @@ public class ScriptScoreBenchmark {
                         "test",
                         "((org.elasticsearch.index.fielddata.ScriptDocValues.Longs)doc['n']).value",
                         ScoreScript.CONTEXT,
-                        org.elasticsearch.common.collect.Map.of()
+                        org.elasticsearch.core.Map.of()
                     );
                 break;
             case "painless_def":
                 factory = scriptModule.engines.get("painless")
-                    .compile("test", "doc['n'].value", ScoreScript.CONTEXT, org.elasticsearch.common.collect.Map.of());
+                    .compile("test", "doc['n'].value", ScoreScript.CONTEXT, org.elasticsearch.core.Map.of());
                 break;
             default:
                 throw new IllegalArgumentException("Don't know how to implement script [" + script + "]");
@@ -141,7 +142,7 @@ public class ScriptScoreBenchmark {
             )
         ) {
             for (int i = 1; i <= 1_000_000; i++) {
-                w.addDocument(org.elasticsearch.common.collect.List.of(new SortedNumericDocValuesField("n", i)));
+                w.addDocument(List.of(new SortedNumericDocValuesField("n", i)));
             }
             w.commit();
         }
@@ -158,7 +159,7 @@ public class ScriptScoreBenchmark {
     }
 
     private Query scriptScoreQuery(ScoreScript.Factory factory) {
-        ScoreScript.LeafFactory leafFactory = factory.newFactory(org.elasticsearch.common.collect.Map.of(), lookup);
+        ScoreScript.LeafFactory leafFactory = factory.newFactory(org.elasticsearch.core.Map.of(), lookup);
         return new ScriptScoreQuery(new MatchAllDocsQuery(), null, leafFactory, null, "test", 0, Version.CURRENT);
     }
 

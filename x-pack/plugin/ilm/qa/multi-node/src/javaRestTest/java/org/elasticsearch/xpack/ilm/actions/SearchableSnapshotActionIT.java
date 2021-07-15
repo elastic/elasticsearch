@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -159,7 +159,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         // create policy with cold and delete phases
         Map<String, LifecycleAction> coldActions =
-            org.elasticsearch.common.collect.Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
+            org.elasticsearch.core.Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
         phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(10000), singletonMap(DeleteAction.NAME,
@@ -198,8 +198,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
                     responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                 }
-                List<Map<String, Object>> snapshots = (List<Map<String, Object>>) responseMap.get("snapshots");
-                return snapshots.size() == 0;
+                Object snapshots = responseMap.get("snapshots");
+                return ((List<Map<String, Object>>) snapshots).size() == 0;
             } catch (Exception e) {
                 logger.error(e.getMessage(), e);
                 return false;
@@ -209,12 +209,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
     public void testCreateInvalidPolicy() {
         ResponseException exception = expectThrows(ResponseException.class, () -> createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(RolloverAction.NAME,
+            new Phase("hot", TimeValue.ZERO, org.elasticsearch.core.Map.of(RolloverAction.NAME,
                 new RolloverAction(null, null, null, 1L), SearchableSnapshotAction.NAME,
                 new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10)))),
-            new Phase("warm", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(ForceMergeAction.NAME,
+            new Phase("warm", TimeValue.ZERO, org.elasticsearch.core.Map.of(ForceMergeAction.NAME,
                 new ForceMergeAction(1, null))),
-            new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(FreezeAction.NAME, new FreezeAction())),
+            new Phase("cold", TimeValue.ZERO, org.elasticsearch.core.Map.of(FreezeAction.NAME, new FreezeAction())),
             null, null
             )
         );
@@ -226,9 +226,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
     public void testUpdatePolicyToAddPhasesYieldsInvalidActionsToBeSkipped() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(RolloverAction.NAME,
+            new Phase("hot", TimeValue.ZERO, org.elasticsearch.core.Map.of(RolloverAction.NAME,
                 new RolloverAction(null, null, null, 1L), SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
-            new Phase("warm", TimeValue.timeValueDays(30), org.elasticsearch.common.collect.Map.of(SetPriorityAction.NAME,
+            new Phase("warm", TimeValue.timeValueDays(30), org.elasticsearch.core.Map.of(SetPriorityAction.NAME,
                 new SetPriorityAction(999))),
             null, null, null
         );
@@ -261,12 +261,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
 
         createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(SetPriorityAction.NAME, new SetPriorityAction(10))),
+            new Phase("hot", TimeValue.ZERO, org.elasticsearch.core.Map.of(SetPriorityAction.NAME, new SetPriorityAction(10))),
             new Phase("warm", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1, null), ForceMergeAction.NAME,
+                org.elasticsearch.core.Map.of(ShrinkAction.NAME, new ShrinkAction(1, null), ForceMergeAction.NAME,
                     new ForceMergeAction(1, null))
             ),
-            new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(SearchableSnapshotAction.NAME,
+            new Phase("cold", TimeValue.ZERO, org.elasticsearch.core.Map.of(SearchableSnapshotAction.NAME,
                 new SearchableSnapshotAction(snapshotRepo))),
             null, null
         );
@@ -284,9 +284,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // let's create a data stream, rollover it and convert the first generation backing index into a searchable snapshot
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(RolloverAction.NAME,
+            new Phase("hot", TimeValue.ZERO, org.elasticsearch.core.Map.of(RolloverAction.NAME,
                 new RolloverAction(null, null, null, 1L), SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
-            new Phase("warm", TimeValue.timeValueDays(30), org.elasticsearch.common.collect.Map.of(SetPriorityAction.NAME,
+            new Phase("warm", TimeValue.timeValueDays(30), org.elasticsearch.core.Map.of(SetPriorityAction.NAME,
                 new SetPriorityAction(999))),
             null, null, null
         );
@@ -331,12 +331,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("DELETE", "/_data_stream/" + dataStream)));
 
         createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of()),
+            new Phase("hot", TimeValue.ZERO, org.elasticsearch.core.Map.of()),
             new Phase("warm", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1, null), ForceMergeAction.NAME,
+                org.elasticsearch.core.Map.of(ShrinkAction.NAME, new ShrinkAction(1, null), ForceMergeAction.NAME,
                     new ForceMergeAction(1, null))
             ),
-            new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(FreezeAction.NAME, new FreezeAction())),
+            new Phase("cold", TimeValue.ZERO, org.elasticsearch.core.Map.of(FreezeAction.NAME, new FreezeAction())),
             null, null
         );
 
@@ -400,7 +400,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
         assertThat("expected to have only one snapshot, but got: " + responseMap,
-            ((List<Object>) responseMap.get("snapshots")).size(), equalTo(1));
+            ((List<Map<String, Object>>) responseMap.get("snapshots")).size(), equalTo(1));
 
         Request hitCount = new Request("GET", "/" + searchableSnapMountedIndexName + "/_count");
         Map<String, Object> count = entityAsMap(client().performRequest(hitCount));
@@ -448,11 +448,16 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
         assertThat("expected to have only one snapshot, but got: " + responseMap,
-            ((List<Object>) responseMap.get("snapshots")).size(), equalTo(1));
+            ((List<Map<String, Object>>) responseMap.get("snapshots")).size(), equalTo(1));
 
         Request hitCount = new Request("GET", "/" + searchableSnapMountedIndexName + "/_count");
         Map<String, Object> count = entityAsMap(client().performRequest(hitCount));
         assertThat("expected a single document but got: " + count, (int) count.get("count"), equalTo(1));
+
+        assertBusy(() -> assertTrue(
+            "Expecting the mounted index to be deleted and to be converted to an alias",
+            aliasExists(searchableSnapMountedIndexName, SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index))
+        );
     }
 
     public void testSecondSearchableSnapshotUsingDifferentRepoThrows() throws Exception {
@@ -475,7 +480,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
     public void testSearchableSnapshotsInHotPhasePinnedToHotNodes() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(RolloverAction.NAME,
+            new Phase("hot", TimeValue.ZERO, org.elasticsearch.core.Map.of(RolloverAction.NAME,
                 new RolloverAction(null, null, null, 1L),
                 SearchableSnapshotAction.NAME, new SearchableSnapshotAction(
                     snapshotRepo, randomBoolean()))

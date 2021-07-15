@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.tasks.TaskId;
@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.Inse
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardNotEquals;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
+
+import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -41,7 +43,7 @@ public final class EqlTestUtils {
 
     public static final EqlConfiguration TEST_CFG = new EqlConfiguration(new String[] {"none"},
             org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, emptyMap(), null,
-            TimeValue.timeValueSeconds(30), null, 123, "", new TaskId("test", 123), null);
+            TimeValue.timeValueSeconds(30), null, 123, "", new TaskId("test", 123), null, x -> Collections.emptySet());
 
     public static EqlConfiguration randomConfiguration() {
         return new EqlConfiguration(new String[]{randomAlphaOfLength(16)},
@@ -56,7 +58,8 @@ public final class EqlTestUtils {
             randomIntBetween(1, 1000),
             randomAlphaOfLength(16),
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
-            randomTask());
+            randomTask(),
+            x -> Collections.emptySet());
     }
 
     public static EqlSearchTask randomTask() {

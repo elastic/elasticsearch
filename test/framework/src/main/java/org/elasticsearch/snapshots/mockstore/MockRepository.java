@@ -24,11 +24,13 @@ import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -39,6 +41,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -51,6 +54,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -80,6 +84,11 @@ public class MockRepository extends FsRepository {
             return Arrays.asList(USERNAME_SETTING, PASSWORD_SETTING);
         }
     }
+
+    /**
+     * Setting name for a setting that can be updated dynamically to test {@link #canUpdateInPlace(Settings, Set)}.
+     */
+    public static final String DUMMY_UPDATABLE_SETTING_NAME = "dummy_setting";
 
     private final AtomicLong failureCounter = new AtomicLong();
 
@@ -160,6 +169,12 @@ public class MockRepository extends FsRepository {
     @Override
     public RepositoryMetadata getMetadata() {
         return overrideSettings(super.getMetadata(), env);
+    }
+
+    @Override
+    public boolean canUpdateInPlace(Settings updatedSettings, Set<String> ignoredSettings) {
+        // allow updating dummy setting for test purposes
+        return super.canUpdateInPlace(updatedSettings, Sets.union(ignoredSettings, Collections.singleton(DUMMY_UPDATABLE_SETTING_NAME)));
     }
 
     private static RepositoryMetadata overrideSettings(RepositoryMetadata metadata, Environment environment) {
@@ -475,11 +490,7 @@ public class MockRepository extends FsRepository {
             @Override
             public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
                 throws IOException {
-                maybeIOExceptionOrBlock(blobName);
-                if (blockOnWriteShardLevelMeta && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
-                        && path().equals(basePath()) == false) {
-                    blockExecutionAndMaybeWait(blobName);
-                }
+                beforeWrite(blobName);
                 super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
@@ -489,19 +500,35 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
+            public void writeBlob(String blobName,
+                                  boolean failIfAlreadyExists,
+                                  boolean atomic,
+                                  CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+                if (atomic) {
+                    beforeAtomicWrite(blobName);
+                } else {
+                    beforeWrite(blobName);
+                }
+                super.writeBlob(blobName, failIfAlreadyExists, atomic, writer);
+                if (RandomizedContext.current().getRandom().nextBoolean()) {
+                    // for network based repositories, the blob may have been written but we may still
+                    // get an error with the client connection, so an IOException here simulates this
+                    maybeIOExceptionOrBlock(blobName);
+                }
+            }
+
+            private void beforeWrite(String blobName) throws IOException {
+                maybeIOExceptionOrBlock(blobName);
+                if (blockOnWriteShardLevelMeta && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
+                        && path().equals(basePath()) == false) {
+                    blockExecutionAndMaybeWait(blobName);
+                }
+            }
+
+            @Override
             public void writeBlobAtomic(final String blobName, final BytesReference bytes,
                                         final boolean failIfAlreadyExists) throws IOException {
-                final Random random = RandomizedContext.current().getRandom();
-                if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
-                    throw new IOException("Random IOException");
-                }
-                if (blobName.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)) {
-                    if (blockAndFailOnWriteIndexFile) {
-                        blockExecutionAndFail(blobName);
-                    } else if (blockOnWriteIndexFile) {
-                        blockExecutionAndMaybeWait(blobName);
-                    }
-                }
+                final Random random = beforeAtomicWrite(blobName);
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer
                     final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
@@ -515,6 +542,21 @@ public class MockRepository extends FsRepository {
                     maybeIOExceptionOrBlock(blobName);
                     super.writeBlobAtomic(blobName, bytes, failIfAlreadyExists);
                 }
+            }
+
+            private Random beforeAtomicWrite(String blobName) throws IOException {
+                final Random random = RandomizedContext.current().getRandom();
+                if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
+                    throw new IOException("Random IOException");
+                }
+                if (blobName.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)) {
+                    if (blockAndFailOnWriteIndexFile) {
+                        blockExecutionAndFail(blobName);
+                    } else if (blockOnWriteIndexFile) {
+                        blockExecutionAndMaybeWait(blobName);
+                    }
+                }
+                return random;
             }
         }
     }

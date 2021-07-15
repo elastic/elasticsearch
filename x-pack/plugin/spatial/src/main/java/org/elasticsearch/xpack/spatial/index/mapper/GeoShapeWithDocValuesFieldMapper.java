@@ -16,9 +16,10 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoShapeUtils;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
@@ -33,7 +34,7 @@ import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -44,6 +45,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -137,7 +139,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         public GeoShapeWithDocValuesFieldType(String name, boolean indexed, boolean hasDocValues,
                                               Orientation orientation, GeoShapeParser parser, Map<String, String> meta) {
-            super(name, indexed, false, hasDocValues, false, parser, orientation, meta);
+            super(name, indexed, false, hasDocValues, parser, orientation, meta);
         }
 
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
@@ -167,6 +169,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 query =  new IndexOrDocValuesQuery(query, queryDocValues);
             }
             return query;
+        }
+
+        @Override
+        protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
+            return GeometryFormatterFactory.getFormatter(format, Function.identity());
         }
     }
 
@@ -206,7 +213,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     }
 
     @Override
-    protected void index(ParseContext context, Geometry geometry) throws IOException {
+    protected void index(DocumentParserContext context, Geometry geometry) throws IOException {
         if (geometry == null) {
             return;
         }

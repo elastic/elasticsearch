@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -190,7 +190,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
                 SystemIndexAccessLevel.NONE, null, systemIndices);
         assertThat(result.size(), equalTo(0));
         assertWarnings("this request accesses aliases with names reserved for system indices: [.y], but in a future major version, direct" +
-            "access to system indices and their aliases will not be allowed");
+            " access to system indices and their aliases will not be allowed");
     }
 
     public void testPostProcessDataStreamAliases() {

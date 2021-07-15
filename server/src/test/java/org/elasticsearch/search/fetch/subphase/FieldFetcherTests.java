@@ -47,7 +47,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endObject()
         .endObject();
 
-        List<FieldAndFormat> fieldAndFormats = org.elasticsearch.common.collect.List.of(
+        List<FieldAndFormat> fieldAndFormats = org.elasticsearch.core.List.of(
             new FieldAndFormat("field", null),
             new FieldAndFormat("object.field", null));
         Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormats);
@@ -79,7 +79,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         DocumentField rangeField = fields.get("float_range");
         assertNotNull(rangeField);
         assertThat(rangeField.getValues().size(), equalTo(1));
-        assertThat(rangeField.getValue(), equalTo(org.elasticsearch.common.collect.Map.of("gte", 0.0f, "lte", 2.718f)));
+        assertThat(rangeField.getValue(), equalTo(org.elasticsearch.core.Map.of("gte", 0.0f, "lte", 2.718f)));
     }
 
     public void testMixedObjectValues() throws IOException {
@@ -303,7 +303,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .field("date_field", "1990-12-29T00:00:00.000Z")
         .endObject();
 
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, org.elasticsearch.common.collect.List.of(
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, org.elasticsearch.core.List.of(
             new FieldAndFormat("field", null),
             new FieldAndFormat("date_field", "yyyy/MM/dd")));
         assertThat(fields.size(), equalTo(2));

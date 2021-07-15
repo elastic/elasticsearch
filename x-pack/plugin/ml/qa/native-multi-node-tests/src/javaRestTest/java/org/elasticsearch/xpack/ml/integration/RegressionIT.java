@@ -70,9 +70,9 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     // one of the feature is the average of the other features as it may
     // result in empty feature importance and we want to assert it gets
     // written out correctly.
-    private static final List<Double> NUMERICAL_FEATURE_VALUES = org.elasticsearch.common.collect.List.of(5.0, 2.0, 3.0);
-    private static final List<Long> DISCRETE_NUMERICAL_FEATURE_VALUES = org.elasticsearch.common.collect.List.of(50L, 20L, 30L);
-    private static final List<Double> DEPENDENT_VARIABLE_VALUES = org.elasticsearch.common.collect.List.of(500.0, 200.0, 300.0);
+    private static final List<Double> NUMERICAL_FEATURE_VALUES = org.elasticsearch.core.List.of(5.0, 2.0, 3.0);
+    private static final List<Long> DISCRETE_NUMERICAL_FEATURE_VALUES = org.elasticsearch.core.List.of(50L, 20L, 30L);
+    private static final List<Double> DEPENDENT_VARIABLE_VALUES = org.elasticsearch.core.List.of(500.0, 200.0, 300.0);
 
     private String jobId;
     private String sourceIndex;

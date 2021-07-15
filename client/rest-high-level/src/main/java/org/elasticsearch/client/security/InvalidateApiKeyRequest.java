@@ -9,7 +9,7 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -60,7 +60,7 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
         }
         this.realmName = realmName;
         this.userName = userName;
-        this.ids = apiKeyIds == null ? null : org.elasticsearch.common.collect.List.copyOf(apiKeyIds);
+        this.ids = apiKeyIds == null ? null : org.elasticsearch.core.List.copyOf(apiKeyIds);
         this.name = apiKeyName;
         this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
     }
@@ -206,6 +206,6 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
     }
 
     static List<String> apiKeyIdToIds(@Nullable String apiKeyId) {
-        return Strings.hasText(apiKeyId) ? org.elasticsearch.common.collect.List.of(apiKeyId) : null;
+        return Strings.hasText(apiKeyId) ? org.elasticsearch.core.List.of(apiKeyId) : null;
     }
 }

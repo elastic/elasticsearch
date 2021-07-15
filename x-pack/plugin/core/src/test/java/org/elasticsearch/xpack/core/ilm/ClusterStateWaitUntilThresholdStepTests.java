@@ -11,7 +11,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
@@ -81,7 +82,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                         .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true")
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "480h")
                 )
-                .putCustom(ILM_CUSTOM_METADATA_KEY, org.elasticsearch.common.collect.Map
+                .putCustom(ILM_CUSTOM_METADATA_KEY, Map
                     .of("step_time", String.valueOf(System.currentTimeMillis())))
                 .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
                 .numberOfShards(1)
@@ -107,7 +108,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                         .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "false")
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "48h")
                 )
-                .putCustom(ILM_CUSTOM_METADATA_KEY, org.elasticsearch.common.collect.Map
+                .putCustom(ILM_CUSTOM_METADATA_KEY, Map
                     .of("step_time", String.valueOf(System.currentTimeMillis())))
                 .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
                 .numberOfShards(1)
@@ -139,7 +140,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1s")
                 )
                 .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
-                .putCustom(ILM_CUSTOM_METADATA_KEY, org.elasticsearch.common.collect.Map.of("step_time", String.valueOf(1234L)))
+                .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(1234L)))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build();
@@ -168,7 +169,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1h")
                 )
                 .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
-                .putCustom(ILM_CUSTOM_METADATA_KEY, org.elasticsearch.common.collect.Map.of("step_time", String.valueOf(1234L)))
+                .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(1234L)))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build();

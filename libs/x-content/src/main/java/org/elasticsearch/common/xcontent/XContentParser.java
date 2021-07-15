@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -110,6 +110,8 @@ public interface XContentParser extends Closeable {
     }
 
     XContentType contentType();
+
+    void allowDuplicateKeys(boolean allowDuplicateKeys);
 
     Token nextToken() throws IOException;
 

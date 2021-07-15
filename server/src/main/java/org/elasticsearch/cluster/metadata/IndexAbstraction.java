@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 
 import java.util.Collections;
@@ -17,7 +17,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
-import static org.elasticsearch.common.collect.List.copyOf;
+import static org.elasticsearch.core.List.copyOf;
 
 /**
  * An index abstraction is a reference to one or more concrete indices.

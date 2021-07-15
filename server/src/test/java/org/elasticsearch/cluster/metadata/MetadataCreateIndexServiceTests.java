@@ -35,11 +35,12 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
@@ -787,7 +788,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         assertThat(
             expectThrows(IllegalStateException.class,
-                () -> clusterStateCreateIndex(currentClusterState, org.elasticsearch.common.collect.Set.of(), newIndex,
+                () -> clusterStateCreateIndex(currentClusterState, org.elasticsearch.core.Set.of(), newIndex,
                     (state, reason) -> state, null)).getMessage(),
             startsWith("alias [alias1] has more than one write index [")
         );
@@ -812,7 +813,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         };
 
         ClusterState updatedClusterState = clusterStateCreateIndex(currentClusterState,
-            org.elasticsearch.common.collect.Set.of(INDEX_READ_ONLY_BLOCK), newIndexMetadata, rerouteRoutingTable, null);
+            org.elasticsearch.core.Set.of(INDEX_READ_ONLY_BLOCK), newIndexMetadata, rerouteRoutingTable, null);
         assertThat(updatedClusterState.blocks().getIndexBlockWithId("test", INDEX_READ_ONLY_BLOCK.id()), is(INDEX_READ_ONLY_BLOCK));
         assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
         assertThat(allocationRerouted.get(), is(true));
@@ -841,7 +842,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             builder.put(IndexMetadata.builder(myIndex).putAlias(AliasMetadata.builder(newAlias.getAlias()).build()));
         };
 
-        ClusterState updatedClusterState = clusterStateCreateIndex(currentClusterState, org.elasticsearch.common.collect.Set.of(
+        ClusterState updatedClusterState = clusterStateCreateIndex(currentClusterState, org.elasticsearch.core.Set.of(
             INDEX_READ_ONLY_BLOCK), newIndexMetadata, (clusterState, y) -> clusterState, metadataTransformer);
         assertTrue(updatedClusterState.metadata().findAllAliases(new String[]{"my-index"}).containsKey("my-index"));
         assertNotNull(updatedClusterState.metadata().findAllAliases(new String[]{"my-index"}).get("my-index"));
@@ -983,6 +984,20 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             Collections.emptySet());
         assertWarnings("Translog retention settings [index.translog.retention.age] "
             + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+    }
+
+    public void testDeprecateSimpleFS() {
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder settings = Settings.builder();
+        settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.SIMPLEFS.getSettingsKey());
+
+        request.settings(settings.build());
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
+            Collections.emptySet());
+        assertWarnings("[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
+            "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
+            "as it offers superior or equivalent performance to [simplefs].");
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

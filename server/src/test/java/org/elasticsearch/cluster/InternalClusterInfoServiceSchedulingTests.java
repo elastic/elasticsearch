@@ -16,7 +16,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -53,7 +54,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         }
         final Settings settings = settingsBuilder.build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
 
         final ClusterApplierService clusterApplierService = new ClusterApplierService("test", settings, clusterSettings, threadPool) {
@@ -167,7 +168,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
                 requestCount++;
                 // ClusterInfoService handles ClusterBlockExceptions quietly, so we invent such an exception to avoid excess logging
                 listener.onFailure(new ClusterBlockException(
-                        org.elasticsearch.common.collect.Set.of(NoMasterBlockService.NO_MASTER_BLOCK_ALL)));
+                        Set.of(NoMasterBlockService.NO_MASTER_BLOCK_ALL)));
             } else {
                 fail("unexpected action: " + action.name());
             }

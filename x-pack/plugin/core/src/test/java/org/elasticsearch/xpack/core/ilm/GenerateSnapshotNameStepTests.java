@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 
 import java.util.Locale;
 
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validateGeneratedSnapshotName;
 import static org.hamcrest.Matchers.containsInAnyOrder;

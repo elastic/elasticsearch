@@ -11,9 +11,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Map;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,7 +46,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected Set<String> types() {
-        return org.elasticsearch.common.collect.Set.of(
+        return org.elasticsearch.core.Set.of(
             "date_range",
             "ip_range",
             "float_range",
@@ -58,7 +58,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected Set<String> wholeTypes() {
-        return org.elasticsearch.common.collect.Set.of("integer_range", "long_range");
+        return org.elasticsearch.core.Set.of("integer_range", "long_range");
     }
 
     @Override

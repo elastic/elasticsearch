@@ -325,7 +325,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
 
         XContentParser parser = context.parser();
         Object value;

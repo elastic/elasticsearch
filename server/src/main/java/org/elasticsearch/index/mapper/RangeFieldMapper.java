@@ -14,7 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
@@ -314,7 +314,7 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         Range range;
         XContentParser parser = context.parser();
         final XContentParser.Token start = parser.currentToken();

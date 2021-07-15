@@ -15,14 +15,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeometryIO;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -76,21 +75,6 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     protected ShapeRelation relation = DEFAULT_SHAPE_RELATION;
 
     protected boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
-
-    /**
-     * Creates a new ShapeQueryBuilder whose Query will be against the given
-     * field name using the given Shape
-     *
-     * @param fieldName
-     *            Name of the field that will be queried
-     * @param shape
-     *            Shape used in the Query
-     * @deprecated use {@link #AbstractGeometryQueryBuilder(String, Geometry)} instead
-     */
-    @Deprecated
-    protected AbstractGeometryQueryBuilder(String fieldName, ShapeBuilder shape) {
-        this(fieldName, shape == null ? null : shape.buildGeometry(), null, null);
-    }
 
     /**
      * Creates a new AbstractGeometryQueryBuilder whose Query will be against the given
@@ -396,19 +380,19 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             try {
                 if (response.isExists() == false) {
                     throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type()
-                            + "] not found");
+                        + "] not found");
                 }
                 if (response.isSourceEmpty()) {
                     throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() +
-                            "] source disabled");
+                        "] source disabled");
                 }
                 String[] pathElements = path.split("\\.");
                 int currentPathSlot = 0;
 
                 // It is safe to use EMPTY here because this never uses namedObject
                 try (XContentParser parser = XContentHelper
-                        .createParser(NamedXContentRegistry.EMPTY,
-                                LoggingDeprecationHandler.INSTANCE, response.getSourceAsBytesRef())) {
+                    .createParser(NamedXContentRegistry.EMPTY,
+                        LoggingDeprecationHandler.INSTANCE, response.getSourceAsBytesRef())) {
                     XContentParser.Token currentToken;
                     while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (currentToken == XContentParser.Token.FIELD_NAME) {
@@ -520,7 +504,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     protected abstract static class ParsedGeometryQueryParams {
         public String fieldName;
         public ShapeRelation relation;
-        public ShapeBuilder shape;
+        public Geometry shape;
 
         public String id = null;
         public String type = null;

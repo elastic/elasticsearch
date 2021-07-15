@@ -104,11 +104,6 @@ if (System.getProperty('idea.active') == 'true') {
         taskTriggers {
           afterSync tasks.named('configureIdeCheckstyle'), tasks.named('configureIdeaGradleJvm'), tasks.named('buildDependencyArtifacts')
         }
-        codeStyle {
-          java {
-            classCountToUseImportOnDemand = 999
-          }
-        }
         encodings {
           encoding = 'UTF-8'
         }
@@ -123,7 +118,19 @@ if (System.getProperty('idea.active') == 'true') {
         }
         runConfigurations {
           defaults(JUnit) {
-            vmParameters = '-ea -Djava.locale.providers=SPI,COMPAT'
+            vmParameters = [
+              '-ea',
+              '-Djava.locale.providers=SPI,COMPAT',
+              "--illegal-access=deny",
+              // TODO: only open these for mockito when it is modularized
+              '--add-opens=java.base/java.security.cert=ALL-UNNAMED',
+              '--add-opens=java.base/java.nio.channels=ALL-UNNAMED',
+              '--add-opens=java.base/java.net=ALL-UNNAMED',
+              '--add-opens=java.base/javax.net.ssl=ALL-UNNAMED',
+              '--add-opens=java.base/java.nio.file=ALL-UNNAMED',
+              '--add-opens=java.base/java.time=ALL-UNNAMED',
+              '--add-opens=java.base/java.lang=ALL-UNNAMED'
+            ].join(' ')
           }
         }
         copyright {

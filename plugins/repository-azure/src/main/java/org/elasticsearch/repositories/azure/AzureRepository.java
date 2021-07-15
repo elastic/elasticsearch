@@ -108,7 +108,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return org.elasticsearch.common.collect.Map.of("base_path", Repository.BASE_PATH_SETTING.get(metadata.settings()),
+        return org.elasticsearch.core.Map.of("base_path", Repository.BASE_PATH_SETTING.get(metadata.settings()),
             "container", Repository.CONTAINER_SETTING.get(metadata.settings()));
     }
 
@@ -119,7 +119,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
 
     @Override
     protected AzureBlobStore createBlobStore() {
-        final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService);
+        final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService, bigArrays);
 
         logger.debug(() -> new ParameterizedMessage(
             "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",

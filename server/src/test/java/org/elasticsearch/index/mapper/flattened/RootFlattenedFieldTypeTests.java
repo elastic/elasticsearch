@@ -20,6 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
@@ -128,10 +129,10 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        Map<String, Object> sourceValue = org.elasticsearch.common.collect.Map.of("key", "value");
+        Map<String, Object> sourceValue = org.elasticsearch.core.Map.of("key", "value");
         RootFlattenedFieldType ft = createDefaultFieldType();
 
-        assertEquals(org.elasticsearch.common.collect.List.of(sourceValue), fetchSourceValue(ft, sourceValue));
-        assertEquals(org.elasticsearch.common.collect.List.of(), fetchSourceValue(ft, null));
+        assertEquals(List.of(sourceValue), fetchSourceValue(ft, sourceValue));
+        assertEquals(List.of(), fetchSourceValue(ft, null));
     }
 }

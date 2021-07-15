@@ -34,7 +34,7 @@ public class RestClearPrivilegesCacheAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(POST, "/_security/privilege/{application}/_clear_cache"));
+        return org.elasticsearch.core.List.of(new Route(POST, "/_security/privilege/{application}/_clear_cache"));
     }
 
     @Override

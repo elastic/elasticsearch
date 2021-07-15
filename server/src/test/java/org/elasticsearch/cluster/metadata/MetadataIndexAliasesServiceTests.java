@@ -12,7 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
@@ -508,7 +508,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(Arrays.asList(
             new Tuple<>("logs-foobar", 1), new Tuple<>("metrics-foobar", 1)), emptyList());
 
-        ClusterState result = service.applyAliasActions(state, org.elasticsearch.common.collect.List.of(
+        ClusterState result = service.applyAliasActions(state, org.elasticsearch.core.List.of(
             new AliasAction.AddDataStreamAlias("foobar", "logs-foobar", null),
             new AliasAction.AddDataStreamAlias("foobar", "metrics-foobar", null)
         ));

@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -91,7 +91,7 @@ public class TransportFieldCapabilitiesIndexAction
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesIndexRequest request, ActionListener<FieldCapabilitiesIndexResponse> listener) {
-        new AsyncShardsAction(request, listener).start();
+        new AsyncShardsAction(transportService, clusterService, request, listener).start();
     }
 
     private FieldCapabilitiesIndexResponse shardOperation(final FieldCapabilitiesIndexRequest request) throws IOException {
@@ -140,7 +140,7 @@ public class TransportFieldCapabilitiesIndexAction
                         if (searchExecutionContext.getFieldType(parentField) == null) {
                             // no field type, it must be an object field
                             ObjectMapper mapper = searchExecutionContext.getObjectMapper(parentField);
-                            String type = mapper.isNested() ? "nested" : "object";
+                            String type = mapper.nested().isNested() ? "nested" : "object";
                             IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
                                 false, false, false, Collections.emptyMap());
                             responseMap.put(parentField, fieldCap);
@@ -163,11 +163,11 @@ public class TransportFieldCapabilitiesIndexAction
         return SearchService.queryStillMatchesAfterRewrite(searchRequest, searchExecutionContext);
     }
 
-    private ClusterBlockException checkGlobalBlock(ClusterState state) {
+    private static ClusterBlockException checkGlobalBlock(ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
     }
 
-    private ClusterBlockException checkRequestBlock(ClusterState state, String concreteIndex) {
+    private static ClusterBlockException checkRequestBlock(ClusterState state, String concreteIndex) {
         return state.blocks().indexBlockedException(ClusterBlockLevel.READ, concreteIndex);
     }
 
@@ -176,16 +176,21 @@ public class TransportFieldCapabilitiesIndexAction
      * {@link FieldCapabilitiesIndexRequest#indexFilter()}. In which case the shard is used
      * to create the final {@link FieldCapabilitiesIndexResponse}.
      */
-    class AsyncShardsAction {
+    public static class AsyncShardsAction {
         private final FieldCapabilitiesIndexRequest request;
+        private final TransportService transportService;
         private final DiscoveryNodes nodes;
         private final ActionListener<FieldCapabilitiesIndexResponse> listener;
         private final GroupShardsIterator<ShardIterator> shardsIt;
 
         private volatile int shardIndex = 0;
 
-        private AsyncShardsAction(FieldCapabilitiesIndexRequest request, ActionListener<FieldCapabilitiesIndexResponse> listener) {
+        public AsyncShardsAction(TransportService transportService,
+                                 ClusterService clusterService,
+                                 FieldCapabilitiesIndexRequest request,
+                                 ActionListener<FieldCapabilitiesIndexResponse> listener) {
             this.listener = listener;
+            this.transportService = transportService;
 
             ClusterState clusterState = clusterService.state();
             if (logger.isTraceEnabled()) {

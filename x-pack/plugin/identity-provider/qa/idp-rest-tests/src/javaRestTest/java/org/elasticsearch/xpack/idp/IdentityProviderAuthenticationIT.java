@@ -12,9 +12,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Set;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -31,7 +31,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,7 +47,7 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
     @Before
     public void setupSecurityData() throws IOException {
         setUserPassword("kibana_system", new SecureString("kibana_system".toCharArray()));
-        createApplicationPrivileges("elastic-cloud", org.elasticsearch.common.collect.Map.of(
+        createApplicationPrivileges("elastic-cloud", org.elasticsearch.core.Map.of(
             "deployment_admin", Set.of("sso:admin"),
             "deployment_viewer", Set.of("sso:viewer"))
         );

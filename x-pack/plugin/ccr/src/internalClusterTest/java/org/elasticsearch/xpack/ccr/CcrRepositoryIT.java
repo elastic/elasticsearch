@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAct
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
 import java.io.IOException;
@@ -185,10 +186,10 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         IndexMetadata leaderMetadata = leaderState.getState().metadata().index(leaderIndex);
         IndexMetadata followerMetadata = followerState.getState().metadata().index(followerIndex);
         assertEquals(leaderMetadata.getNumberOfShards(), followerMetadata.getNumberOfShards());
-        Map<String, String> ccrMetadata = followerMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
-        assertEquals(leaderIndex, ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY));
-        assertEquals(leaderMetadata.getIndexUUID(), ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY));
-        assertEquals("leader_cluster", ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY));
+        Map<String, String> ccrMetadata = followerMetadata.getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY);
+        assertEquals(leaderIndex, ccrMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY));
+        assertEquals(leaderMetadata.getIndexUUID(), ccrMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY));
+        assertEquals("leader_cluster", ccrMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY));
         assertEquals(followerIndex, followerMetadata.getSettings().get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
 
         // UUID is changed so that we can follow indexes on same cluster

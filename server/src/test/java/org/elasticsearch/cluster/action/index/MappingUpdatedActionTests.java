@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction.AdjustableSem
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Map;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -143,7 +143,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), clusterService);
         mua.setClient(client);
 
-        RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(new ContentPath());
+        RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name", Version.CURRENT).build(new ContentPath());
         Mapping update = new Mapping(rootObjectMapper, new MetadataFieldMapper[0], Map.of());
 
         mua.sendUpdateMapping(new Index("name", "uuid"), "type", update, ActionListener.wrap(() -> {}));
@@ -168,7 +168,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), clusterService);
         mua.setClient(client);
 
-        RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(new ContentPath());
+        RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name", Version.CURRENT).build(new ContentPath());
         Mapping update = new Mapping(rootObjectMapper, new MetadataFieldMapper[0], Map.of());
 
         mua.sendUpdateMapping(new Index("name", "uuid"), "type", update, ActionListener.wrap(() -> {}));

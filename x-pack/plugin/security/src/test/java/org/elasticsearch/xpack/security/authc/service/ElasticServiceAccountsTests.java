@@ -22,6 +22,8 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
@@ -55,7 +57,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.cluster().check(InvalidateApiKeyAction.NAME,
             InvalidateApiKeyRequest.usingUserName(randomAlphaOfLengthBetween(3, 16)), authentication), is(false));
 
-        org.elasticsearch.common.collect.List.of(
+        List.of(
             "logs-" + randomAlphaOfLengthBetween(1, 20),
             "metrics-" + randomAlphaOfLengthBetween(1, 20),
             "traces-" + randomAlphaOfLengthBetween(1, 20),
@@ -104,7 +106,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(serviceAccount.roleDescriptor(), equalTo(roleDescriptor1));
         assertThat(serviceAccount.asUser(), equalTo(new User(principal, Strings.EMPTY_ARRAY,
             "Service account - " + principal, null,
-            org.elasticsearch.common.collect.Map.of("_elastic_service_account", true),
+            Map.of("_elastic_service_account", true),
             true)));
 
         final NullPointerException e1 =

@@ -83,7 +83,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
-                return lookup -> org.elasticsearch.common.collect.List.of();
+                return lookup -> org.elasticsearch.core.List.of();
             }
             return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
         }
@@ -110,7 +110,7 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value = context.parser().textOrNull();
 
         if (value == null && nullValue == null) {

@@ -67,7 +67,7 @@ public class TypeParsersTests extends ESTestCase {
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(defaultAnalyzers(), Collections.emptyMap(), Collections.emptyMap());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext(null, type -> typeParser, type -> null,
+        MappingParserContext olderContext = new MappingParserContext(null, type -> typeParser, type -> null,
             Version.CURRENT, null, null, ScriptCompiler.NONE, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
             throw new UnsupportedOperationException();
         });

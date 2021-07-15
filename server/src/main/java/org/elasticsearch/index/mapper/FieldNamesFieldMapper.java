@@ -153,12 +153,12 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(ParseContext context) throws IOException {
+    public void postParse(DocumentParserContext context) throws IOException {
         if (context.indexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
             if (fieldType().isEnabled() == false) {
                 return;
             }
-            for (ParseContext.Document document : context.docs()) {
+            for (LuceneDocument document : context.docs()) {
                 final List<String> paths = new ArrayList<>(document.getFields().size());
                 String previousPath = ""; // used as a sentinel - field names can't be empty
                 for (IndexableField field : document.getFields()) {
@@ -188,7 +188,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static boolean noDocValues(String field, ParseContext context) {
+    private static boolean noDocValues(String field, DocumentParserContext context) {
         MappedFieldType ft = context.mappingLookup().getFieldType(field);
         return ft == null || ft.hasDocValues() == false;
     }

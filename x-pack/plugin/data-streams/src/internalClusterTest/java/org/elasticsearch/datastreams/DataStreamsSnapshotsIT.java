@@ -26,10 +26,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.collect.List;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -1001,5 +1001,26 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .getRestoreInfo();
         assertThat(restoreInfo.failedShards(), is(0));
         assertThat(restoreInfo.successfulShards(), is(1));
+    }
+
+    public void testRestoreSnapshotFully() throws Exception {
+        final String snapshotName = "test-snapshot";
+        final String indexName = "test-idx";
+        createIndexWithContent(indexName);
+        createFullSnapshot(REPO, snapshotName);
+
+        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "*" })).get());
+        assertAcked(client.admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.lenientExpandOpenHidden()).get());
+
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, snapshotName)
+            .setWaitForCompletion(true)
+            .get();
+        assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
+
+        GetDataStreamAction.Request getRequest = new GetDataStreamAction.Request(new String[] { "*" });
+        assertThat(client.execute(GetDataStreamAction.INSTANCE, getRequest).get().getDataStreams(), hasSize(2));
+        assertNotNull(client.admin().indices().prepareGetIndex().setIndices(indexName).get());
     }
 }

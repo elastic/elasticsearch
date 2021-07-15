@@ -25,11 +25,11 @@ public class ToXContentTests extends ScriptTestCase {
     public void testUserFunction() {
         Map<?,?> func = getFunction("def twofive(int i) { return 25 + i; } int j = 23; twofive(j)", "twofive");
         assertFalse((Boolean)func.get("isInternal"));
-        assertTrue((Boolean)func.get("isStatic"));
+        assertFalse((Boolean)func.get("isStatic"));
         assertEquals("SFunction", func.get("node"));
         assertEquals("def", func.get("returns"));
-        assertEquals(org.elasticsearch.common.collect.List.of("int"), func.get("parameterTypes"));
-        assertEquals(org.elasticsearch.common.collect.List.of("i"), func.get("parameters"));
+        assertEquals(org.elasticsearch.core.List.of("int"), func.get("parameterTypes"));
+        assertEquals(org.elasticsearch.core.List.of("i"), func.get("parameters"));
     }
 
     public void testBlock() {

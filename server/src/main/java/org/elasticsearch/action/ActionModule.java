@@ -111,6 +111,8 @@ import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesA
 import org.elasticsearch.action.admin.indices.dangling.list.TransportListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
+import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageAction;
+import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
 import org.elasticsearch.action.admin.indices.exists.indices.TransportIndicesExistsAction;
 import org.elasticsearch.action.admin.indices.exists.types.TransportTypesExistsAction;
@@ -154,7 +156,9 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
+import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.admin.indices.stats.TransportFieldUsageAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
@@ -308,6 +312,7 @@ import org.elasticsearch.rest.action.admin.cluster.dangling.RestImportDanglingIn
 import org.elasticsearch.rest.action.admin.cluster.dangling.RestListDanglingIndicesAction;
 import org.elasticsearch.rest.action.admin.indices.RestAddIndexBlockAction;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
+import org.elasticsearch.rest.action.admin.indices.RestAnalyzeIndexDiskUsageAction;
 import org.elasticsearch.rest.action.admin.indices.RestClearIndicesCacheAction;
 import org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
@@ -315,6 +320,7 @@ import org.elasticsearch.rest.action.admin.indices.RestDeleteComponentTemplateAc
 import org.elasticsearch.rest.action.admin.indices.RestDeleteComposableIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.RestFieldUsageStatsAction;
 import org.elasticsearch.rest.action.admin.indices.RestFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestForceMergeAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetAliasesAction;
@@ -605,6 +611,8 @@ public class ActionModule extends AbstractModule {
         actions.register(NodesReloadSecureSettingsAction.INSTANCE, TransportNodesReloadSecureSettingsAction.class);
         actions.register(AutoCreateAction.INSTANCE, AutoCreateAction.TransportAction.class);
         actions.register(ResolveIndexAction.INSTANCE, ResolveIndexAction.TransportAction.class);
+        actions.register(AnalyzeIndexDiskUsageAction.INSTANCE, TransportAnalyzeIndexDiskUsageAction.class);
+        actions.register(FieldUsageStatsAction.INSTANCE, TransportFieldUsageAction.class);
 
         //Indexed scripts
         actions.register(PutStoredScriptAction.INSTANCE, TransportPutStoredScriptAction.class);
@@ -808,6 +816,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestRepositoriesAction());
         registerHandler.accept(new RestSnapshotAction());
         registerHandler.accept(new RestTemplatesAction());
+        registerHandler.accept(new RestAnalyzeIndexDiskUsageAction());
+        registerHandler.accept(new RestFieldUsageStatsAction());
+
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings,
                     settingsFilter, indexNameExpressionResolver, nodesInCluster)) {

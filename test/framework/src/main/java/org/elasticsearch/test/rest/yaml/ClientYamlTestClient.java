@@ -252,7 +252,7 @@ public class ClientYamlTestClient implements Closeable {
          * and the url and stuff.
          */
         NameValuePair param = new BasicNameValuePair("source", EntityUtils.toString(entity));
-        String encoded = URLEncodedUtils.format(org.elasticsearch.common.collect.List.of(param), StandardCharsets.UTF_8);
+        String encoded = URLEncodedUtils.format(org.elasticsearch.core.List.of(param), StandardCharsets.UTF_8);
         return encoded.length() < 3000;
     }
 

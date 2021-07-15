@@ -32,12 +32,12 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -183,7 +183,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
 
         CheckedConsumer<GetMappingsResponse, Exception> getMappingResponseHandler = getMappingResponse -> {
             MappingMetadata mappings = getMappingResponse.getMappings().get(indexName).get(RollupField.TYPE_NAME);
-            Object m = mappings.getSourceAsMap().get("_meta");
+            Object m = mappings == null ? null : mappings.getSourceAsMap().get("_meta");
             if (m == null) {
                 String msg = "Rollup data cannot be added to existing indices that contain non-rollup data (expected " +
                     "to find _meta key in mapping of rollup index [" + indexName + "] but not found).";

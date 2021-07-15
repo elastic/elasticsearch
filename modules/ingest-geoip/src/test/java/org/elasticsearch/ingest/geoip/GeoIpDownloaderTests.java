@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -72,7 +73,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build());
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY,
-            org.elasticsearch.common.collect.Set.of(GeoIpDownloader.ENDPOINT_SETTING, GeoIpDownloader.POLL_INTERVAL_SETTING,
+            Set.of(GeoIpDownloader.ENDPOINT_SETTING, GeoIpDownloader.POLL_INTERVAL_SETTING,
                 GeoIpDownloaderTaskExecutor.ENABLED_SETTING)));
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         when(clusterService.state()).thenReturn(state);
@@ -247,7 +248,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
         geoIpDownloader.setState(GeoIpTaskState.EMPTY);
         geoIpDownloader.processDatabase(
-            org.elasticsearch.common.collect.Map.of("name", "test.tgz", "url", "http://a.b/t1", "md5_hash", "1"));
+            org.elasticsearch.core.Map.of("name", "test.tgz", "url", "http://a.b/t1", "md5_hash", "1"));
     }
 
     public void testProcessDatabaseUpdate() throws IOException {
@@ -281,14 +282,14 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
         };
 
-        geoIpDownloader.setState(GeoIpTaskState.EMPTY.put("test.mmdb", new GeoIpTaskState.Metadata(0, 5, 8, "0")));
+        geoIpDownloader.setState(GeoIpTaskState.EMPTY.put("test.mmdb", new GeoIpTaskState.Metadata(0, 5, 8, "0", 0)));
         geoIpDownloader.processDatabase(
-            org.elasticsearch.common.collect.Map.of("name", "test.tgz", "url", "http://a.b/t1", "md5_hash", "1"));
+            org.elasticsearch.core.Map.of("name", "test.tgz", "url", "http://a.b/t1", "md5_hash", "1"));
     }
 
 
     public void testProcessDatabaseSame() throws IOException {
-        GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(0, 4, 10, "1");
+        GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(0, 4, 10, "1", 0);
         GeoIpTaskState taskState = GeoIpTaskState.EMPTY.put("test.mmdb", metadata);
         ByteArrayInputStream bais = new ByteArrayInputStream(new byte[0]);
         when(httpClient.get("a.b/t1")).thenReturn(bais);
@@ -319,7 +320,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         };
         geoIpDownloader.setState(taskState);
         geoIpDownloader.processDatabase(
-            org.elasticsearch.common.collect.Map.of("name", "test.tgz", "url", "http://a.b/t1", "md5_hash", "1"));
+            org.elasticsearch.core.Map.of("name", "test.tgz", "url", "http://a.b/t1", "md5_hash", "1"));
     }
 
     @SuppressWarnings("unchecked")
@@ -356,13 +357,13 @@ public class GeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testUpdateDatabases() throws IOException {
-        List<Map<String, Object>> maps = Arrays.asList(org.elasticsearch.common.collect.Map.of("a", 1, "name", "a.tgz"),
-            org.elasticsearch.common.collect.Map.of("a", 2, "name", "a.tgz"));
+        List<Map<String, Object>> maps = Arrays.asList(org.elasticsearch.core.Map.of("a", 1, "name", "a.tgz"),
+            org.elasticsearch.core.Map.of("a", 2, "name", "a.tgz"));
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         builder.startArray();
-        builder.map(org.elasticsearch.common.collect.Map.of("a", 1, "name", "a.tgz"));
-        builder.map(org.elasticsearch.common.collect.Map.of("a", 2, "name", "a.tgz"));
+        builder.map(org.elasticsearch.core.Map.of("a", 1, "name", "a.tgz"));
+        builder.map(org.elasticsearch.core.Map.of("a", 2, "name", "a.tgz"));
         builder.endArray();
         builder.close();
         when(httpClient.getBytes("a.b?elastic_geoip_service_tos=agree"))

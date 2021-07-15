@@ -37,13 +37,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -51,8 +49,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -104,6 +105,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
+import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * Service responsible for submitting create index requests
@@ -640,7 +644,7 @@ public class MetadataCreateIndexService {
                 // shard id and the current timestamp
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
                 indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())),
-            org.elasticsearch.common.collect.List.of(), metadataTransformer);
+            org.elasticsearch.core.List.of(), metadataTransformer);
     }
 
     /**
@@ -828,6 +832,7 @@ public class MetadataCreateIndexService {
                     "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + request.index() + "].");
         }
         validateTranslogRetentionSettings(indexSettings);
+        validateStoreTypeSetting(indexSettings);
         return indexSettings;
     }
 
@@ -1138,6 +1143,9 @@ public class MetadataCreateIndexService {
      */
     static List<String> validateShrinkIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
+        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+            throw new IllegalArgumentException("can't shrink searchable snapshot index [" + sourceIndex + ']');
+        }
         assert INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings);
         IndexMetadata.selectShrinkShards(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
 
@@ -1169,6 +1177,9 @@ public class MetadataCreateIndexService {
 
     static void validateSplitIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
+        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+            throw new IllegalArgumentException("can't split searchable snapshot index [" + sourceIndex + ']');
+        }
         IndexMetadata.selectSplitShard(0, sourceMetadata, IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
         if (sourceMetadata.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
             // ensure we have a single type since this would make the splitting code considerably more complex
@@ -1180,6 +1191,15 @@ public class MetadataCreateIndexService {
 
     static void validateCloneIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
+        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+            for (Setting<?> nonCloneableSetting : Arrays.asList(INDEX_STORE_TYPE_SETTING, INDEX_RECOVERY_TYPE_SETTING)) {
+                if (nonCloneableSetting.exists(targetIndexSettings) == false) {
+                    throw new IllegalArgumentException("can't clone searchable snapshot index [" + sourceIndex + "]; setting ["
+                        + nonCloneableSetting.getKey()
+                        + "] should be overridden");
+                }
+            }
+        }
         IndexMetadata.selectCloneShard(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
     }
 
@@ -1199,7 +1219,6 @@ public class MetadataCreateIndexService {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "cannot resize the write index [%s] for data stream [%s]",
                 sourceIndex, source.getParentDataStream().getName()));
         }
-
         // ensure index is read-only
         if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndex) == false) {
             throw new IllegalStateException("index " + sourceIndex + " must be read-only to resize index. use \"index.blocks.write=true\"");
@@ -1303,6 +1322,16 @@ public class MetadataCreateIndexService {
             DEPRECATION_LOGGER.deprecate(DeprecationCategory.SETTINGS, "translog_retention",
                 "Translog retention settings [index.translog.retention.age] "
                 + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+        }
+    }
+
+    public static void validateStoreTypeSetting(Settings indexSettings) {
+        final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexSettings);
+        if (IndexModule.Type.SIMPLEFS.match(storeType)) {
+            DEPRECATION_LOGGER.deprecate(DeprecationCategory.SETTINGS, "store_type_setting",
+                "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
+                    "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type as it offers superior " +
+                    "or equivalent performance to [simplefs].");
         }
     }
 }

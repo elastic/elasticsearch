@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
 
@@ -62,12 +62,15 @@ public interface DeprecationChecker {
         private final NamedXContentRegistry xContentRegistry;
         private final Settings settings;
         private final Client client;
+        private final ClusterState clusterState;
 
-        Components(NamedXContentRegistry xContentRegistry, Settings settings, OriginSettingClient client) {
+        Components(NamedXContentRegistry xContentRegistry, Settings settings, OriginSettingClient client, ClusterState clusterState) {
             this.xContentRegistry = xContentRegistry;
             this.settings = settings;
             this.client = client;
+            this.clusterState = clusterState;
         }
+
 
         public NamedXContentRegistry xContentRegistry() {
             return xContentRegistry;
@@ -79,6 +82,10 @@ public interface DeprecationChecker {
 
         public Client client() {
             return client;
+        }
+
+        public ClusterState clusterState() {
+            return clusterState;
         }
 
     }

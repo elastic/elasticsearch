@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -52,7 +52,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 /**
  * This package private utility class encapsulates the logic to recover an index shard from either an existing index on

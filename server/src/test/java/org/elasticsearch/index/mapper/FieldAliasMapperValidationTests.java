@@ -128,8 +128,8 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldAliasMapper aliasMapper = new FieldAliasMapper("alias", "object2.alias", "object1.field");
 
         MappingLookup mappers = createMappingLookup(
-            org.elasticsearch.common.collect.List.of(createFieldMapper("object1", "field")),
-            org.elasticsearch.common.collect.List.of(createObjectMapper("object1"), createObjectMapper("object2")),
+            org.elasticsearch.core.List.of(createFieldMapper("object1", "field")),
+            org.elasticsearch.core.List.of(createObjectMapper("object1"), createObjectMapper("object2")),
             singletonList(aliasMapper),
             emptyList()
         );
@@ -182,18 +182,22 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
     private static ObjectMapper createObjectMapper(String name) {
         return new ObjectMapper(name, name,
             new Explicit<>(true, false),
-            ObjectMapper.Dynamic.FALSE, emptyMap());
+            ObjectMapper.Nested.NO,
+            ObjectMapper.Dynamic.FALSE, emptyMap(), Version.CURRENT);
     }
 
-    private static NestedObjectMapper createNestedObjectMapper(String name) {
-        return new NestedObjectMapper.Builder(name, Version.CURRENT).build(new ContentPath());
+    private static ObjectMapper createNestedObjectMapper(String name) {
+        return new ObjectMapper(name, name,
+            new Explicit<>(true, false),
+            ObjectMapper.Nested.newNested(),
+            ObjectMapper.Dynamic.FALSE, emptyMap(), Version.CURRENT);
     }
 
     private static MappingLookup createMappingLookup(List<FieldMapper> fieldMappers,
                                                      List<ObjectMapper> objectMappers,
                                                      List<FieldAliasMapper> fieldAliasMappers,
                                                      List<RuntimeField> runtimeFields) {
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());

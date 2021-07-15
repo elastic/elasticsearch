@@ -13,15 +13,15 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
@@ -47,8 +47,8 @@ public class TransportResumeFollowActionTests extends ESTestCase {
 
     public void testValidation() throws IOException {
         final Map<String, String> customMetadata = new HashMap<>();
-        customMetadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "uuid");
-        customMetadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "_na_");
+        customMetadata.put(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "uuid");
+        customMetadata.put(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "_na_");
 
         ResumeFollowAction.Request request = resumeFollow("index2");
         String[] UUIDs = new String[]{"uuid"};
@@ -63,7 +63,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             // should fail because the recorded leader index uuid is not equal to the leader actual index
             IndexMetadata leaderIMD = createIMD("index1", 5, Settings.EMPTY, null);
             IndexMetadata followIMD = createIMD("index2", 5, Settings.EMPTY,
-                singletonMap(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "another-value"));
+                singletonMap(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "another-value"));
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(), equalTo("follow index [index2] should reference [_na_] as leader index but " +
@@ -73,8 +73,8 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             // should fail because the recorded leader index history uuid is not equal to the leader actual index history uuid:
             IndexMetadata leaderIMD = createIMD("index1", 5, Settings.EMPTY, null);
             Map<String, String> anotherCustomMetadata = new HashMap<>();
-            anotherCustomMetadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "_na_");
-            anotherCustomMetadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "another-uuid");
+            anotherCustomMetadata.put(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "_na_");
+            anotherCustomMetadata.put(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "another-uuid");
             IndexMetadata followIMD = createIMD("index2", 5, Settings.EMPTY, anotherCustomMetadata);
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> validate(request, leaderIMD, followIMD, UUIDs, null));
@@ -280,7 +280,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             .putMapping("_doc", mapping);
 
         if (custom != null) {
-            builder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, custom);
+            builder.putCustom(CcrConstants.CCR_CUSTOM_METADATA_KEY, custom);
         }
 
         return builder.build();

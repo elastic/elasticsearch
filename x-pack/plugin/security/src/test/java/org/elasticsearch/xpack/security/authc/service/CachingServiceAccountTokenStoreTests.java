@@ -138,7 +138,7 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
         doAuthenticateInvoked.set(false); // reset
 
         // Invalidate token1 in the cache
-        store.invalidate(org.elasticsearch.common.collect.List.of(token1Valid.getQualifiedName()));
+        store.invalidate(org.elasticsearch.core.List.of(token1Valid.getQualifiedName()));
         assertThat(cache.count(), equalTo(1));
 
         // 7th auth with the right token1
@@ -224,11 +224,11 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
         assertThat(store.getCache().count(), equalTo(tokens.size()));
 
         // Invalidate a single entry
-        store.invalidate(org.elasticsearch.common.collect.List.of(randomFrom(tokens).getQualifiedName()));
+        store.invalidate(org.elasticsearch.core.List.of(randomFrom(tokens).getQualifiedName()));
         assertThat(store.getCache().count(), equalTo(tokens.size() - 1));
 
         // Invalidate all entries
-        store.invalidate(org.elasticsearch.common.collect.List.of(accountId.asPrincipal() + "/"));
+        store.invalidate(org.elasticsearch.core.List.of(accountId.asPrincipal() + "/"));
         assertThat(store.getCache().count(), equalTo(0));
 
         // auth everything again

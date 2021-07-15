@@ -21,11 +21,11 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -61,6 +61,7 @@ public class OutboundHandlerTests extends ESTestCase {
     private OutboundHandler handler;
     private FakeTcpChannel channel;
     private DiscoveryNode node;
+    private Compression.Scheme compressionScheme;
 
     @Before
     public void setUp() throws Exception {
@@ -70,7 +71,9 @@ public class OutboundHandlerTests extends ESTestCase {
         node = new DiscoveryNode("", transportAddress, Version.CURRENT);
         String[] features = {feature1, feature2};
         StatsTracker statsTracker = new StatsTracker();
-        handler = new OutboundHandler("node", Version.CURRENT, features, statsTracker, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
+        compressionScheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
+        handler = new OutboundHandler("node", Version.CURRENT, features, statsTracker, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+            compressionScheme);
 
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
@@ -124,6 +127,8 @@ public class OutboundHandlerTests extends ESTestCase {
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
         boolean compress = randomBoolean();
+        boolean compressUnsupportedDueToVersion = compressionScheme == Compression.Scheme.LZ4
+            && version.before(Compression.Scheme.LZ4_VERSION);
         String value = "message";
         threadContext.putHeader("header", "header_value");
         TestRequest request = new TestRequest(value);
@@ -170,7 +175,7 @@ public class OutboundHandlerTests extends ESTestCase {
         } else {
             assertFalse(header.isHandshake());
         }
-        if (compress) {
+        if (compress && compressUnsupportedDueToVersion == false) {
             assertTrue(header.isCompressed());
         } else {
             assertFalse(header.isCompressed());
@@ -187,6 +192,9 @@ public class OutboundHandlerTests extends ESTestCase {
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
         boolean compress = randomBoolean();
+        boolean compressUnsupportedDueToVersion = compressionScheme == Compression.Scheme.LZ4
+            && version.before(Compression.Scheme.LZ4_VERSION);
+
         String value = "message";
         threadContext.putHeader("header", "header_value");
         TestResponse response = new TestResponse(value);
@@ -229,7 +237,7 @@ public class OutboundHandlerTests extends ESTestCase {
         } else {
             assertFalse(header.isHandshake());
         }
-        if (compress) {
+        if (compress && compressUnsupportedDueToVersion == false) {
             assertTrue(header.isCompressed());
         } else {
             assertFalse(header.isCompressed());

@@ -20,7 +20,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -438,20 +438,20 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             .subAggregation(new VariableWidthHistogramAggregationBuilder("v").field("v").setNumBuckets(2));
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 1))
+                org.elasticsearch.core.List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 1))
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 10))
+                org.elasticsearch.core.List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 10))
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 11))
+                org.elasticsearch.core.List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 11))
             );
 
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new SortedNumericDocValuesField("t", 2), new SortedNumericDocValuesField("v", 20))
+                org.elasticsearch.core.List.of(new SortedNumericDocValuesField("t", 2), new SortedNumericDocValuesField("v", 20))
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new SortedNumericDocValuesField("t", 2), new SortedNumericDocValuesField("v", 30))
+                org.elasticsearch.core.List.of(new SortedNumericDocValuesField("t", 2), new SortedNumericDocValuesField("v", 30))
             );
         };
         Consumer<LongTerms> verify = terms -> {
@@ -464,14 +464,14 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             InternalVariableWidthHistogram v1 = t1.getAggregations().get("v");
             assertThat(
                 v1.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::centroid).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of(1.0, 10.5))
+                equalTo(org.elasticsearch.core.List.of(1.0, 10.5))
             );
 
             LongTerms.Bucket t2 = terms.getBucketByKey("1");
             InternalVariableWidthHistogram v2 = t2.getAggregations().get("v");
             assertThat(
                 v2.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::centroid).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of(20.0, 30))
+                equalTo(org.elasticsearch.core.List.of(20.0, 30))
             );
         };
         Exception e = expectThrows(
@@ -490,7 +490,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
     public void testSmallShardSize() throws Exception {
         Exception e = expectThrows(IllegalArgumentException.class, () -> testSearchCase(
             DEFAULT_QUERY,
-            org.elasticsearch.common.collect.List.of(),
+            org.elasticsearch.core.List.of(),
             true,
             aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(2),
             histogram -> {fail();}
@@ -503,14 +503,14 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         testSearchCase(DEFAULT_QUERY, dataset, true, aggregation -> aggregation.field(NUMERIC_FIELD).setShardSize(1000000000),
             histogram -> assertThat(
                 histogram.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::getKey).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of(1.0, 2.0, 3.0)))
+                equalTo(org.elasticsearch.core.List.of(1.0, 2.0, 3.0)))
         );
     }
 
     public void testSmallInitialBuffer() throws Exception {
         Exception e = expectThrows(IllegalArgumentException.class, () -> testSearchCase(
             DEFAULT_QUERY,
-            org.elasticsearch.common.collect.List.of(),
+            org.elasticsearch.core.List.of(),
             true,
             aggregation -> aggregation.field(NUMERIC_FIELD).setInitialBuffer(1),
             histogram -> {fail();}
@@ -528,7 +528,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             histogram -> {
                 assertThat(
                     histogram.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::getKey).collect(toList()),
-                    equalTo(org.elasticsearch.common.collect.List.of(1.0, 2.0, 3.0))
+                    equalTo(org.elasticsearch.core.List.of(1.0, 2.0, 3.0))
                 );
             }
         );

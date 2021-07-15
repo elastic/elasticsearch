@@ -24,8 +24,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.core.List;
 import org.mockito.Mockito;
 
 import java.util.Collections;
@@ -165,7 +166,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
         Metadata metadata = Metadata.builder().put(indexMetadata, true)
             .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(indexMetadata.getIndex())))
+                List.of(indexMetadata.getIndex())))
             .build();
         step.evaluateCondition(metadata, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
@@ -202,7 +203,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         Metadata metadata = Metadata.builder().put(firstGenerationIndex, true)
             .put(writeIndex, true)
             .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())))
+                List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())))
             .build();
         step.evaluateCondition(metadata, firstGenerationIndex.getIndex(), new AsyncWaitStep.Listener() {
 

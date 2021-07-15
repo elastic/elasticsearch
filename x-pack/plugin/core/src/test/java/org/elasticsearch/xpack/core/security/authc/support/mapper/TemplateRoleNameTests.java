@@ -21,6 +21,8 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptMetadata;
@@ -201,32 +203,32 @@ public class TemplateRoleNameTests extends ESTestCase {
         final ScriptEngine scriptEngine = mock(ScriptEngine.class);
         when(scriptEngine.getType()).thenReturn("painless");
         when(scriptEngine.compile(eq("valid"), eq("params.metedata.group"), any(),
-            eq(org.elasticsearch.common.collect.Map.of())))
+            eq(Map.of())))
             .thenReturn(scriptFactory);
         final ScriptException scriptException =
-            new ScriptException("exception", new IllegalStateException(), org.elasticsearch.common.collect.List.of(),
+            new ScriptException("exception", new IllegalStateException(), List.of(),
                 "bad syntax", "painless");
         doThrow(scriptException)
             .when(scriptEngine).compile(eq("invalid"), eq("bad syntax"), any(),
-            eq(org.elasticsearch.common.collect.Map.of()));
+            eq(Map.of()));
 
         final ScriptService scriptService = new ScriptService(Settings.EMPTY,
-            org.elasticsearch.common.collect.Map.of("painless", scriptEngine), ScriptModule.CORE_CONTEXTS) {
+            Map.of("painless", scriptEngine), ScriptModule.CORE_CONTEXTS) {
             @Override
             protected StoredScriptSource getScriptFromClusterState(String id) {
                 if ("valid".equals(id)) {
                     return new StoredScriptSource("painless", "params.metedata.group",
-                        org.elasticsearch.common.collect.Map.of());
+                        Map.of());
                 } else {
                     return new StoredScriptSource("painless", "bad syntax",
-                        org.elasticsearch.common.collect.Map.of());
+                        Map.of());
                 }
             }
         };
         // Validation succeeds if compilation is successful
         new TemplateRoleName(new BytesArray("{ \"id\":\"valid\" }"), Format.STRING).validate(scriptService);
         verify(scriptEngine, times(1))
-            .compile(eq("valid"), eq("params.metedata.group"), any(), eq(org.elasticsearch.common.collect.Map.of()));
+            .compile(eq("valid"), eq("params.metedata.group"), any(), eq(Map.of()));
         verify(compiledScript, never()).execute();
 
         // Validation fails if compilation fails

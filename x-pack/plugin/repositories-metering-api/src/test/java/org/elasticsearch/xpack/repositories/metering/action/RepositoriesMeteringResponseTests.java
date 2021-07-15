@@ -69,7 +69,7 @@ public class RepositoriesMeteringResponseTests extends ESTestCase {
                 String repoId = randomAlphaOfLength(10);
                 String repoName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
                 String repoType = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-                Map<String, String> repoLocation = org.elasticsearch.common.collect.Map.of(
+                Map<String, String> repoLocation = org.elasticsearch.core.Map.of(
                     "bucket",
                     randomAlphaOfLength(10).toLowerCase(Locale.ROOT)
                 );
@@ -79,7 +79,7 @@ public class RepositoriesMeteringResponseTests extends ESTestCase {
                 boolean archived = randomBoolean();
                 RepositoryStatsSnapshot statsSnapshot = new RepositoryStatsSnapshot(
                     repositoryInfo,
-                    new RepositoryStats(org.elasticsearch.common.collect.Map.of("GET", randomLongBetween(0, 2000))),
+                    new RepositoryStats(org.elasticsearch.core.Map.of("GET", randomLongBetween(0, 2000))),
                     archived ? clusterVersion : RepositoryStatsSnapshot.UNKNOWN_CLUSTER_VERSION,
                     archived
                 );

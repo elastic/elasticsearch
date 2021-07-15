@@ -87,7 +87,7 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
 
     public void testDocLevelSecurityTemplateWithOpenIdConnectStyleMetadata() throws Exception {
         User user = new User(randomAlphaOfLength(8), generateRandomStringArray(5, 5, false), randomAlphaOfLength(9), "sample@example.com",
-            org.elasticsearch.common.collect.Map.of("oidc(email)", "sample@example.com"), true);
+            org.elasticsearch.core.Map.of("oidc(email)", "sample@example.com"), true);
 
         final MustacheScriptEngine mustache = new MustacheScriptEngine();
 

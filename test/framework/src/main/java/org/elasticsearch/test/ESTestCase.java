@@ -43,12 +43,12 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -880,11 +880,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return list;
     }
 
-    public static <K, V> Map<K, V> randomMap(int minListSize, int maxListSize, Supplier<Tuple<K, V>> valueConstructor) {
-        final int size = randomIntBetween(minListSize, maxListSize);
+    public static <K, V> Map<K, V> randomMap(int minMapSize, int maxMapSize, Supplier<Tuple<K, V>> entryConstructor) {
+        final int size = randomIntBetween(minMapSize, maxMapSize);
         Map<K, V> list = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            Tuple<K, V> entry = valueConstructor.get();
+            Tuple<K, V> entry = entryConstructor.get();
             list.put(entry.v1(), entry.v2());
         }
         return list;

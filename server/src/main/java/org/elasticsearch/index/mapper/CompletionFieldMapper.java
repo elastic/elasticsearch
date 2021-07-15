@@ -62,7 +62,7 @@ import java.util.Set;
  *  <li>"contexts" : CONTEXTS</li>
  * </ul>
  * see {@link ContextMappings#load(Object)} for CONTEXTS<br>
- * see {@link #parse(ParseContext)} for acceptable inputs for indexing<br>
+ * see {@link #parse(DocumentParserContext)} for acceptable inputs for indexing<br>
  * <p>
  *  This field type constructs completion queries that are run
  *  against the weighted FST index by the {@link CompletionSuggester}.
@@ -328,11 +328,11 @@ public class CompletionFieldMapper extends FieldMapper {
      *   "OBJECT" - { "input": STRING|ARRAY, "weight": STRING|INT, "contexts": ARRAY|OBJECT }
      *
      * Indexing:
-     *  if context mappings are defined, delegates to {@link ContextMappings#addField(ParseContext.Document, String, String, int, Map)}
+     *  if context mappings are defined, delegates to {@link ContextMappings#addField(LuceneDocument, String, String, int, Map)}
      *  else adds inputs as a {@link org.apache.lucene.search.suggest.document.SuggestField}
      */
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public void parse(DocumentParserContext context) throws IOException {
         // parse
         XContentParser parser = context.parser();
         Token token = parser.currentToken();
@@ -375,7 +375,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
         context.addToFieldNames(fieldType().name());
         for (CompletionInputMetadata metadata: inputMap.values()) {
-            ParseContext externalValueContext = context.switchParser(new CompletionParser(metadata));
+            DocumentParserContext externalValueContext = context.switchParser(new CompletionParser(metadata));
             multiFields.parse(this, externalValueContext);
         }
     }
@@ -385,7 +385,7 @@ public class CompletionFieldMapper extends FieldMapper {
      *  "STRING" - interpreted as the field value (input)
      *  "OBJECT" - { "input": STRING|ARRAY, "weight": STRING|INT, "contexts": ARRAY|OBJECT }
      */
-    private void parse(ParseContext parseContext, Token token,
+    private void parse(DocumentParserContext documentParserContext, Token token,
                        XContentParser parser, Map<String, CompletionInputMetadata> inputMap) throws IOException {
         String currentFieldName = null;
         if (token == Token.VALUE_STRING) {
@@ -456,7 +456,7 @@ public class CompletionFieldMapper extends FieldMapper {
                                 } else {
                                     assert fieldName != null;
                                     assert contextsMap.containsKey(fieldName) == false;
-                                    contextsMap.put(fieldName, contextMapping.parseContext(parseContext, parser));
+                                    contextsMap.put(fieldName, contextMapping.parseContext(documentParserContext, parser));
                                 }
                             }
                         } else {
@@ -509,7 +509,7 @@ public class CompletionFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         // no-op
     }
 

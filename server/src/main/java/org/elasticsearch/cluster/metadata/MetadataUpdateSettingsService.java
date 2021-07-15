@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -212,7 +212,9 @@ public class MetadataUpdateSettingsService {
                 if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(normalizedSettings) ||
                     IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(normalizedSettings)) {
                     for (String index : actualIndices) {
-                        MetadataCreateIndexService.validateTranslogRetentionSettings(metadataBuilder.get(index).getSettings());
+                        final Settings settings = metadataBuilder.get(index).getSettings();
+                        MetadataCreateIndexService.validateTranslogRetentionSettings(settings);
+                        MetadataCreateIndexService.validateStoreTypeSetting(settings);
                     }
                 }
                 boolean changed = false;

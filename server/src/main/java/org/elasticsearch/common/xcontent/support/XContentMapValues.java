@@ -13,11 +13,11 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -71,7 +71,9 @@ public class XContentMapValues {
                 } else if (currentValue instanceof List) {
                     extractRawValues(values, (List) currentValue, pathElements, nextIndex);
                 } else {
-                    values.add(currentValue);
+                    if (nextIndex == pathElements.length) {
+                        values.add(currentValue);
+                    }
                 }
             }
             if (nextIndex == pathElements.length) {

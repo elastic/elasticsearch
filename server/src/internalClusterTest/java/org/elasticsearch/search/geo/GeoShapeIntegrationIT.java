@@ -12,8 +12,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -77,10 +77,10 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertThat(fieldType, instanceOf(GeoShapeFieldMapper.GeoShapeFieldType.class));
 
         GeoShapeFieldMapper.GeoShapeFieldType gsfm = (GeoShapeFieldMapper.GeoShapeFieldType)fieldType;
-        ShapeBuilder.Orientation orientation = gsfm.orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
+        Orientation orientation = gsfm.orientation();
+        assertThat(orientation, equalTo(Orientation.CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.LEFT));
+        assertThat(orientation, equalTo(Orientation.CW));
 
         // right orientation test
         indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName+"2"));
@@ -90,9 +90,9 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
         gsfm = (GeoShapeFieldMapper.GeoShapeFieldType)fieldType;
         orientation = gsfm.orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
+        assertThat(orientation, equalTo(Orientation.COUNTER_CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.RIGHT));
+        assertThat(orientation, equalTo(Orientation.CCW));
     }
 
     /**

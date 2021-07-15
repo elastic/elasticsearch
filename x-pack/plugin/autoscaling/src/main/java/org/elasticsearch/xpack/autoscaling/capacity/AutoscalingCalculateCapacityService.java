@@ -15,10 +15,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
@@ -140,7 +140,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             return new AutoscalingDeciderResults(
                 AutoscalingCapacity.ZERO,
                 Collections.emptySortedSet(),
-                new TreeMap<>(org.elasticsearch.common.collect.Map.of("_unknown_role", new AutoscalingDeciderResult(null, null)))
+                new TreeMap<>(org.elasticsearch.core.Map.of("_unknown_role", new AutoscalingDeciderResult(null, null)))
             );
         }
         SortedMap<String, Settings> deciders = addDefaultDeciders(policy);

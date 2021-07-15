@@ -9,7 +9,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -112,6 +112,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_6_8_15 = new Version(6081599, LUCENE_7_7_3);
     public static final Version V_6_8_16 = new Version(6081699, LUCENE_7_7_3);
     public static final Version V_6_8_17 = new Version(6081799, LUCENE_7_7_3);
+    public static final Version V_6_8_18 = new Version(6081899, LUCENE_7_7_3);
     public static final Version V_7_0_0 = new Version(7000099, org.apache.lucene.util.Version.LUCENE_8_0_0);
     public static final Version V_7_0_1 = new Version(7000199, org.apache.lucene.util.Version.LUCENE_8_0_0);
     public static final Version V_7_1_0 = new Version(7010099, org.apache.lucene.util.Version.LUCENE_8_0_0);
@@ -149,8 +150,11 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_13_0 = new Version(7130099, org.apache.lucene.util.Version.LUCENE_8_8_2);
     public static final Version V_7_13_1 = new Version(7130199, org.apache.lucene.util.Version.LUCENE_8_8_2);
     public static final Version V_7_13_2 = new Version(7130299, org.apache.lucene.util.Version.LUCENE_8_8_2);
+    public static final Version V_7_13_3 = new Version(7130399, org.apache.lucene.util.Version.LUCENE_8_8_2);
+    public static final Version V_7_13_4 = new Version(7130499, org.apache.lucene.util.Version.LUCENE_8_8_2);
     public static final Version V_7_14_0 = new Version(7140099, org.apache.lucene.util.Version.LUCENE_8_9_0);
-    public static final Version CURRENT = V_7_14_0;
+    public static final Version V_7_15_0 = new Version(7150099, org.apache.lucene.util.Version.LUCENE_8_9_0);
+    public static final Version CURRENT = V_7_15_0;
 
     private static final ImmutableOpenIntMap<Version> idToVersion;
     private static final ImmutableOpenMap<String, Version> stringToVersion;

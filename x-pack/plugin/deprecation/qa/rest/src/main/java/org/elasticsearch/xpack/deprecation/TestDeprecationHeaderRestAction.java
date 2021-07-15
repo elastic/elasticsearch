@@ -6,16 +6,16 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -89,7 +89,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             // note: RestApiVersion.current() is acceptable here because this is test code -- ordinary callers of `.deprecated(...)`
             // should use an actual version
             Route.builder(GET, "/_test_cluster/deprecated_settings").deprecated(DEPRECATED_ENDPOINT, RestApiVersion.current()).build(),

@@ -23,7 +23,7 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     public MockFieldMapper(MappedFieldType fieldType) {
-        this(fieldType, org.elasticsearch.common.collect.Map.of());
+        this(fieldType, org.elasticsearch.core.Map.of());
     }
 
     public MockFieldMapper(MappedFieldType fieldType, Map<String, NamedAnalyzer> indexAnalyzers) {
@@ -70,7 +70,7 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) {
+    protected void parseCreateField(DocumentParserContext context) {
     }
 
     public static class Builder extends FieldMapper.Builder {

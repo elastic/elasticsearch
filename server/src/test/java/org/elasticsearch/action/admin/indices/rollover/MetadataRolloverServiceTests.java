@@ -33,12 +33,12 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateServiceTests;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -580,15 +580,15 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             AllocationService allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
             MetadataFieldMapper[] metadataFieldMappers = {new MetadataIndexTemplateServiceTests.MetadataTimestampFieldMapper(true)};
-            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc");
+            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", Version.CURRENT);
             root.add(new DateFieldMapper.Builder(dataStream.getTimeStampField().getName(), DateFieldMapper.Resolution.MILLISECONDS,
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ScriptCompiler.NONE, true, Version.CURRENT));
             Mapping mapping = new Mapping(root.build(new ContentPath("")), metadataFieldMappers, Collections.emptyMap());
             MappingLookup mappingLookup = MappingLookup.fromMappers(
                 mapping,
-                org.elasticsearch.common.collect.List.of(mockedTimestampField, dateFieldMapper),
-                org.elasticsearch.common.collect.List.of(),
-                org.elasticsearch.common.collect.List.of());
+                org.elasticsearch.core.List.of(mockedTimestampField, dateFieldMapper),
+                org.elasticsearch.core.List.of(),
+                org.elasticsearch.core.List.of());
             IndicesService indicesService = mockIndicesServices(mappingLookup);
             IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
             when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
@@ -677,15 +677,15 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 }
             };
             MetadataFieldMapper[] metadataFieldMappers = {new MetadataIndexTemplateServiceTests.MetadataTimestampFieldMapper(true)};
-            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc");
+            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", Version.CURRENT);
             root.add(new DateFieldMapper.Builder(dataStream.getTimeStampField().getName(), DateFieldMapper.Resolution.MILLISECONDS,
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ScriptCompiler.NONE, true, Version.CURRENT));
             Mapping mapping = new Mapping(root.build(new ContentPath("")), metadataFieldMappers, Collections.emptyMap());
             MappingLookup mappingLookup = MappingLookup.fromMappers(
                 mapping,
-                org.elasticsearch.common.collect.List.of(mockedTimestampField, dateFieldMapper),
-                org.elasticsearch.common.collect.List.of(),
-                org.elasticsearch.common.collect.List.of());
+                org.elasticsearch.core.List.of(mockedTimestampField, dateFieldMapper),
+                org.elasticsearch.core.List.of(),
+                org.elasticsearch.core.List.of());
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);

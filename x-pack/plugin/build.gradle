@@ -120,7 +120,6 @@ tasks.named("yamlRestTest").configure {
    */
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
 
-
   // TODO: fix this rest test to not depend on a hardcoded port!
   def blacklist = ['getting_started/10_monitor_cluster_health/*']
   if (BuildParams.isSnapshotBuild() == false) {

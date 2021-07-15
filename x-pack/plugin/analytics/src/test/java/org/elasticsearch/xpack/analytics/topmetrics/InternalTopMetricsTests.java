@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.analytics.ParsedTopMetrics;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -240,9 +240,9 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
         return new InternalTopMetrics(
             "test",
             SortOrder.ASC,
-            org.elasticsearch.common.collect.List.of("int", "double", "bytes", "null"),
+            org.elasticsearch.core.List.of("int", "double", "bytes", "null"),
             1,
-            org.elasticsearch.common.collect.List.of(
+            org.elasticsearch.core.List.of(
                 new InternalTopMetrics.TopMetric(
                     DocValueFormat.RAW,
                     SortValue.from(1),

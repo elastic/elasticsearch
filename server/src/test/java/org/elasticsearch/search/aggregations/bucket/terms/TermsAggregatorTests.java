@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import io.github.nik9000.mapmatcher.MapMatcher;
+
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -35,7 +37,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -51,9 +53,11 @@ import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordField;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
@@ -80,6 +84,7 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -124,7 +129,10 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.LongStream;
 
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static java.util.stream.Collectors.toList;
@@ -132,12 +140,13 @@ import static org.elasticsearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 public class TermsAggregatorTests extends AggregatorTestCase {
 
@@ -302,9 +311,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     public void testManyTerms() throws Exception {
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", randomBoolean(), true, Collections.emptyMap());
-        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
-            .executionHint(randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString())
-            .field("string");
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").executionHint(randomHint()).field("string");
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             /*
              * index all of the fields into a single segment so our
@@ -325,10 +332,85 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             assertThat(
                 result.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
                 equalTo(
-                    org.elasticsearch.common.collect.List.of("b007", "b107", "b207", "b307", "b407", "b507", "b607", "b707", "b000", "b001")
+                    org.elasticsearch.core.List.of("b007", "b107", "b207", "b307", "b407", "b507", "b607", "b707", "b000", "b001")
                 )
             );
         }, fieldType);
+    }
+
+    public void testManyTermsOrderBySubAgg() throws Exception {
+        MappedFieldType kft = new KeywordFieldMapper.KeywordFieldType("string", randomBoolean(), true, Collections.emptyMap());
+        MappedFieldType lft = new NumberFieldType("long", NumberType.LONG);
+
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
+            .executionHint(randomHint())
+            .order(BucketOrder.aggregation("max", false))
+            .field("string")
+            .subAggregation(new MaxAggregationBuilder("max").field("long"));
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            /*
+             * index all of the fields into a single segment so the
+             * collector picks up all the docs.
+             */
+            List<List<? extends IndexableField>> docs = new ArrayList<>();
+            for (int i = 0; i < TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 200; i++) {
+                String s = String.format(Locale.ROOT, "b%03d", i);
+                List<IndexableField> doc = doc(kft, s);
+                doc.add(new SortedNumericDocValuesField("long", i));
+                docs.add(doc);
+            }
+            iw.addDocuments(docs);
+        }, (StringTerms result) -> {
+            List<String> expected = LongStream.range(
+                TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 210,
+                TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 200
+            ).mapToObj(l -> String.format(Locale.ROOT, "b%03d", l)).collect(toList());
+            Collections.reverse(expected);
+            assertThat(result.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(expected));
+        }, kft, lft);
+    }
+
+    /**
+     * Tests that we don't eagerly evaluate every sub agg. It would throw
+     * a {@link TooManyBucketsException} if we built the sub-aggs eagerly.
+     */
+    public void testDelaysSubAggs() throws Exception {
+        MappedFieldType s1ft = new KeywordFieldMapper.KeywordFieldType("string1", randomBoolean(), true, Collections.emptyMap());
+        MappedFieldType s2ft = new KeywordFieldMapper.KeywordFieldType("string2", randomBoolean(), true, Collections.emptyMap());
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").executionHint(randomHint())
+            .field("string1")
+            .shardSize(1000)
+            .size(11)
+            .subAggregation(new TermsAggregationBuilder("sub").field("string2").shardSize(500));
+        withIndex(iw -> {
+            for (int i1 = 0; i1 < 1000; i1++) {
+                String s1 = String.format(Locale.ROOT, "b%03d", i1);
+                for (int i2 = 0; i2 < 50; i2++) {
+                    String s2 = String.format(Locale.ROOT, "b%03d", i2);
+                    List<IndexableField> doc = new ArrayList<>();
+                    doc.addAll(doc(s1ft, s1));
+                    doc.addAll(doc(s2ft, s2));
+                    iw.addDocument(doc);
+                    if (i1 % 100 == 7) {
+                        iw.addDocument(doc);
+                    }
+                }
+            }
+        }, searcher -> {
+            /*
+             * Use 200 max buckets rather than the default so we bump into it
+             * really fast if we eagerly create the child buckets. It also
+             * lets us create a fairly small test index.
+             */
+            int maxBuckets = 200;
+            StringTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggregationBuilder, maxBuckets, s1ft, s2ft);
+            assertThat(
+                result.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
+                equalTo(
+                    org.elasticsearch.core.List.of("b007", "b107", "b207", "b307", "b407", "b507", "b607", "b707", "b807", "b907", "b000")
+                )
+            );
+        });
     }
 
     private List<IndexableField> doc(MappedFieldType ft, String... values) {
@@ -684,9 +766,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     public void testLongTermsAggregator() throws Exception {
         BiFunction<Long, Boolean, List<IndexableField>> luceneFieldFactory = (val, mv) -> {
             if (mv) {
-                return org.elasticsearch.common.collect.List.of(new SortedNumericDocValuesField("field", val));
+                return org.elasticsearch.core.List.of(new SortedNumericDocValuesField("field", val));
             } else {
-                return org.elasticsearch.common.collect.List.of(new NumericDocValuesField("field", val));
+                return org.elasticsearch.core.List.of(new NumericDocValuesField("field", val));
             }
         };
         MappedFieldType fieldType
@@ -698,9 +780,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     public void testDoubleTermsAggregator() throws Exception {
         BiFunction<Double, Boolean, List<IndexableField>> luceneFieldFactory = (val, mv) -> {
             if (mv) {
-                return org.elasticsearch.common.collect.List.of(new SortedNumericDocValuesField("field", Double.doubleToRawLongBits(val)));
+                return org.elasticsearch.core.List.of(new SortedNumericDocValuesField("field", Double.doubleToRawLongBits(val)));
             } else {
-                return org.elasticsearch.common.collect.List.of(new NumericDocValuesField("field", Double.doubleToRawLongBits(val)));
+                return org.elasticsearch.core.List.of(new NumericDocValuesField("field", Double.doubleToRawLongBits(val)));
             }
         };
         MappedFieldType fieldType
@@ -1400,7 +1482,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             .subAggregation(new TermsAggregationBuilder("str").field("str"));
         withNonMergingIndex(iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedNumericDocValuesField("n", 1),
                     new LongPoint("n", 1),
                     new SortedSetDocValuesField("str", new BytesRef("sheep")),
@@ -1409,7 +1491,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             );
             iw.commit();   // Force two segments
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedNumericDocValuesField("n", 1),
                     new LongPoint("n", 1),
                     new SortedSetDocValuesField("str", new BytesRef("cow")),
@@ -1428,6 +1510,83 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             nFt,
             strFt
         ));
+    }
+
+    public void topLevelProfileTestCase(
+        int count,
+        int extra,
+        IncludeExclude includeExclude,
+        Class<? extends Aggregator> expectedImpl,
+        Function<MapMatcher, MapMatcher> extraMatcher
+    ) throws IOException {
+        randomizeAggregatorImpl = false;
+        KeywordFieldType strFt = new KeywordFieldType("str", false, true, Collections.emptyMap());
+        AggregationBuilder builder = new TermsAggregationBuilder("str").field("str").includeExclude(includeExclude);
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < count; i++) {
+                iw.addDocument(org.elasticsearch.core.List.of(new SortedDocValuesField("str", new BytesRef(Integer.toString(i)))));
+            }
+            for (int i = 0; i < extra; i++) {
+                iw.addDocument(org.elasticsearch.core.List.of());
+            }
+        };
+        debugTestCase(
+            builder,
+            new MatchAllDocsQuery(),
+            buildIndex,
+            (StringTerms result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(impl, equalTo(expectedImpl));
+                assertThat(result.getBuckets(), hasSize(10));
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "str",
+                        extraMatcher.apply(
+                            matchesMap()
+                                .entry("result_strategy", "terms")
+                                .entry("total_buckets", (long) count)
+                                .entry("segments_with_single_valued_ords", greaterThan(0))
+                                .entry("segments_with_multi_valued_ords", 0)
+                        )
+                    )
+                );
+            },
+            strFt
+        );
+    }
+
+    public void testDenseProfile() throws IOException {
+        topLevelProfileTestCase(
+            between(3000, 4000),
+            0,
+            null,
+            GlobalOrdinalsStringTermsAggregator.class,
+            m -> m.entry("has_filter", false).entry("collection_strategy", "dense")
+        );
+    }
+
+    public void testRemapProfile() throws IOException {
+        topLevelProfileTestCase(
+            between(3000, 4000),
+            0,
+            new IncludeExclude(null, "missing"),
+            GlobalOrdinalsStringTermsAggregator.class,
+            m -> m.entry("has_filter", true).entry("collection_strategy", "remap using single bucket ords")
+        );
+    }
+
+    public void testLowCardinalityProfile() throws IOException {
+        int count = between(1000, 2000);
+        int extra = count * between(3, 5);
+        topLevelProfileTestCase(
+            count,
+            extra,
+            null,
+            GlobalOrdinalsStringTermsAggregator.LowCardinality.class,
+            m -> m.entry("has_filter", false)
+                .entry("collection_strategy", "dense")
+                .entry("segments_without_values", greaterThanOrEqualTo(0))
+        );
     }
 
     public void testNumberToStringValueScript() throws IOException {
@@ -1638,7 +1797,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         for (int a = 0; a < 10; a++) {
             for (int b = 0; b <= a; b++) {
                 docs.add(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField("a", a),
                         bIsString ? new SortedSetDocValuesField("b", new BytesRef(Integer.toString(b))) : new NumericDocValuesField("b", b)
                     )
@@ -1671,11 +1830,11 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 );
                 assertThat(
                     terms.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(toList()),
-                    equalTo(org.elasticsearch.common.collect.List.of(9L, 8L, 7L))
+                    equalTo(org.elasticsearch.core.List.of(9L, 8L, 7L))
                 );
                 assertThat(
                     terms.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getDocCount).collect(toList()),
-                    equalTo(org.elasticsearch.common.collect.List.of(10L, 9L, 8L))
+                    equalTo(org.elasticsearch.core.List.of(10L, 9L, 8L))
                 );
             }
         }
@@ -1689,35 +1848,35 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             .subAggregation(new TermsAggregationBuilder("k").field("k"));
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedNumericDocValuesField("d", dft.parse("2020-02-01T00:00:00Z")),
                     new LongPoint("d", dft.parse("2020-02-01T00:00:00Z")),
                     new SortedSetDocValuesField("k", new BytesRef("a"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedNumericDocValuesField("d", dft.parse("2020-03-01T00:00:00Z")),
                     new LongPoint("d", dft.parse("2020-03-01T00:00:00Z")),
                     new SortedSetDocValuesField("k", new BytesRef("a"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedNumericDocValuesField("d", dft.parse("2021-02-01T00:00:00Z")),
                     new LongPoint("d", dft.parse("2021-02-01T00:00:00Z")),
                     new SortedSetDocValuesField("k", new BytesRef("a"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedNumericDocValuesField("d", dft.parse("2021-03-01T00:00:00Z")),
                     new LongPoint("d", dft.parse("2021-03-01T00:00:00Z")),
                     new SortedSetDocValuesField("k", new BytesRef("a"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedNumericDocValuesField("d", dft.parse("2020-02-01T00:00:00Z")),
                     new LongPoint("d", dft.parse("2020-02-01T00:00:00Z")),
                     new SortedSetDocValuesField("k", new BytesRef("b"))
@@ -1727,17 +1886,17 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         testCase(builder, new MatchAllDocsQuery(), buildIndex, (InternalDateHistogram dh) -> {
             assertThat(
                 dh.getBuckets().stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of("2020-01-01T00:00:00.000Z", "2021-01-01T00:00:00.000Z"))
+                equalTo(org.elasticsearch.core.List.of("2020-01-01T00:00:00.000Z", "2021-01-01T00:00:00.000Z"))
             );
             StringTerms terms = dh.getBuckets().get(0).getAggregations().get("k");
             assertThat(
                 terms.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of("a", "b"))
+                equalTo(org.elasticsearch.core.List.of("a", "b"))
             );
             terms = dh.getBuckets().get(1).getAggregations().get("k");
             assertThat(
                 terms.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of("a"))
+                equalTo(org.elasticsearch.core.List.of("a"))
             );
         }, dft, kft);
         withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
@@ -1752,19 +1911,19 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         KeywordFieldType kft = new KeywordFieldType("k", true, true, Collections.emptyMap());
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new Field("k", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
                     new SortedSetDocValuesField("k", new BytesRef("a"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new Field("k", new BytesRef("b"), KeywordFieldMapper.Defaults.FIELD_TYPE),
                     new SortedSetDocValuesField("k", new BytesRef("b"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new Field("k", new BytesRef("c"), KeywordFieldMapper.Defaults.FIELD_TYPE),
                     new SortedSetDocValuesField("k", new BytesRef("c"))
                 )
@@ -1783,33 +1942,58 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             .add(new TermQuery(new Term("k", "b")), Occur.SHOULD)
             .add(new TermQuery(new Term("k", "c")), Occur.SHOULD)
             .build();
-        testCase(builder, topLevel, buildIndex, (StringTerms terms) -> {
-            assertThat(
-                terms.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of("b", "c"))
-            );
-        }, kft);
-        withAggregator(builder, topLevel, buildIndex, (searcher, terms) -> {
-            Map<String, Object> info = new HashMap<>();
-            terms.collectDebugInfo(info::put);
-            assertThat(info, hasEntry("delegate", "FiltersAggregator.FilterByFilter"));
-        }, kft);
+        debugTestCase(builder, topLevel, buildIndex,
+            (StringTerms terms, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(
+                    terms.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
+                    equalTo(org.elasticsearch.core.List.of("b", "c"))
+                );
+                assertThat(
+                    terms.getBuckets().stream().map(StringTerms.Bucket::getDocCount).collect(toList()),
+                    equalTo(org.elasticsearch.core.List.of(1L, 1L))
+                );
+                /*
+                 * The bug used to happen with the filter by filter aggregator
+                 * but at this point we don't use it here. We really *could*
+                 * because the top level query is a pure disjunction of
+                 * two terms that we're querying, but we don't have to code
+                 * to figure that out at this point.
+                 */
+
+                assertTrue(
+                    "impl " + impl,
+                    impl.equals(GlobalOrdinalsStringTermsAggregator.class)
+                        || impl.equals(GlobalOrdinalsStringTermsAggregator.LowCardinality.class)
+                );
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "k",
+                        matchesMap().extraOk()
+                            .entry("result_strategy", "terms")
+                            .entry("has_filter", false)
+                            .entry("segments_with_multi_valued_ords", 0)
+                            .entry("segments_with_single_valued_ords", greaterThan(0))
+                            .entry("collection_strategy", either(equalTo("remap using single bucket ords")).or(equalTo("dense")))
+                    )
+                );
+            },
+            kft);
     }
 
     /**
-     * If the top level query is a runtime field we should still use
-     * {@link StringTermsAggregatorFromFilters} because we expect it'll still
-     * be faster that the normal aggregator, even though running the script
-     * for the runtime field is quite a bit more expensive than a regular
-     * query. The thing is, we won't be executing the script more times than
-     * we would if it were just at the top level.
+     * If the top level query is a runtime field we use the standard aggregator
+     * because it's marginally faster. You'd expect it to be a *ton* faster but
+     * usually the terms drive the iteration and they are still fairly fast.
+     * But the union operation overhead that comes with combining the range with
+     * the top level query tends to slow us down more than the standard aggregator.
      */
-    public void testRuntimeFieldTopLevelQueryStillOptimized() throws IOException {
+    public void testRuntimeFieldTopLevelNotOptimized() throws IOException {
         long totalDocs = 500;
         SearchLookup lookup = new SearchLookup(s -> null, (ft, l) -> null);
         StringFieldScript.LeafFactory scriptFactory = ctx -> new StringFieldScript(
             "dummy",
-            org.elasticsearch.common.collect.Map.of(),
+            org.elasticsearch.core.Map.of(),
             lookup,
             ctx
         ) {
@@ -1826,7 +2010,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             for (int d = 0; d < totalDocs; d++) {
                 BytesRef value = values[d % values.length];
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE),
                         new SortedSetDocValuesField("k", value)
                     )
@@ -1835,20 +2019,96 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, (StringTerms r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
             assertThat(
                 r.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of("more_stuff", "stuff", "other_stuff"))
+                equalTo(org.elasticsearch.core.List.of("more_stuff", "stuff", "other_stuff"))
             );
             assertThat(
                 r.getBuckets().stream().map(StringTerms.Bucket::getDocCount).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of(167L, 167L, 166L))
+                equalTo(org.elasticsearch.core.List.of(167L, 167L, 166L))
             );
-            assertThat(impl, equalTo(StringTermsAggregatorFromFilters.class));
-            Map<?, ?> topLevelDebug = (Map<?, ?>) debug.get("t");
-            Map<?, ?> delegateDebug = (Map<?, ?>) topLevelDebug.get("delegate_debug");
-            // We don't estimate the cost here so these shouldn't show up
-            assertThat(delegateDebug, not(hasKey("estimated_cost")));
-            assertThat(delegateDebug, not(hasKey("max_cost")));
-            assertThat((int) delegateDebug.get("segments_counted"), greaterThan(0));
+            assertThat(
+                r.getBuckets().stream().map(StringTerms.Bucket::getDocCount).collect(toList()),
+                equalTo(org.elasticsearch.core.List.of(167L, 167L, 166L))
+            );
+
+            assertTrue(
+                "impl " + impl,
+                impl.equals(GlobalOrdinalsStringTermsAggregator.class)
+                    || impl.equals(GlobalOrdinalsStringTermsAggregator.LowCardinality.class)
+            );
+            assertMap(
+                debug,
+                matchesMap().entry(
+                    "t",
+                    matchesMap().extraOk()
+                        .entry("result_strategy", "terms")
+                        .entry("has_filter", false)
+                        .entry("segments_with_multi_valued_ords", 0)
+                        .entry("segments_with_single_valued_ords", greaterThan(0))
+                        .entry("collection_strategy", either(equalTo("remap using single bucket ords")).or(equalTo("dense")))
+                )
+            );
         }, new KeywordFieldType("k", true, true, Collections.emptyMap()));
+    }
+
+    /**
+     * If the field we're collecting the terms for is a runtime field we can't
+     * perform any of the optimization because we can't make a list to query
+     * for. Even if we could running the queries would be slow.
+     */
+    public void testRuntimeFieldTermsNotOptimized() throws IOException {
+        long totalDocs = 500;
+        StringFieldScript.Factory scriptFactory = (fieldName, params, lookup) -> ctx -> new StringFieldScript(
+            fieldName,
+            org.elasticsearch.core.Map.of(),
+            lookup,
+            ctx
+        ) {
+            @Override
+            public void execute() {
+                emit((String) getDoc().get("k").get(0));
+            }
+        };
+        BytesRef[] values = new BytesRef[] {
+            new BytesRef("stuff"), new BytesRef("more_stuff"), new BytesRef("other_stuff"),
+        };
+        MappedFieldType keywordFt = new KeywordFieldType("k", true, true, Collections.emptyMap());
+        MappedFieldType dummyFt = new KeywordScriptFieldType(
+            "dummy",
+            scriptFactory,
+            new Script("test"),
+            org.elasticsearch.core.Map.of()
+        );
+        debugTestCase(new TermsAggregationBuilder("t").field("dummy"), new MatchAllDocsQuery(), iw -> {
+            for (int d = 0; d < totalDocs; d++) {
+                BytesRef value = values[d % values.length];
+                iw.addDocument(
+                    org.elasticsearch.core.List.of(
+                        new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE),
+                        new SortedSetDocValuesField("k", value)
+                    )
+                );
+            }
+        }, (StringTerms r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+            assertThat(
+                r.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
+                equalTo(org.elasticsearch.core.List.of("more_stuff", "stuff", "other_stuff"))
+            );
+            assertThat(
+                r.getBuckets().stream().map(StringTerms.Bucket::getDocCount).collect(toList()),
+                equalTo(org.elasticsearch.core.List.of(167L, 167L, 166L))
+            );
+
+            assertEquals(impl, MapStringTermsAggregator.class);
+            assertMap(
+                debug,
+                matchesMap().entry(
+                    "t",
+                    matchesMap().extraOk()
+                        .entry("result_strategy", "terms")
+                        .entry("collection_strategy", "from Field [dummy] of type [keyword]")
+                )
+            );
+        }, keywordFt, dummyFt);
     }
 
     private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
@@ -1963,6 +2223,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ObjectMapper> objectMappers() {
-        return org.elasticsearch.common.collect.List.of(NestedAggregatorTests.nestedObject("nested_object"));
+        return org.elasticsearch.core.List.of(NestedAggregatorTests.nestedObject("nested_object"));
+    }
+
+    private String randomHint() {
+        return randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
     }
 }

@@ -16,13 +16,14 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Stream;
 
-public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable {
+public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable, RawIndexingDataTransportRequest {
 
     public static final Version COMPACT_SHARD_ID_VERSION = Version.V_7_9_0;
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);

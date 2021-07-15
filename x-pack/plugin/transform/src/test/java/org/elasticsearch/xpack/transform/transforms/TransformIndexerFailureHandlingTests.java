@@ -22,7 +22,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.script.ScriptException;
@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -46,7 +47,9 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositio
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
+import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
@@ -116,9 +119,13 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         ) {
             super(
                 threadPool,
-                transformsConfigManager,
+                new TransformServices(
+                    transformsConfigManager,
+                    mock(TransformCheckpointService.class),
+                    auditor,
+                    mock(SchedulerEngine.class)
+                ),
                 checkpointProvider,
-                auditor,
                 transformConfig,
                 fieldMappings,
                 initialState,
@@ -642,10 +649,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             throw new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] {
-                    new ShardSearchFailure(
-                        new ElasticsearchTimeoutException("timed out during dbq")
-                    ) }
+                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timed out during dbq")) }
             );
         };
 

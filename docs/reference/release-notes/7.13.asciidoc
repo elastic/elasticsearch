@@ -1,3 +1,97 @@
+[[release-notes-7.13.3]]
+== {es} version 7.13.3
+
+Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
+
+[discrete]
+[[security-updates-7.13.3]]
+=== Security updates
+
+* An uncontrolled recursion vulnerability that could lead to a 
+denial of service attack was identified in the {es} Grok parser. 
+A user with the ability to submit arbitrary queries to {es} could create 
+a malicious Grok query that will crash the {es} node.
+All versions of {es} prior to 7.13.3 are affected by this flaw. 
+You must upgrade to {es} version 7.13.3 to obtain the fix.  
+https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22144[CVE-2021-22144]
+
+
+[[bug-7.13.3]]
+[float]
+=== Bug fixes
+
+Autoscaling::
+* Autoscale frozen tier into existence {es-pull}73435[#73435] (issue: {es-issue}72771[#72771])
+* Avoid scaling empty tier unnecessarily {es-pull}74086[#74086]
+
+CompositeAggs::
+* Fix bug when formatting epoch dates {es-pull}73955[#73955] (issue: {es-issue}68963[#68963])
+
+EQL::
+* Remove "fields" section from sequence in-progress searches {es-pull}74824[#74824] (issue: {es-issue}74582[#74582])
+* Remove "yet" from unsupported pipe error message {es-pull}74850[#74850] (issue: {es-issue}70844[#70844])
+
+Features/Ingest::
+* Improve circular reference detection in grok processor {es-pull}74581[#74581]
+
+Network::
+* Increment request before serializing it in `OutboundHandler` {es-pull}74256[#74256] (issue: {es-issue}74253[#74253])
+
+Recovery::
+* Recycle buffers used for file-based recovery {es-pull}74117[#74117] (issue: {es-issue}65921[#65921])
+
+SQL::
+* Fix literal projection with condition {es-pull}74083[#74083] (issues: {es-issue}64567[#64567], {es-issue}74064[#74064])
+* Fix querying of indices without columns {es-pull}74312[#74312] (issue: {es-issue}53001[#53001])
+
+Search::
+* Disable query cache for `FunctionScoreQuery` and `ScriptScoreQuery` {es-pull}74060[#74060] (issue: {es-issue}73925[#73925])
+* Fix `CombinedFieldQuery` (Lucene 9999) {es-pull}74678[#74678]
+* Fix error in `FieldCapabilitiesResponse` serialization {es-pull}74504[#74504]
+* Use min version when storing async search response {es-pull}74642[#74642]
+
+Snapshot/Restore::
+* Correctly log exceptions that are thrown during cache prewarming {es-pull}74419[#74419]
+* Fix snapshots recording incorrect max segment counts {es-pull}74291[#74291] (issue: {es-issue}74249[#74249])
+* Shared cache's recovery range should be aligned with page size {es-pull}74439[#74439] (issue: {es-issue}74372[#74372])
+
+Transform::
+* Replace missing transform id with `_all` wildcard {es-pull}74130[#74130] (issue: {es-issue}74218[#74218])
+
+[[release-notes-7.13.2]]
+== {es} version 7.13.2
+
+Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
+
+[[bug-7.13.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Add setting to disable aggs optimization {es-pull}73620[#73620] (issue: {es-issue}73426[#73426])
+
+Cluster Coordination::
+* Write next cluster state fully on all failures {es-pull}73631[#73631]
+
+Features/ILM+SLM::
+* Always handle non-complete `AsyncActionStep` execution {es-pull}73796[#73796] (issue: {es-issue}73794[#73794])
+* Copy all execution state in `CopyExecutionStateStep` {es-pull}73792[#73792] (issues: {es-issue}64883[#64883], {es-issue}73791[#73791])
+
+Features/Ingest::
+* Preserve field mappings from user agent processor when ECS is disabled {es-pull}73783[#73783] (issue: {es-issue}73780[#73780])
+
+Infra/Core::
+* Resolve concrete associated indices when resetting features {es-pull}73017[#73017] (issue: {es-issue}72363[#72363])
+
+Search::
+* Fix error when fetching values for parent ID join field {es-pull}73639[#73639]
+
+Snapshot/Restore::
+* Fix repo name at allocation time {es-pull}73669[#73669]
+
+Monitoring::
+* Add ability for `monitoring_user` role to read from metricbeat-* {es-pull}71233[#71233]
+
 [[release-notes-7.13.1]]
 == {es} version 7.13.1
 
@@ -54,6 +148,15 @@ problem, prevent concurrent snapshot operations by setting
 +
 This issue is fixed in {es} versions 7.13.1 and later. For more details, see
 {es-issue}73456[#73456].
+
+* If local and remote clusters are on different patch releases, response
+serialization fails for requests to a remote cluster that use the
+<<search-field-caps,field capabilities API>> with CCS. Because {kib} uses this
+API internally, requests to CCS index patterns will also fail.
++
+This issue is fixed in {es} version 7.13.3 and later. For more details, see
+{es-issue}74504[#74504].
+
 
 [[deprecation-7.13.0]]
 [float]
@@ -345,4 +448,3 @@ Search::
 Transforms::
 * Fix bug where group_by ordering could break when serializing between nodes {es-pull}72016[#72016]
 * Avoid transform failure during rolling upgrade {es-pull}72533[#72533]
-

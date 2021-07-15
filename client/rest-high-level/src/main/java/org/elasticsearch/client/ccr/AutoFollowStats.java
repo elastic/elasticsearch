@@ -9,8 +9,8 @@
 package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 
 import java.util.AbstractMap;

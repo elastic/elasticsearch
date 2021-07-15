@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.List;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -55,19 +56,19 @@ public class ApiKeyTests extends ESTestCase {
         assertThat(map.get("invalidated"), is(invalidated));
         assertThat(map.get("username"), equalTo(username));
         assertThat(map.get("realm"), equalTo(realmName));
-        assertThat(map.get("metadata"), equalTo(metadata == null ? org.elasticsearch.common.collect.Map.of() : metadata));
+        assertThat(map.get("metadata"), equalTo(metadata == null ? org.elasticsearch.core.Map.of() : metadata));
     }
 
     @SuppressWarnings("unchecked")
     public static Map<String, Object> randomMetadata() {
         return randomFrom(
-            org.elasticsearch.common.collect.Map.of("application", randomAlphaOfLength(5),
+            org.elasticsearch.core.Map.of("application", randomAlphaOfLength(5),
                 "number", 1,
-                "numbers", org.elasticsearch.common.collect.List.of(1, 3, 5),
-                "environment", org.elasticsearch.common.collect.Map.of("os", "linux", "level", 42, "category", "trusted")
+                "numbers", List.of(1, 3, 5),
+                "environment", org.elasticsearch.core.Map.of("os", "linux", "level", 42, "category", "trusted")
             ),
-            org.elasticsearch.common.collect.Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
-            org.elasticsearch.common.collect.Map.of(),
+            org.elasticsearch.core.Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+            org.elasticsearch.core.Map.of(),
             null);
     }
 }

@@ -16,7 +16,7 @@ import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -49,7 +49,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.action.search.SearchRequest.DEFAULT_INDICES_OPTIONS;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
@@ -315,7 +315,8 @@ public class RestSearchAction extends BaseRestHandler {
         assert request.pointInTimeBuilder() != null;
         ActionRequestValidationException validationException = null;
         if (request.indices().length > 0) {
-            validationException = addValidationError("[indices] cannot be used with point in time", validationException);
+            validationException = addValidationError("[indices] cannot be used with point in time. Do " + 
+                "not specify any index with point in time.", validationException);
         }
         if (request.indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {
             validationException = addValidationError("[indicesOptions] cannot be used with point in time", validationException);

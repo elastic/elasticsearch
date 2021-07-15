@@ -45,7 +45,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
@@ -215,9 +214,9 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     @Override
-    protected Set<String> getObjectsHoldingArbitraryContent() {
+    protected Map<String, String> getObjectsHoldingArbitraryContent() {
         //doc contains arbitrary content, anything can be added to it and no exception will be thrown
-        return Collections.singleton(MoreLikeThisQueryBuilder.DOC.getPreferredName());
+        return Collections.singletonMap(MoreLikeThisQueryBuilder.DOC.getPreferredName(), null);
     }
 
     @Override

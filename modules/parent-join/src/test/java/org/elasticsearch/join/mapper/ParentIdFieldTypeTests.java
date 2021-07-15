@@ -8,7 +8,7 @@
 
 package org.elasticsearch.join.mapper;
 
-import org.elasticsearch.common.collect.List;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -21,10 +21,10 @@ public class ParentIdFieldTypeTests extends FieldTypeTestCase {
         // The parent join ID is an internal field type and we don't return any values for it.
         MappedFieldType fieldType = new ParentIdFieldMapper.ParentIdFieldType("field#parent", true);
 
-        Map<String, String> parentValue = org.elasticsearch.common.collect.Map.of("relation", "parent");
+        Map<String, String> parentValue = org.elasticsearch.core.Map.of("relation", "parent");
         assertEquals(List.of(), fetchSourceValue(fieldType, parentValue));
 
-        Map<String, String> childValue = org.elasticsearch.common.collect.Map.of("relation", "child", "parent", "1");
+        Map<String, String> childValue = org.elasticsearch.core.Map.of("relation", "child", "parent", "1");
         assertEquals(List.of(), fetchSourceValue(fieldType, childValue));
     }
 }

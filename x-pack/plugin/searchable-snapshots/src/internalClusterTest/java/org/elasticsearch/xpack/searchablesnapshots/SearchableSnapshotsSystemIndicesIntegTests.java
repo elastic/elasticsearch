@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.List;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -42,7 +43,7 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseFrozenSearch
     }
 
     public void testCannotMountSnapshotBlobCacheIndex() throws Exception {
-        executeTest(SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX, client());
+        executeTest(SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX, client());
     }
 
     private void executeTest(final String indexName, final Client client) throws Exception {
@@ -88,9 +89,7 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseFrozenSearch
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return org.elasticsearch.common.collect.List.of(
-                new SystemIndexDescriptor(INDEX_NAME, "System index for [" + getTestClass().getName() + ']')
-            );
+            return List.of(new SystemIndexDescriptor(INDEX_NAME, "System index for [" + getTestClass().getName() + ']'));
         }
 
         @Override

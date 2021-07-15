@@ -251,7 +251,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                         e.getMessage(),
                         startsWith(
                             "Source has [7] failed shards, first shard failure: [some-index][3] failed, "
-                            + "reason [java.lang.Exception: something's wrong"))
+                            + "reason [Exception[something's wrong]]"))
                 ),
                 latch
             )

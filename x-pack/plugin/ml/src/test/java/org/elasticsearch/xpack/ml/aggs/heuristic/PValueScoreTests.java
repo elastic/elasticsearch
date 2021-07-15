@@ -147,16 +147,16 @@ public class PValueScoreTests extends AbstractSignificanceHeuristicTestCase {
 
     public void testLargerValues() {
         assertThat(
-            FastMath.exp(-new PValueScore(false).getScore(110000, 1000000, 500000, 5000000)),
-            closeTo(8.140090736936504E-36, eps)
+            FastMath.exp(-new PValueScore(false).getScore(101000, 1000000, 500000, 5000000)),
+            closeTo(1.0, eps)
         );
         assertThat(
-            FastMath.exp(-new PValueScore(false).getScore(120000, 1000000, 500000, 5000000)),
-            closeTo(1.9321217649971426e-301, eps)
+            FastMath.exp(-new PValueScore(false).getScore(102000, 1000000, 500000, 5000000)),
+            closeTo(1.0, eps)
         );
         assertThat(
-            FastMath.exp(-new PValueScore(false).getScore(130000, 1000000, 500000, 5000000)),
-            closeTo(0.0, eps)
+            FastMath.exp(-new PValueScore(false).getScore(103000, 1000000, 500000, 5000000)),
+            closeTo(1.0, eps)
         );
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -59,7 +60,7 @@ public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTr
         int numFullCopySnapIndices = 0;
         int numSharedCacheSnapIndices = 0;
         for (IndexMetadata indexMetadata : state.metadata()) {
-            if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexMetadata.getSettings())) {
+            if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings())) {
                 if (SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings())) {
                     numSharedCacheSnapIndices++;
                 } else {

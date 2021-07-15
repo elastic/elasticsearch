@@ -282,17 +282,24 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
             nodeKeystore.save(env.configFile(), nodeKeystorePassword.getChars());
         } catch (Exception e) {
             try {
+                if (Files.exists(keystoreBackupPath)) {
+                    Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE,
+                            StandardCopyOption.COPY_ATTRIBUTES);
+                } else {
+                    Files.deleteIfExists(keystorePath);
+                }
+                // do not delete instant auto config dir if restoring the keystore failed
                 Files.deleteIfExists(instantAutoConfigDir);
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
             if (false == (e instanceof UserException)) {
-                throw e;
+                throw e; // unexpected exections should prevent the node from starting
             }
             if (options.has(strictOption)) {
                 throw e;
             } else {
-                return; // if a different user runs ES compared to the user that installed it, auto configuration will not run
+                return; // ignoring if the keystore contains password values already, so that the node startup deals with it (fails)
             }
         }
 
@@ -302,7 +309,7 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
             List<String> existingConfigLines = Files.readAllLines(env.configFile().resolve("elasticsearch.yml"), StandardCharsets.UTF_8);
             fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
                 try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
-                    // append the existing config lines
+                    // start with the existing config lines
                     for (String line : existingConfigLines) {
                         bw.write(line);
                         bw.newLine();
@@ -383,7 +390,10 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 if (Files.exists(keystoreBackupPath)) {
                     Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE,
                             StandardCopyOption.COPY_ATTRIBUTES);
+                } else {
+                    Files.deleteIfExists(keystorePath);
                 }
+                // do not delete instant auto config dir if restoring the keystore failed
                 Files.deleteIfExists(instantAutoConfigDir);
             } catch (Exception ex) {
                 e.addSuppressed(ex);

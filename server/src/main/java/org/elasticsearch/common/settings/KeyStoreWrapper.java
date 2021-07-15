@@ -547,8 +547,14 @@ public class KeyStoreWrapper implements SecureSettings {
                 "unable to create temporary keystore at [%s], write permissions required for [%s] or run [elasticsearch-keystore upgrade]",
                 keystoreTempFile,
                 configDir);
-            Files.deleteIfExists(keystoreTempFile);
             throw new UserException(ExitCodes.CONFIG, message, e);
+        } catch (final Exception e) {
+            try {
+                Files.deleteIfExists(keystoreTempFile);
+            } catch (Exception ex) {
+                e.addSuppressed(e);
+            }
+            throw e;
         }
 
         Path keystoreFile = keystorePath(configDir);

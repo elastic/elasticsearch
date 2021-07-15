@@ -33,6 +33,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex;
+
 /**
  * This service is responsible for verifying index metadata when an index is introduced
  * to the cluster, for example when restarting nodes, importing dangling indices, or restoring
@@ -194,7 +196,7 @@ public class IndexMetadataVerifier {
     IndexMetadata convertSharedCacheTierPreference(IndexMetadata indexMetadata) {
         final Settings settings = indexMetadata.getSettings();
         // Only remove these settings for a shared_cache searchable snapshot
-        if ("snapshot".equals(settings.get("index.store.type", "")) && settings.getAsBoolean("index.store.snapshot.partial", false)) {
+        if (isPartialSearchableSnapshotIndex(settings)) {
             final Settings.Builder settingsBuilder = Settings.builder().put(settings);
             // Clear any allocation rules other than preference for tier
             settingsBuilder.remove("index.routing.allocation.include._tier");

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
 import joptsimple.internal.Strings;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
@@ -747,7 +749,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         Setting<String> setting = randomTierSetting();
         Settings.Builder builder = Settings.builder().put(setting.getKey(), value);
         if (randomBoolean()) {
-            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
         }
 
         Settings settings = builder.build();
@@ -764,7 +766,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testFrozenLegalForPartialSnapshot() {
         Setting<String> setting = randomTierSetting();
         Settings.Builder builder = Settings.builder().put(setting.getKey(), DATA_FROZEN);
-        builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+        builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
         builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
         Settings settings = builder.build();
@@ -783,7 +785,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(Settings.EMPTY), equalTo(""));
 
         Settings.Builder builder = Settings.builder();
-        builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+        builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
         builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
         Settings settings = builder.build();

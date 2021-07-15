@@ -8,8 +8,8 @@
 
 package org.elasticsearch.env;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -46,7 +46,8 @@ public class Environment {
             new Setting<>("path.logs", "", Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> PATH_REPO_SETTING =
         Setting.listSetting("path.repo", Collections.emptyList(), Function.identity(), Property.NodeScope);
-    public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
+    public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data",
+        Property.NodeScope);
     public static final Setting<String> NODE_PIDFILE_SETTING = Setting.simpleString("node.pidfile", Property.NodeScope);
 
     private final Settings settings;
@@ -101,7 +102,11 @@ public class Environment {
         pluginsFile = homeFile.resolve("plugins");
 
         if (PATH_DATA_SETTING.exists(settings)) {
-            dataFile = PathUtils.get(PATH_DATA_SETTING.get(settings)).toAbsolutePath().normalize();
+            String rawDataPath = PATH_DATA_SETTING.get(settings);
+            if (rawDataPath.startsWith("[")) {
+                throw new IllegalArgumentException("[path.data] is a list. Specify as a string value.");
+            }
+            dataFile = PathUtils.get(rawDataPath).toAbsolutePath().normalize();
         } else {
             dataFile = homeFile.resolve("data");
         }
@@ -290,15 +295,6 @@ public class Environment {
         if (Files.isDirectory(tmpFile) == false) {
             throw new IOException("Configured temporary file directory [" + tmpFile + "] is not a directory");
         }
-    }
-
-    /** Returns true if the data path is a list, false otherwise */
-    public static boolean dataPathUsesList(Settings settings) {
-        if (settings.hasValue(PATH_DATA_SETTING.getKey()) == false) {
-            return false;
-        }
-        String rawDataPath = settings.get(PATH_DATA_SETTING.getKey());
-        return rawDataPath.startsWith("[");
     }
 
     public static FileStore getFileStore(final Path path) throws IOException {

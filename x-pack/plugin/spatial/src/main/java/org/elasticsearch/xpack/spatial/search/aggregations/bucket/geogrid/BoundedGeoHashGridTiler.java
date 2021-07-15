@@ -17,11 +17,27 @@ import org.elasticsearch.geometry.utils.Geohash;
 public class BoundedGeoHashGridTiler extends AbstractGeoHashGridTiler {
     private final GeoBoundingBox bbox;
     private final boolean crossesDateline;
+    private final long maxHashes;
 
     public BoundedGeoHashGridTiler(int precision, GeoBoundingBox bbox) {
         super(precision);
         this.bbox = bbox;
         this.crossesDateline = bbox.right() < bbox.left();
+        final long hashesY = (long) Math.ceil(((bbox.top() - bbox.bottom()) / Geohash.latHeightInDegrees(precision)) + 1);
+        final long hashesX;
+        if (crossesDateline) {
+            final long hashesLeft = (long) Math.ceil(((180 - bbox.left()) / Geohash.lonWidthInDegrees(precision)) + 1);
+            final long hashesRight = (long) Math.ceil(((bbox.right() + 180) / Geohash.lonWidthInDegrees(precision)) + 1);
+            hashesX = hashesLeft + hashesRight;
+        } else {
+            hashesX = (long) Math.ceil(((bbox.right() - bbox.left()) / Geohash.lonWidthInDegrees(precision)) + 1);
+        }
+        this.maxHashes = hashesX * hashesY;
+    }
+
+    @Override
+    protected long getMaxCells() {
+        return maxHashes;
     }
 
     @Override

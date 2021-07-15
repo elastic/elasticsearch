@@ -13,7 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -236,6 +236,44 @@ public class ThreadPoolTests extends ESTestCase {
         } finally {
             latch.countDown();
             terminate(threadPool);
+        }
+    }
+
+    public void testSchedulerWarnLogging() throws Exception {
+        final ThreadPool threadPool = new TestThreadPool("test",
+                Settings.builder().put(ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING.getKey(), "10ms").build());
+        final Logger logger = LogManager.getLogger(ThreadPool.class);
+        final MockLogAppender appender = new MockLogAppender();
+        appender.start();
+        try {
+            Loggers.addAppender(logger, appender);
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                    "expected warning for slow task",
+                    ThreadPool.class.getName(),
+                    Level.WARN,
+                    "execution of [slow-test-task] took [*ms] which is above the warn threshold of [10ms]"));
+            final Runnable runnable = new Runnable() {
+                @Override
+                public void run() {
+                    final long start = threadPool.relativeTimeInMillis();
+                    try {
+                        assertBusy(() -> assertThat(threadPool.relativeTimeInMillis() - start, greaterThan(10L)));
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "slow-test-task";
+                }
+            };
+            threadPool.schedule(runnable, TimeValue.timeValueMillis(randomLongBetween(0, 300)), ThreadPool.Names.SAME);
+            assertBusy(appender::assertAllExpectationsMatched);
+        } finally {
+            Loggers.removeAppender(logger, appender);
+            appender.stop();
+            assertTrue(terminate(threadPool));
         }
     }
 }

@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -85,9 +85,7 @@ public class SharedBytes extends AbstractRefCounted {
             }
         } else {
             this.fileChannel = null;
-            for (Path path : environment.nodeDataPaths()) {
-                Files.deleteIfExists(path.resolve(CACHE_FILE_NAME));
-            }
+            Files.deleteIfExists(environment.nodeDataPath().resolve(CACHE_FILE_NAME));
         }
         this.path = cacheFile;
         this.writeBytes = writeBytes;
@@ -100,8 +98,7 @@ public class SharedBytes extends AbstractRefCounted {
      * @return path for the cache file or {@code null} if none could be found
      */
     public static Path findCacheSnapshotCacheFilePath(NodeEnvironment environment, long fileSize) throws IOException {
-        assert environment.nodeDataPaths().length == 1;
-        Path path = environment.nodeDataPaths()[0];
+        Path path = environment.nodeDataPath();
         Files.createDirectories(path);
         // TODO: be resilient to this check failing and try next path?
         long usableSpace = Environment.getUsableSpace(path);

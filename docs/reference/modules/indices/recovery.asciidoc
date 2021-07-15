@@ -23,18 +23,16 @@ as snapshot recoveries (i.e., restores from a snapshot). Defaults to `40mb`
 unless the node is a dedicated <<cold-tier, cold>> or
 <<frozen-tier, frozen>> node, in which case the default relates to the
 total memory available to the node:
-
-.Recovery Rate for Cold Nodes
++
 [options="header"]
 |======
-|total memory         | default value
-|<= 4 GB              | 40 MB/s
-|> 4 GB and <= 8 GB   | 60 MB/s
-|> 8 GB and <= 16 GB  | 90 MB/s
-|> 16 GB and <= 32 GB | 125 MB/s
-|> 32 GB              | 250 MB/s
+|Total memory           | Default recovery rate on cold and frozen nodes
+|&le; 4 GB              | 40 MB/s
+|> 4 GB and &le; 8 GB   | 60 MB/s
+|> 8 GB and &le; 16 GB  | 90 MB/s
+|> 16 GB and &le; 32 GB | 125 MB/s
+|> 32 GB                | 250 MB/s
 |======
-
 +
 This limit applies to each node separately. If multiple nodes in a cluster
 perform recoveries at the same time, the cluster's total recovery traffic may
@@ -59,11 +57,12 @@ You can use the following _expert_ setting to manage resources for peer
 recoveries.
 
 `indices.recovery.max_concurrent_file_chunks`::
-(<<cluster-update-settings,Dynamic>>, Expert) Number of file chunk requests
-sent in parallel for each recovery. Defaults to `2`.
+(<<cluster-update-settings,Dynamic>>, Expert) Number of file chunks sent in
+parallel for each recovery. Defaults to `2`.
 +
 You can increase the value of this setting when the recovery of a single shard
-is not reaching the traffic limit set by `indices.recovery.max_bytes_per_sec`.
+is not reaching the traffic limit set by `indices.recovery.max_bytes_per_sec`,
+up to a maximum of `8`.
 
 `indices.recovery.max_concurrent_operations`::
 (<<cluster-update-settings,Dynamic>>, Expert) Number of operations sent

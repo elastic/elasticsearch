@@ -9,7 +9,7 @@
 package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.test.ESTestCase;
 

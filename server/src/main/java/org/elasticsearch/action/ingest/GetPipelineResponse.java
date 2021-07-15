@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -24,9 +23,9 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -42,7 +41,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         for (int i = 0; i < size; i++) {
             pipelines.add(PipelineConfiguration.readFrom(in));
         }
-        summary = in.getVersion().onOrAfter(Version.V_7_13_0) ? in.readBoolean() : false;
+        summary = in.readBoolean();
     }
 
     public GetPipelineResponse(List<PipelineConfiguration> pipelines, boolean summary) {
@@ -69,9 +68,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         for (PipelineConfiguration pipeline : pipelines) {
             pipeline.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeBoolean(summary);
-        }
+        out.writeBoolean(summary);
     }
 
     public boolean isFound() {

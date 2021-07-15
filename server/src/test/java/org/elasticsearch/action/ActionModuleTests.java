@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
@@ -34,10 +35,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -194,4 +198,47 @@ public class ActionModuleTests extends ESTestCase {
             threadPool.shutdown();
         }
     }
+
+    public void test3rdPartyHandlerIsNotInstalled() {
+        Settings settings = Settings.builder()
+            .put("xpack.security.enabled", false)
+            .put("path.home", createTempDir())
+            .build();
+
+        SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        ActionPlugin secPlugin = new SecPlugin();
+        try {
+            UsageService usageService = new UsageService();
+
+            Exception e = expectThrows(IllegalArgumentException.class, () ->
+                new ActionModule(settingsModule.getSettings(),
+                    TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                    settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
+                    threadPool, Arrays.asList(secPlugin), null, null, usageService, null)
+            );
+            assertThat(e.getMessage(), Matchers.equalTo("The org.elasticsearch.action.ActionModuleTests$SecPlugin plugin tried to " +
+                "install a custom REST wrapper. This functionality is not available anymore."));
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    class FakeHandler implements RestHandler {
+        @Override
+        public List<Route> routes() {
+            return singletonList(new Route(GET, "/_dummy"));
+        }
+
+        @Override
+        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        }
+    }
+
+    class SecPlugin implements ActionPlugin {
+        @Override
+        public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+            return UnaryOperator.identity();
+        }
+    };
 }

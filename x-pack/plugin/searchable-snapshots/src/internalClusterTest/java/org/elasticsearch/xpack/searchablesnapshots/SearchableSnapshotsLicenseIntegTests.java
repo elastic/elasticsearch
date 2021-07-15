@@ -23,9 +23,9 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensesMetadata;
@@ -36,6 +36,7 @@ import org.elasticsearch.license.PostStartTrialRequest;
 import org.elasticsearch.license.PostStartTrialResponse;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
@@ -71,13 +72,12 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        final Settings.Builder indexSettingsBuilder = Settings.builder().put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false);
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             indexName,
             repoName,
             snapshotName,
             indexName,
-            indexSettingsBuilder.build(),
+            Settings.EMPTY,
             Strings.EMPTY_ARRAY,
             true,
             randomFrom(MountSearchableSnapshotRequest.Storage.values())
@@ -89,6 +89,9 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
 
         assertAcked(client().execute(DeleteLicenseAction.INSTANCE, new DeleteLicenseRequest()).get());
         assertAcked(client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest()).get());
+
+        ensureClusterSizeConsistency();
+        ensureClusterStateConsistency();
     }
 
     public void testMountRequiresLicense() {
@@ -142,6 +145,7 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
         }
     }
 
+    @TestLogging(reason = "https://github.com/elastic/elasticsearch/issues/72329", value = "org.elasticsearch.license:DEBUG")
     public void testShardAllocationOnInvalidLicense() throws Exception {
         // check that shards have been failed as part of invalid license
         assertBusy(
@@ -150,6 +154,10 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
                 client().admin().cluster().prepareHealth(indexName).get().getIndices().get(indexName).getStatus()
             )
         );
+
+        waitNoPendingTasksOnAll();
+        ensureClusterStateConsistency();
+
         // add a valid license again
         // This is a bit of a hack in tests, as we can't readd a trial license
         // We force this by clearing the existing basic license first
@@ -158,10 +166,27 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
                 .metadata(Metadata.builder(currentState.metadata()).removeCustom(LicensesMetadata.TYPE).build())
                 .build()
         );
-        PostStartTrialRequest startTrialRequest = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName())
-            .acknowledge(true);
-        PostStartTrialResponse resp = client().execute(PostStartTrialAction.INSTANCE, startTrialRequest).get();
-        assertEquals(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL, resp.getStatus());
+
+        waitNoPendingTasksOnAll();
+        ensureClusterStateConsistency();
+
+        try {
+            PostStartTrialRequest startTrialRequest = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName())
+                .acknowledge(true);
+            PostStartTrialResponse resp = client().execute(PostStartTrialAction.INSTANCE, startTrialRequest).get();
+            assertEquals(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL, resp.getStatus());
+        } catch (AssertionError ae) {
+            try {
+                final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+                logger.error(
+                    "Failed to start trial license again, cluster state on master node is:\n{}",
+                    Strings.toString(clusterService.state(), false, true)
+                );
+            } catch (Exception e) {
+                ae.addSuppressed(e);
+            }
+            throw ae;
+        }
         // check if cluster goes green again after valid license has been put in place
         ensureGreen(indexName);
     }

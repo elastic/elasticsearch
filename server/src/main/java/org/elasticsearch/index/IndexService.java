@@ -23,13 +23,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
@@ -346,7 +346,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             return;
         }
         try {
-            IndexMetadata.FORMAT.writeAndCleanup(getMetadata(), nodeEnv.indexPaths(index()));
+            IndexMetadata.FORMAT.writeAndCleanup(getMetadata(), nodeEnv.indexPath(index()));
         } catch (WriteStateException e) {
             logger.warn(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index()), e);
         }
@@ -358,7 +358,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             return;
         }
         try {
-            MetadataStateFormat.deleteMetaState(nodeEnv.indexPaths(index()));
+            MetadataStateFormat.deleteMetaState(nodeEnv.indexPath(index()));
         } catch (IOException e) {
             logger.warn(() -> new ParameterizedMessage("failed to delete dangling indices state for index {}", index()), e);
         }
@@ -411,8 +411,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             } catch (IllegalStateException ex) {
                 logger.warn("{} failed to load shard path, trying to remove leftover", shardId);
                 try {
-                    ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings, shardPaths ->
-                        indexFoldersDeletionListener.beforeShardFoldersDeleted(shardId, this.indexSettings, shardPaths));
+                    ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings, shardPath ->
+                        indexFoldersDeletionListener.beforeShardFoldersDeleted(shardId, this.indexSettings, shardPath));
                     path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
                 } catch (Exception inner) {
                     ex.addSuppressed(inner);

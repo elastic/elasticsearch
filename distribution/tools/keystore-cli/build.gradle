@@ -15,3 +15,17 @@ dependencies {
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
 }
+
+tasks.named('splitPackagesAudit').configure {
+  // common.settings is owned by server, this should be keystore specifici
+  ignoreClasses 'org.elasticsearch.common.settings.AddFileKeyStoreCommand',
+    'org.elasticsearch.common.settings.AddStringKeyStoreCommand',
+    'org.elasticsearch.common.settings.BaseKeyStoreCommand',
+    'org.elasticsearch.common.settings.ChangeKeyStorePasswordCommand',
+    'org.elasticsearch.common.settings.CreateKeyStoreCommand',
+    'org.elasticsearch.common.settings.HasPasswordKeyStoreCommand',
+    'org.elasticsearch.common.settings.KeyStoreCli',
+    'org.elasticsearch.common.settings.ListKeyStoreCommand',
+    'org.elasticsearch.common.settings.RemoveSettingKeyStoreCommand',
+    'org.elasticsearch.common.settings.UpgradeKeyStoreCommand'
+}

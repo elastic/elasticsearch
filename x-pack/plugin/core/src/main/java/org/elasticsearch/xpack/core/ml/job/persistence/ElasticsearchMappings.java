@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -150,7 +151,8 @@ public class ElasticsearchMappings {
 
     public static void addDocMappingIfMissing(String alias,
                                               CheckedSupplier<String, IOException> mappingSupplier,
-                                              Client client, ClusterState state, ActionListener<Boolean> listener) {
+                                              Client client, ClusterState state, TimeValue masterNodeTimeout,
+                                              ActionListener<Boolean> listener) {
         IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(alias);
         if (indexAbstraction == null) {
             // The index has never been created yet
@@ -167,6 +169,7 @@ public class ElasticsearchMappings {
                 PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
                 putMappingRequest.source(mapping, XContentType.JSON);
                 putMappingRequest.origin(ML_ORIGIN);
+                putMappingRequest.masterNodeTimeout(masterNodeTimeout);
                 executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest,
                     ActionListener.wrap(response -> {
                         if (response.isAcknowledged()) {

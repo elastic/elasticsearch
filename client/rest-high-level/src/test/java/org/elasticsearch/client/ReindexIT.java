@@ -263,6 +263,8 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             float requestsPerSecond = 1000f;
             ListTasksResponse response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
                 highLevelClient()::deleteByQueryRethrottle, highLevelClient()::deleteByQueryRethrottleAsync);
+            assertThat(response.getTaskFailures(), empty());
+            assertThat(response.getNodeFailures(), empty());
             assertThat(response.getTasks(), hasSize(1));
             assertEquals(taskIdToRethrottle, response.getTasks().get(0).getTaskId());
             assertThat(response.getTasks().get(0).getStatus(), instanceOf(RawTaskStatus.class));

@@ -61,6 +61,12 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         b.field("type", "match_only_text");
     }
 
+    @Override
+    protected void minimalStoreMapping(XContentBuilder b) throws IOException {
+        // 'store' is always true
+        minimalMapping(b);
+    }
+
     public void testDefaults() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());

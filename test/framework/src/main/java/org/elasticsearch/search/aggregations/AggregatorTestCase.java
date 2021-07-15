@@ -41,14 +41,11 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -56,6 +53,9 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -80,6 +80,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -236,18 +237,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                 long bytesToPreallocate,
                                                 int maxBucket,
                                                 MappedFieldType... fieldTypes) throws IOException {
-        MappingLookup mappingLookup = new MappingLookup(
+        MappingLookup mappingLookup = MappingLookup.fromMappers(
             Mapping.EMPTY,
             Arrays.stream(fieldTypes).map(this::buildMockFieldMapper).collect(toList()),
             objectMappers(),
             // Alias all fields to <name>-alias to test aliases
             Arrays.stream(fieldTypes)
                 .map(ft -> new FieldAliasMapper(ft.name() + "-alias", ft.name() + "-alias", ft.name()))
-                .collect(toList()),
-            null,
-            null,
-            null
-        );
+                .collect(toList()));
 
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataBuilder = (
             fieldType,
@@ -296,7 +293,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             randomInt(),
             () -> 0L,
             () -> false,
-            q -> q
+            q -> q,
+            true
         );
         releasables.add(context);
         return context;
@@ -360,7 +358,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
          * of stuff.
          */
         SearchExecutionContext subContext = spy(searchExecutionContext);
-        MappingLookup disableNestedLookup = new MappingLookup(Mapping.EMPTY, Set.of(), Set.of(), Set.of(), null, null, null);
+        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, Set.of(), Set.of(), Set.of());
         doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer)).when(subContext).getNestedDocuments();
         when(ctx.getSearchExecutionContext()).thenReturn(subContext);
 
@@ -605,7 +603,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MappedFieldType... fieldTypes
     ) throws IOException {
         // Don't use searchAndReduce because we only want a single aggregator.
-        IndexReaderContext ctx = searcher.getTopReaderContext();
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
         AggregationContext context = createAggregationContext(
             searcher,
@@ -640,7 +637,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private void collectDebugInfo(String prefix, Aggregator aggregator, Map<String, Map<String, Object>> allDebug) {
         Map<String, Object> debug = new HashMap<>();
-        aggregator.collectDebugInfo(debug::put);
+        aggregator.collectDebugInfo((key, value) -> {
+            Object old = debug.put(key, value);
+            assertNull("debug info duplicate key [" + key + "] was [" + old + "] is [" + value + "]", old);
+        });
         allDebug.put(prefix + aggregator.name(), debug);
         for (Aggregator sub : aggregator.subAggregators()) {
             collectDebugInfo(aggregator.name() + ".", sub, allDebug);
@@ -992,7 +992,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         iw.addDocument(doc);
     }
 
-    private static class MockParserContext extends Mapper.TypeParser.ParserContext {
+    private static class MockParserContext extends MappingParserContext {
         MockParserContext() {
             super(null, null, null, null, null, null, ScriptCompiler.NONE, null, null, null);
         }

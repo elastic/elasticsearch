@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -98,11 +97,10 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                 parent,
                 cardinality,
                 metadata) -> {
-                CellIdSource cellIdSource = new CellIdSource(
+                GeoHashCellIdSource cellIdSource = new GeoHashCellIdSource(
                     (ValuesSource.GeoPoint) valuesSource,
                     precision,
-                    geoBoundingBox,
-                    Geohash::longEncode
+                    geoBoundingBox
                 );
                 return new GeoHashGridAggregator(
                     name,
@@ -115,7 +113,6 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                     cardinality,
                     metadata
                 );
-            },
-                true);
+            }, true);
     }
 }

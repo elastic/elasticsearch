@@ -19,9 +19,10 @@ Instantiates a {dfeed}.
 == {api-prereq-title}
 
 * You must create an {anomaly-job} before you create a {dfeed}.
-* If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
-cluster privileges to use this API. See <<security-privileges>> and
-{ml-docs-setup-privileges}.
+* Requires the following privileges:
+** cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this 
+  privilege)
+** source index configured in the {dfeed}: `read`
 
 [[ml-put-datafeed-desc]]
 == {api-description-title}

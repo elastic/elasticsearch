@@ -13,12 +13,21 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
  */
 public class UnboundedGeoHashGridTiler extends AbstractGeoHashGridTiler {
 
+    private final long maxHashes;
+
+
     public UnboundedGeoHashGridTiler(int precision) {
         super(precision);
+        this.maxHashes = (long) Math.pow(32, precision);
     }
 
     @Override
     protected boolean validHash(String hash) {
        return true;
+    }
+
+    @Override
+    protected long getMaxCells() {
+        return maxHashes;
     }
 }

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.action.admin.indices.shrink;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -16,7 +15,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -59,10 +58,8 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         sourceIndex = in.readString();
         type = in.readEnum(ResizeType.class);
         copySettings = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            if (in.readBoolean()) {
-                maxPrimaryShardSize = new ByteSizeValue(in);
-            }
+        if (in.readBoolean()) {
+            maxPrimaryShardSize = new ByteSizeValue(in);
         }
     }
 
@@ -106,9 +103,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         out.writeString(sourceIndex);
         out.writeEnum(type);
         out.writeOptionalBoolean(copySettings);
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalWriteable(maxPrimaryShardSize);
-        }
+        out.writeOptionalWriteable(maxPrimaryShardSize);
     }
 
     @Override

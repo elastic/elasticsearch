@@ -19,7 +19,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -41,8 +42,10 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.MockTimebasedCheckpointProvider;
+import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigManager;
@@ -110,9 +113,8 @@ public class TransformIndexerTests extends ESTestCase {
         MockedTransformIndexer(
             int numberOfLoops,
             ThreadPool threadPool,
-            TransformConfigManager transformsConfigManager,
+            TransformServices transformServices,
             CheckpointProvider checkpointProvider,
-            TransformAuditor auditor,
             TransformConfig transformConfig,
             Map<String, String> fieldMappings,
             AtomicReference<IndexerState> initialState,
@@ -122,9 +124,8 @@ public class TransformIndexerTests extends ESTestCase {
         ) {
             super(
                 threadPool,
-                transformsConfigManager,
+                transformServices,
                 checkpointProvider,
-                auditor,
                 transformConfig,
                 fieldMappings,
                 initialState,
@@ -432,13 +433,18 @@ public class TransformIndexerTests extends ESTestCase {
     ) {
         CheckpointProvider checkpointProvider = new MockTimebasedCheckpointProvider(config);
         transformConfigManager.putTransformConfiguration(config, ActionListener.wrap(r -> {}, e -> {}));
+        TransformServices transformServices = new TransformServices(
+            transformConfigManager,
+            mock(TransformCheckpointService.class),
+            auditor,
+            mock(SchedulerEngine.class)
+        );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
             numberOfLoops,
             threadPool,
-            transformConfigManager,
+            transformServices,
             checkpointProvider,
-            auditor,
             config,
             Collections.emptyMap(),
             state,

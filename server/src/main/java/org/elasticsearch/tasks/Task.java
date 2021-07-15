@@ -28,6 +28,19 @@ public class Task {
      */
     public static final String X_OPAQUE_ID = "X-Opaque-Id";
 
+    /**
+     * The request header which is contained in HTTP request. We parse trace.id from it and store it in thread context.
+     * TRACE_PARENT once parsed in RestController.tryAllHandler is not preserved
+     * has to be declared as a header copied over from http request.
+     */
+    public static final String TRACE_PARENT = "traceparent";
+
+    /**
+     * Parsed part of traceparent. It is stored in thread context and emitted in logs.
+     * Has to be declared as a header copied over for tasks.
+     */
+    public static final String TRACE_ID = "trace.id";
+
     private final long id;
 
     private final String type;
@@ -90,8 +103,18 @@ public class Task {
      * Build a proper {@link TaskInfo} for this task.
      */
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status) {
-        return new TaskInfo(new TaskId(localNodeId, getId()), getType(), getAction(), description, status, startTime,
-                System.nanoTime() - startTimeNanos, this instanceof CancellableTask, parentTask, headers);
+        return new TaskInfo(
+                new TaskId(localNodeId, getId()),
+                getType(),
+                getAction(),
+                description,
+                status,
+                startTime,
+                System.nanoTime() - startTimeNanos,
+                this instanceof CancellableTask,
+                this instanceof CancellableTask && ((CancellableTask)this).isCancelled(),
+                parentTask,
+                headers);
     }
 
     /**

@@ -19,5 +19,3 @@ restResources {
     include '_common', 'indices', 'index', 'get'
   }
 }
-// no unit tests
-tasks.named("test").configure { enabled = false }

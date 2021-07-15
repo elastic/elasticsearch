@@ -35,7 +35,7 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
 
     public TransformAuditor(Client client, String nodeName, ClusterService clusterService) {
         super(new OriginSettingClient(client, TRANSFORM_ORIGIN), TransformInternalIndexConstants.AUDIT_INDEX,
-            TransformInternalIndexConstants.AUDIT_INDEX,
+            TransformInternalIndexConstants.AUDIT_INDEX, null,
             () -> {
                 try {
                     IndexTemplateMetadata templateMeta = TransformInternalIndex.getAuditIndexTemplateMetadata();
@@ -65,7 +65,7 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
                     return null;
                 }
             },
-            nodeName, TransformAuditMessage::new, clusterService);
+            () -> null, nodeName, TransformAuditMessage::new, clusterService);
         clusterService.addListener(event -> {
             if (event.metadataChanged()) {
                 isResetMode = TransformMetadata.getTransformMetadata(event.state()).isResetMode();

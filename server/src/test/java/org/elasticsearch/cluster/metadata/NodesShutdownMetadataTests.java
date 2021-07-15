@@ -14,8 +14,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,24 +81,8 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
         return SingleNodeShutdownMetadata.builder().setNodeId(randomAlphaOfLength(5))
             .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
             .setReason(randomAlphaOfLength(5))
-            .setStatus(randomStatus())
             .setStartedAtMillis(randomNonNegativeLong())
-            .setShardMigrationStatus(randomComponentStatus())
-            .setPersistentTasksStatus(randomComponentStatus())
-            .setPluginsStatus(randomComponentStatus())
             .build();
-    }
-
-    private SingleNodeShutdownMetadata.Status randomStatus() {
-        return randomFrom(new ArrayList<>(EnumSet.allOf(SingleNodeShutdownMetadata.Status.class)));
-    }
-
-    private NodeShutdownComponentStatus randomComponentStatus() {
-        return new NodeShutdownComponentStatus(
-            randomStatus(),
-            randomBoolean() ? null : randomNonNegativeLong(),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(4, 10)
-        );
     }
 
     @Override

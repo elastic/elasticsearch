@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
@@ -172,7 +173,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             "_node_name" + i,
             "_node_id" + i,
             new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i),
-            Map.of("ml.max_open_jobs", isMlNode ? "10" : "0", "ml.machine_memory", "-1"),
+            Map.of("ml.max_open_jobs", isMlNode ? "10" : "0", "ml.machine_memory", String.valueOf(ByteSizeValue.ofGb(1).getBytes())),
             Collections.emptySet(),
             nodeVersion);
     }

@@ -27,6 +27,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -85,8 +86,9 @@ public class JoinTaskExecutorTests extends ESTestCase {
             }
         });
 
-        Version oldMajor = minNodeVersion.minimumCompatibilityVersion();
-        expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
+        final Version oldVersion = randomValueOtherThanMany(v -> v.onOrAfter(minNodeVersion),
+            () -> rarely() ? Version.fromId(minNodeVersion.id - 1) : randomVersion(random()));
+        expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureVersionBarrier(oldVersion, minNodeVersion));
 
         final Version minGoodVersion = maxNodeVersion.major == minNodeVersion.major ?
             // we have to stick with the same major

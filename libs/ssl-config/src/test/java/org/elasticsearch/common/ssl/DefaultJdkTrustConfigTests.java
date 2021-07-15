@@ -26,7 +26,6 @@ public class DefaultJdkTrustConfigTests extends ESTestCase {
 
     private static final BiFunction<String, String, String> EMPTY_SYSTEM_PROPERTIES = (key, defaultValue) -> defaultValue;
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71717")
     public void testGetSystemTrustStoreWithNoSystemProperties() throws Exception {
         final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig((key, defaultValue) -> defaultValue);
         assertThat(trustConfig.getDependentFiles(), emptyIterable());
@@ -34,7 +33,6 @@ public class DefaultJdkTrustConfigTests extends ESTestCase {
         assertStandardIssuers(trustManager);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71717")
     public void testGetNonPKCS11TrustStoreWithPasswordSet() throws Exception {
         final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig(EMPTY_SYSTEM_PROPERTIES, "fakepassword".toCharArray());
         assertThat(trustConfig.getDependentFiles(), emptyIterable());
@@ -46,11 +44,12 @@ public class DefaultJdkTrustConfigTests extends ESTestCase {
         assertThat(trustManager.getAcceptedIssuers(), not(emptyArray()));
         // This is a sample of the CAs that we expect on every JRE.
         // We can safely change this list if the JRE's issuer list changes, but we want to assert something useful.
-        assertHasTrustedIssuer(trustManager, "VeriSign");
-        assertHasTrustedIssuer(trustManager, "GeoTrust");
         assertHasTrustedIssuer(trustManager, "DigiCert");
-        assertHasTrustedIssuer(trustManager, "thawte");
         assertHasTrustedIssuer(trustManager, "COMODO");
+        assertHasTrustedIssuer(trustManager, "GlobalSign");
+        assertHasTrustedIssuer(trustManager, "GoDaddy");
+        assertHasTrustedIssuer(trustManager, "QuoVadis");
+        assertHasTrustedIssuer(trustManager, "Internet Security Research Group");
     }
 
     private void assertHasTrustedIssuer(X509ExtendedTrustManager trustManager, String name) {

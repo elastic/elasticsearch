@@ -272,12 +272,6 @@ GET /_xpack/usage
     "available" : true,
     "enabled" : true
   },
-  "vectors" : {
-    "available" : true,
-    "enabled" : true,
-    "dense_vector_fields_count" : 0,
-    "dense_vector_dims_avg_count" : 0
-  },
   "voting_only" : {
     "available" : true,
     "enabled" : true

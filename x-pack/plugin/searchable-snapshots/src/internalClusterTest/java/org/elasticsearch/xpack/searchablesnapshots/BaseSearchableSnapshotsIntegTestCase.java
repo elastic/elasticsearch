@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
@@ -126,7 +125,9 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         if (randomBoolean()) {
             builder.put(
                 FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
-                new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
+                rarely()
+                    ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                    : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
             );
         }
         return builder.build();
@@ -169,10 +170,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             repositoryName,
             snapshotName,
             indexName,
-            Settings.builder()
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
-                .put(restoredIndexSettings)
-                .build(),
+            restoredIndexSettings,
             Strings.EMPTY_ARRAY,
             true,
             storage
@@ -192,7 +190,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     protected void populateIndex(String indexName, int maxIndexRequests) throws InterruptedException {
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         // This index does not permit dynamic fields, so we can only use defined field names
-        final String key = indexName.equals(SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX) ? "type" : "foo";
+        final String key = indexName.equals(SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX) ? "type" : "foo";
         for (int i = between(10, maxIndexRequests); i >= 0; i--) {
             indexRequestBuilders.add(client().prepareIndex(indexName).setSource(key, randomBoolean() ? "bar" : "baz"));
         }

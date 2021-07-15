@@ -26,7 +26,7 @@ GET my-index-000001/_msearch
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or index alias. For cross-cluster search, see <<cross-cluster-configuring>>.
+or alias. For cross-cluster search, see <<cross-cluster-configuring>>.
 
 [[search-multi-search-api-desc]]
 ==== {api-description-title}
@@ -61,7 +61,7 @@ this endpoint the `Content-Type` header should be set to `application/x-ndjson`.
 
 `<target>`::
 (Optional, string)
-Comma-separated list of data streams, indices, and index aliases to search.
+Comma-separated list of data streams, indices, and aliases to search.
 +
 This list acts as a fallback if a search in the request body does not specify an
 `index` target.
@@ -168,9 +168,10 @@ respective types in the response.
 The request body contains a newline-delimited list of search `<header>` and
 search `<body>` objects.
 
+// tag::header-params[]
 `<header>`::
 (Required, object)
-Contains parameters used to limit or change the subsequent search body request.
+Parameters used to limit or change the search.
 +
 This object is required for each search body but can be empty (`{}`) or a blank
 line.
@@ -183,8 +184,8 @@ line.
 If `true`, the request does *not* return an error if a wildcard expression or
 `_all` value retrieves only missing or closed indices.
 +
-This parameter also applies to <<indices-aliases,index aliases>> that point to a
-missing or closed index.
+This parameter also applies to <<alias,aliases>> that point to a missing
+or index.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
@@ -196,8 +197,8 @@ included in the response. Defaults to `false`.
 
 `index`::
 (Optional, string or array of strings)
-Data streams, indices, and index aliases to search. Wildcard (`*`) expressions
-are supported. You can specify multiple targets as an array.
+Data streams, indices, and aliases to search. Supports wildcards (`*`). Specify
+multiple targets as an array.
 +
 If this parameter is not specified, the `<target>` request path parameter
 is used as a fallback.
@@ -235,6 +236,7 @@ Documents are scored using global term and document frequencies across all
 shards. This is usually slower but more accurate.
 --
 ====
+// end::header-params[]
 
 `<body>`::
 (Optional, object)
@@ -274,10 +276,10 @@ Number of hits to return. Defaults to `10`.
 [[search-multi-search-api-example]]
 ==== {api-examples-title}
 
-The header part includes which data streams, indices, and index aliases to
-search. The header also indicates the `search_type`,
-`preference`, and `routing`. The body includes the typical search body request
-(including the `query`, `aggregations`, `from`, `size`, and so on).
+The header includes the data streams, indices, and aliases to search. The header
+also indicates the `search_type`, `preference`, and `routing`. The body includes
+the typical search body request (including the `query`, `aggregations`, `from`,
+`size`, and so on).
 
 [source,js]
 --------------------------------------------------
@@ -305,7 +307,7 @@ Note, the above includes an example of an empty header (can also be just
 without any content) which is supported as well.
 
 
-The endpoint also allows you to search against data streams, indices, and index
+The endpoint also allows you to search against data streams, indices, and
 aliases in the request path. In this case, it will be used as the default target
 unless explicitly specified in the header's `index` parameter. For example:
 
@@ -333,76 +335,6 @@ all search requests.
 ==== Security
 
 See <<url-access-control>>
-
-
-[[template-msearch]]
-==== Template support
-
-Much like described in <<search-template>> for the _search resource, _msearch
-also provides support for templates. Submit them like follows for inline
-templates:
-
-[source,console]
------------------------------------------------
-GET _msearch/template
-{"index" : "my-index-000001"}
-{ "source" : "{ \"query\": { \"match\": { \"message\" : \"{{keywords}}\" } } } }", "params": { "query_type": "match", "keywords": "some message" } }
-{"index" : "my-index-000001"}
-{ "source" : "{ \"query\": { \"match_{{template}}\": {} } }", "params": { "template": "all" } }
------------------------------------------------
-// TEST[setup:my_index]
-
-
-You can also create search templates:
-
-[source,console]
-------------------------------------------
-POST /_scripts/my_template_1
-{
-  "script": {
-    "lang": "mustache",
-    "source": {
-      "query": {
-        "match": {
-          "message": "{{query_string}}"
-        }
-      }
-    }
-  }
-}
-------------------------------------------
-// TEST[setup:my_index]
-
-
-[source,console]
-------------------------------------------
-POST /_scripts/my_template_2
-{
-  "script": {
-    "lang": "mustache",
-    "source": {
-      "query": {
-        "term": {
-          "{{field}}": "{{value}}"
-        }
-      }
-    }
-  }
-}
-------------------------------------------
-// TEST[continued]
-
-You can use search templates in a _msearch:
-
-[source,console]
------------------------------------------------
-GET _msearch/template
-{"index" : "main"}
-{ "id": "my_template_1", "params": { "query_string": "some message" } }
-{"index" : "main"}
-{ "id": "my_template_2", "params": { "field": "user", "value": "test" } }
------------------------------------------------
-// TEST[continued]
 
 
 [[multi-search-partial-responses]]

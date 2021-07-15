@@ -15,18 +15,18 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -36,9 +36,9 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -70,7 +70,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.arrayContaining;
 
 /**
@@ -139,7 +139,6 @@ public class RefreshListenersTests extends ESTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 () -> RetentionLeases.EMPTY,
                 () -> primaryTerm,
-                EngineTestCase.tombstoneDocSupplier(),
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
         engine = new InternalEngine(config);
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
@@ -335,8 +334,9 @@ public class RefreshListenersTests extends ESTestCase {
                         listener.assertNoError();
 
                         Engine.Get get = new Engine.Get(false, false, threadId);
-                        final DocumentMapper mapper = EngineTestCase.docMapper();
-                        try (Engine.GetResult getResult = engine.get(get, mapper, EngineTestCase.randomSearcherWrapper())) {
+                        MapperService mapperService = EngineTestCase.createMapperService();
+                        try (Engine.GetResult getResult = engine.get(get, mapperService.mappingLookup(), mapperService.documentParser(),
+                            EngineTestCase.randomSearcherWrapper())) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
                             org.apache.lucene.document.Document document =
@@ -397,7 +397,7 @@ public class RefreshListenersTests extends ESTestCase {
 
     private Engine.IndexResult index(String id, String testFieldValue) throws IOException {
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         document.add(new TextField("test", testFieldValue, Field.Store.YES));
         Field idField = new Field(uid.field(), uid.bytes(), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);

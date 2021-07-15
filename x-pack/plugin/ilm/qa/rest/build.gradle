@@ -26,10 +26,3 @@ testClusters.all {
   setting 'xpack.license.self_generated.type', 'trial'
   user clusterCredentials
 }
-
-tasks.named("yamlRestCompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
-    //TODO: remove once #75099 is back ported to 7.x
-    'ilm/10_basic/Test increasing phase timings validated'
-  ].join(',')
-}

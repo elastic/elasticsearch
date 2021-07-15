@@ -46,7 +46,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
@@ -191,7 +190,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     protected void populateIndex(String indexName, int maxIndexRequests) throws InterruptedException {
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         // This index does not permit dynamic fields, so we can only use defined field names
-        final String key = indexName.equals(SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX) ? "type" : "foo";
+        final String key = indexName.equals(SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX) ? "type" : "foo";
         for (int i = between(10, maxIndexRequests); i >= 0; i--) {
             indexRequestBuilders.add(client().prepareIndex(indexName).setSource(key, randomBoolean() ? "bar" : "baz"));
         }

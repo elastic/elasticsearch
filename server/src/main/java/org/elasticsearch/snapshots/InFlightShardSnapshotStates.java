@@ -103,7 +103,7 @@ public final class InFlightShardSnapshotStates {
         @Nullable String activeGeneration
     ) {
         final String bestGeneration = generations.getOrDefault(indexName, Collections.emptyMap()).get(shardId);
-        if((bestGeneration == null || activeGeneration == null || activeGeneration.equals(bestGeneration)) == false) {
+        if ((bestGeneration == null || activeGeneration == null || activeGeneration.equals(bestGeneration)) == false) {
             throw new AssertionFailedException("gnarf");
         }
         return true;

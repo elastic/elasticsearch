@@ -1724,39 +1724,139 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         final List<SnapshotsInProgress.Entry> entries;
         if (indexOfEntry == 0) {
-             entries = List.copyOf(entryList.subList(1, entryList.size()));
+            entries = List.copyOf(entryList.subList(1, entryList.size()));
         } else if (indexOfEntry > 0) {
             entries = new ArrayList<>();
             final SnapshotsInProgress.Entry removedEntry = entryList.get(indexOfEntry);
             for (int i = 0; i < indexOfEntry; i++) {
                 final SnapshotsInProgress.Entry previousEntry = entryList.get(i);
                 if (previousEntry.repository().equals(removedEntry.repository())) {
-                    if (previousEntry.isClone()) {
-                        assert false : "todo";
-                    } else {
-                        ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedShardAssignments = null;
-                        for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> finishedShardEntry : removedEntry.shards()) {
-                            final ShardSnapshotStatus shardState = finishedShardEntry.value;
-                            if (shardState.state() == ShardState.SUCCESS) {
-                                final ShardSnapshotStatus stateToUpdate = previousEntry.shards().get(finishedShardEntry.key);
-                                if (stateToUpdate != null && stateToUpdate.state() == ShardState.SUCCESS) {
-                                    if (updatedShardAssignments == null) {
-                                        updatedShardAssignments = ImmutableOpenMap.builder();
+                    if (removedEntry.isClone()) {
+                        if (previousEntry.isClone()) {
+                            ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> updatedShardAssignments = null;
+                            for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> finishedShardEntry : removedEntry.clones()) {
+                                final RepositoryShardId shardId = finishedShardEntry.key;
+                                final ShardSnapshotStatus shardState = finishedShardEntry.value;
+                                if (shardState.state() == ShardState.SUCCESS) {
+                                    final ShardSnapshotStatus stateToUpdate = previousEntry.clones().get(shardId);
+                                    final String newGeneration = shardState.generation();
+                                    if (stateToUpdate != null
+                                        && stateToUpdate.state() == ShardState.SUCCESS
+                                        && Objects.equals(newGeneration, stateToUpdate.generation()) == false) {
+                                        if (updatedShardAssignments == null) {
+                                            updatedShardAssignments = ImmutableOpenMap.builder();
+                                        }
+                                        updatedShardAssignments.put(shardId, stateToUpdate.withUpdatedGeneration(newGeneration));
                                     }
-                                    updatedShardAssignments.put(
-                                            finishedShardEntry.key,
-                                            stateToUpdate.withUpdatedGeneration(shardState.generation())
-                                    );
                                 }
                             }
-                        }
-                        if (updatedShardAssignments == null) {
-                            entries.add(previousEntry);
+                            if (updatedShardAssignments == null) {
+                                entries.add(previousEntry);
+                            } else {
+                                final ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> updatedStatus = ImmutableOpenMap
+                                    .builder(previousEntry.clones());
+                                updatedStatus.putAll(updatedShardAssignments.build());
+                                entries.add(previousEntry.withClones(updatedStatus.build()));
+                            }
                         } else {
-                            final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedStatus =
-                                    ImmutableOpenMap.builder(previousEntry.shards());
-                            updatedStatus.putAll(updatedShardAssignments.build());
-                            entries.add(previousEntry.withShardStates(updatedStatus.build()));
+                            ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedShardAssignments = null;
+                            for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> finishedShardEntry : removedEntry.clones()) {
+                                final RepositoryShardId repoShardId = finishedShardEntry.key;
+                                final ShardSnapshotStatus shardState = finishedShardEntry.value;
+                                if (shardState.state() == ShardState.SUCCESS) {
+                                    final IndexMetadata indexMeta = state.metadata().index(repoShardId.indexName());
+                                    if (indexMeta == null) {
+                                        // The index name that finished cloning does not exist in the cluster state so it isn't relevant
+                                        // to the running snapshot
+                                        continue;
+                                    }
+                                    final ShardId finishedRoutingShardId = new ShardId(indexMeta.getIndex(), repoShardId.shardId());
+                                    final ShardSnapshotStatus stateToUpdate = previousEntry.shards().get(finishedRoutingShardId);
+                                    final String newGeneration = shardState.generation();
+                                    if (stateToUpdate != null
+                                        && stateToUpdate.state() == ShardState.SUCCESS
+                                        && Objects.equals(newGeneration, stateToUpdate.generation()) == false) {
+                                        if (updatedShardAssignments == null) {
+                                            updatedShardAssignments = ImmutableOpenMap.builder();
+                                        }
+                                        updatedShardAssignments.put(
+                                            finishedRoutingShardId,
+                                            stateToUpdate.withUpdatedGeneration(newGeneration)
+                                        );
+                                    }
+                                }
+                            }
+                            if (updatedShardAssignments == null) {
+                                entries.add(previousEntry);
+                            } else {
+                                final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedStatus = ImmutableOpenMap.builder(
+                                    previousEntry.shards()
+                                );
+                                updatedStatus.putAll(updatedShardAssignments.build());
+                                entries.add(previousEntry.withShardStates(updatedStatus.build()));
+                            }
+                        }
+                    } else {
+                        if (previousEntry.isClone()) {
+                            ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> updatedShardAssignments = null;
+                            for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> finishedShardEntry : removedEntry.shards()) {
+                                final ShardId shardId = finishedShardEntry.key;
+                                final IndexId indexId = removedEntry.indices().get(shardId.getIndexName());
+                                if (indexId == null) {
+                                    continue;
+                                }
+                                final RepositoryShardId repoShardId = new RepositoryShardId(indexId, shardId.getId());
+                                final ShardSnapshotStatus shardState = finishedShardEntry.value;
+                                if (shardState.state() == ShardState.SUCCESS) {
+                                    final ShardSnapshotStatus stateToUpdate = previousEntry.clones().get(repoShardId);
+                                    final String newGeneration = shardState.generation();
+                                    if (stateToUpdate != null
+                                        && stateToUpdate.state() == ShardState.SUCCESS
+                                        && Objects.equals(newGeneration, stateToUpdate.generation()) == false) {
+                                        if (updatedShardAssignments == null) {
+                                            updatedShardAssignments = ImmutableOpenMap.builder();
+                                        }
+                                        updatedShardAssignments.put(repoShardId, stateToUpdate.withUpdatedGeneration(newGeneration));
+                                    }
+                                }
+                            }
+                            if (updatedShardAssignments == null) {
+                                entries.add(previousEntry);
+                            } else {
+                                final ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> updatedStatus = ImmutableOpenMap
+                                    .builder(previousEntry.clones());
+                                updatedStatus.putAll(updatedShardAssignments.build());
+                                entries.add(previousEntry.withClones(updatedStatus.build()));
+                            }
+                        } else {
+                            ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedShardAssignments = null;
+                            for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> finishedShardEntry : removedEntry.shards()) {
+                                final ShardSnapshotStatus shardState = finishedShardEntry.value;
+                                if (shardState.state() == ShardState.SUCCESS) {
+                                    final ShardSnapshotStatus stateToUpdate = previousEntry.shards().get(finishedShardEntry.key);
+                                    final String newGeneration = shardState.generation();
+                                    if (stateToUpdate != null
+                                        && stateToUpdate.state() == ShardState.SUCCESS
+                                        && Objects.equals(newGeneration, stateToUpdate.generation()) == false) {
+                                        if (updatedShardAssignments == null) {
+                                            updatedShardAssignments = ImmutableOpenMap.builder();
+                                        }
+                                        updatedShardAssignments.put(
+                                            finishedShardEntry.key,
+                                            stateToUpdate.withUpdatedGeneration(newGeneration)
+                                        );
+                                    }
+                                }
+                            }
+                            if (updatedShardAssignments == null) {
+                                entries.add(previousEntry);
+                            } else {
+                                final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedStatus = ImmutableOpenMap.builder(
+                                    previousEntry.shards()
+                                );
+                                updatedStatus.putAll(updatedShardAssignments.build());
+                                entries.add(previousEntry.withShardStates(updatedStatus.build()));
+                            }
                         }
                     }
                 } else {

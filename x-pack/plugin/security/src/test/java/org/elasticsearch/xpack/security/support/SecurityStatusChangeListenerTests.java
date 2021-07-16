@@ -84,7 +84,7 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
         assertWarnings("The default behavior of disabling security on basic"
             + " licenses is deprecated. In a later version of Elasticsearch, the value of [xpack.security.enabled] will "
             + "default to \"true\" , regardless of the license level. "
-            + "See https://www.elastic.co/guide/en/elasticsearch/reference/7.15/security-minimal-setup.html to enable security, "
+            + "See https://www.elastic.co/guide/en/elasticsearch/reference/7.14/security-minimal-setup.html to enable security, "
             + "or explicitly disable security by setting [xpack.security.enabled] to false in elasticsearch.yml");
 
         logAppender.assertAllExpectationsMatched();
@@ -112,7 +112,7 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
         assertWarnings("The default behavior of disabling security on trial"
             + " licenses is deprecated. In a later version of Elasticsearch, the value of [xpack.security.enabled] will "
             + "default to \"true\" , regardless of the license level. "
-            + "See https://www.elastic.co/guide/en/elasticsearch/reference/7.15/security-minimal-setup.html to enable security, "
+            + "See https://www.elastic.co/guide/en/elasticsearch/reference/7.14/security-minimal-setup.html to enable security, "
             + "or explicitly disable security by setting [xpack.security.enabled] to false in elasticsearch.yml");
 
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
@@ -143,7 +143,7 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
         assertWarnings("The default behavior of disabling security on trial"
             + " licenses is deprecated. In a later version of Elasticsearch, the value of [xpack.security.enabled] will "
             + "default to \"true\" , regardless of the license level. "
-            + "See https://www.elastic.co/guide/en/elasticsearch/reference/7.15/security-minimal-setup.html to enable security, "
+            + "See https://www.elastic.co/guide/en/elasticsearch/reference/7.14/security-minimal-setup.html to enable security, "
             + "or explicitly disable security by setting [xpack.security.enabled] to false in elasticsearch.yml");
     }
 

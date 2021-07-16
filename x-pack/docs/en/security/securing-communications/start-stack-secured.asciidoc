@@ -1,0 +1,7 @@
+[[start-stack-secured]]
+=== Start {es} with security enabled by default
+When you start {es} for the first time, {es} automatically generates a password
+for the built-in `elastic` user, creates keystores for the HTTP and transport
+layers, and persists the updated security configuration to your cluster's
+`elasticsearch.yml` file.
+

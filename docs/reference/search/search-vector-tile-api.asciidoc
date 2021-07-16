@@ -541,8 +541,8 @@ GET museums/_mvt/location/13/4207/2692
 ----
 // TEST[continued]
 
-The API returns results in a binary vector tile. When decoded into JSON, the
-tile contains the following results:
+The API returns results as a binary vector tile. When decoded into JSON, the
+tile contains the following data:
 
 [source,js]
 ----

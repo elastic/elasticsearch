@@ -110,7 +110,7 @@ public class MlLifeCycleService {
 
             datafeedRunner.vacateAllDatafeedsOnThisNode(
                 "previously assigned node [" + state.nodes().getLocalNode().getName() + "] is shutting down");
-            autodetectProcessManager.vacateAllJobsOnThisNode();
+            autodetectProcessManager.vacateOpenJobsOnThisNode();
         }
     }
 }

@@ -430,11 +430,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         public PersistentTasksCustomMetadata.Assignment getAssignment(StartDatafeedAction.DatafeedParams params,
                                                                       Collection<DiscoveryNode> candidateNodes,
                                                                       ClusterState clusterState) {
-            // 'candidateNodes' is not actually used here because the assignment for the task is
-            // already filtered elsewhere (JobNodeSelector), this is only finding the node a task
-            // has already been assigned to.
             return new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedId(), params.getJobId(),
-                    params.getDatafeedIndices(), params.getIndicesOptions()).selectNode();
+                    params.getDatafeedIndices(), params.getIndicesOptions()).selectNode(candidateNodes);
         }
 
         @Override
@@ -575,6 +572,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             if (assignment != null) {
                 // This means we are awaiting the datafeed's job to be assigned to a node
                 if (assignment.equals(DatafeedNodeSelector.AWAITING_JOB_ASSIGNMENT)) {
+                    return true;
+                }
+                // This means the node the job got assigned to was shut down in between starting the job and the datafeed - not an error
+                if (assignment.equals(DatafeedNodeSelector.AWAITING_JOB_RELOCATION)) {
                     return true;
                 }
                 if (assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false && assignment.isAssigned() == false) {

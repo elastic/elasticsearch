@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.support;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -75,6 +76,7 @@ import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
+import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -123,6 +125,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         settings.put(MonitoringService.ENABLED.getKey(), false);
         settings.put(MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED.getKey(), false);
         settings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
+        // TODO: put this setting unconditionally once the shutdown API is not protected by a feature flag
+        if (Build.CURRENT.isSnapshot()) {
+            settings.put(ShutdownPlugin.SHUTDOWN_FEATURE_ENABLED_FLAG, true);
+        }
         return settings.build();
     }
 
@@ -133,6 +139,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             CommonAnalysisPlugin.class,
             IngestCommonPlugin.class,
             ReindexPlugin.class,
+            ShutdownPlugin.class,
             // To remove warnings about painless not being supported
             MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
@@ -206,6 +213,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static Job.Builder createScheduledJob(String jobId) {
+        return createScheduledJob(jobId, null);
+    }
+
+    public static Job.Builder createScheduledJob(String jobId, ByteSizeValue modelMemoryLimit) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeFormat("yyyy-MM-dd HH:mm:ss");
 
@@ -215,7 +226,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
         Job.Builder builder = new Job.Builder();
         builder.setId(jobId);
-
+        if (modelMemoryLimit != null) {
+            builder.setAnalysisLimits(new AnalysisLimits(modelMemoryLimit.getMb(), null));
+        }
         builder.setAnalysisConfig(analysisConfig);
         builder.setDataDescription(dataDescription);
         return builder;

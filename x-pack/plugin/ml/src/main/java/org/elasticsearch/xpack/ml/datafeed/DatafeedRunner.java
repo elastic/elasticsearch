@@ -176,7 +176,9 @@ public class DatafeedRunner {
      */
     public void vacateAllDatafeedsOnThisNode(String reason) {
         for (Holder holder : runningDatafeedsOnThisNode.values()) {
-            holder.vacateNode(reason);
+            if (holder.isIsolated() == false) {
+                holder.vacateNode(reason);
+            }
         }
     }
 

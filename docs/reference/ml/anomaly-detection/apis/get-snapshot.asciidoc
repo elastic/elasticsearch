@@ -98,9 +98,8 @@ properties:
 [%collapsible%open]
 ====
 `assignment_memory_basis`:::
-(string) Reports which memory calculation method is respected as the memory 
-requirement for the job to be assigned. Possible options are 
-`model_memory_limit` and `current_model_bytes`.
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=assignment-memory-basis]
 
 `bucket_allocation_failures_count`:::
 (long) The number of buckets for which entities were not processed due to memory

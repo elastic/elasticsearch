@@ -243,6 +243,7 @@ public final class MlTasks {
             }
             if (state != TrainedModelDeploymentState.FAILED) {
                 // we are relocating at the moment
+                // TODO Revisit this in the new allocation framework as there won't necessarily be a concept of relocation.
                 return TrainedModelDeploymentState.STARTING;
             }
         }

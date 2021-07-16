@@ -126,9 +126,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
 
         /**
          * This has been found to be approximately 300MB on linux by manual testing.
+         * We also subtract 30MB that we always add as overhead (see MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD).
          * TODO Check if it is substantially different in other platforms.
          */
-        private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(300);
+        private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(270);
 
         private final String modelId;
         private final String index;
@@ -155,7 +156,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
         }
 
         public long estimateMemoryUsageBytes() {
-            // While loading the model in the process we need twice the model size
+            // While loading the model in the process we need twice the model size.
             return MEMORY_OVERHEAD.getBytes() + 2 * modelBytes;
         }
 

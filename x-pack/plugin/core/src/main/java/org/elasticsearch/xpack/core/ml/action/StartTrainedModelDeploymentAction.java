@@ -139,6 +139,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
             this.modelId = Objects.requireNonNull(modelId);
             this.index = Objects.requireNonNull(index);
             this.modelBytes = modelBytes;
+            if (modelBytes < 0) {
+                throw new IllegalArgumentException("modelBytes must be non-negative");
+            }
         }
 
         public TaskParams(StreamInput in) throws IOException {

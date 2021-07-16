@@ -147,8 +147,9 @@ public class TransportStartTrainedModelDeploymentAction
                             trainedModelConfig.getLocation().getResourceName(),
                             modelBytes
                         );
-                        memoryTracker.addTrainedModelMemoryAndRefreshAllOthers(taskParams.getMlId(), taskParams.estimateMemoryUsageBytes(),
-                            ActionListener.wrap(
+                        PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(
+                            PersistentTasksCustomMetadata.TYPE);
+                        memoryTracker.refresh(persistentTasks, ActionListener.wrap(
                                 aVoid -> persistentTasksService.sendStartRequest(
                                     MlTasks.trainedModelDeploymentTaskId(request.getModelId()),
                                     MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME,
@@ -333,6 +334,7 @@ public class TransportStartTrainedModelDeploymentAction
                 );
 
             PersistentTasksCustomMetadata.Assignment assignment = jobNodeSelector.selectNode(
+                params.estimateMemoryUsageBytes(),
                 maxOpenJobs,
                 Integer.MAX_VALUE,
                 maxMachineMemoryPercent,

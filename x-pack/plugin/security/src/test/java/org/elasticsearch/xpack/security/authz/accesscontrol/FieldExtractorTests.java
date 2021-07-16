@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.sandbox.search.DocValuesNumbersQuery;
 import org.apache.lucene.search.AssertingQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -24,7 +25,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 

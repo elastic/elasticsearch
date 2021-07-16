@@ -86,11 +86,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        public List<Mapper.Builder> builders() {
-            return mappersBuilders;
-        }
-
-        protected Map<String, Mapper> buildMappers(ContentPath contentPath) {
+        protected final Map<String, Mapper> buildMappers(ContentPath contentPath) {
             contentPath.add(name);
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {

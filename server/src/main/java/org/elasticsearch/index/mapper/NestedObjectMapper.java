@@ -31,7 +31,6 @@ public class NestedObjectMapper extends ObjectMapper {
 
         private Explicit<Boolean> includeInRoot = new Explicit<>(false, false);
         private Explicit<Boolean> includeInParent = new Explicit<>(false, false);
-        private boolean redundantIncludesFixed = false;
         private final Version indexCreatedVersion;
 
         public Builder(String name, Version indexCreatedVersion) {

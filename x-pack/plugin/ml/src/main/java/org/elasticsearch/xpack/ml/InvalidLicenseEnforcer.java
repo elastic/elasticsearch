@@ -58,7 +58,7 @@ public class InvalidLicenseEnforcer implements LicenseStateListener {
                 }
 
                 @Override
-                protected void doRun() {
+                protected void doRun() throws Exception {
                     datafeedRunner.stopAllDatafeedsOnThisNode("invalid license");
                     autodetectProcessManager.closeAllJobsOnThisNode("invalid license");
                 }

@@ -291,6 +291,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
+                ensureRepositoryExists(repositoryName, currentState);
                 ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
@@ -458,6 +459,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
+                ensureRepositoryExists(repositoryName, currentState);
                 ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
                 ensureNoCleanupInProgress(currentState, repositoryName, snapshotName);
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
@@ -784,6 +786,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
+     * Throws {@link RepositoryMissingException} if no repository by the given name is found in the given cluster state.
+     */
+    public static void ensureRepositoryExists(String repoName, ClusterState state) {
+        if (state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(repoName) == null) {
+            throw new RepositoryMissingException(repoName);
+        }
+    }
+
+    /**
      * Validates snapshot request
      *
      * @param repositoryName repository name
@@ -1036,7 +1047,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             : "Found shard snapshot waiting to be assigned in [" + entry + "] but it is not blocked by any running delete";
                     } else if (value.value.isActive()) {
                         assert reposWithRunningDelete.contains(entry.repository()) == false
-                            : "Found shard snapshot actively executing in [" + entry + "] when it should be blocked by a running delete";
+                            : "Found shard snapshot actively executing in ["
+                                + entry
+                                + "] when it should be blocked by a running delete ["
+                                + Strings.toString(snapshotDeletionsInProgress)
+                                + "]";
                     }
                 }
             }
@@ -1849,6 +1864,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
+                ensureRepositoryExists(repoName, currentState);
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> snapshotEntries = findInProgressSnapshots(snapshots, snapshotNames, repoName);
                 final List<SnapshotId> snapshotIds = matchingSnapshotIds(
@@ -2064,7 +2080,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             // Entry is writing to the repo because it's finalizing on master
             return true;
         }
-        for (ObjectCursor<ShardSnapshotStatus> value : entry.shards().values()) {
+        for (ObjectCursor<ShardSnapshotStatus> value : (entry.isClone() ? entry.clones() : entry.shards()).values()) {
             if (value.value.isActive()) {
                 // Entry is writing to the repo because it's writing to a shard on a data node or waiting to do so for a concrete shard
                 return true;
@@ -2683,7 +2699,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         final Set<Index> indices = new HashSet<>();
         for (final SnapshotsInProgress.Entry entry : snapshots.entries()) {
-            if (entry.partial() == false) {
+            if (entry.partial() == false && entry.isClone() == false) {
                 for (String indexName : entry.indices().keySet()) {
                     IndexMetadata indexMetadata = currentState.metadata().index(indexName);
                     if (indexMetadata != null && indicesToCheck.contains(indexMetadata.getIndex())) {

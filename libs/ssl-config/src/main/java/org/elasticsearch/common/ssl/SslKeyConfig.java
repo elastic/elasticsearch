@@ -42,9 +42,9 @@ public interface SslKeyConfig {
     List<Tuple<PrivateKey, X509Certificate>> getKeys();
 
     /**
-     * @return A collection of {@link X509Certificate certificates} used by this config.
+     * @return A collection of {@link StoredCertificate certificates} used by this config.
      */
-    Collection<? extends StoredCertificate> getConfiguredCertificates();
+    Collection<StoredCertificate> getConfiguredCertificates();
 
     default boolean hasKeyMaterial() {
         return getKeys().isEmpty() == false;
@@ -52,7 +52,6 @@ public interface SslKeyConfig {
 
     /**
      * Create a {@link SslTrustConfig} based on the underlying file store that backs this key config
-     * @return
      */
     default SslTrustConfig asTrustConfig() {
         return null;

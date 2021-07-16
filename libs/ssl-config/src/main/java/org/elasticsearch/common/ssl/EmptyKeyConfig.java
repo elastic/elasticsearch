@@ -40,7 +40,7 @@ public final class EmptyKeyConfig implements SslKeyConfig {
     }
 
     @Override
-    public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+    public Collection<StoredCertificate> getConfiguredCertificates() {
         return List.of();
     }
 

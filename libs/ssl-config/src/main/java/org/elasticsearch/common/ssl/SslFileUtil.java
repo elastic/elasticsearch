@@ -47,7 +47,7 @@ final class SslFileUtil {
             message += " [" + pathsToString(paths) + "]";
         }
 
-        if (cause.getCause() instanceof UnrecoverableKeyException) {
+        if (hasCause(UnrecoverableKeyException.class, cause)) {
             message += " - this is usually caused by an incorrect password";
         } else if (cause != null && cause.getMessage() != null) {
             message += " - " + cause.getMessage();
@@ -111,8 +111,26 @@ final class SslFileUtil {
         }
         if (detail != null) {
             message = message + "; " + detail;
+        } else if (hasCause(UnrecoverableKeyException.class, cause)) {
+            message += "; this is usually caused by an incorrect password";
         }
+
         return new SslConfigException(message, cause);
+    }
+
+    private static boolean hasCause(Class<? extends Throwable> exceptionType, Throwable exception) {
+        if (exception == null) {
+            return false;
+        }
+        if (exceptionType.isInstance(exception)) {
+            return true;
+        }
+
+        final Throwable cause = exception.getCause();
+        if (cause == null || cause == exception) {
+            return false;
+        }
+        return hasCause(exceptionType, cause);
     }
 
     public static SslConfigException configException(String fileType, List<Path> paths, SslConfigException cause) {

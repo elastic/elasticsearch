@@ -231,6 +231,6 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     }
 
     private static GeoPointScriptFieldType build(Script script) {
-        return new GeoPointScriptFieldType("test", factory(script), script, emptyMap(), (builder, params) -> builder);
+        return new GeoPointScriptFieldType("test", factory(script), script, emptyMap());
     }
 }

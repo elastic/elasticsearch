@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.junit.Before;
 
 import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManager;
 import java.nio.file.Path;
 import java.security.cert.X509Certificate;
@@ -45,6 +46,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
 
     private static final char[] PASSWORD = "password".toCharArray();
     private static final char[] KEYPASS = "keypass".toCharArray();
+    private static final String KEY_MGR_ALGORITHM = KeyManagerFactory.getDefaultAlgorithm();
 
     private SSLConfigurationSettings configurationSettings;
     private Environment environment;
@@ -92,25 +94,35 @@ public class SslSettingsLoaderTests extends ESTestCase {
         secureSettings.setString("keystore.secure_password", "password");
         Settings settings = Settings.builder()
             .put("keystore.path", "path")
+            .put("keystore.type", "type")
             .setSecureSettings(secureSettings)
             .build();
         SslConfiguration sslConfiguration = getSslConfiguration(settings);
         assertThat(sslConfiguration.getKeyConfig(), instanceOf(StoreKeyConfig.class));
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.getKeyConfig();
-        assertThat(ksKeyInfo.getKeystorePassword(), is(equalTo(PASSWORD)));
-        assertThat(ksKeyInfo.getKeyPassword(), is(equalTo(PASSWORD)));
+        assertThat(
+            ksKeyInfo,
+            equalTo(
+                new StoreKeyConfig("path", PASSWORD, "type", PASSWORD, KEY_MGR_ALGORITHM, environment.configFile())
+            )
+        );
     }
 
     public void testKeystorePasswordBackcompat() {
         Settings settings = Settings.builder()
             .put("keystore.path", "path")
+            .put("keystore.type", "type")
             .put("keystore.password", "password")
             .build();
         SslConfiguration sslConfiguration = getSslConfiguration(settings);
         assertThat(sslConfiguration.getKeyConfig(), instanceOf(StoreKeyConfig.class));
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.getKeyConfig();
-        assertThat(ksKeyInfo.getKeystorePassword(), is(equalTo(PASSWORD)));
-        assertThat(ksKeyInfo.getKeyPassword(), is(equalTo(PASSWORD)));
+        assertThat(
+            ksKeyInfo,
+            equalTo(
+                new StoreKeyConfig("path", PASSWORD, "type", PASSWORD, KEY_MGR_ALGORITHM, environment.configFile())
+            )
+        );
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
             configurationSettings.x509KeyPair.legacyKeystorePassword});
     }
@@ -121,26 +133,36 @@ public class SslSettingsLoaderTests extends ESTestCase {
         secureSettings.setString("keystore.secure_key_password", "keypass");
         Settings settings = Settings.builder()
             .put("keystore.path", "path")
+            .put("keystore.type", "type")
             .setSecureSettings(secureSettings)
             .build();
         SslConfiguration sslConfiguration = getSslConfiguration(settings);
         assertThat(sslConfiguration.getKeyConfig(), instanceOf(StoreKeyConfig.class));
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.getKeyConfig();
-        assertThat(ksKeyInfo.getKeystorePassword(), is(equalTo(PASSWORD)));
-        assertThat(ksKeyInfo.getKeyPassword(), is(equalTo(KEYPASS)));
+        assertThat(
+            ksKeyInfo,
+            equalTo(
+                new StoreKeyConfig("path", PASSWORD, "type", KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
+            )
+        );
     }
 
     public void testKeystoreKeyPasswordBackcompat() {
         Settings settings = Settings.builder()
             .put("keystore.path", "path")
+            .put("keystore.type", "type")
             .put("keystore.password", "password")
             .put("keystore.key_password", "keypass")
             .build();
         SslConfiguration sslConfiguration = getSslConfiguration(settings);
         assertThat(sslConfiguration.getKeyConfig(), instanceOf(StoreKeyConfig.class));
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.getKeyConfig();
-        assertThat(ksKeyInfo.getKeystorePassword(), is(equalTo(PASSWORD)));
-        assertThat(ksKeyInfo.getKeyPassword(), is(equalTo(KEYPASS)));
+        assertThat(
+            ksKeyInfo,
+            equalTo(
+                new StoreKeyConfig("path", PASSWORD, "type", KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
+            )
+        );
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
             configurationSettings.x509KeyPair.legacyKeystorePassword,
             configurationSettings.x509KeyPair.legacyKeystoreKeyPassword
@@ -158,7 +180,12 @@ public class SslSettingsLoaderTests extends ESTestCase {
         SslConfiguration sslConfiguration = getSslConfiguration(settings);
         assertThat(sslConfiguration.getKeyConfig(), instanceOf(StoreKeyConfig.class));
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.getKeyConfig();
-        assertThat(ksKeyInfo.getKeystoreType(), is(equalTo("jks")));
+        assertThat(
+            ksKeyInfo,
+            equalTo(
+                new StoreKeyConfig("xpack/tls/path.jks", PASSWORD, "jks", KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
+            )
+        );
     }
 
     public void testInferKeystoreTypeFromPkcs12File() {
@@ -166,14 +193,20 @@ public class SslSettingsLoaderTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("keystore.secure_password", "password");
         secureSettings.setString("keystore.secure_key_password", "keypass");
+        final String path = "xpack/tls/path." + ext;
         Settings settings = Settings.builder()
-            .put("keystore.path", "xpack/tls/path." + ext)
+            .put("keystore.path", path)
             .setSecureSettings(secureSettings)
             .build();
         SslConfiguration sslConfiguration = getSslConfiguration(settings);
         assertThat(sslConfiguration.getKeyConfig(), instanceOf(StoreKeyConfig.class));
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.getKeyConfig();
-        assertThat(ksKeyInfo.getKeystoreType(), is(equalTo("PKCS12")));
+        assertThat(
+            ksKeyInfo,
+            equalTo(
+                new StoreKeyConfig(path, PASSWORD, "PKCS12", KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
+            )
+        );
     }
 
     public void testInferKeystoreTypeFromUnrecognised() {
@@ -187,7 +220,10 @@ public class SslSettingsLoaderTests extends ESTestCase {
         SslConfiguration sslConfiguration = getSslConfiguration(settings);
         assertThat(sslConfiguration.getKeyConfig(), instanceOf(StoreKeyConfig.class));
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.getKeyConfig();
-        assertThat(ksKeyInfo.getKeystoreType(), is(equalTo("jks")));
+        assertThat(
+            ksKeyInfo,
+            equalTo(new StoreKeyConfig("xpack/tls/path.foo", PASSWORD, "jks", KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+        );
     }
 
     public void testExplicitKeystoreType() {
@@ -196,15 +232,19 @@ public class SslSettingsLoaderTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("keystore.secure_password", "password");
         secureSettings.setString("keystore.secure_key_password", "keypass");
+        final String path = "xpack/tls/path." + ext;
         Settings settings = Settings.builder()
-            .put("keystore.path", "xpack/tls/path." + ext)
+            .put("keystore.path", path)
             .put("keystore.type", type)
             .setSecureSettings(secureSettings)
             .build();
         SslConfiguration sslConfiguration = getSslConfiguration(settings);
         assertThat(sslConfiguration.getKeyConfig(), instanceOf(StoreKeyConfig.class));
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.getKeyConfig();
-        assertThat(ksKeyInfo.getKeystoreType(), is(equalTo(type)));
+        assertThat(
+            ksKeyInfo,
+            equalTo(new StoreKeyConfig(path, PASSWORD, type, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+        );
     }
 
     public void testThatEmptySettingsAreEqual() {

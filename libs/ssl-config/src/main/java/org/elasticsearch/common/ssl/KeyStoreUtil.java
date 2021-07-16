@@ -194,6 +194,20 @@ public final class KeyStoreUtil {
             return alias;
         }
 
+        /**
+         * If this entry is a <em>private key entry</em> (see {@link #isKeyEntry()}),
+         * and the entry includes a certificate chain,
+         * and the leaf (first) element of that chain is an X.509 certificate,
+         * then that leaf certificate is returned.
+         *
+         * If this entry is a <em>trusted certificate entry</em>
+         * and the trusted certificate is an X.509 certificate,
+         * then the trusted certificate is returned.
+         *
+         * In all other cases, returns {@code null}.
+         *
+         * @see KeyStore#getCertificate(String)
+         */
         public X509Certificate getX509Certificate() {
             try {
                 final Certificate c = store.getCertificate(alias);
@@ -207,6 +221,9 @@ public final class KeyStoreUtil {
             }
         }
 
+        /**
+         * @see KeyStore#isKeyEntry(String)
+         */
         public boolean isKeyEntry() {
             try {
                 return store.isKeyEntry(alias);
@@ -215,6 +232,12 @@ public final class KeyStoreUtil {
             }
         }
 
+        /**
+         * If the current entry stores a private key, returns that key.
+         * Otherwise returns {@code null}.
+         *
+         * @see KeyStore#getKey(String, char[])
+         */
         public PrivateKey getKey(char[] password) {
             try {
                 final Key key = store.getKey(alias, password);
@@ -227,6 +250,11 @@ public final class KeyStoreUtil {
             }
         }
 
+        /**
+         * If this entry is a private key entry (see {@link #isKeyEntry()}), returns the certificate chain that is stored in the entry.
+         * If the entry contains any certificates that are not X.509 certificates, they are ignored.
+         * If the entry is not a private key entry, or it does not contain any X.509 certificates, then an empty list is returned.
+         */
         public List<? extends X509Certificate> getX509CertificateChain() {
             try {
                 final Certificate[] certificates = store.getCertificateChain(alias);

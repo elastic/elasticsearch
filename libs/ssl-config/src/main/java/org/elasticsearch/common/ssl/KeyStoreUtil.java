@@ -282,6 +282,9 @@ public final class KeyStoreUtil {
             }
         }
 
+        /**
+         * Remove this entry from the underlying keystore
+         */
         public void delete() {
             try {
                 store.deleteEntry(alias);
@@ -290,18 +293,6 @@ public final class KeyStoreUtil {
             }
         }
 
-        public void copyTo(KeyStore otherStore, char[] keyPassword) {
-            try {
-                if (store.isKeyEntry(alias)) {
-                    final Key key = store.getKey(alias, keyPassword);
-                    otherStore.setKeyEntry(alias, key, keyPassword, store.getCertificateChain(alias));
-                } else if (store.isCertificateEntry(alias)) {
-                    otherStore.setCertificateEntry(alias, store.getCertificate(alias));
-                }
-            } catch (GeneralSecurityException e) {
-                throw exceptionHandler.apply(e);
-            }
-        }
     }
 
 

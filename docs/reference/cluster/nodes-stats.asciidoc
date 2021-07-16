@@ -967,7 +967,7 @@ Contains statistics about all shards assigned to the node.
 .Properties of `shards`
 [%collapsible%open]
 =======
-`count`::
+`total_count`::
 (integer)
 The total number of shards assigned to the node.
 ======

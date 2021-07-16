@@ -226,6 +226,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                         bulk = indexShard.bulkStats();
                         break;
                     case Shards:
+                        // Setting to 1 because the single IndexShard passed to this method implies 1 shard
                         shards = new SimpleShardStats(1);
                         break;
                     default:

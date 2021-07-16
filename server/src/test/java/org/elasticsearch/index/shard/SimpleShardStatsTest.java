@@ -22,13 +22,13 @@ class SimpleShardStatsTest extends ESTestCase {
         SimpleShardStats shardStats1 = new SimpleShardStats(5);
         SimpleShardStats shardStats2 = new SimpleShardStats(8);
         SimpleShardStats combinedShardStats = shardStats1.add(shardStats2);
-        Assert.assertEquals(13, combinedShardStats.getCount());
-        Assert.assertEquals(5, shardStats1.getCount());
-        Assert.assertEquals(8, shardStats2.getCount());
+        Assert.assertEquals(13, combinedShardStats.getTotalCount());
+        Assert.assertEquals(5, shardStats1.getTotalCount());
+        Assert.assertEquals(8, shardStats2.getTotalCount());
         SimpleShardStats noCountGiven = new SimpleShardStats();
-        Assert.assertEquals(0, noCountGiven.getCount());
-        Assert.assertEquals(8, shardStats2.add(null).getCount());
-        Assert.assertEquals(8, shardStats2.getCount());
+        Assert.assertEquals(0, noCountGiven.getTotalCount());
+        Assert.assertEquals(8, shardStats2.add(null).getTotalCount());
+        Assert.assertEquals(8, shardStats2.getTotalCount());
     }
 
     public void testSerialize() throws Exception {
@@ -38,7 +38,7 @@ class SimpleShardStatsTest extends ESTestCase {
             BytesReference bytes = out.bytes();
             try (StreamInput in = bytes.streamInput()) {
                 SimpleShardStats cloneStats = new SimpleShardStats(in);
-                assertThat(cloneStats.getCount(), equalTo(originalStats.getCount()));
+                assertThat(cloneStats.getTotalCount(), equalTo(originalStats.getTotalCount()));
             }
         }
     }

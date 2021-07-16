@@ -4,13 +4,14 @@ You might need to update your TLS certificates if your current node
 certificates expire soon, you're adding new nodes to your secured cluster, or
 a security breach has broken the trust of your certificate chain.
 
-In instances where you have access to the original Certificate Authority (CA) key and certificate that you used to sign your existing node certificates (and where your CA has not been compromised), you can
+In instances where you have access to the original Certificate Authority (CA) key and certificate that you used to sign your existing node certificates (and where you can still trust your CA), you can
 <<update-node-certs-same,use that CA to sign the new certificates>>.
 
-If you have to trust a new CA from your organization, or you need to generate a new CA yourself, you need to use this new CA to sign the new node certificates and instruct your nodes to trust the new CA. In this case, you'll
-<<update-node-certs-different,generate a new node certificate and key>> for each
-node that is signed by the new CA certificate and instruct your nodes to trust
-this certificate chain.
+If you have to trust a new CA from your organization, or you need to generate
+a new CA yourself, you need to use this new CA to sign the new node
+certificates and instruct your nodes to trust the new CA. In this case, you'll
+<<update-node-certs-different,sign node certificates with your new CA>> and
+instruct your nodes to trust this certificate chain.
 
 Depending on which certificates are expiring, you might need to update the
 certificates for the transport layer, the HTTP layer, or both. 
@@ -95,12 +96,20 @@ In this example, the keystore and truststore are pointing to different files.
 Your configuration might use the same file that contains the certificate and CA.
 In this case, include the path to that file for both the keystore and truststore.
 +
+[NOTE]
+====
+These instructions assume that the provided certificate is signed by a trusted
+CA and the verification mode is set to `certificate`. This setting ensures that
+nodes to not attempt to perform hostname verification.
+====
++
 [source,yaml]
 ----
 xpack.security.transport.ssl.keystore.path: config/elastic-certificates.p12
 xpack.security.transport.ssl.keystore.type: PKCS12
 xpack.security.transport.ssl.truststore.path: config/elastic-stack-ca.p12
 xpack.security.transport.ssl.truststore.type: PKCS12
+xpack.security.transport.ssl.verification_mode: certificate
 ----
 
 . Using your existing CA, generate a keystore for your nodes. You must
@@ -170,7 +179,7 @@ keystore.
 . If you're only updating certificates for the transport layer (and not the HTTP layer), then complete <<start-rolling-restart>> through <<verify-keystore>> one node at a time until you've updated all keystores in your cluster. You can then
 complete the remaining steps for a <<restart-cluster-rolling,rolling restart>>.
 +
-Otherwise, do not complete a rolling restart and proceed to the steps for
+Otherwise, do not complete a rolling restart. Instead, proceed to the steps for
 generating a new certificate for the HTTP layer.
 
 [discrete]
@@ -320,8 +329,8 @@ If you have to trust a new CA from your organization, or you need to generate a 
 
 [[node-certs-different-transport]]
 ==== Generate a new certificate for the transport layer
-Create a new CA certificate and add it to your existing CA truststore. After
-you finish updating your certificates for all nodes, you can remove the old CA
+Create a new CA certificate, or get the CA certificate of your organization,
+and add it to your existing CA truststore. After you finish updating your certificates for all nodes, you can remove the old CA
 certificate from your truststore (but not before!).
 
 NOTE: The following examples use PKCS#12 files, but the same steps apply to JKS
@@ -333,7 +342,14 @@ for your new keystores.
 +
 In this example, the keystore and truststore are using different files.
 Your configuration might use the same file for both the keystore and the 
-truststore. Elastic recommends using separate files. 
+truststore.
++
+[NOTE]
+====
+These instructions assume that the provided certificate is signed by a trusted
+CA and the verification mode is set to `certificate`. This setting ensures that
+nodes to not attempt to perform hostname verification.
+====
 +
 [source,yaml]
 ----
@@ -341,6 +357,7 @@ xpack.security.transport.ssl.keystore.path: config/elastic-certificates.p12
 xpack.security.transport.ssl.keystore.type: PKCS12
 xpack.security.transport.ssl.truststore.path: config/elastic-stack-ca.p12
 xpack.security.transport.ssl.truststore.type: PKCS12
+xpack.security.transport.ssl.verification_mode: certificate
 ----
 
 . On *any* node in your cluster, generate a new CA certificate. You only need
@@ -476,7 +493,7 @@ layer), then complete <<start-rolling-restart-newca>> through
 in your cluster. You can then complete the remaining steps for a
 <<restart-cluster-rolling,rolling restart>>.
 +
-Otherwise, do not complete a rolling restart and proceed to the steps for
+Otherwise, do not complete a rolling restart. Instead, proceed to the steps for
 generating a new certificate for the HTTP layer.
 
 . (Optional) After rotating keystores on each node in your cluster,
@@ -520,47 +537,16 @@ information that your CA uses to generate and sign a security certificate
 instead of using self-signed certificates that the `elasticsearch-certutil` tool
 generates.
 
-Before generating new certificates for the HTTP layer, you need to go to all the clients that connect to {es} (such as {kib}, {beats}, {ls}, and any language
-clients) and configure them to also trust the new CA (`ca.crt`) that you
-generated.
+.Update clients to trust the new CA
+****
+After generating (but before using) new certificates for the HTTP layer, you
+need to go to all the clients that connect to {es} (such as {kib}, {beats},
+{ls}, and any language clients) and configure them to also trust the new CA
+(`ca.crt`) that you generated.
 
-. For *every* client that connects to {es}, import the new `ca.crt` certificate
-into your existing CA truststore for the HTTP layer. This step ensures that your
-cluster trusts the new CA certificate. This example uses the Java `keytool`
-utility to import the certificate into the `http.p12` CA truststore.
-+
-[source,shell]
-----
-keytool -importcert -trustcacerts -noprompt -keystore http.p12 \
--storepass <password>  -alias new-ca -file ca.crt
-----
-+
-[%collapsible%open]
-.Command parameters
-====
-   `-keystore`:: Name of the HTTP truststore that you are importing the new CA
-   certificate into. 
-
-   `-storepass`:: Password for the CA truststore. 
-
-   `-alias`:: Name that you want to assign to the new CA certificate entry in
-   the keystore.
-
-   `-file`:: Name of the new CA certificate to import.
-====
-
-. Check that the new CA certificate was added to your truststore. 
-+
-[source,shell]
-----
-keytool -keystore config/http.p12 -list
-----
-When prompted, enter the password for the CA truststore.
-+
-The output should contain both the existing CA certificate and your new
-certificate. If you previously used the `elasticsearch-certutil` tool to
-generate your keystore, the alias of the old CA defaults to `http` and the type
-of entry is `PrivateKeyEntry`.
+This process is different for each client, so refer to your client's
+documentation for trusting certificates.
+****
 
 . On any node in your cluster where {es} is installed, run the {es} HTTP
 certificate tool.

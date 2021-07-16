@@ -215,14 +215,15 @@ public final class XCombinedFieldQuery extends Query implements Accountable {
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
+    if (sameClassAs(o) == false) return false;
     XCombinedFieldQuery that = (XCombinedFieldQuery) o;
     return Objects.equals(fieldAndWeights, that.fieldAndWeights) && Arrays.equals(terms, that.terms);
   }
 
   @Override
   public int hashCode() {
-    int result = Objects.hash(fieldAndWeights);
+    int result = classHash();
+    result = 31 * result + Objects.hash(fieldAndWeights);
     result = 31 * result + Arrays.hashCode(terms);
     return result;
   }

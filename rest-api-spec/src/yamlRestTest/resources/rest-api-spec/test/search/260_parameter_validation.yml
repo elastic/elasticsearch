@@ -23,11 +23,12 @@ setup:
   - skip:
       version: " - 7.12.99"
       reason: deprecation added in 7.13
-      features: allowed_warnings
+      features: allowed_warnings_regex
 
   - do:
-      allowed_warnings:
-        - "Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` parameter if you don't want to set it explicitely."
+      allowed_warnings_regex:
+        #regex because of bwc and a typo existing in prev versions
+        - "Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` parameter if you don't want to set it explicit[e]?ly."
       search:
         rest_total_hits_as_int: true
         index: index1

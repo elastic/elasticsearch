@@ -31,7 +31,7 @@ public class SubmitAsyncSearchRequest implements Validatable {
     private Boolean keepOnCompletion;
     private TimeValue keepAlive;
     private final SearchRequest searchRequest;
-    // The following is optional and will only be sent down with the request if explicitely set by the user
+    // The following is optional and will only be sent down with the request if explicitly set by the user
     private Integer batchedReduceSize;
 
     /**

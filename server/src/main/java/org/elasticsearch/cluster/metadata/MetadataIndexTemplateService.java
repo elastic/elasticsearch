@@ -1146,10 +1146,10 @@ public class MetadataIndexTemplateService {
             .map(Template::aliases)
             .ifPresent(aliases::add);
 
-        // A template that creates data streams can't also create aliases.
-        // (otherwise we end up with aliases pointing to backing indices of data streams)
+        // A template that creates data streams may not specify index aliases. Data stream
+        // aliases are defined separately in the `data_stream` object on the template.
         if (aliases.size() > 0 && template.getDataStreamTemplate() != null) {
-            throw new IllegalArgumentException("template [" + templateName + "] has alias and data stream definitions");
+            throw new IllegalArgumentException("template [" + templateName + "] may not specify both data streams and index alias(es)");
         }
 
         // Aliases are applied in order, but subsequent alias configuration from the same name is

@@ -705,7 +705,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 () -> rolloverService.rolloverClusterState(clusterState, dataStream.getName(), null, createIndexRequest, metConditions,
                     randomBoolean(), false)
             );
-            assertThat(e.getMessage(), equalTo("template [template] has alias and data stream definitions"));
+            assertThat(e.getMessage(), equalTo("template [template] may not specify both data streams and index alias(es)"));
         } finally {
             testThreadPool.shutdown();
         }

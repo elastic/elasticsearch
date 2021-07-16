@@ -90,7 +90,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
         String body = "{\"index_patterns\":[\"mypattern*\"],\"data_stream\":{},\"template\":{\"aliases\":{\"my-alias\":{}}}}";
         putComposableIndexTemplateRequest.setJsonEntity(body);
         Exception e = expectThrows(ResponseException.class, () -> client().performRequest(putComposableIndexTemplateRequest));
-        assertThat(e.getMessage(), containsString("template [my-template] has alias and data stream definitions"));
+        assertThat(e.getMessage(), containsString("template [my-template] may not specify both data streams and index alias(es)"));
     }
 
     public void testDataStreamAliases() throws Exception {

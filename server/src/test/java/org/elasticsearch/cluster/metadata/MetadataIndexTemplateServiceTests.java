@@ -1219,7 +1219,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         Exception e =
             expectThrows(IllegalArgumentException.class, () -> MetadataIndexTemplateService.resolveAliases(state1.metadata(), "1"));
-        assertThat(e.getMessage(), equalTo("template [1] has alias and data stream definitions"));
+        assertThat(e.getMessage(), equalTo("template [1] may not specify both data streams and index alias(es)"));
 
         // index template can't have data streams and a component template with an aliases
         ComponentTemplate componentTemplate = new ComponentTemplate(new Template(null, null, a1), null, null);
@@ -1229,7 +1229,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .metadata(Metadata.builder().put("1", it).put("c1", componentTemplate).build())
             .build();
         e = expectThrows(IllegalArgumentException.class, () -> MetadataIndexTemplateService.resolveAliases(state2.metadata(), "1"));
-        assertThat(e.getMessage(), equalTo("template [1] has alias and data stream definitions"));
+        assertThat(e.getMessage(), equalTo("template [1] may not specify both data streams and index alias(es)"));
     }
 
     public void testAddInvalidTemplate() throws Exception {

@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -309,6 +310,10 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         public String getTimestampField() {
             return FIXED_TIMESTAMP_FIELD;
+        }
+
+        public Collection<AliasMetadata> getAliases() {
+            return aliases == null ? null : aliases.values();
         }
 
         /**

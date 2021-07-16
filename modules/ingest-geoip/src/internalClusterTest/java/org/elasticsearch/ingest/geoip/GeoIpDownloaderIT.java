@@ -86,6 +86,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertTrue(settingsResponse.isAcknowledged());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75221")
     public void testInvalidTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         ClusterUpdateSettingsResponse settingsResponse =

@@ -87,6 +87,9 @@ public class DeploymentManager {
 
     public ModelStats getStats(TrainedModelDeploymentTask task) {
         ProcessContext processContext = processContextByAllocation.get(task.getId());
+        if (processContext == null) {
+            throw new IllegalStateException("[" + task.getModelId() + "] process context missing for stats");
+        }
 
         Long modelSizeBytes = processContext.getModelSizeBytes() < 0 ? null : (long) processContext.getModelSizeBytes();
         return new ModelStats(processContext.resultProcessor.getTimingStats(),
@@ -306,7 +309,7 @@ public class DeploymentManager {
 
         /**
          * A value of -1 means the size is unknown. Most likely
-         * because the mode has not been loaded yet or the load
+         * because the model has not been loaded yet or the load
          * failed.
          * @return size in bytes or -1
          */

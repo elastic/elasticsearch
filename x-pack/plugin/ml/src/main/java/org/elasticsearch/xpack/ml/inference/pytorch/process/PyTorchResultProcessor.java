@@ -32,12 +32,12 @@ public class PyTorchResultProcessor {
     private final String deploymentId;
     private volatile boolean isStopping;
     private volatile boolean stoppedProcessing;
-    private final LongSummaryStatistics summaryStatistics;
+    private final LongSummaryStatistics timingStats;
     private Instant lastUsed;
 
     public PyTorchResultProcessor(String deploymentId) {
         this.deploymentId = Objects.requireNonNull(deploymentId);
-        this.summaryStatistics = new LongSummaryStatistics();
+        this.timingStats = new LongSummaryStatistics();
     }
 
     public PendingResult registerRequest(String requestId) {
@@ -98,16 +98,16 @@ public class PyTorchResultProcessor {
     }
 
     public synchronized LongSummaryStatistics getTimingStats() {
-        return new LongSummaryStatistics(summaryStatistics.getCount(),
-            summaryStatistics.getMin(),
-            summaryStatistics.getMax(),
-            summaryStatistics.getSum());
+        return new LongSummaryStatistics(timingStats.getCount(),
+            timingStats.getMin(),
+            timingStats.getMax(),
+            timingStats.getSum());
     }
 
 
     private synchronized void processResult(PyTorchResult result) {
         if (result.isError() == false) {
-            summaryStatistics.accept(result.getTimeMs());
+            timingStats.accept(result.getTimeMs());
             lastUsed = Instant.now();
         }
     }

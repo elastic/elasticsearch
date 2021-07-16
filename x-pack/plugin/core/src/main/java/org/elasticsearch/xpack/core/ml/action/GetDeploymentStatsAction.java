@@ -87,7 +87,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
             return allowNoMatch;
         }
 
-            @Override
+        @Override
         public boolean match(Task task) {
             return expandedIds.stream().anyMatch(taskId -> StartTrainedModelDeploymentAction.TaskMatcher.match(task, taskId));
         }

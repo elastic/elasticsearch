@@ -252,7 +252,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             return;
         }
         if (type.isValid() == false || intervalType.isValid() == false) {
-            throw new IllegalStateException("Unknown interval type.");
+            throw new IllegalArgumentException("Unknown interval type.");
         }
         throw new IllegalArgumentException("Cannot use [" + type.getPreferredName() + "] with [" + intervalType.getPreferredName() +
             "] configuration option.");

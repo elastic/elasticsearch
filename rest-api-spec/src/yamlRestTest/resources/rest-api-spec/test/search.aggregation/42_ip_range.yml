@@ -150,5 +150,3 @@ setup:
   - match: { aggregations.range.buckets.2.doc_count: 0 }
   - match: { aggregations.range.buckets.2.v.value: 0 }
   - match: { aggregations.range_avg_v.value: 3 }
-
--

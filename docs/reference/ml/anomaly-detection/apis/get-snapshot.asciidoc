@@ -97,6 +97,10 @@ the snapshot was created for.
 .Properties of `model_size_stats`
 [%collapsible%open]
 ====
+`assignment_memory_basis`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=assignment-memory-basis]
+
 `bucket_allocation_failures_count`:::
 (long) The number of buckets for which entities were not processed due to memory
 limit constraints.
@@ -163,6 +167,10 @@ reclaim space.
 
 `model_bytes_memory_limit`:::
 (long) The upper limit for memory usage, checked on increasing values.
+
+`peak_model_bytes`:::
+(long) The highest recorded value for the model memory usage.
+
 
 `rare_category_count`:::
 (long) The number of categories that match just one categorized document.

@@ -489,6 +489,11 @@ public class AutodetectProcessManager implements ClusterStateListener {
     public void openJob(JobTask jobTask, ClusterState clusterState, TimeValue masterNodeTimeout,
                         BiConsumer<Exception, Boolean> closeHandler) {
         String jobId = jobTask.getJobId();
+        if (jobTask.isClosing()) {
+            // We shouldn't need to cancel the persistent task here, as the thread that closed the job should do that
+            logger.info("Aborting opening of job [{}] as it is being closed", jobId);
+            return;
+        }
         logger.info("Opening job [{}]", jobId);
 
         // Start the process

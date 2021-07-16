@@ -51,7 +51,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
@@ -155,7 +154,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                             listener.onResponse(new StopDatafeedAction.Response(true));
                             return;
                         }
-                        request.setResolvedStartedDatafeedIds(startedDatafeeds.toArray(new String[startedDatafeeds.size()]));
+                        request.setResolvedStartedDatafeedIds(startedDatafeeds.toArray(new String[0]));
 
                         if (request.isForce()) {
                             forceStopDatafeed(request, listener, tasks, nodes, notStoppedDatafeeds);
@@ -173,6 +172,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                                     List<String> startedDatafeeds, List<String> stoppingDatafeeds) {
         final Set<String> executorNodes = new HashSet<>();
         final List<String> startedDatafeedsJobs = new ArrayList<>();
+        final List<PersistentTasksCustomMetadata.PersistentTask<?>> allDataFeedsToWaitFor = new ArrayList<>();
         for (String datafeedId : startedDatafeeds) {
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
             if (datafeedTask == null) {
@@ -183,6 +183,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
             } else if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes) == false) {
                 startedDatafeedsJobs.add(((StartDatafeedAction.DatafeedParams) datafeedTask.getParams()).getJobId());
                 executorNodes.add(datafeedTask.getExecutorNode());
+                allDataFeedsToWaitFor.add(datafeedTask);
             } else {
                 // This is the easy case - the datafeed is not currently assigned to a valid node,
                 // so can be gracefully stopped simply by removing its persistent task.  (Usually
@@ -194,21 +195,36 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                     r -> auditDatafeedStopped(datafeedTask),
                     e -> logger.error("[" + datafeedId + "] failed to remove task to stop unassigned datafeed", e))
                 );
+                allDataFeedsToWaitFor.add(datafeedTask);
             }
+        }
+
+        for (String datafeedId : stoppingDatafeeds) {
+            PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
+            assert datafeedTask != null : "Requested datafeed [" + datafeedId + "] be stopped, but datafeed's task could not be found.";
+            allDataFeedsToWaitFor.add(datafeedTask);
         }
 
         request.setNodes(executorNodes.toArray(new String[0]));
 
-        // wait for started and stopping datafeeds
-        // Map datafeedId -> datafeed task Id.
-        List<String> allDataFeedsToWaitFor = Stream.concat(
-                startedDatafeeds.stream().map(MlTasks::datafeedTaskId),
-                stoppingDatafeeds.stream().map(MlTasks::datafeedTaskId))
-                .collect(Collectors.toList());
+        final Set<String> movedDatafeeds = new HashSet<>();
 
         ActionListener<StopDatafeedAction.Response> finalListener = ActionListener.wrap(
-                r -> waitForDatafeedStopped(allDataFeedsToWaitFor, request, r, ActionListener.wrap(
+                response -> waitForDatafeedStopped(allDataFeedsToWaitFor, request, response, ActionListener.wrap(
                     finished -> {
+                        for (String datafeedId : movedDatafeeds) {
+                            PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
+                            persistentTasksService.sendRemoveRequest(datafeedTask.getId(), ActionListener.wrap(
+                                r -> auditDatafeedStopped(datafeedTask),
+                                e -> {
+                                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                                        logger.debug("[{}] relocated datafeed task already removed", datafeedId);
+                                    } else {
+                                        logger.error("[" + datafeedId + "] failed to remove task to stop relocated datafeed", e);
+                                    }
+                                })
+                            );
+                        }
                         if (startedDatafeedsJobs.isEmpty()) {
                             listener.onResponse(finished);
                             return;
@@ -232,7 +248,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                             ));
                     },
                     listener::onFailure
-                )),
+                ), movedDatafeeds),
                 e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof FailedNodeException) {
                         // A node has dropped out of the cluster since we started executing the requests.
@@ -363,16 +379,33 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
         listener.onFailure(e);
     }
 
-    // Wait for datafeed to be marked as stopped in cluster state, which means the datafeed persistent task has been removed
-    // This api returns when task has been cancelled, but that doesn't mean the persistent task has been removed from cluster state,
-    // so wait for that to happen here.
-    void waitForDatafeedStopped(List<String> datafeedPersistentTaskIds, StopDatafeedAction.Request request,
+    /**
+     * Wait for datafeed to be marked as stopped in cluster state, which means the datafeed persistent task has been removed.
+     * This api returns when task has been cancelled, but that doesn't mean the persistent task has been removed from cluster state,
+     * so wait for that to happen here.
+     *
+     * Since the stop datafeed action consists of a chain of async callbacks, it's possible that datafeeds have moved nodes since we
+     * decided what to do with them at the beginning of the chain.  We cannot simply wait for these, as the request to stop them will
+     * have been sent to the wrong node and ignored there, so we'll just spin until the timeout expires.
+     */
+    void waitForDatafeedStopped(List<PersistentTasksCustomMetadata.PersistentTask<?>> datafeedPersistentTasks,
+                                StopDatafeedAction.Request request,
                                 StopDatafeedAction.Response response,
-                                ActionListener<StopDatafeedAction.Response> listener) {
+                                ActionListener<StopDatafeedAction.Response> listener,
+                                Set<String> movedDatafeeds) {
         persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetadata -> {
-            for (String persistentTaskId: datafeedPersistentTaskIds) {
-                if (persistentTasksCustomMetadata.getTask(persistentTaskId) != null) {
-                    return false;
+            for (PersistentTasksCustomMetadata.PersistentTask<?> originalPersistentTask : datafeedPersistentTasks) {
+                String originalPersistentTaskId = originalPersistentTask.getId();
+                PersistentTasksCustomMetadata.PersistentTask<?> currentPersistentTask =
+                    persistentTasksCustomMetadata.getTask(originalPersistentTaskId);
+                if (currentPersistentTask != null) {
+                    if (Objects.equals(originalPersistentTask.getExecutorNode(), currentPersistentTask.getExecutorNode())) {
+                        return false;
+                    }
+                    StartDatafeedAction.DatafeedParams params = (StartDatafeedAction.DatafeedParams) originalPersistentTask.getParams();
+                    if (movedDatafeeds.add(params.getDatafeedId())) {
+                        logger.info("Datafeed [{}] changed assignment while waiting for it to be stopped", params.getDatafeedId());
+                    }
                 }
             }
             return true;

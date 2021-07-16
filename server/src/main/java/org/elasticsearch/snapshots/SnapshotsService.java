@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -483,6 +484,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         repositoryName,
                         sourceSnapshotId.getName(),
                         "cannot clone from snapshot that is being deleted"
+                    );
+                }
+                final RepositoryMetadata repositoryMetadata = currentState.metadata()
+                    .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+                    .repository(repositoryName);
+                if (repositoryMetadata != null && repositoryMetadata.snapshotsToDelete().contains(sourceSnapshotId)) {
+                    throw new ConcurrentSnapshotExecutionException(
+                        repositoryName,
+                        sourceSnapshotId.getName(),
+                        "cannot clone a snapshot that is marked as deleted"
                     );
                 }
                 ensureBelowConcurrencyLimit(repositoryName, snapshotName, snapshots, deletionsInProgress);

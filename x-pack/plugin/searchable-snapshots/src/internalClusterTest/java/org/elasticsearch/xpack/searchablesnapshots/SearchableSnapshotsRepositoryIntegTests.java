@@ -15,6 +15,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
+import org.elasticsearch.snapshots.SnapshotException;
+import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 
 import java.util.Arrays;
@@ -30,9 +33,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
@@ -270,14 +275,13 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
         final String mountedIndex = "mounted-index";
-        final boolean deleteSnapshot = randomBoolean();
-        final Settings indexSettings = deleteSnapshotIndexSettingsOrNull(deleteSnapshot);
+        final Settings indexSettings = deleteSnapshotIndexSettingsOrNull(false);
         logger.info("--> mounting snapshot of index [{}] as [{}] with index settings [{}]", indexName, mountedIndex, indexSettings);
         mountSnapshot(repository, snapshotOfIndex, indexName, mountedIndex, indexSettings, randomFrom(Storage.values()));
         assertThat(
             getDeleteSnapshotIndexSetting(mountedIndex),
             indexSettings.hasValue(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION)
-                ? equalTo(Boolean.toString(deleteSnapshot))
+                ? equalTo("false")
                 : nullValue()
         );
 
@@ -286,14 +290,13 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         assertAcked(client().admin().indices().prepareDelete(mountedIndex));
 
         final String mountedIndexAgain = "mounted-index-again";
-        final boolean deleteSnapshotAgain = deleteSnapshot == false;
-        final Settings indexSettingsAgain = deleteSnapshotIndexSettings(deleteSnapshotAgain);
+        final Settings indexSettingsAgain = deleteSnapshotIndexSettings(true);
         logger.info("--> mounting snapshot of index [{}] again as [{}] with index settings [{}]", indexName, mountedIndex, indexSettings);
         mountSnapshot(repository, snapshotOfIndex, indexName, mountedIndexAgain, indexSettingsAgain, randomFrom(Storage.values()));
         assertThat(
             getDeleteSnapshotIndexSetting(mountedIndexAgain),
             indexSettingsAgain.hasValue(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION)
-                ? equalTo(Boolean.toString(deleteSnapshotAgain))
+                ? equalTo("true")
                 : nullValue()
         );
 
@@ -312,9 +315,9 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
             allOf(
                 containsString("cannot mount snapshot [" + repository + '/'),
                 containsString(':' + snapshotOfMountedIndex + "] as index [" + mountedIndex + "] with "),
-                containsString("[index.store.snapshot.delete_searchable_snapshot: " + deleteSnapshot + "]; another "),
+                containsString("[index.store.snapshot.delete_searchable_snapshot: false]; another "),
                 containsString("index [" + mountedIndexAgain + '/'),
-                containsString("is mounted with [index.store.snapshot.delete_searchable_snapshot: " + deleteSnapshotAgain + "].")
+                containsString("is mounted with [index.store.snapshot.delete_searchable_snapshot: true].")
             )
         );
         assertAcked(client().admin().indices().prepareDelete("mounted-*"));
@@ -399,6 +402,98 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
 
         assertAcked(client().admin().indices().prepareDelete("mounted-*"));
         assertAcked(client().admin().indices().prepareDelete("restored-with-same-setting-*"));
+    }
+
+    public void testSnapshotMarkedAsToDeleteCannotBeMounted() throws Exception {
+        final String suffix = getTestName().toLowerCase(Locale.ROOT);
+        final String repository = "repository-" + suffix;
+        createRepository(repository, FsRepository.TYPE, randomRepositorySettings());
+
+        final String index = "index-" + suffix;
+        createAndPopulateIndex(index, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true));
+
+        final TotalHits totalHits = internalCluster().client().prepareSearch(index).setTrackTotalHits(true).get().getHits().getTotalHits();
+
+        final String snapshot = "snapshot-" + suffix;
+        createSnapshot(repository, snapshot, List.of(index));
+        assertAcked(client().admin().indices().prepareDelete(index));
+
+        final String mounted = mountSnapshot(repository, snapshot, index, deleteSnapshotIndexSettings(true));
+        assertHitCount(client().prepareSearch(mounted).setTrackTotalHits(true).get(), totalHits.value);
+        assertAcked(client().admin().indices().prepareDelete(mounted));
+
+        final SnapshotException exception = expectThrows(SnapshotException.class,
+            () -> mountSnapshot(repository, snapshot, index, deleteSnapshotIndexSettings(true)));
+        assertThat(exception, anyOf(instanceOf(SnapshotMissingException.class), instanceOf(ConcurrentSnapshotExecutionException.class)));
+        assertThat(exception.getMessage(),
+            anyOf(
+                containsString("cannot restore a snapshot while a snapshot deletion is in-progress"),
+                containsString("cannot restore a snapshot already marked as deleted")
+            )
+        );
+    }
+
+    public void testSnapshotMarkedAsToDeleteCannotBeCloned() throws Exception {
+        final String suffix = getTestName().toLowerCase(Locale.ROOT);
+        final String repository = "repository-" + suffix;
+        createRepository(repository, FsRepository.TYPE, randomRepositorySettings());
+
+        final String index = "index-" + suffix;
+        createAndPopulateIndex(index, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true));
+
+        final TotalHits totalHits = internalCluster().client().prepareSearch(index).setTrackTotalHits(true).get().getHits().getTotalHits();
+
+        final String snapshot = "snapshot-" + suffix;
+        createSnapshot(repository, snapshot, List.of(index));
+        assertAcked(client().admin().indices().prepareDelete(index));
+
+        final String mounted = mountSnapshot(repository, snapshot, index, deleteSnapshotIndexSettings(true));
+        assertHitCount(client().prepareSearch(mounted).setTrackTotalHits(true).get(), totalHits.value);
+        assertAcked(client().admin().indices().prepareDelete(mounted));
+
+        final SnapshotException exception = expectThrows(SnapshotException.class,
+            () -> client().admin().cluster().prepareCloneSnapshot(repository, snapshot, "clone-" + snapshot).setIndices(index).get());
+        assertThat(exception, anyOf(instanceOf(SnapshotMissingException.class), instanceOf(ConcurrentSnapshotExecutionException.class)));
+        assertThat(exception.getMessage(),
+            anyOf(
+                containsString("cannot clone a snapshot that is marked as deleted"),
+                containsString("cannot clone from snapshot that is being deleted")
+            )
+        );
+    }
+
+    public void testSnapshotMarkedAsToDeleteCannotBeRestored() throws Exception {
+        final String suffix = getTestName().toLowerCase(Locale.ROOT);
+        final String repository = "repository-" + suffix;
+        createRepository(repository, FsRepository.TYPE, randomRepositorySettings());
+
+        final String index = "index-" + suffix;
+        createAndPopulateIndex(index, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true));
+
+        final TotalHits totalHits = internalCluster().client().prepareSearch(index).setTrackTotalHits(true).get().getHits().getTotalHits();
+
+        final String snapshot = "snapshot-" + suffix;
+        createSnapshot(repository, snapshot, List.of(index));
+        assertAcked(client().admin().indices().prepareDelete(index));
+
+        final String mounted = mountSnapshot(repository, snapshot, index, deleteSnapshotIndexSettings(true));
+        assertHitCount(client().prepareSearch(mounted).setTrackTotalHits(true).get(), totalHits.value);
+        assertAcked(client().admin().indices().prepareDelete(mounted));
+
+        final SnapshotException exception = expectThrows(SnapshotException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(repository, snapshot)
+                .setIndices(index)
+                .setWaitForCompletion(true)
+                .get());
+        assertThat(exception, anyOf(instanceOf(SnapshotMissingException.class), instanceOf(ConcurrentSnapshotExecutionException.class)));
+        assertThat(exception.getMessage(),
+            anyOf(
+                containsString("cannot restore a snapshot while a snapshot deletion is in-progress"),
+                containsString("cannot restore a snapshot already marked as deleted")
+            )
+        );
     }
 
     private static Settings deleteSnapshotIndexSettings(boolean value) {

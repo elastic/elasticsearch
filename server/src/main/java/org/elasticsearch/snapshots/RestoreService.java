@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -1352,6 +1353,15 @@ public class RestoreService implements ClusterStateApplier {
                 throw new ConcurrentSnapshotExecutionException(
                     snapshot,
                     "cannot restore a snapshot while a snapshot deletion is in-progress [" + deletionsInProgress.getEntries().get(0) + "]"
+                );
+            }
+            final RepositoryMetadata repositoryMetadata = currentState.metadata()
+                .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+                .repository(snapshot.getRepository());
+            if (repositoryMetadata != null && repositoryMetadata.snapshotsToDelete().contains(snapshot.getSnapshotId())) {
+                throw new ConcurrentSnapshotExecutionException(
+                    snapshot,
+                    "cannot restore a snapshot already marked as deleted [" + snapshot.getSnapshotId() + "]"
                 );
             }
         }

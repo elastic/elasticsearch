@@ -14,15 +14,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -141,6 +142,53 @@ public class PolicyStepsRegistry {
                 }
             }
         }
+    }
+
+    /**
+     * Return all ordered steps for the current policy for the index. Does not
+     * resolve steps using the phase caching, but only for the currently existing policy.
+     */
+    private List<Step> getAllStepsForIndex(ClusterState state, Index index) {
+        final Metadata metadata = state.metadata();
+        if (metadata.hasIndex(index) == false) {
+            throw new IllegalArgumentException("index " + index + " does not exist in the current cluster state");
+        }
+        final IndexMetadata indexMetadata = metadata.index(index);
+        final String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        final LifecyclePolicyMetadata policyMetadata = lifecyclePolicyMap.get(policyName);
+        if (policyMetadata == null) {
+            throw new IllegalArgumentException("the policy [" + policyName + "] for index" + index + " does not exist");
+        }
+        final LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
+            policyMetadata.getHeaders());
+        return policyMetadata.getPolicy().toSteps(policyClient, licenseState);
+    }
+
+    /**
+     * Given an index and a phase name, return the {@link Step.StepKey} for the
+     * first step in that phase, if it exists, or null otherwise.
+     */
+    @Nullable
+    public Step.StepKey getFirstStepForPhase(ClusterState state, Index index, String phase) {
+        return getAllStepsForIndex(state, index).stream()
+            .map(Step::getKey)
+            .filter(stepKey -> phase.equals(stepKey.getPhase()))
+            .findFirst()
+            .orElse(null);
+    }
+
+    /**
+     * Given an index, phase name, and action name, return the {@link Step.StepKey}
+     * for the first step in that phase, if it exists, or null otherwise.
+     */
+    @Nullable
+    public Step.StepKey getFirstStepForPhaseAndAction(ClusterState state, Index index, String phase, String action) {
+        return getAllStepsForIndex(state, index).stream()
+            .map(Step::getKey)
+            .filter(stepKey -> phase.equals(stepKey.getPhase()))
+            .filter(stepKey -> action.equals(stepKey.getAction()))
+            .findFirst()
+            .orElse(null);
     }
 
     private List<Step> parseStepsFromPhase(String policy, String currentPhase, String phaseDef) throws IOException {

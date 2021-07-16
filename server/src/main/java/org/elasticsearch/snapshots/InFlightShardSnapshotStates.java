@@ -16,7 +16,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.locationtech.jts.util.AssertionFailedException;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -103,9 +102,7 @@ public final class InFlightShardSnapshotStates {
         @Nullable String activeGeneration
     ) {
         final String bestGeneration = generations.getOrDefault(indexName, Collections.emptyMap()).get(shardId);
-        if ((bestGeneration == null || activeGeneration == null || activeGeneration.equals(bestGeneration)) == false) {
-            throw new AssertionFailedException("gnarf");
-        }
+        assert bestGeneration == null || activeGeneration == null || activeGeneration.equals(bestGeneration);
         return true;
     }
 

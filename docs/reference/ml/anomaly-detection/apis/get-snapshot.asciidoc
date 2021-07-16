@@ -169,7 +169,7 @@ reclaim space.
 (long) The upper limit for memory usage, checked on increasing values.
 
 `peak_model_bytes`:::
-(long) The maximum memory usage of the model.
+(long) The highest recorded value for the model memory usage.
 
 
 `rare_category_count`:::

@@ -163,8 +163,8 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         settings.addAll(ServiceProviderDefaults.getSettings());
         settings.addAll(WildcardServiceProviderResolver.getSettings());
         settings.addAll(ApplicationActionsResolver.getSettings());
-        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getAllSettings());
-        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getAllSettings());
+        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getEnabledSettings());
+        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getEnabledSettings());
         return Collections.unmodifiableList(settings);
     }
 

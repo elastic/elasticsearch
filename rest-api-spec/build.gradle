@@ -97,7 +97,6 @@ tasks.named("yamlRestCompatTest").configure {
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
     'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
     'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', //terms_lookup
-    'search/260_parameter_validation/test size=-1 is deprecated', //size=-1 change
     'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
     'search/340_type_query/type query', // type_query - probably should behave like match_all
   ] + v7compatibilityNotSupportedTests())

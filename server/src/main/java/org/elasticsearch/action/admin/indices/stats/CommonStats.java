@@ -10,8 +10,6 @@ package org.elasticsearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
-import org.elasticsearch.index.bulk.stats.BulkStats;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -19,6 +17,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;

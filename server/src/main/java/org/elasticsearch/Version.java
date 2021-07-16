@@ -85,8 +85,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_13_2 = new Version(7130299, org.apache.lucene.util.Version.LUCENE_8_8_2);
     public static final Version V_7_13_3 = new Version(7130399, org.apache.lucene.util.Version.LUCENE_8_8_2);
     public static final Version V_7_13_4 = new Version(7130499, org.apache.lucene.util.Version.LUCENE_8_8_2);
-    public static final Version V_7_14_0 = new Version(7140099, org.apache.lucene.util.Version.LUCENE_8_9_0);
-    public static final Version V_7_15_0 = new Version(7150099, org.apache.lucene.util.Version.LUCENE_8_9_0);
+    // NOCOMMIT: we need to build a new Lucene 9 snapshot and use Lucene 8.9.0 for 7.14 and 7.15
+    public static final Version V_7_14_0 = new Version(7140099, org.apache.lucene.util.Version.LUCENE_8_8_2);
+    public static final Version V_7_15_0 = new Version(7150099, org.apache.lucene.util.Version.LUCENE_8_8_2);
     public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version CURRENT = V_8_0_0;
 

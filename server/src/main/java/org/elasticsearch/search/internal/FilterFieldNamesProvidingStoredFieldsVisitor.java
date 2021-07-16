@@ -28,7 +28,7 @@ public class FilterFieldNamesProvidingStoredFieldsVisitor extends FieldNamesProv
     }
 
     @Override
-    public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
+    public void stringField(FieldInfo fieldInfo, String value) throws IOException {
         visitor.stringField(fieldInfo, value);
     }
 

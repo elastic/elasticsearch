@@ -324,3 +324,35 @@
   - gte: { nodes.$node_id.http.clients.0.request_size_bytes: 0 }
   # values for clients.0.closed_time_millis, clients.0.x_forwarded_for, and clients.0.x_opaque_id are often
   # null and cannot be tested here
+
+---
+"indices shards total count test":
+
+  - skip:
+      features: ["allowed_warnings", arbitrary_key]
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "3"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: index2
+        body:
+          settings:
+            number_of_shards: "2"
+            number_of_replicas: "0"
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: _all }
+
+  - match: { nodes.$node_id.indices.shards.total_count: 5 }

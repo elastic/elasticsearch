@@ -28,8 +28,11 @@ public final class SnapshotId implements Comparable<SnapshotId>, Writeable, ToXC
     private static final String NAME = "name";
     private static final String UUID = "uuid";
 
-    private static final ConstructingObjectParser<SnapshotId, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
-        args -> new SnapshotId((String) args[0], (String) args[1]));
+    private static final ConstructingObjectParser<SnapshotId, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        args -> new SnapshotId((String) args[0], (String) args[1])
+    );
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(NAME));
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(UUID));

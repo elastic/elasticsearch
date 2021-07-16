@@ -31,4 +31,9 @@ public final class SearchableSnapshotsSettings {
     public static boolean isPartialSearchableSnapshotIndex(Settings indexSettings) {
         return isSearchableSnapshotStore(indexSettings) && indexSettings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false);
     }
+
+    public static boolean isSearchableSnapshotIndexWithSnapshotDeletion(Settings indexSettings) {
+        return isSearchableSnapshotStore(indexSettings)
+            && indexSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false);
+    }
 }

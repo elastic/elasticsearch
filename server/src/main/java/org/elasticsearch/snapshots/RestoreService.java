@@ -1035,7 +1035,7 @@ public class RestoreService implements ClusterStateApplier {
                 "cannot disable setting [" + IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey() + "] on restore"
             );
         }
-        if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(settings))) {
+        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(settings)) {
             final Boolean changed = changeSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, null);
             if (changed != null) {
                 final Boolean previous = settings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, null);
@@ -1266,7 +1266,7 @@ public class RestoreService implements ClusterStateApplier {
                     );
                 }
 
-                if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(updatedIndexMetadata.getSettings()))) {
+                if (SearchableSnapshotsSettings.isSearchableSnapshotStore(updatedIndexMetadata.getSettings())) {
                     searchableSnapshotsIndices.add(updatedIndexMetadata.getIndex());
                 }
             }
@@ -1566,7 +1566,7 @@ public class RestoreService implements ClusterStateApplier {
                     continue; // do not check the searchable snapshot index against itself
                 }
                 final Settings otherSettings = other.getSettings();
-                if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(otherSettings)) == false) {
+                if (SearchableSnapshotsSettings.isSearchableSnapshotStore(otherSettings) == false) {
                     continue; // other index is not a searchable snapshot index, skip
                 }
                 final String otherSnapshotUuid = otherSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY);

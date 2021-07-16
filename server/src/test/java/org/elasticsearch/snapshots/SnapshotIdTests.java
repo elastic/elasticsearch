@@ -35,15 +35,9 @@ public class SnapshotIdTests extends AbstractSerializingTestCase<SnapshotId> {
     @Override
     protected SnapshotId mutateInstance(SnapshotId instance) throws IOException {
         if (randomBoolean()) {
-            return new SnapshotId(
-                randomValueOtherThan(instance.getName(), SnapshotIdTests::randomSnapshotName),
-                instance.getUUID()
-            );
+            return new SnapshotId(randomValueOtherThan(instance.getName(), SnapshotIdTests::randomSnapshotName), instance.getUUID());
         } else {
-            return new SnapshotId(
-                instance.getName(),
-                randomValueOtherThan(instance.getUUID(), SnapshotIdTests::randomSnapshotUuid)
-            );
+            return new SnapshotId(instance.getName(), randomValueOtherThan(instance.getUUID(), SnapshotIdTests::randomSnapshotUuid));
         }
     }
 

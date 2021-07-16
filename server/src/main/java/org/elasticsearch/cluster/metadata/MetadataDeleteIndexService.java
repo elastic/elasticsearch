@@ -21,20 +21,33 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY;
 
 /**
  * Deletes indices.
@@ -120,6 +133,23 @@ public class MetadataDeleteIndexService {
         logger.trace("{} tombstones purged from the cluster state. Previous tombstone size: {}. Current tombstone size: {}.",
             graveyardBuilder.getNumPurged(), previousGraveyardSize, currentGraveyard.getTombstones().size());
 
+        // add snapshot(s) marked as to delete to the cluster state
+        final Map<String, Set<SnapshotId>> snapshotsToDelete = listOfSnapshotsToDelete(currentState, indicesToDelete);
+        if (snapshotsToDelete.isEmpty() == false) {
+            RepositoriesMetadata repositories = currentState.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+            boolean changed = false;
+            for (Map.Entry<String, Set<SnapshotId>> snapshotToDelete : snapshotsToDelete.entrySet()) {
+                RepositoryMetadata repository = repositories.repository(snapshotToDelete.getKey());
+                if (repository != null) {
+                    repositories = repositories.addSnapshotsToDelete(repository.name(), snapshotToDelete.getValue());
+                    changed = true;
+                }
+            }
+            if (changed) {
+                metadataBuilder.putCustom(RepositoriesMetadata.TYPE, repositories);
+            }
+        }
+
         Metadata newMetadata = metadataBuilder.build();
         ClusterBlocks blocks = clusterBlocksBuilder.build();
 
@@ -141,5 +171,60 @@ public class MetadataDeleteIndexService {
                     .customs(customs)
                     .build(),
                 "deleted indices [" + indices + "]");
+    }
+
+    private static Map<String, Set<SnapshotId>> listOfSnapshotsToDelete(final ClusterState currentState, final Set<Index> indicesToDelete) {
+        final Map<String, Set<SnapshotId>> snapshotsToDelete = new HashMap<>();
+
+        for (Index indexToDelete : indicesToDelete) {
+            final Settings indexSettings = currentState.metadata().getIndexSafe(indexToDelete).getSettings();
+            if (SearchableSnapshotsSettings.isSearchableSnapshotIndexWithSnapshotDeletion(indexSettings) == false) {
+                continue;
+            }
+
+            final String repositoryName = repositoryNameFromIndexSettings(currentState, indexSettings);
+            final String snapshotUuid = indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY);
+
+            boolean canDeleteSnapshot = true;
+            for (IndexMetadata other : currentState.metadata()) {
+                if (indicesToDelete.contains(other.getIndex())) {
+                    continue; // do not check indices that are going to be deleted
+                }
+                final Settings otherSettings = other.getSettings();
+                if (SearchableSnapshotsSettings.isSearchableSnapshotStore(otherSettings) == false) {
+                    continue; // other index is not a searchable snapshot index, skip
+                }
+                final String otherSnapshotUuid = otherSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY);
+                if (Objects.equals(snapshotUuid, otherSnapshotUuid) == false) {
+                    continue; // other index is backed by a different snapshot, skip
+                }
+                final String otherRepositoryName = repositoryNameFromIndexSettings(currentState, otherSettings);
+                if (Objects.equals(repositoryName, otherRepositoryName) == false) {
+                    continue; // other index is backed by a snapshot from a different repository, skip
+                }
+                assert otherSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false) : other;
+                canDeleteSnapshot = false; // another index is using the same snapshot, do not delete
+                break;
+            }
+            if (canDeleteSnapshot) {
+                snapshotsToDelete.computeIfAbsent(repositoryName, r -> new HashSet<>())
+                    .add(new SnapshotId(indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY), snapshotUuid));
+            }
+        }
+        return snapshotsToDelete;
+    }
+
+    private static String repositoryNameFromIndexSettings(ClusterState currentState, Settings indexSettings) {
+        final String repositoryUuid = indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
+        if (Strings.hasLength(repositoryUuid) == false) {
+            return indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
+        }
+        final RepositoriesMetadata repoMetadata = currentState.metadata().custom(RepositoriesMetadata.TYPE);
+        final List<RepositoryMetadata> repositories = repoMetadata == null ? emptyList() : repoMetadata.repositories();
+        return repositories.stream()
+            .filter(r -> repositoryUuid.equals(r.uuid()))
+            .map(RepositoryMetadata::name)
+            .findFirst()
+            .orElseThrow(() -> new RepositoryMissingException(repositoryUuid));
     }
 }

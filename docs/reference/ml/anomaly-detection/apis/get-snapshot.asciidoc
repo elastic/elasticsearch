@@ -97,6 +97,11 @@ properties:
 .Properties of `model_size_stats`
 [%collapsible%open]
 ====
+`assignment_memory_basis`:::
+(string) Reports which memory calculation method is respected as the memory 
+requirement for the job to be assigned. Possible options are 
+`model_memory_limit` and `current_model_bytes`.
+
 `bucket_allocation_failures_count`:::
 (long) The number of buckets for which entities were not processed due to memory
 limit constraints.
@@ -163,6 +168,10 @@ reclaim space.
 
 `model_bytes_memory_limit`:::
 (long) The upper limit for memory usage, checked on increasing values.
+
+`peak_model_bytes`:::
+(long) The maximum memory usage of the model.
+
 
 `rare_category_count`:::
 (long) The number of categories that match just one categorized document.

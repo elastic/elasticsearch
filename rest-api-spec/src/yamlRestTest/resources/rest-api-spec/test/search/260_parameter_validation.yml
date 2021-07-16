@@ -23,7 +23,7 @@ setup:
   - skip:
       version: " - 7.12.99"
       reason: deprecation added in 7.13
-      features: allowed_warnings
+      features: allowed_warnings_regex
 
   - do:
       allowed_warnings_regex:

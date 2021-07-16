@@ -26,8 +26,9 @@ setup:
       features: allowed_warnings
 
   - do:
-      allowed_warnings:
-        - "Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` parameter if you don't want to set it explicitly."
+      allowed_warnings_regex:
+        #regex because of bwc and a typo existing in prev versions
+        - "Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` parameter if you don't want to set it explicit[e]?ly."
       search:
         rest_total_hits_as_int: true
         index: index1

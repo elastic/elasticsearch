@@ -21,6 +21,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Set;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.script.ScriptService;
@@ -46,21 +48,29 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testCheckDefaults() {
         final Settings settings = Settings.EMPTY;
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
-        assertThat(issues, empty());
+        final XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+
+        final DeprecationIssue issue =
+            NodeDeprecationChecks.checkImplicitlyDisabledSecurityOnBasicAndTrial(settings, pluginsAndModules, ClusterState.EMPTY_STATE,
+                                                                                 licenseState);
+        assertThat(issues, hasItem(issue));
     }
 
     public void testJavaVersion() {
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
             DeprecationChecks.NODE_SETTINGS_CHECKS,
-            c -> c.apply(Settings.EMPTY, pluginsAndModules, ClusterState.EMPTY_STATE)
+            c -> c.apply(Settings.EMPTY, pluginsAndModules, ClusterState.EMPTY_STATE, licenseState)
         );
 
         final DeprecationIssue expected = new DeprecationIssue(
@@ -83,7 +93,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final String pidfile = randomAlphaOfLength(16);
         final Settings settings = Settings.builder().put(Environment.PIDFILE_SETTING.getKey(), pidfile).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [pidfile] is deprecated in favor of setting [node.pidfile]",
@@ -97,7 +108,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final int processors = randomIntBetween(1, 4);
         final Settings settings = Settings.builder().put(EsExecutors.PROCESSORS_SETTING.getKey(), processors).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [processors] is deprecated in favor of setting [node.processors]",
@@ -115,6 +127,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             new RealmConfig.RealmIdentifier(randomRealmTypeOtherThanFileOrNative(), randomAlphaOfLengthBetween(4, 12));
         final Settings settings =
             Settings.builder()
+                .put("xpack.security.enabled", true)
                 .put("xpack.security.authc.realms.file.default_file.enabled", false)
                 .put("xpack.security.authc.realms.native.default_native.enabled", false)
                 .put("xpack.security.authc.realms." + invalidRealm.getType() + "." + invalidRealm.getName() + ".enabled", "true")
@@ -122,7 +135,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 .build();
 
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
+        final XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
 
         assertEquals(1, deprecationIssues.size());
         assertEquals(new DeprecationIssue(
@@ -143,10 +157,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             new RealmConfig.RealmIdentifier(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4, 12));
         final Settings settings =
             Settings.builder()
+                .put("xpack.security.enabled", true)
                 .put("xpack.security.authc.realms." + realmIdentifier.getType() + "." + realmIdentifier.getName() + ".enabled", "false")
                 .build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
+        final XPackLicenseState licenseState =
+            new XPackLicenseState(settings, () -> 0);
+        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         assertTrue(deprecationIssues.isEmpty());
     }
 
@@ -160,6 +177,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final RealmConfig.RealmIdentifier validRealm =
             new RealmConfig.RealmIdentifier(randomRealmTypeOtherThanFileOrNative(), randomAlphaOfLengthBetween(4, 12));
         final Settings settings = Settings.builder()
+            .put("xpack.security.enabled", true)
             .put("xpack.security.authc.realms.file.default_file.enabled", false)
             .put("xpack.security.authc.realms.native.default_native.enabled", false)
             .put("xpack.security.authc.realms."
@@ -171,7 +189,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
 
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
+        final XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
 
         assertEquals(1, deprecationIssues.size());
         assertEquals(DeprecationIssue.Level.CRITICAL, deprecationIssues.get(0).getLevel());
@@ -188,6 +207,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testCorrectRealmOrders() {
         final int order = randomInt(9999);
         final Settings settings = Settings.builder()
+            .put("xpack.security.enabled", true)
             .put("xpack.security.authc.realms.file.default_file.enabled", false)
             .put("xpack.security.authc.realms.native.default_native.enabled", false)
             .put("xpack.security.authc.realms."
@@ -197,14 +217,16 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
 
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
+        final XPackLicenseState licenseState =
+            new XPackLicenseState(settings, () -> 0);
+        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
 
         assertTrue(deprecationIssues.isEmpty());
     }
 
     public void testCheckImplicitlyDisabledBasicRealms() {
         final Settings.Builder builder = Settings.builder();
-
+        builder.put("xpack.security.enabled", true);
         final boolean otherRealmConfigured = randomBoolean();
         final boolean otherRealmEnabled = randomBoolean();
         if (otherRealmConfigured) {
@@ -240,7 +262,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         }
         final Settings settings = builder.build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
+        final XPackLicenseState licenseState =
+            new XPackLicenseState(settings, () -> 0);
+        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
 
         if (otherRealmConfigured && otherRealmEnabled) {
             if (false == fileRealmConfigured && false == nativeRealmConfigured) {
@@ -338,9 +362,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             builder.put("xpack.security.authc.realms.type_" + otherRealmId + "." + otherRealmName + ".order", 0);
         }
 
-        final Settings settings = builder.build();
+        final Settings settings = builder.put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
+        final XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
 
         assertEquals(1, deprecationIssues.size());
 
@@ -359,7 +384,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final int size = randomIntBetween(1, 4);
         final Settings settings = Settings.builder().put("thread_pool.listener.queue_size", size).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [thread_pool.listener.queue_size] is deprecated and will be removed in the next major version",
@@ -373,7 +399,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final int size = randomIntBetween(1, 4);
         final Settings settings = Settings.builder().put("thread_pool.listener.size", size).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [thread_pool.listener.size] is deprecated and will be removed in the next major version",
@@ -387,7 +414,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final int size = randomIntBetween(1, 4);
         final Settings settings = Settings.builder().put("script.cache.max_size", size).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [script.cache.max_size] is deprecated in favor of grouped setting [script.context.*.cache_max_size]",
@@ -402,7 +430,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final String expire = randomIntBetween(1, 4) + "m";
         final Settings settings = Settings.builder().put("script.cache.expire", expire).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [script.cache.expire] is deprecated in favor of grouped setting [script.context.*.cache_expire]",
@@ -417,7 +446,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final String rate = randomIntBetween(1, 100) + "/" + randomIntBetween(1, 200) + "m";
         final Settings settings = Settings.builder().put("script.max_compilations_rate", rate).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [script.max_compilations_rate] is deprecated in favor of grouped setting [script.context.*.max_compilations_rate]",
@@ -432,7 +462,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final boolean value = randomBoolean();
         final Settings settings = Settings.builder().put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), value).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [cluster.remote.connect] is deprecated in favor of setting [node.remote_cluster_client]",
@@ -452,7 +483,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final boolean value = randomBoolean();
         final Settings settings = Settings.builder().put(Node.NODE_LOCAL_STORAGE_SETTING.getKey(), value).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [node.local_storage] is deprecated and will be removed in the next major version",
@@ -480,7 +512,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             final boolean value = randomBoolean();
             final Settings settings = Settings.builder().put(deprecatedSetting.getKey(), value).build();
             final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-            final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+            final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+            final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
             final DeprecationIssue expected = new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "setting [" + deprecatedSetting.getKey() + "] is deprecated and will be removed in the next major version",
@@ -502,7 +535,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             final boolean value = randomBoolean();
             final Settings settings = Settings.builder().put(legacyRoleSetting.getKey(), value).build();
             final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-            final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+            final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+            final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
             final String roles = DiscoveryNode.getRolesFromSettings(settings)
                 .stream()
                 .map(DiscoveryNodeRole::roleName)
@@ -523,11 +557,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final boolean boostrapSystemCallFilter = randomBoolean();
         final Settings settings =
             Settings.builder().put(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey(), boostrapSystemCallFilter).build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         final PluginsAndModules pluginsAndModules =
             new PluginsAndModules(org.elasticsearch.core.List.of(), org.elasticsearch.core.List.of());
         final List<DeprecationIssue> issues =
             DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
-                c -> c.apply(settings, pluginsAndModules, ClusterState.EMPTY_STATE));
+                c -> c.apply(settings, pluginsAndModules, ClusterState.EMPTY_STATE, licenseState));
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [bootstrap.system_call_filter] is deprecated and will be removed in the next major version",
@@ -566,10 +601,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         return JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0;
     }
 
-    private List<DeprecationIssue> getDeprecationIssues(Settings settings, PluginsAndModules pluginsAndModules) {
+    private List<DeprecationIssue> getDeprecationIssues(Settings settings, PluginsAndModules pluginsAndModules,
+                                                        XPackLicenseState licenseState) {
         final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
             DeprecationChecks.NODE_SETTINGS_CHECKS,
-            c -> c.apply(settings, pluginsAndModules, ClusterState.EMPTY_STATE)
+            c -> c.apply(settings, pluginsAndModules, ClusterState.EMPTY_STATE, licenseState)
         );
 
         if (isJvmEarlierThan11()) {
@@ -595,7 +631,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testMultipleDataPaths() {
         final Settings settings = Settings.builder().putList("path.data", Arrays.asList("d1", "d2")).build();
-        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null);
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null, licenseState);
         assertThat(issue, not(nullValue()));
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
         assertThat(
@@ -611,13 +648,15 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testNoMultipleDataPaths() {
         Settings settings = Settings.builder().put("path.data", "data").build();
-        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null);
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null, licenseState);
         assertThat(issue, nullValue());
     }
 
     public void testDataPathsList() {
         final Settings settings = Settings.builder().putList("path.data", "d1").build();
-        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null);
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null, licenseState);
         assertThat(issue, not(nullValue()));
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
         assertThat(
@@ -633,7 +672,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testNoDataPathsListDefault() {
         final Settings settings = Settings.builder().build();
-        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null);
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null, licenseState);
         assertThat(issue, nullValue());
     }
 
@@ -641,8 +681,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir()).build();
-
-        DeprecationIssue issue = NodeDeprecationChecks.checkSharedDataPathSetting(settings, null, null);
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        DeprecationIssue issue = NodeDeprecationChecks.checkSharedDataPathSetting(settings, null, null, licenseState);
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-shared-data-path-setting";
         assertThat(issue, equalTo(
@@ -657,9 +697,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), false)
             .build();
-
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings,
-            null, ClusterState.EMPTY_STATE));
+            null, ClusterState.EMPTY_STATE, new XPackLicenseState(Settings.EMPTY, () -> 0)));
 
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
@@ -685,10 +724,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
             Version.CURRENT);
         ClusterStateCreationUtils.state(node1, node1, node1);
-
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
             c -> c.apply(Settings.EMPTY,
-                null, ClusterStateCreationUtils.state(node1, node1, node1)));
+                null, ClusterStateCreationUtils.state(node1, node1, node1), licenseState));
 
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
@@ -705,15 +744,15 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issues, hasItem(deprecationIssue));
 
         assertThat(NodeDeprecationChecks.checkSingleDataNodeWatermarkSetting(Settings.EMPTY, null, ClusterStateCreationUtils.state(master
-            , master, master)),
+            , master, master), licenseState),
             nullValue());
 
         assertThat(NodeDeprecationChecks.checkSingleDataNodeWatermarkSetting(Settings.EMPTY, null, ClusterStateCreationUtils.state(node1,
-            node1, node1, node2)),
+            node1, node1, node2), licenseState),
             nullValue());
 
         assertThat(NodeDeprecationChecks.checkSingleDataNodeWatermarkSetting(Settings.EMPTY, null, ClusterStateCreationUtils.state(node1,
-            master, node1, master)),
+            master, node1, master), licenseState),
             equalTo(deprecationIssue));
     }
 
@@ -727,8 +766,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             b.put("xpack.monitoring.exporters." + exporterNames[k] + ".auth.password", "_pass");
         }
         final Settings settings = b.build();
-
-        DeprecationIssue issue = NodeDeprecationChecks.checkMonitoringExporterPassword(settings, null, null);
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        DeprecationIssue issue = NodeDeprecationChecks.checkMonitoringExporterPassword(settings, null, null , licenseState);
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/monitoring-settings.html#http-exporter-settings";
         final String joinedNames = Arrays
@@ -752,7 +791,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             ), null)));
 
         // test for absence of deprecated exporter passwords
-        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null);
+        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null, licenseState);
         assertThat(issue, nullValue());
     }
 
@@ -760,6 +799,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         boolean settingValue = randomBoolean();
         String settingKey = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey();
         final Settings nodeSettings = Settings.builder().put(settingKey, settingValue).build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         final ClusterState clusterState = ClusterState.EMPTY_STATE;
         final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             String.format(Locale.ROOT,
@@ -774,7 +814,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         assertThat(
-            NodeDeprecationChecks.checkClusterRoutingAllocationIncludeRelocationsSetting(nodeSettings, null, clusterState),
+            NodeDeprecationChecks.checkClusterRoutingAllocationIncludeRelocationsSetting(nodeSettings, null, clusterState, licenseState),
             equalTo(expectedIssue)
         );
 
@@ -784,5 +824,40 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             settingKey);
 
         assertWarnings(expectedWarning);
+    }
+    public void testImplicitlyDisabledSecurityWarning() {
+        final DeprecationIssue issue =
+            NodeDeprecationChecks.checkImplicitlyDisabledSecurityOnBasicAndTrial(Settings.EMPTY,
+                null,
+                ClusterState.EMPTY_STATE,
+                new XPackLicenseState(Settings.EMPTY, () -> 0));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(issue.getMessage(), equalTo("Security is enabled by default for all licenses in the next major version."));
+        assertNotNull(issue.getDetails());
+        assertThat(issue.getDetails(), containsString("The default behavior of disabling security on "));
+        assertThat(issue.getUrl(),
+            equalTo("https://www.elastic.co/guide/en/elasticsearch/reference/7.14/migrating-7.14.html#implicitly-disabled-security"));
+    }
+
+    public void testExplicitlyConfiguredSecurityOnBasicAndTrial() {
+        final boolean enabled = randomBoolean();
+        final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), enabled).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.getOperationMode()).thenReturn(randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL));
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+        assertThat(issues, empty());
+    }
+
+    public void testImplicitlyConfiguredSecurityOnGoldPlus() {
+        final boolean enabled = randomBoolean();
+        final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), enabled).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.getOperationMode())
+            .thenReturn(randomValueOtherThanMany((m -> m.equals(License.OperationMode.BASIC) || m.equals(License.OperationMode.TRIAL)),
+                () -> randomFrom(License.OperationMode.values())));
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+        assertThat(issues, empty());
     }
 }

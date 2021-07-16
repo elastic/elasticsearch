@@ -82,7 +82,10 @@ public class MlLifeCycleService {
         }
         PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         // TODO: currently only considering anomaly detection jobs - could extend in the future
-        return MlTasks.jobTasksOnNode(tasks, nodeId).isEmpty() && MlTasks.snapshotUpgradeTasksOnNode(tasks, nodeId).isEmpty();
+        // Ignore failed jobs - the persistent task still exists to remember the failure (because no
+        // persistent task means closed), but these don't need to be relocated to another node.
+        return MlTasks.nonFailedJobTasksOnNode(tasks, nodeId).isEmpty() &&
+            MlTasks.nonFailedSnapshotUpgradeTasksOnNode(tasks, nodeId).isEmpty();
     }
 
     /**

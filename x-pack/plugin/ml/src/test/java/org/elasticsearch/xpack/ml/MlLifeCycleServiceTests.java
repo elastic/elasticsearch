@@ -21,6 +21,12 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -79,6 +85,32 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-1", clusterState), is(false)); // has AD job
         assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-2", clusterState), is(true)); // has DFA job
         assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-3", clusterState), is(false)); // has snapshot upgrade
+        assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-4", clusterState), is(true)); // has no ML tasks
+    }
+
+    public void testIsNodeSafeToShutdownGivenFailedTasks() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+
+        tasksBuilder.addTask(MlTasks.jobTaskId("job-1"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("job-1"),
+            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment"));
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-1"), new JobTaskState(JobState.FAILED, 1, "testing"));
+        tasksBuilder.addTask(MlTasks.dataFrameAnalyticsTaskId("job-2"), MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
+            new StartDataFrameAnalyticsAction.TaskParams("foo-2", Version.CURRENT, true),
+            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment"));
+        tasksBuilder.updateTaskState(MlTasks.dataFrameAnalyticsTaskId("job-2"),
+            new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, 2, "testing"));
+        tasksBuilder.addTask(MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"), MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
+            new SnapshotUpgradeTaskParams("job-3", "snapshot-3"),
+            new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment"));
+        tasksBuilder.updateTaskState(MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"),
+            new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, 3, "testing"));
+
+        Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
+
+        assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-1", clusterState), is(true)); // has failed AD job
+        assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-2", clusterState), is(true)); // has failed DFA job
+        assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-3", clusterState), is(true)); // has failed snapshot upgrade
         assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-4", clusterState), is(true)); // has no ML tasks
     }
 

@@ -232,7 +232,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
         for (ProcessContext processContext : processByAllocation.values()) {
 
-            // We ignore jobs that are either don't have a running process yet or already closing.
+            // We ignore jobs that either don't have a running process yet or already closing.
             // - The ones that don't yet have a running process will get picked up on a subsequent call to this
             //   method.  This is simpler than trying to interact with a job before its process is started,
             //   and importantly, when it eventually does get picked up it will be fast to shut down again

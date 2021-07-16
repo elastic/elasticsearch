@@ -282,6 +282,28 @@ public class MlTasksTests extends ESTestCase {
             containsInAnyOrder(hasProperty("id", equalTo("job-job-2")), hasProperty("id", equalTo("job-job-3"))));
     }
 
+    public void testNonFailedJobTasksOnNode() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        assertThat(MlTasks.openJobIds(tasksBuilder.build()), empty());
+
+        tasksBuilder.addTask(MlTasks.jobTaskId("job-1"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-1"),
+            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment"));
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-1"), new JobTaskState(JobState.FAILED, 1, "testing"));
+        tasksBuilder.addTask(MlTasks.jobTaskId("job-2"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-2"),
+            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment"));
+        if (randomBoolean()) {
+            tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-2"), new JobTaskState(JobState.OPENED, 2, "testing"));
+        }
+        tasksBuilder.addTask(MlTasks.jobTaskId("job-3"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-3"),
+            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment"));
+        if (randomBoolean()) {
+            tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-3"), new JobTaskState(JobState.FAILED, 3, "testing"));
+        }
+
+        assertThat(MlTasks.nonFailedJobTasksOnNode(tasksBuilder.build(), "node-1"),
+            contains(hasProperty("id", equalTo("job-job-2"))));
+    }
+
     private static PersistentTasksCustomMetadata.PersistentTask<?> createDataFrameAnalyticsTask(String jobId, String nodeId,
                                                                                                 DataFrameAnalyticsState state,
                                                                                                 boolean isStale) {

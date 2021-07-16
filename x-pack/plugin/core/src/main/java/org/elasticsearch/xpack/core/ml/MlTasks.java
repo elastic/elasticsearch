@@ -268,6 +268,24 @@ public final class MlTasks {
         return tasks.findTasks(JOB_TASK_NAME, task -> nodeId.equals(task.getExecutorNode()));
     }
 
+    public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> nonFailedJobTasksOnNode(
+        @Nullable PersistentTasksCustomMetadata tasks, String nodeId) {
+        if (tasks == null) {
+            return Collections.emptyList();
+        }
+
+        return tasks.findTasks(JOB_TASK_NAME, task -> {
+            if (nodeId.equals(task.getExecutorNode()) == false) {
+                return false;
+            }
+            JobTaskState state = (JobTaskState) task.getState();
+            if (state == null) {
+                return true;
+            }
+            return state.getState() != JobState.FAILED;
+        });
+    }
+
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasksOnNode(
         @Nullable PersistentTasksCustomMetadata tasks, String nodeId) {
         if (tasks == null) {
@@ -275,6 +293,24 @@ public final class MlTasks {
         }
 
         return tasks.findTasks(JOB_SNAPSHOT_UPGRADE_TASK_NAME, task -> nodeId.equals(task.getExecutorNode()));
+    }
+
+    public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> nonFailedSnapshotUpgradeTasksOnNode(
+        @Nullable PersistentTasksCustomMetadata tasks, String nodeId) {
+        if (tasks == null) {
+            return Collections.emptyList();
+        }
+
+        return tasks.findTasks(JOB_SNAPSHOT_UPGRADE_TASK_NAME, task -> {
+            if (nodeId.equals(task.getExecutorNode()) == false) {
+                return false;
+            }
+            SnapshotUpgradeTaskState state = (SnapshotUpgradeTaskState) task.getState();
+            if (state == null) {
+                return true;
+            }
+            return state.getState() != SnapshotUpgradeState.FAILED;
+        });
     }
 
     /**

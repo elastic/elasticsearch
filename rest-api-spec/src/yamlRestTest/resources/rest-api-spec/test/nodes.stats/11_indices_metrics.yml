@@ -25,6 +25,7 @@
   - is_true:  nodes.$node_id.indices.segments
   - is_true:  nodes.$node_id.indices.translog
   - is_true:  nodes.$node_id.indices.recovery
+  - is_true:  nodes.$node_id.indices.shards
 
 ---
 "Metric - _all":
@@ -53,6 +54,7 @@
   - is_true:  nodes.$node_id.indices.segments
   - is_true:  nodes.$node_id.indices.translog
   - is_true:  nodes.$node_id.indices.recovery
+  - is_true:  nodes.$node_id.indices.shards
 
 ---
 "Metric - indices _all":
@@ -81,6 +83,7 @@
   - is_true:  nodes.$node_id.indices.segments
   - is_true:  nodes.$node_id.indices.translog
   - is_true:  nodes.$node_id.indices.recovery
+  - is_true:  nodes.$node_id.indices.shards
 
 ---
 "Metric - one":
@@ -109,6 +112,7 @@
   - is_false:  nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
+  - is_false:  nodes.$node_id.indices.shards
 
 ---
 "Metric - multi":
@@ -120,7 +124,7 @@
       nodes._arbitrary_key_: node_id
 
   - do:
-      nodes.stats: { metric: indices, index_metric: [ store, get, merge ] }
+      nodes.stats: { metric: indices, index_metric: [ store, get, merge, shards ] }
 
   - is_false:  nodes.$node_id.indices.docs
   - is_true:   nodes.$node_id.indices.store
@@ -137,6 +141,7 @@
   - is_false:  nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
+  - is_true:  nodes.$node_id.indices.shards
 
 
 ---
@@ -166,6 +171,7 @@
   - is_false:  nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_true:   nodes.$node_id.indices.recovery
+  - is_false:  nodes.$node_id.indices.shards
 
 ---
 "Metric - _all include_segment_file_sizes":
@@ -194,6 +200,7 @@
   - is_true:   nodes.$node_id.indices.segments
   - is_true:   nodes.$node_id.indices.translog
   - is_true:   nodes.$node_id.indices.recovery
+  - is_true:  nodes.$node_id.indices.shards
   - is_true:   nodes.$node_id.indices.segments.file_sizes
 
 ---
@@ -223,6 +230,7 @@
   - is_true:   nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
+  - is_false:  nodes.$node_id.indices.shards
   - is_true:   nodes.$node_id.indices.segments.file_sizes
 
 ---
@@ -254,6 +262,7 @@
   - is_true:   nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
+  - is_false:  nodes.$node_id.indices.shards
 
 ---
 "Metric - _all include_unloaded_segments":
@@ -284,6 +293,7 @@
   - is_true:   nodes.$node_id.indices.segments
   - is_true:   nodes.$node_id.indices.translog
   - is_true:   nodes.$node_id.indices.recovery
+  - is_true:  nodes.$node_id.indices.shards
 
 ---
 "Metric - http":

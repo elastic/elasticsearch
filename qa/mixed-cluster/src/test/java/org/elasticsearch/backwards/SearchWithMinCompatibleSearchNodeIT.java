@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
@@ -149,7 +150,9 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
         if (nodes.getBWCNodes().stream().anyMatch(node -> node.getVersion().before(Version.V_7_10_0))) {
             ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(openPIT));
             assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-            assertThat(responseException.getMessage(), containsString("Point-in-time requires every node in the cluster on 7.10 or later"));
+            assertThat(responseException.getMessage(),
+                either(containsString("request body is required"))
+                    .or(containsString("Point-in-time requires every node in the cluster on 7.10 or later")));
         } else {
             final Response response = client().performRequest(openPIT);
             assertOK(response);

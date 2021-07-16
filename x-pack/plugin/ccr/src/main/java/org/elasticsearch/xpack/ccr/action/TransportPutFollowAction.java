@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,7 +45,6 @@ import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -129,7 +129,7 @@ public final class TransportPutFollowAction
                 "] does not have soft deletes enabled"));
             return;
         }
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(leaderIndexMetadata.getSettings())) {
+        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndexMetadata.getSettings())) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() +
                 "] is a searchable snapshot index and cannot be used as a leader index for cross-cluster replication purpose"));
             return;

@@ -6,6 +6,8 @@
 
 Enables a {kib} instance to configure itself for communication with a secured {es} cluster.
 
+NOTE: This API is currently intended for internal use only by {kib}.
+
 [[security-api-kibana-enrollment-request]]
 ==== {api-request-title}
 
@@ -14,8 +16,8 @@ Enables a {kib} instance to configure itself for communication with a secured {e
 [[security-api-kibana-enrollment-desc]]
 ==== {api-description-title}
 
-Use this API to enable a {kib} instance to configure itself for communications
-with an {es} cluster that already has security features enabled.
+{kib} uses this API internally to configure itself for communications with an
+{es} cluster that already has security features enabled.
 
 [[security-api-client-enrollment-examples]]
 ==== {api-examples-title}

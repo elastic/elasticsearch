@@ -71,6 +71,7 @@ For more information, see <<index-templates, Index Templates>>.
 [[monitoring]]
 === Monitoring:
 * <<indices-stats>>
+* <<field-usage-stats>>
 * <<indices-segments>>
 * <<indices-recovery>>
 * <<indices-shards-stores>>
@@ -109,6 +110,7 @@ include::indices/delete-index.asciidoc[]
 include::indices/delete-index-template.asciidoc[]
 include::indices/delete-index-template-v1.asciidoc[]
 include::indices/indices-exists.asciidoc[]
+include::indices/field-usage-stats.asciidoc[]
 include::indices/flush.asciidoc[]
 include::indices/forcemerge.asciidoc[]
 include::indices/apis/freeze.asciidoc[]

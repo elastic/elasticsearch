@@ -67,61 +67,38 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
         ClusterState clusterState = clusterService.state();
         PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
 
-        String[] tokenizedRequestIds = Strings.tokenizeToStringArray(request.getDeploymentId(), ",");
 
         Collection<PersistentTasksCustomMetadata.PersistentTask<?>> deploymentTasks = MlTasks.trainedModelDeploymentTasks(tasks);
 
-        if (Strings.isAllOrWildcard(request.getDeploymentId())) {
-            if (deploymentTasks.isEmpty()) {
-                if (request.isAllowNoMatch()) {
-                    listener.onResponse(new GetDeploymentStatsAction.Response(
-                        Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), 0L));
-                } else {
-                    listener.onFailure(ExceptionsHelper.missingDeployment(request.getDeploymentId()));
-                }
-                return;
+        String[] tokenizedRequestIds = Strings.tokenizeToStringArray(request.getDeploymentId(), ",");
+        ExpandedIdsMatcher.SimpleIdsMatcher idsMatcher =
+            new ExpandedIdsMatcher.SimpleIdsMatcher(tokenizedRequestIds);
+        List<String> matchedDeploymentIds = new ArrayList<>();
+        Set<String> taskNodes = new HashSet<>();
+
+        for (var deployedTask : deploymentTasks) {
+            String deploymentTaskId = MlTasks.trainedModelDeploymentId(deployedTask.getId());
+            if (idsMatcher.idMatches(deploymentTaskId)) {
+                matchedDeploymentIds.add(deploymentTaskId);
+                taskNodes.add(deployedTask.getExecutorNode());
             }
-
-            List<String> activeDeploymentIds = deploymentTasks.stream()
-                .map(t -> MlTasks.trainedModelDeploymentId(t.getId()))
-                .collect(Collectors.toList());
-
-            String[] nodes = deploymentTasks.stream()
-                .map(PersistentTasksCustomMetadata.PersistentTask::getExecutorNode)
-                .toArray(String[]::new);
-
-            request.setNodes(nodes);
-            request.setExpandedIds(activeDeploymentIds);
-        } else {
-            ExpandedIdsMatcher.SimpleIdsMatcher idsMatcher =
-                new ExpandedIdsMatcher.SimpleIdsMatcher(tokenizedRequestIds);
-            List<String> matchedDeploymentIds = new ArrayList<>();
-            Set<String> taskNodes = new HashSet<>();
-
-            for (var deployedTask : deploymentTasks) {
-                String deploymentTaskId = MlTasks.trainedModelDeploymentId(deployedTask.getId());
-                if (idsMatcher.idMatches(deploymentTaskId)) {
-                    matchedDeploymentIds.add(deploymentTaskId);
-                    taskNodes.add(deployedTask.getExecutorNode());
-                }
-            }
-
-            if (matchedDeploymentIds.isEmpty()) {
-                listener.onFailure(ExceptionsHelper.missingDeployment(request.getDeploymentId()));
-                return;
-            }
-
-            // check request has been satisfied
-            ExpandedIdsMatcher requiredIdsMatcher = new ExpandedIdsMatcher(tokenizedRequestIds, request.isAllowNoMatch());
-            requiredIdsMatcher.filterMatchedIds(matchedDeploymentIds);
-            if (requiredIdsMatcher.hasUnmatchedIds()) {
-                listener.onFailure(ExceptionsHelper.missingDeployment(requiredIdsMatcher.unmatchedIdsString()));
-                return;
-            }
-
-            request.setNodes(taskNodes.toArray(String[]::new));
-            request.setExpandedIds(matchedDeploymentIds);
         }
+
+        // check request has been satisfied
+        ExpandedIdsMatcher requiredIdsMatcher = new ExpandedIdsMatcher(tokenizedRequestIds, request.isAllowNoMatch());
+        requiredIdsMatcher.filterMatchedIds(matchedDeploymentIds);
+        if (requiredIdsMatcher.hasUnmatchedIds()) {
+            listener.onFailure(ExceptionsHelper.missingDeployment(requiredIdsMatcher.unmatchedIdsString()));
+            return;
+        }
+        if (matchedDeploymentIds.isEmpty()) {
+            listener.onResponse(new GetDeploymentStatsAction.Response(
+                Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), 0L));
+            return;
+        }
+
+        request.setNodes(taskNodes.toArray(String[]::new));
+        request.setExpandedIds(matchedDeploymentIds);
 
         super.doExecute(task, request, listener);
     }

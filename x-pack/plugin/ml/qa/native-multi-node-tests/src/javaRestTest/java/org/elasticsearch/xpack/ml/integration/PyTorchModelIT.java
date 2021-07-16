@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -30,6 +31,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -178,6 +180,13 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetDeploymentStats_WithWildcard() throws IOException {
+
+        {
+            // No deployments is an error when allow_no_match == false
+            expectThrows(ResponseException.class, () -> getDeploymentStats("*", false));
+            getDeploymentStats("*", true);
+        }
+
         createModelStoreIndex();
 
         String modelFoo = "foo";
@@ -224,6 +233,16 @@ public class PyTorchModelIT extends ESRestTestCase {
             assertThat(stats, hasSize(1));
             assertThat(stats.get(0).get("inference_count"), equalTo(1));
             assertThat(stats.get(0).get("model_id"), equalTo(modelBar));
+        }
+        {
+            ResponseException e = expectThrows(ResponseException.class, () -> getDeploymentStats("c*", false));
+            assertThat(EntityUtils.toString(e.getResponse().getEntity()),
+                containsString("No known trained model with deployment with id [c*]"));
+        }
+        {
+            ResponseException e = expectThrows(ResponseException.class, () -> getDeploymentStats("foo,c*", false));
+            assertThat(EntityUtils.toString(e.getResponse().getEntity()),
+                containsString("No known trained model with deployment with id [c*]"));
         }
     }
 
@@ -315,7 +334,11 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response getDeploymentStats(String modelId) throws IOException {
-        Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/deployment/_stats?human");
+        return getDeploymentStats(modelId, true);
+    }
+
+    private Response getDeploymentStats(String modelId, boolean allowNoMatch) throws IOException {
+        Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/deployment/_stats?allow_no_match=" + allowNoMatch);
         return client().performRequest(request);
     }
 

@@ -77,7 +77,8 @@ public class SimpleFeatureFactory {
             if (posLat > extent || posLat < 0) {
                 continue;
             }
-            if (i == 0 || posLon != prevLon || posLat != prevLat) {
+            // filter out repeated points
+            if (numPoints == 0 || posLon != prevLon || posLat != prevLat) {
                 commands[pos++] = BitUtil.zigZagEncode(posLon - prevLon);
                 commands[pos++] = BitUtil.zigZagEncode(posLat - prevLat);
                 prevLon = posLon;

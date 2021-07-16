@@ -13,6 +13,7 @@ import org.elasticsearch.jdk.JavaVersion;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 import java.nio.file.Path;
+import java.security.KeyStore;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -166,6 +167,8 @@ public abstract class SslConfigurationLoader {
     private List<String> defaultCiphers;
     private List<String> defaultProtocols;
 
+    private Function<KeyStore, KeyStore> keyStoreFilter;
+
     /**
      * Construct a new loader with the "standard" default values.
      *
@@ -233,6 +236,15 @@ public abstract class SslConfigurationLoader {
      */
     public void setDefaultProtocols(List<String> defaultProtocols) {
         this.defaultProtocols = defaultProtocols;
+    }
+
+
+    /**
+     * Apply a filter function to any keystore that is loaded.
+     * @see StoreKeyConfig
+     */
+    public void setKeyStoreFilter(Function<KeyStore, KeyStore> keyStoreFilter) {
+        this.keyStoreFilter = keyStoreFilter;
     }
 
     /**
@@ -363,7 +375,7 @@ public abstract class SslConfigurationLoader {
             }
             final String storeType = resolveSetting(KEYSTORE_TYPE, Function.identity(), inferKeyStoreType(keyStorePath));
             final String algorithm = resolveSetting(KEYSTORE_ALGORITHM, Function.identity(), KeyManagerFactory.getDefaultAlgorithm());
-            return new StoreKeyConfig(keyStorePath, storePassword, storeType, keyPassword, algorithm, basePath);
+            return new StoreKeyConfig(keyStorePath, storePassword, storeType, keyStoreFilter, keyPassword, algorithm, basePath);
         }
 
         return defaultKeyConfig;

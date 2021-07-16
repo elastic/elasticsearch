@@ -21,6 +21,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
+import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslDiagnostics;
@@ -51,6 +52,7 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
+import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -68,6 +70,9 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -523,12 +528,43 @@ public class SSLService {
                 key = key.substring(0, key.length() - 1);
             }
             try {
-                sslConfigurationMap.put(key, SslSettingsLoader.load(sslSettings, null, env));
+                sslConfigurationMap.put(key, SslSettingsLoader.load(sslSettings, null, env, getKeyStoreFilter(key)));
             } catch (SslConfigException e) {
                 throw new ElasticsearchSecurityException("failed to load SSL configuration [{}] - {}", e, key, e.getMessage());
             }
         });
         return Collections.unmodifiableMap(sslConfigurationMap);
+    }
+
+    private static Function<KeyStore, KeyStore> getKeyStoreFilter(String sslContext) {
+        if (sslContext.equals("xpack.security.http.ssl")) {
+            final Function<GeneralSecurityException, RuntimeException> exceptionHandler = e -> new ElasticsearchSecurityException(
+                "Cannot process keystore for SSL configuration [" + sslContext + "] - " + e.getMessage(),
+                e
+            );
+            final Predicate<KeyStoreUtil.KeyStoreEntry> isCA = e -> e.getX509Certificate().getBasicConstraints() >= 0;
+            return ks -> {
+                final AtomicInteger keyCount = new AtomicInteger(0);
+                final AtomicInteger caCount = new AtomicInteger(0);
+                KeyStoreUtil.stream(ks, exceptionHandler).filter(e -> e.isKeyEntry()).forEach(e -> {
+                    keyCount.incrementAndGet();
+                    if (isCA.test(e)) {
+                        caCount.incrementAndGet();
+                    }
+                });
+                if (keyCount.get() <= 1) {
+                    // There's only 1 key in the keystore - don't filter it
+                    return ks;
+                }
+                if (caCount.get() > 0 && caCount.get() < keyCount.get()) {
+                    // There are both CAs & non-CAs in the keystore, filter out the CAs (they're probably there to support enrollment)
+                    return KeyStoreUtil.filter(ks, e -> e.isKeyEntry() && isCA.test(e) == false);
+                } else {
+                    return ks;
+                }
+            };
+        }
+        return null;
     }
 
     static Map<String, Settings> getSSLSettingsMap(Settings settings) {

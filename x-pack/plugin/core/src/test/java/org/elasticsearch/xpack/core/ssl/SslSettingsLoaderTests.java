@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.CompositeTrustConfig;
 import org.elasticsearch.common.ssl.DefaultJdkTrustConfig;
 import org.elasticsearch.common.ssl.EmptyKeyConfig;
+import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.common.ssl.PemTrustConfig;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -27,14 +28,18 @@ import org.junit.Before;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedKeyManager;
 import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -80,7 +85,43 @@ public class SslSettingsLoaderTests extends ESTestCase {
 
         assertThat(keyStore.getDependentFiles(), contains(path));
         assertThat(keyStore.hasKeyMaterial(), is(true));
+        final X509ExtendedKeyManager keyManager = keyStore.createKeyManager();
+        assertThat(keyManager, notNullValue());
+        assertThat(keyStore.getKeys(), hasSize(3)); // testnode_ec, testnode_rsa, testnode_dsa
+        assertThat(
+            keyStore.getKeys().stream().map(t -> t.v1().getAlgorithm()).collect(Collectors.toUnmodifiableSet()),
+            containsInAnyOrder("RSA", "DSA", "EC")
+        );
+
+        assertCombiningTrustConfigContainsCorrectIssuers(sslConfiguration);
+    }
+
+    public void testFilterAppliedToKeystore() {
+        final Path path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.p12");
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("keystore.secure_password", "testnode");
+        Settings settings = Settings.builder()
+            .put("keystore.path", path)
+            .setSecureSettings(secureSettings)
+            .build();
+        final SslConfiguration sslConfiguration = SslSettingsLoader.load(
+            settings,
+            null,
+            environment,
+            ks -> KeyStoreUtil.filter(ks, e -> e.getAlias().endsWith("sa")) // "_dsa" & "_rsa" but not "_ec"
+        );
+        assertThat(sslConfiguration.getKeyConfig(), instanceOf(StoreKeyConfig.class));
+        StoreKeyConfig keyStore = (StoreKeyConfig) sslConfiguration.getKeyConfig();
+
+        assertThat(keyStore.getDependentFiles(), contains(path));
+        assertThat(keyStore.hasKeyMaterial(), is(true));
         assertThat(keyStore.createKeyManager(), notNullValue());
+        assertThat(keyStore.getKeys(false), hasSize(3)); // testnode_ec, testnode_rsa, testnode_dsa
+        assertThat(keyStore.getKeys(true), hasSize(2)); // testnode_rsa, testnode_dsa
+        assertThat(
+            keyStore.getKeys(true).stream().map(t -> t.v1().getAlgorithm()).collect(Collectors.toUnmodifiableSet()),
+            containsInAnyOrder("RSA", "DSA")
+        );
 
         assertCombiningTrustConfigContainsCorrectIssuers(sslConfiguration);
     }
@@ -103,7 +144,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(
             ksKeyInfo,
             equalTo(
-                new StoreKeyConfig("path", PASSWORD, "type", PASSWORD, KEY_MGR_ALGORITHM, environment.configFile())
+                new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configFile())
             )
         );
     }
@@ -120,7 +161,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(
             ksKeyInfo,
             equalTo(
-                new StoreKeyConfig("path", PASSWORD, "type", PASSWORD, KEY_MGR_ALGORITHM, environment.configFile())
+                new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configFile())
             )
         );
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
@@ -142,7 +183,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(
             ksKeyInfo,
             equalTo(
-                new StoreKeyConfig("path", PASSWORD, "type", KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
+                new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
             )
         );
     }
@@ -160,7 +201,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(
             ksKeyInfo,
             equalTo(
-                new StoreKeyConfig("path", PASSWORD, "type", KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
+                new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
             )
         );
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
@@ -183,7 +224,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(
             ksKeyInfo,
             equalTo(
-                new StoreKeyConfig("xpack/tls/path.jks", PASSWORD, "jks", KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
+                new StoreKeyConfig("xpack/tls/path.jks", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
             )
         );
     }
@@ -204,7 +245,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(
             ksKeyInfo,
             equalTo(
-                new StoreKeyConfig(path, PASSWORD, "PKCS12", KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
+                new StoreKeyConfig(path, PASSWORD, "PKCS12", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
             )
         );
     }
@@ -222,7 +263,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.getKeyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("xpack/tls/path.foo", PASSWORD, "jks", KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("xpack/tls/path.foo", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
         );
     }
 
@@ -243,7 +284,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.getKeyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig(path, PASSWORD, type, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig(path, PASSWORD, type, null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
         );
     }
 

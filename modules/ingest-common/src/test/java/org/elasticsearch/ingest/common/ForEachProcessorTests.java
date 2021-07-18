@@ -271,12 +271,9 @@ public class ForEachProcessorTests extends ESTestCase {
     }
 
     public void testNestedForEachWithMapIteration() throws Exception {
-        Map<String, Object> innerMap1 = new HashMap<>();
-        innerMap1.put("innerMap", Map.of("foo1", 1, "bar1", 2, "baz1", 3));
-        Map<String, Object> innerMap2 = new HashMap<>();
-        innerMap2.put("innerMap", Map.of("foo2", 4, "bar2", 5, "baz2", 6));
-        Map<String, Object> innerMap3 = new HashMap<>();
-        innerMap3.put("innerMap", Map.of("foo3", 7, "bar3", 8, "baz3", 9, "otherKey", 42));
+        Map<String, Object> innerMap1 = Map.of("foo1", 1, "bar1", 2, "baz1", 3);
+        Map<String, Object> innerMap2 = Map.of("foo2", 4, "bar2", 5, "baz2", 6);
+        Map<String, Object> innerMap3 = Map.of("foo3", 7, "bar3", 8, "baz3", 9, "otherKey", 42);
 
         Map<String, Object> outerMap = Map.of("foo", innerMap1, "bar", innerMap2, "baz", innerMap3);
         IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", outerMap));
@@ -302,7 +299,7 @@ public class ForEachProcessorTests extends ESTestCase {
         );
 
         ForEachProcessor processor = new ForEachProcessor(
-            "_tag", null, "field", new ForEachProcessor("_tag", null, "_ingest._value.innerMap", testProcessor, false),
+            "_tag", null, "field", new ForEachProcessor("_tag", null, "_ingest._value", testProcessor, false),
             false);
         processor.execute(ingestDocument, (result, e) -> {});
 
@@ -314,9 +311,9 @@ public class ForEachProcessorTests extends ESTestCase {
         assertThat(visitedValues.toArray(), arrayContainingInAnyOrder(1, 2, 3, 4, 5, 6, 7, 8, 9, 42));
         assertThat(ingestDocument.getFieldValue("field", Map.class).entrySet().toArray(),
             arrayContainingInAnyOrder(
-                Map.entry("foo", Map.of("innerMap", Map.of("foo1", 1, "bar2", 2, "baz1", 6))),
-                Map.entry("bar", Map.of("innerMap", Map.of("foo2", 4, "bar2", 5, "baz2", 12))),
-                Map.entry("baz", Map.of("innerMap", Map.of("foo3", 7, "bar2", 8, "baz3", 18, "otherKey", 42)))
+                Map.entry("foo", Map.of("foo1", 1, "bar2", 2, "baz1", 6)),
+                Map.entry("bar", Map.of("foo2", 4, "bar2", 5, "baz2", 12)),
+                Map.entry("baz", Map.of("foo3", 7, "bar2", 8, "baz3", 18, "otherKey", 42))
             )
         );
     }
@@ -406,12 +403,9 @@ public class ForEachProcessorTests extends ESTestCase {
     }
 
     public void testMapIterationWithAsyncProcessor() throws Exception {
-        Map<String, Object> innerMap1 = new HashMap<>();
-        innerMap1.put("innerMap", Map.of("foo1", 1, "bar1", 2, "baz1", 3));
-        Map<String, Object> innerMap2 = new HashMap<>();
-        innerMap2.put("innerMap", Map.of("foo2", 4, "bar2", 5, "baz2", 6));
-        Map<String, Object> innerMap3 = new HashMap<>();
-        innerMap3.put("innerMap", Map.of("foo3", 7, "bar3", 8, "baz3", 9, "otherKey", 42));
+        Map<String, Object> innerMap1 = Map.of("foo1", 1, "bar1", 2, "baz1", 3);
+        Map<String, Object> innerMap2 = Map.of("foo2", 4, "bar2", 5, "baz2", 6);
+        Map<String, Object> innerMap3 = Map.of("foo3", 7, "bar3", 8, "baz3", 9, "otherKey", 42);
 
         Map<String, Object> outerMap = Map.of("foo", innerMap1, "bar", innerMap2, "baz", innerMap3);
         IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", outerMap));
@@ -437,7 +431,7 @@ public class ForEachProcessorTests extends ESTestCase {
         );
 
         ForEachProcessor processor = new ForEachProcessor(
-            "_tag", null, "field", new ForEachProcessor("_tag", null, "_ingest._value.innerMap", testProcessor, false),
+            "_tag", null, "field", new ForEachProcessor("_tag", null, "_ingest._value", testProcessor, false),
             false);
         processor.execute(ingestDocument, (result, e) -> {});
 
@@ -450,9 +444,9 @@ public class ForEachProcessorTests extends ESTestCase {
             assertThat(visitedValues.toArray(), arrayContainingInAnyOrder(1, 2, 3, 4, 5, 6, 7, 8, 9, 42));
             assertThat(ingestDocument.getFieldValue("field", Map.class).entrySet().toArray(),
                 arrayContainingInAnyOrder(
-                    Map.entry("foo", Map.of("innerMap", Map.of("foo1", 1, "bar2", 2, "baz1", 6))),
-                    Map.entry("bar", Map.of("innerMap", Map.of("foo2", 4, "bar2", 5, "baz2", 12))),
-                    Map.entry("baz", Map.of("innerMap", Map.of("foo3", 7, "bar2", 8, "baz3", 18, "otherKey", 42)))
+                    Map.entry("foo", Map.of("foo1", 1, "bar2", 2, "baz1", 6)),
+                    Map.entry("bar", Map.of("foo2", 4, "bar2", 5, "baz2", 12)),
+                    Map.entry("baz", Map.of("foo3", 7, "bar2", 8, "baz3", 18, "otherKey", 42))
                 )
             );
         });

@@ -89,7 +89,7 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
 /**
      * Is this snippet a candidate for conversion to `// CONSOLE`?
      */
-    static isConsoleCandidate(Snippet snippet) {
+    static Boolean isConsoleCandidate(Snippet snippet) {
         /* Snippets that are responses or already marked as `// CONSOLE` or
          * `// NOTCONSOLE` are not candidates. */
         if (snippet.console != null || snippet.testResponse) {

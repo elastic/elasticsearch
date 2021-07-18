@@ -21,6 +21,7 @@ import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 
 import java.nio.file.Path
+import java.util.function.Consumer
 import java.util.regex.Matcher
 
 /**
@@ -58,6 +59,14 @@ class SnippetsTask extends DefaultTask {
      */
     @Input
     Map<String, String> defaultSubstitutions = [:]
+
+    public void setDefaultSubstitutions(Map<String,String> ds) {
+        defaultSubstitutions = ds;
+    }
+
+    public void setPerSnippetAction(Consumer<Snippet> c) {
+        perSnippet = { c.accept(it); }
+    }
 
     @TaskAction
     void executeTask() {

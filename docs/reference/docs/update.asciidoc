@@ -190,6 +190,17 @@ POST test/_update/1
 --------------------------------------------------
 // TEST[continued]
 
+To remove a subfield `sub_field` in an object with name `test_object`:
+
+[source,console]
+--------------------------------------------------
+POST test/_update/1
+{
+  "script" : "ctx._source.test_object.remove('sub_field')"
+}
+--------------------------------------------------
+// TEST[continued]
+
 Instead of updating the document, you can also change the operation that is
 executed from within the script. For example, this request deletes the doc if
 the `tags` field contains `green`, otherwise it does nothing (`noop`):

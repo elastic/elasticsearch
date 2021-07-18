@@ -81,7 +81,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
         for (; keyIndex < keys.size(); keyIndex++) {
             AtomicBoolean shouldContinueHere = new AtomicBoolean();
             String key = (String) keys.get(keyIndex);
-            document.getIngestMetadata().put("_key", key);
+            Object previousKey = document.getIngestMetadata().put("_key", key);
             Object value = map.get(key);
             Object previousValue = document.getIngestMetadata().put("_value", value);
             int nextIndex = keyIndex + 1;
@@ -90,6 +90,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
                 if (Strings.hasText(newKey)) {
                     newValues.put(newKey, document.getIngestMetadata().put("_value", previousValue));
                 }
+                document.getIngestMetadata().put("_key", previousKey);
                 if (e != null || result == null) {
                     handler.accept(result, e);
                 } else if (shouldContinueHere.getAndSet(true)) {

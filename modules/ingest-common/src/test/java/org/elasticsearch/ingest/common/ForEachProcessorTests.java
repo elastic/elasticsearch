@@ -23,7 +23,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -273,28 +276,28 @@ public class ForEachProcessorTests extends ESTestCase {
         Map<String, Object> innerMap2 = new HashMap<>();
         innerMap2.put("innerMap", Map.of("foo2", 4, "bar2", 5, "baz2", 6));
         Map<String, Object> innerMap3 = new HashMap<>();
-        innerMap3.put("innerMap", Map.of("foo3", 7, "bar3", 8, "baz3", 9));
+        innerMap3.put("innerMap", Map.of("foo3", 7, "bar3", 8, "baz3", 9, "otherKey", 42));
 
         Map<String, Object> outerMap = Map.of("foo", innerMap1, "bar", innerMap2, "baz", innerMap3);
         IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", outerMap));
 
-        List<String> encounteredKeys = new ArrayList<>();
-        List<Object> encounteredValues = new ArrayList<>();
+        List<String> visitedKeys = new ArrayList<>();
+        List<Object> visitedValues = new ArrayList<>();
         TestProcessor testProcessor = new TestProcessor(
             doc -> {
                 String key = (String) doc.getIngestMetadata().get("_key");
                 Object value = doc.getIngestMetadata().get("_value");
-                encounteredKeys.add(key);
-                encounteredValues.add(value);
+                visitedKeys.add(key);
+                visitedValues.add(value);
 
+                // change some of the keys
                 if (key.startsWith("bar")) {
                     doc.setFieldValue("_ingest._key", "bar2");
                 }
+                // change some of the values
                 if (key.startsWith("baz")) {
-                    doc.setFieldValue("_ingest._value", 33);
+                    doc.setFieldValue("_ingest._value", ((Integer) value) * 2);
                 }
-
-
             }
         );
 
@@ -303,59 +306,19 @@ public class ForEachProcessorTests extends ESTestCase {
             false);
         processor.execute(ingestDocument, (result, e) -> {});
 
-        assertThat(testProcessor.getInvokedCounter(), equalTo(9));
-        assertThat(encounteredKeys.toArray(), arrayContainingInAnyOrder("foo1", "bar1", "baz1", "foo2", "bar2", "baz2", "foo3", "bar3", "baz3"));
-        assertThat(encounteredValues.toArray(), arrayContainingInAnyOrder(1, 2, 3, 4, 5, 6, 7, 8, 9));
-        //assertThat(encounteredValues.toArray(), arrayContainingInAnyOrder(innerMap1, innerMap2, innerMap3));
-        //assertThat(ingestDocument.getFieldValue("field", Map.class).entrySet().toArray(),
-        //    arrayContainingInAnyOrder(Map.entry("foo", 1), Map.entry("bar2", 2), Map.entry("baz", 33)));
-
-        Object o = ingestDocument.getFieldValue("field", Map.class).entrySet().toArray();
+        assertThat(testProcessor.getInvokedCounter(), equalTo(10));
+        assertThat(
+            visitedKeys.toArray(),
+            arrayContainingInAnyOrder("foo1", "bar1", "baz1", "foo2", "bar2", "baz2", "foo3", "bar3", "baz3", "otherKey")
+        );
+        assertThat(visitedValues.toArray(), arrayContainingInAnyOrder(1, 2, 3, 4, 5, 6, 7, 8, 9, 42));
         assertThat(ingestDocument.getFieldValue("field", Map.class).entrySet().toArray(),
             arrayContainingInAnyOrder(
-                Map.entry("foo", Map.of("foo1", 1, "bar2", 2, "baz1", 33)),
-                Map.entry("bar", Map.of("foo2", 1, "bar2", 2, "baz2", 33)),
-                Map.entry("baz", Map.of("foo3", 1, "bar2", 2, "baz3", 33))
+                Map.entry("foo", Map.of("innerMap", Map.of("foo1", 1, "bar2", 2, "baz1", 6))),
+                Map.entry("bar", Map.of("innerMap", Map.of("foo2", 4, "bar2", 5, "baz2", 12))),
+                Map.entry("baz", Map.of("innerMap", Map.of("foo3", 7, "bar2", 8, "baz3", 18, "otherKey", 42)))
             )
         );
-
-        /*
-        List<Map<String, Object>> values = new ArrayList<>();
-        List<Object> innerValues = new ArrayList<>();
-        innerValues.add("abc");
-        innerValues.add("def");
-        Map<String, Object> value = new HashMap<>();
-        value.put("values2", innerValues);
-        values.add(value);
-
-        innerValues = new ArrayList<>();
-        innerValues.add("ghi");
-        innerValues.add("jkl");
-        value = new HashMap<>();
-        value.put("values2", innerValues);
-        values.add(value);
-
-        IngestDocument ingestDocument = new IngestDocument(
-            "_index", "_id", null, null, null, Collections.singletonMap("values1", values)
-        );
-
-        TestProcessor testProcessor = new TestProcessor(
-            doc -> doc.setFieldValue("_ingest._value", doc.getFieldValue("_ingest._value", String.class).toUpperCase(Locale.ENGLISH))
-        );
-        ForEachProcessor processor = new ForEachProcessor(
-            "_tag", null, "values1", new ForEachProcessor("_tag", null, "_ingest._value.values2", testProcessor, false),
-            false);
-        processor.execute(ingestDocument, (result, e) -> {});
-
-        List<?> result = ingestDocument.getFieldValue("values1.0.values2", List.class);
-        assertThat(result.get(0), equalTo("ABC"));
-        assertThat(result.get(1), equalTo("DEF"));
-
-        List<?> result2 = ingestDocument.getFieldValue("values1.1.values2", List.class);
-        assertThat(result2.get(0), equalTo("GHI"));
-        assertThat(result2.get(1), equalTo("JKL"));
-
-         */
     }
 
     public void testIgnoreMissing() throws Exception {
@@ -442,6 +405,59 @@ public class ForEachProcessorTests extends ESTestCase {
             arrayContainingInAnyOrder(Map.entry("foo", 1), Map.entry("baz", 3)));
     }
 
+    public void testMapIterationWithAsyncProcessor() throws Exception {
+        Map<String, Object> innerMap1 = new HashMap<>();
+        innerMap1.put("innerMap", Map.of("foo1", 1, "bar1", 2, "baz1", 3));
+        Map<String, Object> innerMap2 = new HashMap<>();
+        innerMap2.put("innerMap", Map.of("foo2", 4, "bar2", 5, "baz2", 6));
+        Map<String, Object> innerMap3 = new HashMap<>();
+        innerMap3.put("innerMap", Map.of("foo3", 7, "bar3", 8, "baz3", 9, "otherKey", 42));
+
+        Map<String, Object> outerMap = Map.of("foo", innerMap1, "bar", innerMap2, "baz", innerMap3);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", outerMap));
+
+        List<String> visitedKeys = new ArrayList<>();
+        List<Object> visitedValues = new ArrayList<>();
+        TestAsyncProcessor testProcessor = new TestAsyncProcessor(
+            doc -> {
+                String key = (String) doc.getIngestMetadata().get("_key");
+                Object value = doc.getIngestMetadata().get("_value");
+                visitedKeys.add(key);
+                visitedValues.add(value);
+
+                // change some of the keys
+                if (key.startsWith("bar")) {
+                    doc.setFieldValue("_ingest._key", "bar2");
+                }
+                // change some of the values
+                if (key.startsWith("baz")) {
+                    doc.setFieldValue("_ingest._value", ((Integer) value) * 2);
+                }
+            }
+        );
+
+        ForEachProcessor processor = new ForEachProcessor(
+            "_tag", null, "field", new ForEachProcessor("_tag", null, "_ingest._value.innerMap", testProcessor, false),
+            false);
+        processor.execute(ingestDocument, (result, e) -> {});
+
+        assertBusy(() -> {
+            assertThat(testProcessor.getInvokedCounter(), equalTo(10));
+            assertThat(
+                visitedKeys.toArray(),
+                arrayContainingInAnyOrder("foo1", "bar1", "baz1", "foo2", "bar2", "baz2", "foo3", "bar3", "baz3", "otherKey")
+            );
+            assertThat(visitedValues.toArray(), arrayContainingInAnyOrder(1, 2, 3, 4, 5, 6, 7, 8, 9, 42));
+            assertThat(ingestDocument.getFieldValue("field", Map.class).entrySet().toArray(),
+                arrayContainingInAnyOrder(
+                    Map.entry("foo", Map.of("innerMap", Map.of("foo1", 1, "bar2", 2, "baz1", 6))),
+                    Map.entry("bar", Map.of("innerMap", Map.of("foo2", 4, "bar2", 5, "baz2", 12))),
+                    Map.entry("baz", Map.of("innerMap", Map.of("foo3", 7, "bar2", 8, "baz3", 18, "otherKey", 42)))
+                )
+            );
+        });
+    }
+
     private class AsyncUpperCaseProcessor implements Processor {
 
         private final String field;
@@ -481,6 +497,55 @@ public class ForEachProcessorTests extends ESTestCase {
         @Override
         public String getDescription() {
             return "async uppercase processor description";
+        }
+    }
+
+    private class TestAsyncProcessor implements Processor {
+
+        private final Function<IngestDocument, IngestDocument> ingestDocumentMapper;
+        private final AtomicInteger invokedCounter = new AtomicInteger();
+
+        private TestAsyncProcessor(Consumer<IngestDocument> ingestDocumentConsumer) {
+            this.ingestDocumentMapper = ingestDocument -> {
+                ingestDocumentConsumer.accept(ingestDocument);
+                return ingestDocument;
+            };
+        }
+
+        @Override
+        public void execute(IngestDocument document, BiConsumer<IngestDocument, Exception> handler) {
+            new Thread(() -> {
+                invokedCounter.incrementAndGet();
+                try {
+                    handler.accept(ingestDocumentMapper.apply(document), null);
+                } catch (Exception e) {
+                    handler.accept(null, e);
+                }
+            }).start();
+        }
+
+        public int getInvokedCounter() {
+            return invokedCounter.get();
+        }
+
+        @Override
+        public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+            throw new UnsupportedOperationException("this is an async processor, don't call this");
+        }
+
+        @Override
+        public String getType() {
+            return "test-async-processor";
+        }
+
+        @Override
+        public String getTag() {
+            return getType();
+        }
+
+        @Override
+        public String getDescription() {
+            return "test async processor description";
         }
     }
 

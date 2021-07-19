@@ -43,18 +43,10 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableCluster();
 
-        // index some datafeed data
-        client().admin().indices().prepareCreate("data")
-            .setMapping("time", "type=date")
-            .get();
-        long numDocs1 = randomIntBetween(50, 100);
-        long now = System.currentTimeMillis();
-        long weekAgo = now - 604800000;
-        long twoWeeksAgo = weekAgo - 604800000;
-        indexDocs(logger, "data", numDocs1, twoWeeksAgo, weekAgo);
+        // Index some source data for the datafeeds.
+        createSourceData();
 
         // Open 6 jobs.  Since there are 3 nodes in the cluster we should get 2 jobs per node.
-
         setupJobAndDatafeed("shutdown-job-1", ByteSizeValue.ofMb(2));
         setupJobAndDatafeed("shutdown-job-2", ByteSizeValue.ofMb(2));
         setupJobAndDatafeed("shutdown-job-3", ByteSizeValue.ofMb(2));
@@ -62,11 +54,12 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         setupJobAndDatafeed("shutdown-job-5", ByteSizeValue.ofMb(2));
         setupJobAndDatafeed("shutdown-job-6", ByteSizeValue.ofMb(2));
 
-        // Call the shutdown API for one non-master node.
+        // Choose one non-master node to shut down.
         String nodeNameToShutdown = Arrays.stream(internalCluster().getNodeNames())
             .filter(nodeName -> internalCluster().getMasterName().equals(nodeName) == false).findFirst().get();
         SetOnce<String> nodeIdToShutdown = new SetOnce<>();
 
+        // Wait for the desired initial state of 2 jobs running on each node.
         assertBusy(() -> {
             GetJobsStatsAction.Response statsResponse =
                 client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(Metadata.ALL)).actionGet();
@@ -83,10 +76,12 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
                 .map(stats -> stats.getNode().getId()).findFirst().get());
         });
 
+        // Call the shutdown API for the chosen node.
         client().execute(PutShutdownNodeAction.INSTANCE,
             new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), randomFrom(SingleNodeShutdownMetadata.Type.values()), "just testing"))
             .actionGet();
 
+        // Wait for the desired end state of all 6 jobs running on nodes that are not shutting down.
         assertBusy(() -> {
             GetJobsStatsAction.Response statsResponse =
                 client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(Metadata.ALL)).actionGet();
@@ -109,18 +104,10 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableCluster();
 
-        // index some datafeed data
-        client().admin().indices().prepareCreate("data")
-            .setMapping("time", "type=date")
-            .get();
-        long numDocs1 = randomIntBetween(50, 100);
-        long now = System.currentTimeMillis();
-        long weekAgo = now - 604800000;
-        long twoWeeksAgo = weekAgo - 604800000;
-        indexDocs(logger, "data", numDocs1, twoWeeksAgo, weekAgo);
+        // Index some source data for the datafeeds.
+        createSourceData();
 
         // Open 6 jobs.  Since there are 3 nodes in the cluster we should get 2 jobs per node.
-
         setupJobAndDatafeed("shutdown-close-job-1", ByteSizeValue.ofMb(2));
         setupJobAndDatafeed("shutdown-close-job-2", ByteSizeValue.ofMb(2));
         setupJobAndDatafeed("shutdown-close-job-3", ByteSizeValue.ofMb(2));
@@ -128,12 +115,13 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         setupJobAndDatafeed("shutdown-close-job-5", ByteSizeValue.ofMb(2));
         setupJobAndDatafeed("shutdown-close-job-6", ByteSizeValue.ofMb(2));
 
-        // Call the shutdown API for one non-master node.
+        // Choose one non-master node to shut down, and one job on that node to close after the shutdown request has been sent.
         String nodeNameToShutdown = Arrays.stream(internalCluster().getNodeNames())
             .filter(nodeName -> internalCluster().getMasterName().equals(nodeName) == false).findFirst().get();
         SetOnce<String> nodeIdToShutdown = new SetOnce<>();
         SetOnce<String> jobIdToClose = new SetOnce<>();
 
+        // Wait for the desired initial state of 2 jobs running on each node.
         assertBusy(() -> {
             GetJobsStatsAction.Response statsResponse =
                 client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(Metadata.ALL)).actionGet();
@@ -153,6 +141,7 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
                 .map(GetJobsStatsAction.Response.JobStats::getJobId).findAny().get());
         });
 
+        // Call the shutdown API for the chosen node.
         client().execute(PutShutdownNodeAction.INSTANCE,
             new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), randomFrom(SingleNodeShutdownMetadata.Type.values()), "just testing"))
             .actionGet();
@@ -178,6 +167,8 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         //    on a node that isn't even shutting down.
         client().execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobIdToClose.get())).actionGet();
 
+        // Wait for the desired end state of the 5 jobs that were not closed running on nodes that are not shutting
+        // down, and the closed job not running anywhere.
         assertBusy(() -> {
             GetJobsStatsAction.Response statsResponse =
                 client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(Metadata.ALL)).actionGet();
@@ -215,5 +206,16 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
 
     private void ensureStableCluster() {
         ensureStableCluster(internalCluster().getNodeNames().length, TimeValue.timeValueSeconds(60));
+    }
+
+    private void createSourceData() {
+        client().admin().indices().prepareCreate("data")
+            .setMapping("time", "type=date")
+            .get();
+        long numDocs = randomIntBetween(50, 100);
+        long now = System.currentTimeMillis();
+        long weekAgo = now - 604800000;
+        long twoWeeksAgo = weekAgo - 604800000;
+        indexDocs(logger, "data", numDocs, twoWeeksAgo, weekAgo);
     }
 }

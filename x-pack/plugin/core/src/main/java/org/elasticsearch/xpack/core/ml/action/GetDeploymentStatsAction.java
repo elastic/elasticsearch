@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -113,51 +114,104 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
 
         public static final ParseField DEPLOYMENT_STATS = new ParseField("deployment_stats");
 
-        public static class DeploymentStats implements ToXContentObject, Writeable {
+        public static class AllocationStats implements ToXContentObject, Writeable {
 
-            private final String modelId;
-            private final String node_id;
-            private final long inferenceCount;
-            private final double avgInferenceTime;
-            private final Instant lastAccess;
-            private final ByteSizeValue modelSize;
+            public static class NodeStats implements ToXContentObject, Writeable {
+                private final DiscoveryNode node;
+                private final long inferenceCount;
+                private final double avgInferenceTime;
+                private final Instant lastAccess;
 
-            public DeploymentStats(String modelId,
-                                   String node,
-                                   long inferenceCount,
-                                   double avgInferenceTime,
-                                   Instant lastAccess,
-                                   ByteSizeValue modelSize) {
-                this.modelId = modelId;
-                this.node_id = node;
-                this.inferenceCount = inferenceCount;
-                this.avgInferenceTime = avgInferenceTime;
-                this.lastAccess = lastAccess;
-                this.modelSize = modelSize;
+                public NodeStats(DiscoveryNode node,
+                                 long inferenceCount,
+                                 double avgInferenceTime,
+                                 Instant lastAccess) {
+                    this.node = node;
+                    this.inferenceCount = inferenceCount;
+                    this.avgInferenceTime = avgInferenceTime;
+                    this.lastAccess = lastAccess;
+                }
+
+                public NodeStats(StreamInput in) throws IOException {
+                    this.node = in.readOptionalWriteable(DiscoveryNode::new);
+                    this.inferenceCount = in.readLong();
+                    this.avgInferenceTime = in.readDouble();
+                    this.lastAccess = in.readInstant();
+                }
+
+                @Override
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                    builder.startObject();
+                    builder.startObject("node");
+                    node.toXContent(builder, params);
+                    builder.endObject();
+                    builder.field("inference_count", inferenceCount);
+                    builder.field("average_inference_time_ms", avgInferenceTime);
+                    builder.timeField("last_access", "last_access_string", lastAccess.toEpochMilli());
+                    builder.endObject();
+                    return builder;
+                }
+
+                @Override
+                public void writeTo(StreamOutput out) throws IOException {
+                    out.writeOptionalWriteable(node);
+                    out.writeLong(inferenceCount);
+                    out.writeDouble(avgInferenceTime);
+                    out.writeInstant(lastAccess);
+                }
+
+                @Override
+                public boolean equals(Object o) {
+                    if (this == o) return true;
+                    if (o == null || getClass() != o.getClass()) return false;
+                    NodeStats that = (NodeStats) o;
+                    return inferenceCount == that.inferenceCount &&
+                        Double.compare(that.avgInferenceTime, avgInferenceTime) == 0 &&
+                        Objects.equals(node, that.node) &&
+                        Objects.equals(lastAccess, that.lastAccess);
+                }
+
+                @Override
+                public int hashCode() {
+                    return Objects.hash(node, inferenceCount, avgInferenceTime, lastAccess);
+                }
             }
 
-            public DeploymentStats(StreamInput in) throws IOException {
-                this.modelId = in.readString();
-                this.node_id = in.readString();
-                this.inferenceCount = in.readLong();
-                this.avgInferenceTime = in.readDouble();
-                this.lastAccess = in.readInstant();
-                this.modelSize = in.readOptionalWriteable(ByteSizeValue::new);
+
+            private final String modelId;
+            private final ByteSizeValue modelSize;
+            private final List<NodeStats> nodeStats;
+
+            public AllocationStats(String modelId, ByteSizeValue modelSize, List<NodeStats> nodeStats) {
+                this.modelId = modelId;
+                this.modelSize = modelSize;
+                this.nodeStats = nodeStats;
+            }
+
+            public AllocationStats(StreamInput in) throws IOException {
+                modelId = in.readString();
+                modelSize = in.readOptionalWriteable(ByteSizeValue::new);
+                nodeStats = in.readList(NodeStats::new);
             }
 
             public String getModelId() {
                 return modelId;
             }
 
+            public List<NodeStats> getNodeStats() {
+                return nodeStats;
+            }
+
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
                 builder.field("model_id", modelId);
-                builder.field("node_id", node_id);
-                builder.field("inference_count", inferenceCount);
-                builder.field("average_inference_time_ms", avgInferenceTime);
-                builder.timeField("last_access", "last_access_string", lastAccess.toEpochMilli());
                 builder.field("model_size", modelSize);
+                builder.startArray("nodes");
+                for (NodeStats nodeStat : nodeStats){
+                    nodeStat.toXContent(builder, params);
+                }
+                builder.endArray();
                 builder.endObject();
                 return builder;
             }
@@ -165,44 +219,38 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(modelId);
-                out.writeString(node_id);
-                out.writeLong(inferenceCount);
-                out.writeDouble(avgInferenceTime);
-                out.writeInstant(lastAccess);
                 out.writeOptionalWriteable(modelSize);
+                out.writeList(nodeStats);
             }
 
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
-                DeploymentStats that = (DeploymentStats) o;
-                return inferenceCount == that.inferenceCount &&
-                    Double.compare(that.avgInferenceTime, avgInferenceTime) == 0 &&
-                    Objects.equals(modelId, that.modelId) &&
-                    Objects.equals(node_id, that.node_id) &&
-                    Objects.equals(lastAccess, that.lastAccess) &&
-                    Objects.equals(modelSize, that.modelSize);
+                AllocationStats that = (AllocationStats) o;
+                return Objects.equals(modelId, that.modelId) &&
+                    Objects.equals(modelSize, that.modelSize) &&
+                    Objects.equals(nodeStats, that.nodeStats);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(modelId, node_id, inferenceCount, avgInferenceTime, lastAccess, modelSize);
+                return Objects.hash(modelId, modelSize, nodeStats);
             }
         }
 
 
-        private final QueryPage<DeploymentStats> stats;
+        private final QueryPage<AllocationStats> stats;
 
         public Response(List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException> nodeFailures,
-                        List<DeploymentStats> stats, long count) {
+                        List<AllocationStats> stats, long count) {
             super(taskFailures, nodeFailures);
             this.stats = new QueryPage<>(stats, count, DEPLOYMENT_STATS);
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            stats = new QueryPage<>(in, DeploymentStats::new);
+            stats = new QueryPage<>(in, AllocationStats::new);
         }
 
         @Override

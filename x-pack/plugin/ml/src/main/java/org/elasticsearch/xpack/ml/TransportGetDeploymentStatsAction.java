@@ -35,10 +35,11 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class TransportGetDeploymentStatsAction extends TransportTasksAction<TrainedModelDeploymentTask,
-    GetDeploymentStatsAction.Request, GetDeploymentStatsAction.Response, GetDeploymentStatsAction.Response.DeploymentStats> {
+    GetDeploymentStatsAction.Request, GetDeploymentStatsAction.Response, GetDeploymentStatsAction.Response.AllocationStats> {
 
     private final DeploymentManager deploymentManager;
 
@@ -46,18 +47,34 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
     public TransportGetDeploymentStatsAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService,
                                              DeploymentManager deploymentManager) {
         super(GetDeploymentStatsAction.NAME, clusterService, transportService, actionFilters, GetDeploymentStatsAction.Request::new,
-            GetDeploymentStatsAction.Response::new, GetDeploymentStatsAction.Response.DeploymentStats::new, ThreadPool.Names.MANAGEMENT);
+            GetDeploymentStatsAction.Response::new, GetDeploymentStatsAction.Response.AllocationStats::new, ThreadPool.Names.MANAGEMENT);
 
         this.deploymentManager = deploymentManager;
     }
 
     @Override
     protected GetDeploymentStatsAction.Response newResponse(GetDeploymentStatsAction.Request request,
-                                                            List<GetDeploymentStatsAction.Response.DeploymentStats> tasks,
+                                                            List<GetDeploymentStatsAction.Response.AllocationStats> taskResponse,
                                                             List<TaskOperationFailure> taskOperationFailures,
                                                             List<FailedNodeException> failedNodeExceptions) {
-        tasks.sort(Comparator.comparing(GetDeploymentStatsAction.Response.DeploymentStats::getModelId));
-        return new GetDeploymentStatsAction.Response(taskOperationFailures, failedNodeExceptions, tasks, tasks.size());
+        // group the stats by model and merge individual node stats
+        var mergedNodeStatsByModel =
+            taskResponse.stream().collect(Collectors.toMap(GetDeploymentStatsAction.Response.AllocationStats::getModelId,
+                Function.identity(),
+                (l, r) -> {
+                    l.getNodeStats().addAll(r.getNodeStats());
+                    return l;
+                }));
+
+        List<GetDeploymentStatsAction.Response.AllocationStats> bunchedAndSorted =
+            mergedNodeStatsByModel.values().stream()
+                .sorted(Comparator.comparing(GetDeploymentStatsAction.Response.AllocationStats::getModelId))
+                .collect(Collectors.toList());
+
+        return new GetDeploymentStatsAction.Response(taskOperationFailures,
+            failedNodeExceptions,
+            bunchedAndSorted,
+            bunchedAndSorted.size());
     }
 
     @Override
@@ -105,15 +122,15 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
 
     @Override
     protected void taskOperation(GetDeploymentStatsAction.Request request, TrainedModelDeploymentTask task,
-                                 ActionListener<GetDeploymentStatsAction.Response.DeploymentStats> listener) {
+                                 ActionListener<GetDeploymentStatsAction.Response.AllocationStats> listener) {
         ModelStats stats = deploymentManager.getStats(task);
-        var response = new GetDeploymentStatsAction.Response.DeploymentStats(task.getModelId(),
-            this.clusterService.getNodeName(),
+
+        List<GetDeploymentStatsAction.Response.AllocationStats.NodeStats> nodeStats = new ArrayList<>();
+        nodeStats.add(new GetDeploymentStatsAction.Response.AllocationStats.NodeStats(this.clusterService.localNode(),
             stats.getTimingStats().getCount(),
             stats.getTimingStats().getAverage(),
-            stats.getLastUsed(),
-            stats.getModelSize());
+            stats.getLastUsed()));
 
-        listener.onResponse(response);
+        listener.onResponse(new GetDeploymentStatsAction.Response.AllocationStats(task.getModelId(), stats.getModelSize(), nodeStats));
     }
 }

@@ -174,8 +174,11 @@ public class PyTorchModelIT extends ESRestTestCase {
         Response response = getDeploymentStats(modelA);
         List<Map<String, Object>> stats = (List<Map<String, Object>>)entityAsMap(response).get("deployment_stats");
         assertThat(stats, hasSize(1));
-        assertThat(stats.get(0).get("inference_count"), equalTo(2));
+        assertThat(stats.get(0).get("model_id"), equalTo(modelA));
         assertThat(stats.get(0).get("model_size"), equalTo("1.5kb"));
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>)stats.get(0).get("nodes");
+        assertThat(nodes, hasSize(1));
+        assertThat(nodes.get(0).get("inference_count"), equalTo(2));
     }
 
     @SuppressWarnings("unchecked")
@@ -208,30 +211,27 @@ public class PyTorchModelIT extends ESRestTestCase {
         {
             Response response = getDeploymentStats("*");
             Map<String, Object> map = entityAsMap(response);
-            logger.info(map);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("deployment_stats");
             assertThat(stats, hasSize(2));
-            assertThat(stats.get(0).get("inference_count"), equalTo(1));
-            assertThat(stats.get(1).get("inference_count"), equalTo(1));
             assertThat(stats.get(0).get("model_id"), equalTo(modelBar));
             assertThat(stats.get(1).get("model_id"), equalTo(modelFoo));
+            List<Map<String, Object>> nodes1 = (List<Map<String, Object>>)stats.get(0).get("nodes");
+            assertThat(nodes1.get(0).get("inference_count"), equalTo(1));
+            List<Map<String, Object>> nodes2 = (List<Map<String, Object>>)stats.get(0).get("nodes");
+            assertThat(nodes2.get(0).get("inference_count"), equalTo(1));
         }
         {
             Response response = getDeploymentStats("f*");
             Map<String, Object> map = entityAsMap(response);
-            logger.info(map);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("deployment_stats");
             assertThat(stats, hasSize(1));
-            assertThat(stats.get(0).get("inference_count"), equalTo(1));
             assertThat(stats.get(0).get("model_id"), equalTo(modelFoo));
         }
         {
             Response response = getDeploymentStats("bar");
             Map<String, Object> map = entityAsMap(response);
-            logger.info(map);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("deployment_stats");
             assertThat(stats, hasSize(1));
-            assertThat(stats.get(0).get("inference_count"), equalTo(1));
             assertThat(stats.get(0).get("model_id"), equalTo(modelBar));
         }
         {

@@ -31,7 +31,7 @@ public final class GroupByOptimizer {
      * TODO: take index sorting into account
      *
      * @param groups group by as defined by the user
-     * @param runtimeFields set of strings which fields are runtime fields
+     * @param runtimeFields set of runtime fields
      * @return collection in order of priority
      */
     static Collection<Entry<String, SingleGroupSource>> reorderGroups(Map<String, SingleGroupSource> groups, Set<String> runtimeFields) {

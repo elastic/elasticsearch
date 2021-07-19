@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.PhaseCacheManagement;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
@@ -46,6 +47,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -189,6 +191,15 @@ public class PolicyStepsRegistry {
             .filter(stepKey -> action.equals(stepKey.getAction()))
             .findFirst()
             .orElse(null);
+    }
+
+    /*
+     * Parses the step keys from the {@code phaseDef} for the given phase.
+     * Returns null if there's a parsing error.
+     */
+    @Nullable
+    public Set<Step.StepKey> parseStepKeysFromPhase(String phaseDef, String currentPhase) {
+        return PhaseCacheManagement.readStepKeys(xContentRegistry, client, phaseDef, currentPhase, licenseState);
     }
 
     private List<Step> parseStepsFromPhase(String policy, String currentPhase, String phaseDef) throws IOException {

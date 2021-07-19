@@ -73,7 +73,9 @@ public final class GroupByOptimizer {
         int index = 0;
         for (Entry<String, SingleGroupSource> groupBy : groups.entrySet()) {
             // prefer indexed fields over runtime fields over scripts
-            int priority = groupBy.getValue().getScriptConfig() == null ? runtimeFields.contains(groupBy.getValue().getField()) ? 25 : 50 : 0;
+            int priority = groupBy.getValue().getScriptConfig() == null
+                ? runtimeFields.contains(groupBy.getValue().getField()) ? 25 : 50
+                : 0;
 
             switch (groupBy.getValue().getType()) {
                 case DATE_HISTOGRAM:

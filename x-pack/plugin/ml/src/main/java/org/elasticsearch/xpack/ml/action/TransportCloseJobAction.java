@@ -528,7 +528,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
         ActionListener<CloseJobAction.Response> intermediateListener = ActionListener.wrap(
             response -> {
                 for (String jobId : movedJobs) {
-                    PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getJobTask(jobId, tasks);
+                    PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
                     persistentTasksService.sendRemoveRequest(datafeedTask.getId(), ActionListener.wrap(
                         r -> logger.trace("[{}] removed persistent task for relocated job", jobId),
                         e -> {

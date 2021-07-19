@@ -254,7 +254,7 @@ include::{es-repo-dir}/search/search.asciidoc[tag=runtime-mappings-def]
 
 `size`::
 (Optional, integer) Maximum number of features to return in the `hits` layer.
-Accepts `0`-`10000`. Defaults to `1000`. If `0`, results don't include the
+Accepts `0`-`10000`. Defaults to `10000`. If `0`, results don't include the
 `hits` layer.
 
 `sort`::

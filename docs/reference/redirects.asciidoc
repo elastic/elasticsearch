@@ -1633,3 +1633,9 @@ See <<field-usage-stats>>.
 === Enroll {kib} API
 
 See <<security-api-kibana-enrollment>>.
+
+[role="exclude",id="sql-rest-fields"]
+=== Supported REST parameters for SQL search API
+
+See the <<sql-search-api-request-body,request body parameters>> for the
+<<sql-search-api,SQL search API>>.

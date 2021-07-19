@@ -61,7 +61,7 @@ public class StoreKeyConfig extends KeyConfig {
      */
     StoreKeyConfig(String keyStorePath, String keyStoreType, SecureString keyStorePassword, SecureString keyPassword,
                    String keyStoreAlgorithm, String trustStoreAlgorithm) {
-        if (keyStoreType.equals("PKCS11")) {
+        if (keyStoreType.equalsIgnoreCase("pkcs11")) {
             throw new IllegalArgumentException("PKCS#11 keystores are no longer supported by Elasticsearch");
         }
         this.keyStorePath = Objects.requireNonNull(keyStorePath);

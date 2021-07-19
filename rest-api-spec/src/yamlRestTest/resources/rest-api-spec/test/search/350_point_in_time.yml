@@ -158,9 +158,6 @@ setup:
           pit:
             id: "$point_in_time_id"
 
-  - match: {hits.total.value: 2 }
-  - length: {hits.hits: 1 }
-
   - do:
       close_point_in_time:
         body:

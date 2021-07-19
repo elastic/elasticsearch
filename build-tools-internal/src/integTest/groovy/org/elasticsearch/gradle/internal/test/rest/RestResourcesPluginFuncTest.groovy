@@ -136,6 +136,13 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
                     includeXpack 'bar'
                 }
             }
+
+            tasks.named("copyYamlTestsTask").configure {
+                Map<String, Object> expansions = [
+                    'replacedValue' : 'replacedWithValue'
+                ]
+                it.substitutions = expansions
+            }
         """
         String apiCore1 = "foo1.json"
         String apiCore2 = "foo2.json"
@@ -143,6 +150,10 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         String coreTest = "foo/10_basic.yml"
         String xpackTest = "bar/10_basic.yml"
         setupRestResources([apiCore1, apiCore2, apiXpack], [coreTest], [xpackTest])
+
+        // drop a value to replace from expansions above into a test file
+        file("rest-api-spec/src/yamlRestTest/resources/rest-api-spec/test/" + coreTest) << "@replacedValue@"
+
         // intentionally not adding tests to project, they will be copied over via the plugin
         // this tests that the test copy happens before the api copy since the api copy will only trigger if there are tests in the project
 
@@ -157,6 +168,9 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiXpack).exists()
         file("/build/restResources/yamlTests/rest-api-spec/test/" + coreTest).exists()
         file("/build/restResources/yamlTests/rest-api-spec/test/" + xpackTest).exists()
+
+        // confirm that replacement happened
+        file("/build/restResources/yamlTests/rest-api-spec/test/" + coreTest).getText("UTF-8") == "replacedWithValue"
 
         when:
         result = gradleRunner("copyRestApiSpecsTask").build()

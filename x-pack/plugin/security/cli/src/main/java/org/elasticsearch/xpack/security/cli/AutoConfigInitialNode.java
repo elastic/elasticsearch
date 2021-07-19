@@ -44,7 +44,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.nio.file.attribute.UserPrincipal;
 import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
@@ -96,7 +98,7 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        // Silently skipping security auto configuration because node restarted.
+        // Silently skipping security auto configuration because node considered as restarting.
         if (Files.isDirectory(env.dataFile()) && Files.list(env.dataFile()).findAny().isPresent()) {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because it appears that the node is not starting up for the first time.");
@@ -111,30 +113,27 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
         }
         // preflight checks for the files that are going to be changed
         // Skipping security auto configuration if configuration files cannot be mutated (ie are read-only)
+        final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
+        final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
         try {
-            final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
             // it is odd for the `elasticsearch.yml` file to be missing or not be a regular (the node won't start)
-            // but auto configuration should not be concerned with fixing (by creating the file) such an anomalous conditions
-            if (false == Files.exists(ymlPath) || false == Files.isRegularFile(ymlPath, LinkOption.NOFOLLOW_LINKS) ||
-                    false == Files.isReadable(ymlPath)) {
+            // but auto configuration should not be concerned with fixing it (by creating the file) and let the node startup fail
+            if (false == Files.exists(ymlPath) || false == Files.isRegularFile(ymlPath, LinkOption.NOFOLLOW_LINKS)) {
                 terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because " +
-                        "the configuration file [%s] is missing or is not a regular readable file", ymlPath));
+                        "the configuration file [%s] is missing or is not a regular file", ymlPath));
                 throw new UserException(ExitCodes.CONFIG, null);
             }
-            // If the node's yml configuration is mounted read-only, it is an indication that the configuration mustn't change,
-            // in which case auto-configuration is skipped.
-            if (false == Files.isWritable(ymlPath)) {
+            // If the node's yml configuration is not readable, most probably auto-configuration isn't run under the suitable user
+            if (false == Files.isReadable(ymlPath)) {
                 terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because " +
-                        "the configuration file [%s] is not writable", ymlPath));
+                        "the configuration file [%s] is not readable", ymlPath));
                 throw new UserException(ExitCodes.NOOP, null);
             }
-            // Best effort determine if the node's keystore is writable.
-            // Inform that auto-configuration will not run if keystore cannot be updated.
-            final Path keystorePath = env.configFile().resolve(KeyStoreWrapper.KEYSTORE_FILENAME);
+            // Inform that auto-configuration will not run if keystore cannot be read.
             if (Files.exists(keystorePath) && (false == Files.isRegularFile(keystorePath, LinkOption.NOFOLLOW_LINKS) ||
-                    false == Files.isReadable(keystorePath) || false == Files.isWritable(keystorePath))) {
+                    false == Files.isReadable(keystorePath))) {
                 terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because " +
-                        "the node keystore file [%s] is not a readable and writable regular file", keystorePath));
+                        "the node keystore file [%s] is not a readable regular file", keystorePath));
                 throw new UserException(ExitCodes.NOOP, null);
             }
         } catch (UserException e) {
@@ -161,10 +160,11 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
         final String instantAutoConfigName = "auto_config_on_" + autoConfigDate.toInstant().getEpochSecond();
         final Path instantAutoConfigDir = env.configFile().resolve(instantAutoConfigName);
         try {
-            // it is useful to pre-create the sub-config dir in order to check that the config dir is writable and that
-            // file owners match (this auto-configuration script should not change the owners of config files)
+            // it is useful to pre-create the sub-config dir in order to check that the config dir is writable and that file owners match
+            // THIS AUTO CONFIGURATION COMMAND WILL NOT CHANGE THE OWNERS OF CONFIG FILES
             Files.createDirectory(instantAutoConfigDir);
-            // set permissions to 750 (don't rely on umask)
+            // set permissions to 750, don't rely on umask, we assume auto configuration preserves ownership so we don't have to
+            // grant "group" or "other" permissions
             PosixFileAttributeView view = Files.getFileAttributeView(instantAutoConfigDir, PosixFileAttributeView.class);
             if (view != null) {
                 view.setPermissions(PosixFilePermissions.fromString("rwxr-x---"));
@@ -175,7 +175,8 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
-            // the config dir is probably read-only, which is to be expected sometimes
+            // the config dir is probably read-only, either because this auto-configuration runs as a different user from the install user,
+            // or if the admin explicitly makes configuration immutable (read-only), both of which are reasons to skip auto-configuration
             // this will show a message to the console (the first time the node starts) and auto-configuration is effectively bypassed
             // the message will not be subsequently shown (because auto-configuration doesn't run for node restarts)
             if (options.has(strictOption)) {
@@ -185,12 +186,16 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
             }
         }
 
-        // the files created or replaced by the auto-config script have the same owner as the config dir
-        if (false == Files.getOwner(instantAutoConfigDir, LinkOption.NOFOLLOW_LINKS).equals(Files.getOwner(env.configFile(),
-                LinkOption.NOFOLLOW_LINKS))) {
+        // Ensure that the files created by the auto-config command MUST have the same owner as the config dir itself,
+        // as well as that the replaced files don't change ownership.
+        // This is because the files created by this command have hard-coded "no" permissions for "group" and "other"
+        UserPrincipal newFileOwner = Files.getOwner(instantAutoConfigDir, LinkOption.NOFOLLOW_LINKS);
+        if ((false == newFileOwner.equals(Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS))) ||
+                (false == newFileOwner.equals(Files.getOwner(ymlPath, LinkOption.NOFOLLOW_LINKS))) ||
+                (Files.exists(keystorePath) && false == newFileOwner.equals(Files.getOwner(keystorePath, LinkOption.NOFOLLOW_LINKS)))) {
             Files.deleteIfExists(instantAutoConfigDir);
             if (options.has(strictOption)) {
-                throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because it would change file owners");
+                throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because it would change config file owners");
             } else {
                 return; // if a different user runs ES compared to the user that installed it, auto configuration will not run
             }
@@ -217,7 +222,7 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
         // but clients (configured manually, outside of the enrollment process) might indeed need it and
         // it is impossible to use the keystore because it is password protected because it contains the key
         try {
-            fullyWriteFile(instantAutoConfigDir, HTTP_AUTOGENERATED_CA_NAME + ".pem", false, stream -> {
+            fullyWriteFile(instantAutoConfigDir, HTTP_AUTOGENERATED_CA_NAME + ".crt", false, stream -> {
                 try (JcaPEMWriter pemWriter =
                              new JcaPEMWriter(new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8)))) {
                     pemWriter.writeObject(httpCACert);
@@ -229,8 +234,8 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
         }
 
         // save original keystore before updating (replacing)
-        final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
-        final Path keystoreBackupPath = instantAutoConfigDir.resolve(KeyStoreWrapper.KEYSTORE_FILENAME + ".orig");
+        final Path keystoreBackupPath =
+                env.configFile().resolve(KeyStoreWrapper.KEYSTORE_FILENAME + "." + autoConfigDate.toInstant().getEpochSecond() + ".orig");
         if (Files.exists(keystorePath)) {
             try {
                 Files.copy(keystorePath, keystoreBackupPath, StandardCopyOption.COPY_ATTRIBUTES);
@@ -282,6 +287,7 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
             // finally overwrites the node keystore (if the keystores have been successfully written)
             nodeKeystore.save(env.configFile(), nodeKeystorePassword.getChars());
         } catch (Exception e) {
+            // restore keystore to revert possible keystore bootstrap
             try {
                 if (Files.exists(keystoreBackupPath)) {
                     Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE,
@@ -289,7 +295,10 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 } else {
                     Files.deleteIfExists(keystorePath);
                 }
-                // do not delete instant auto config dir if restoring the keystore failed
+            } catch (Exception ex) {
+                e.addSuppressed(ex);
+            }
+            try {
                 Files.deleteIfExists(instantAutoConfigDir);
             } catch (Exception ex) {
                 e.addSuppressed(ex);
@@ -304,10 +313,8 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
             }
         }
 
-        // at this point the elasticsearch.keystore is updated (appended) but elasticsearch.yml not yet
-
         try {
-            List<String> existingConfigLines = Files.readAllLines(env.configFile().resolve("elasticsearch.yml"), StandardCharsets.UTF_8);
+            List<String> existingConfigLines = Files.readAllLines(ymlPath, StandardCharsets.UTF_8);
             fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
                 try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
                     // start with the existing config lines
@@ -394,13 +401,17 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 } else {
                     Files.deleteIfExists(keystorePath);
                 }
-                // do not delete instant auto config dir if restoring the keystore failed
+            } catch (Exception ex) {
+                e.addSuppressed(ex);
+            }
+            try {
                 Files.deleteIfExists(instantAutoConfigDir);
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
             throw e;
         }
+        Files.deleteIfExists(keystoreBackupPath);
     }
 
     @SuppressForbidden(reason = "InetAddress#getCanonicalHostName used to populate auto generated HTTPS cert")
@@ -496,13 +507,21 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.IO_ERROR, String.format(Locale.ROOT, "Output file [%s] already exists and " +
                     "will not be replaced", filePath));
         }
+        // the default permission
+        Set<PosixFilePermission> permission = PosixFilePermissions.fromString("rw-rw----");
+        // if replacing, use the permission of the replaced file
+        if (Files.exists(filePath)) {
+            PosixFileAttributeView view = Files.getFileAttributeView(filePath, PosixFileAttributeView.class);
+            if (view != null) {
+                permission = view.readAttributes().permissions();
+            }
+        }
         Path tmpPath = basePath.resolve(fileName + "." + UUIDs.randomBase64UUID() + ".tmp");
         try (OutputStream outputStream = Files.newOutputStream(tmpPath, StandardOpenOption.CREATE_NEW)) {
             writer.accept(outputStream);
-            // set permissions to 660
             PosixFileAttributeView view = Files.getFileAttributeView(tmpPath, PosixFileAttributeView.class);
             if (view != null) {
-                view.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
+                view.setPermissions(permission);
             }
             success = true;
         } finally {

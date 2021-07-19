@@ -734,6 +734,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return this.shards;
         }
 
+        public ShardId shardId(RepositoryShardId repositoryShardId) {
+            return new ShardId(indexLookup().get(repositoryShardId.index()), repositoryShardId.shardId());
+        }
+
         public State state() {
             return state;
         }

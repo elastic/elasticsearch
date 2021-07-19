@@ -355,8 +355,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = shards(
                     snapshots,
                     deletionsInProgress,
-                    currentState.metadata(),
-                    currentState.routingTable(),
+                    currentState,
                     indexIds.values(),
                     useShardGenerations(version),
                     repositoryData,
@@ -2659,8 +2658,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     shardAssignments = shards(
                                         snapshotsInProgress,
                                         updatedDeletions,
-                                        currentState.metadata(),
-                                        currentState.routingTable(),
+                                        currentState,
                                         entry.indices().values(),
                                         entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
                                         repositoryData,
@@ -2774,8 +2772,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards(
         SnapshotsInProgress snapshotsInProgress,
         SnapshotDeletionsInProgress deletionsInProgress,
-        Metadata metadata,
-        RoutingTable routingTable,
+        ClusterState currentState,
         Collection<IndexId> indices,
         boolean useShardGenerations,
         RepositoryData repositoryData,
@@ -2791,12 +2788,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         for (IndexId index : indices) {
             final String indexName = index.getName();
             final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
-            IndexMetadata indexMetadata = metadata.index(indexName);
+            IndexMetadata indexMetadata = currentState.metadata().index(indexName);
             if (indexMetadata == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
                 builder.put(new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0), ShardSnapshotStatus.MISSING);
             } else {
-                final IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
+                final IndexRoutingTable indexRoutingTable = currentState.routingTable().index(indexName);
                 assert indexRoutingTable != null;
                 for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
                     final ShardId shardId = indexRoutingTable.shard(i).shardId();

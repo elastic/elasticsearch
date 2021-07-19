@@ -323,8 +323,8 @@
 "Metric - blank for indices shards":
   - skip:
       features: [arbitrary_key]
-      version: " - 7.14.99"
-      reason:  "total shard count added in version 7.15"
+      version: " - 7.99.99"
+      reason:  "total shard count added in version 8.0"
   - do:
       nodes.info: {}
   - set:
@@ -334,13 +334,14 @@
       nodes.stats: {}
 
   - is_true:  nodes.$node_id.indices.shards
+  - match: { nodes.$node_id.indices.shards.total_count: 0 }
 
 ---
 "Metric - _all for indices shards":
   - skip:
       features: [arbitrary_key]
-      version: " - 7.14.99"
-      reason:  "total shard count added in version 7.15"
+      version: " - 7.99.99"
+      reason:  "total shard count added in version 8.0"
   - do:
       nodes.info: {}
   - set:
@@ -350,14 +351,16 @@
       nodes.stats: { metric: _all }
 
   - is_true:  nodes.$node_id.indices.shards
+  - match: { nodes.$node_id.indices.shards.total_count: 0 }
+
 
 ---
 "indices shards total count test":
 
   - skip:
       features: ["allowed_warnings", arbitrary_key]
-      version: " - 7.14.99"
-      reason:  "total shard count added in version 7.15"
+      version: " - 7.99.99"
+      reason:  "total shard count added in version 8.0"
 
   - do:
       indices.create:
@@ -368,6 +371,14 @@
             number_of_replicas: "0"
 
   - do:
+      indices.create:
+        index: index2
+        body:
+          settings:
+            number_of_shards: "3"
+            number_of_replicas: "1"
+
+  - do:
       nodes.info: {}
   - set:
       nodes._arbitrary_key_: node_id
@@ -375,4 +386,4 @@
   - do:
       nodes.stats: { metric: _all }
 
-  - match: { nodes.$node_id.indices.shards.total_count: 5 }
+  - gte: { nodes.$node_id.indices.shards.total_count: 1 }

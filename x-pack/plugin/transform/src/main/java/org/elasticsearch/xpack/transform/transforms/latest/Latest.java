@@ -53,14 +53,13 @@ public class Latest extends AbstractCompositeAggFunction {
     }
 
     private static CompositeAggregationBuilder createCompositeAggregation(LatestConfig config) {
-        List<CompositeValuesSourceBuilder<?>> sources =
-            config.getUniqueKey().stream()
-                .map(field -> new TermsValuesSourceBuilder(field).field(field).missingBucket(true))
-                .collect(toList());
-        TopHitsAggregationBuilder topHitsAgg =
-            AggregationBuilders.topHits(TOP_HITS_AGGREGATION_NAME)
-                .size(1)  // we are only interested in the top-1
-                .sorts(config.getSorts());  // we copy the sort config directly from the function config
+        List<CompositeValuesSourceBuilder<?>> sources = config.getUniqueKey()
+            .stream()
+            .map(field -> new TermsValuesSourceBuilder(field).field(field).missingBucket(true))
+            .collect(toList());
+        TopHitsAggregationBuilder topHitsAgg = AggregationBuilders.topHits(TOP_HITS_AGGREGATION_NAME)
+            .size(1)  // we are only interested in the top-1
+            .sorts(config.getSorts());  // we copy the sort config directly from the function config
         return AggregationBuilders.composite(COMPOSITE_AGGREGATION_NAME, sources).subAggregation(topHitsAgg);
     }
 
@@ -74,10 +73,12 @@ public class Latest extends AbstractCompositeAggFunction {
         return new LatestChangeCollector(synchronizationField);
     }
 
-    private static Map<String, Object> convertBucketToDocument(CompositeAggregation.Bucket bucket,
-                                                               LatestConfig config,
-                                                               TransformIndexerStats transformIndexerStats,
-                                                               TransformProgress progress) {
+    private static Map<String, Object> convertBucketToDocument(
+        CompositeAggregation.Bucket bucket,
+        LatestConfig config,
+        TransformIndexerStats transformIndexerStats,
+        TransformProgress progress
+    ) {
         transformIndexerStats.incrementNumDocuments(bucket.getDocCount());
         if (progress != null) {
             progress.incrementDocsProcessed(bucket.getDocCount());
@@ -87,7 +88,9 @@ public class Latest extends AbstractCompositeAggFunction {
         TopHits topHits = bucket.getAggregations().get(TOP_HITS_AGGREGATION_NAME);
         if (topHits.getHits().getHits().length != 1) {
             throw new ElasticsearchException(
-                "Unexpected number of hits in the top_hits aggregation result. Wanted: 1, was: {}", topHits.getHits().getHits().length);
+                "Unexpected number of hits in the top_hits aggregation result. Wanted: 1, was: {}",
+                topHits.getHits().getHits().length
+            );
         }
         Map<String, Object> document = topHits.getHits().getHits()[0].getSourceAsMap();
 

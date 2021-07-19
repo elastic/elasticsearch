@@ -891,11 +891,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             runState = RunState.IDENTIFY_CHANGES;
 
             // advance the cursor for changed bucket detection
-            return new IterationResult<>(
-                Stream.empty(),
-                new TransformIndexerPosition(null, nextChangeCollectorBucketPosition),
-                false
-            );
+            return new IterationResult<>(Stream.empty(), new TransformIndexerPosition(null, nextChangeCollectorBucketPosition), false);
         }
 
         Stream<IndexRequest> indexRequestStream = indexRequestStreamAndCursor.v1();

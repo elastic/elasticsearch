@@ -457,11 +457,8 @@ public final class AggregationResultUtils {
 
         @Override
         public Object value(Aggregation aggregation, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
-            assert aggregation instanceof GeoShapeMetricAggregation : "Unexpected type ["
-                + aggregation.getClass().getName()
-                + "] for aggregation ["
-                + aggregation.getName()
-                + "]";
+            assert aggregation instanceof GeoShapeMetricAggregation
+                : "Unexpected type [" + aggregation.getClass().getName() + "] for aggregation [" + aggregation.getName() + "]";
             return ((GeoShapeMetricAggregation) aggregation).geoJSONGeometry();
         }
     }

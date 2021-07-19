@@ -235,7 +235,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private static String resolveIndexName(final String unresolvedIndexName, final long epochMillis) {
         List<String> resolvedNames = DATE_MATH_EXPRESSION_RESOLVER.resolve(
             new IndexNameExpressionResolver.ResolverContext(epochMillis),
-            List.of(unresolvedIndexName)
+            org.elasticsearch.core.List.of(unresolvedIndexName)
         );
         assert resolvedNames.size() == 1;
         return resolvedNames.get(0);

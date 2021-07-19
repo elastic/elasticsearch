@@ -67,6 +67,7 @@ import org.elasticsearch.index.query.SpanWithinQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.TermsSetQueryBuilder;
+import org.elasticsearch.index.query.TypeQueryV7Builder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ExponentialDecayFunctionBuilder;
@@ -837,6 +838,7 @@ public class SearchModule {
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
         }
+        registerQuery(new QuerySpec<>(TypeQueryV7Builder.NAME, TypeQueryV7Builder::new, TypeQueryV7Builder::fromXContent));
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
     }

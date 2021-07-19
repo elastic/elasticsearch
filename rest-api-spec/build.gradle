@@ -94,11 +94,10 @@ tasks.named("yamlRestCompatTest").configure {
     'indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set',
     // not fixing this in #70966
     'indices.put_template/11_basic_with_types/Put template with empty mappings',
-    'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
+    'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers', //#42809 nested path and nested filter
     'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
     'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', //terms_lookup
     'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
-    'search/340_type_query/type query', // type_query - probably should behave like match_all
   ] + v7compatibilityNotSupportedTests())
     .join(',')
 
@@ -226,6 +225,8 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.removeWarningForTest("the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; " +
     "specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
     , "?wait_for_active_shards default is deprecated")
+
+  task.replaceValueInMatch("hits.total", 1, "type query") // 340_type_query.yml
 })
 
 tasks.register('enforceYamlTestConvention').configure {

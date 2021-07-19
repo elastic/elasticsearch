@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.search.SearchHit;
@@ -273,7 +272,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
         final BitSetProducer parentFilter;
         Query innerQuery;
-        ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
+        NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         if (objectMapper == null) {
             parentFilter = context.bitsetFilter(Queries.newNonNestedFilter());
         } else {
@@ -358,10 +357,15 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     static final class NestedInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
 
-        private final ObjectMapper parentObjectMapper;
-        private final ObjectMapper childObjectMapper;
+        private final NestedObjectMapper parentObjectMapper;
+        private final NestedObjectMapper childObjectMapper;
 
-        NestedInnerHitSubContext(String name, SearchContext context, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper) {
+        NestedInnerHitSubContext(
+            String name,
+            SearchContext context,
+            NestedObjectMapper parentObjectMapper,
+            NestedObjectMapper childObjectMapper
+        ) {
             super(name, context);
             this.parentObjectMapper = parentObjectMapper;
             this.childObjectMapper = childObjectMapper;

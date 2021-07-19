@@ -29,6 +29,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -578,7 +579,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
-        assertThat(nested1Mapper.nested().isNested(), equalTo(true));
+        assertThat(nested1Mapper, instanceOf(NestedObjectMapper.class));
         assertThat(nested1Mapper.dynamic(), equalTo(Dynamic.STRICT));
 
         ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1",
@@ -812,6 +813,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             XContentType.JSON));
 
         assertThat(doc.docs().size(), equalTo(3));
+        NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper;
         if (version.before(Version.V_8_0_0)) {
             assertThat(doc.docs().get(0).get("_type"), equalTo(nested1Mapper.nestedTypePath()));
         } else {
@@ -822,6 +824,36 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         assertThat(doc.docs().get(1).get("nested1.field1"), equalTo("3"));
         assertThat(doc.docs().get(1).get("nested1.field2"), equalTo("4"));
         assertThat(doc.docs().get(2).get("field"), equalTo("value"));
+    }
+
+    public void testMergeChildMappings() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("nested1");
+            b.field("type", "nested");
+            b.startObject("properties");
+            b.startObject("field1").field("type", "keyword").endObject();
+            b.startObject("field2").field("type", "keyword").endObject();
+            b.startObject("nested2").field("type", "nested").field("include_in_root", true).endObject();
+            b.endObject();
+            b.endObject();
+        }));
+
+        merge(mapperService, mapping(b -> {
+            b.startObject("nested1");
+            b.field("type", "nested");
+            b.startObject("properties");
+            b.startObject("field2").field("type", "keyword").endObject();
+            b.startObject("field3").field("type", "keyword").endObject();
+            b.startObject("nested2").field("type", "nested").field("include_in_root", true).endObject();
+            b.endObject();
+            b.endObject();
+        }));
+
+        NestedObjectMapper nested1 = (NestedObjectMapper) mapperService.mappingLookup().objectMappers().get("nested1");
+        assertThat(nested1.getChildren().values(), hasSize(4));
+
+        NestedObjectMapper nested2 = (NestedObjectMapper) nested1.getChildren().get("nested2");
+        assertTrue(nested2.isIncludeInRoot());
     }
 
     public void testMergeNestedMappings() throws IOException {

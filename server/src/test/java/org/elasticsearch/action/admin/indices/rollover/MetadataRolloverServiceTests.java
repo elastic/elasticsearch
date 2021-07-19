@@ -578,7 +578,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             AllocationService allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
             MetadataFieldMapper[] metadataFieldMappers = {new MetadataIndexTemplateServiceTests.MetadataTimestampFieldMapper(true)};
-            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", Version.CURRENT);
+            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc");
             root.add(new DateFieldMapper.Builder(dataStream.getTimeStampField().getName(), DateFieldMapper.Resolution.MILLISECONDS,
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ScriptCompiler.NONE, true, Version.CURRENT));
             Mapping mapping = new Mapping(root.build(new ContentPath("")), metadataFieldMappers, Collections.emptyMap());
@@ -668,7 +668,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 }
             };
             MetadataFieldMapper[] metadataFieldMappers = {new MetadataIndexTemplateServiceTests.MetadataTimestampFieldMapper(true)};
-            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", Version.CURRENT);
+            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc");
             root.add(new DateFieldMapper.Builder(dataStream.getTimeStampField().getName(), DateFieldMapper.Resolution.MILLISECONDS,
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ScriptCompiler.NONE, true, Version.CURRENT));
             Mapping mapping = new Mapping(root.build(new ContentPath("")), metadataFieldMappers, Collections.emptyMap());

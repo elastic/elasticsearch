@@ -35,8 +35,8 @@ import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -622,8 +622,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Throws an exception if the provided <code>field</code> requires a nested context.
      */
     static void validateMissingNestedPath(SearchExecutionContext context, String field) {
-        ObjectMapper contextMapper = context.nestedScope().getObjectMapper();
-        if (contextMapper != null && contextMapper.nested().isNested() == false) {
+        NestedObjectMapper contextMapper = context.nestedScope().getObjectMapper();
+        if (contextMapper != null) {
             // already in nested context
             return;
         }

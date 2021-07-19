@@ -249,9 +249,6 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         @Nullable
         private Boolean isHidden;
 
-        @Nullable
-        private Boolean isDataStream;
-
         public Builder(String alias) {
             this.alias = alias;
         }
@@ -310,11 +307,6 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
         public Builder isHidden(@Nullable Boolean isHidden) {
             this.isHidden = isHidden;
-            return this;
-        }
-
-        public Builder isDataStream(@Nullable Boolean isDataStream) {
-            this.isDataStream = isDataStream;
             return this;
         }
 
@@ -392,8 +384,6 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                         builder.writeIndex(parser.booleanValue());
                     } else if ("is_hidden".equals(currentFieldName)) {
                         builder.isHidden(parser.booleanValue());
-                    } else if ("is_data_stream".equals(currentFieldName)) {
-                        builder.isDataStream(parser.booleanValue());
                     }
                 }
             }

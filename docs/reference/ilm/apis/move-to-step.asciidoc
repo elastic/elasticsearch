@@ -38,7 +38,7 @@ an unexpected step into the next step.
 
 When specifying the target (`next_step`) to which the index will be moved, either the `name` or both
 the `action` and `name` fields are optional. If only the phase is specified, the index will move to
-the first step in the target phase. If the phase and action are specified, the index will move to
+the first step of the first action in the target phase. If the phase and action are specified, the index will move to
 the first step of the specified action in the specified phase. Only actions specified in the ILM
 policy are considered valid, an index cannot move to a step that is not part of its policy.
 

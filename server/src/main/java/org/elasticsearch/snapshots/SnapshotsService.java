@@ -1427,7 +1427,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     shardFailures.add(
                         new SnapshotShardFailure(
                             status.nodeId(),
-                            new ShardId(entry.indexLookup().get(shardId.index()), shardId.shardId()),
+                            entry.shardId(shardId),
                             status.reason()
                         )
                     );
@@ -1435,7 +1435,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     shardFailures.add(
                         new SnapshotShardFailure(
                             status.nodeId(),
-                            new ShardId(entry.indexLookup().get(shardId.index()), shardId.shardId()),
+                            entry.shardId(shardId),
                             "skipped"
                         )
                     );
@@ -3192,6 +3192,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // We applied the update for a shard snapshot state to its snapshot entry, now check if we can update
                 // either a clone or a snapshot
                 if (entry.indices().containsKey(shardId.getIndexName())) {
+                    // todo: repo shard id in map for all snapshots at once
                     final RepositoryShardId repoShardId = entry.repositoryShardId(shardId);
                     if (isQueued(entry.shardsByRepoShardId().get(repoShardId))) {
                         if (entry.isClone()) {
@@ -3203,7 +3204,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 repoShardId
                             );
                         } else {
-                            startShardOperation(shardsBuilder(), updatedState.nodeId(), updatedState.generation(), shardId);
+                            startShardOperation(
+                                    shardsBuilder(), updatedState.nodeId(), updatedState.generation(), entry.shardId(repoShardId));
                         }
                     }
                 }

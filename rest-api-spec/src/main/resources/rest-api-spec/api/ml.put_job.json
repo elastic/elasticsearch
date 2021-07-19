@@ -20,40 +20,141 @@
           "parts":{
             "job_id":{
               "type":"string",
-              "description":"The ID of the job to create"
+              "description":"Identifier for the anomaly detection job. This identifier can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start and end with alphanumeric characters."
             }
           }
         }
       ]
     },
     "params":{
-      "ignore_unavailable":{
+      "allow_lazy_open":{
         "type":"boolean",
-        "description":"Ignore unavailable indexes (default: false). Only set if datafeed_config is provided."
+        "required":false
       },
-      "allow_no_indices":{
-        "type":"boolean",
-        "description":"Ignore if the source indices expressions resolves to no concrete indices (default: true). Only set if datafeed_config is provided."
+      "analysis_config":{
+        "type":"object",
+        "required":true
       },
-      "ignore_throttled":{
-        "type":"boolean",
-        "description":"Ignore indices that are marked as throttled (default: true). Only set if datafeed_config is provided."
+      "analysis_limits":{
+        "type":"object",
+        "required":false
       },
-      "expand_wildcards":{
-        "type":"enum",
-        "options":[
-          "open",
-          "closed",
-          "hidden",
-          "none",
-          "all"
-        ],
-        "description":"Whether source index expressions should get expanded to open or closed indices (default: open). Only set if datafeed_config is provided."
+      "background_persist_interval":{
+        "type":"time",
+        "required":false
+      },
+      "custom_settings":{
+        "type":"object",
+        "required":false
+      },
+      "daily_model_snapshot_retention_after_days":{
+        "type":"long",
+        "required":false
+      },
+      "data_description":{
+        "type":"object",
+        "required":true
+      },
+      "datafeed_config":{
+        "type":"object",
+        "required":false,
+        "aggregations":{
+          "type":"object",
+          "required":false
+        },
+        "chunking_config":{
+          "type":"object",
+          "required":false
+        },
+        "datafeed_id":{
+          "type":"string",
+          "required":false
+        },
+        "delayed_data_check_config":{
+          "type":"object",
+          "required":false
+        },
+        "frequency":{
+          "type":"time",
+          "required":false
+        },
+        "indices":{
+          "type":"array",
+          "required":false
+        }, 
+        "indices_options" : {
+          "type":"object",
+          "required":false,
+          "allow_no_indices":{
+            "type":"boolean",
+            "description":"Ignore if the source indices expressions resolves to no concrete indices (default: true). Only set if datafeed_config is provided."
+          },
+          "expand_wildcards":{
+            "type":"enum",
+            "options":[
+              "open",
+              "closed",
+              "hidden",
+              "none",
+              "all"
+            ],
+            "description":"Whether source index expressions should get expanded to open or closed indices (default: open). Only set if datafeed_config is provided."
+          },
+          "ignore_throttled":{
+            "type":"boolean",
+            "description":"Ignore indices that are marked as throttled (default: true). Only set if datafeed_config is provided."
+          },
+          "ignore_unavailable":{
+            "type":"boolean",
+            "description":"Ignore unavailable indexes (default: false). Only set if datafeed_config is provided."
+          }
+        },
+        "query":{
+          "type":"object",
+          "required":false 
+        },
+        "query_delay":{
+          "type":"time",
+          "required":false
+        },
+        "runtime_mappings":{
+          "type":"object",
+          "required":false
+        },
+        "script_fields":{
+          "type":"object",
+          "required":false
+        },
+        "scroll_size":{} 
+      },
+      "description":{
+        "type":"string",
+        "required":false
+      },
+      "groups":{
+        "type":"array of strings",
+        "required":false
+      },
+      "model_plot_config":{
+        "type":"object",
+        "required":false
+      },
+      "model_snapshot_retention_days":{
+        "type":"long",
+        "required":false
+      },
+      "renormalization_window_days":{
+        "type":"long",
+        "required":false
+      },
+      "results_index_name":{
+        "type":"string",
+        "required":false
+      },
+      "results_retention_days":{
+        "type":"long",
+        "required":false
       }
-    },
-    "body":{
-      "description":"The job",
-      "required":true
     }
   }
 }

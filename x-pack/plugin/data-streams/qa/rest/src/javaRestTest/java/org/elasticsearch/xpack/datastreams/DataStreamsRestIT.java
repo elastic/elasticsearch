@@ -85,14 +85,6 @@ public class DataStreamsRestIT extends ESRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", results));
     }
 
-    public void testAddingIndexTemplateWithAliasesAndDataStream() {
-        Request putComposableIndexTemplateRequest = new Request("PUT", "/_index_template/my-template");
-        String body = "{\"index_patterns\":[\"mypattern*\"],\"data_stream\":{},\"template\":{\"aliases\":{\"my-alias\":{}}}}";
-        putComposableIndexTemplateRequest.setJsonEntity(body);
-        Exception e = expectThrows(ResponseException.class, () -> client().performRequest(putComposableIndexTemplateRequest));
-        assertThat(e.getMessage(), containsString("template [my-template] may not specify both data streams and index alias(es)"));
-    }
-
     public void testDataStreamAliases() throws Exception {
         // Create a template
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");

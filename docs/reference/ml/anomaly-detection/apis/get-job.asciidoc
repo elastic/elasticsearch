@@ -139,7 +139,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
 
-`job_id`::
+`job_id`:::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 

@@ -235,6 +235,16 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-settings]
 
+`daily_model_snapshot_retention_after_days`::
+(Optional, long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-after-days]
+
+//Begin data_description
+[[put-datadescription]]`data_description`::
+(Required, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=data-description]
+//End data_description
+
 `datafeed_config`::
 (object) The {dfeed} configured for the current {anomaly-job}.
 +
@@ -319,16 +329,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=script-fields]
 (Optional, unsigned integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
 ====
-
-//Begin data_description
-[[put-datadescription]]`data_description`::
-(Required, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=data-description]
-//End data_description
-
-`daily_model_snapshot_retention_after_days`::
-(Optional, long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-after-days]
 
 `description`::
   (Optional, string) A description of the job.

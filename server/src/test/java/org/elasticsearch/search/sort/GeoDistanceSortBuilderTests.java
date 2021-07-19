@@ -93,7 +93,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.validation(randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
         }
         if (randomBoolean()) {
-            // don't fully randomize here, GeoDistanceSort is picky about the filters that are allowed
             NestedSortBuilder nestedSort = new NestedSortBuilder("path");
             nestedSort.setFilter(new MatchAllQueryBuilder());
             result.setNestedSort(nestedSort);

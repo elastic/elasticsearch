@@ -82,11 +82,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         public Builder add(Mapper.Builder builder) {
-            this.mappersBuilders.add(builder);
+            mappersBuilders.add(builder);
             return this;
         }
 
-        protected Map<String, Mapper> buildMappers(ContentPath contentPath) {
+        protected final Map<String, Mapper> buildMappers(ContentPath contentPath) {
             contentPath.add(name);
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {

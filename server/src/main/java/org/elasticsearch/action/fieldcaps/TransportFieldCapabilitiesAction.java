@@ -32,16 +32,15 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -364,8 +363,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         // checks if the parent field contains sub-fields
                         if (searchExecutionContext.getFieldType(parentField) == null) {
                             // no field type, it must be an object field
-                            ObjectMapper mapper = searchExecutionContext.getObjectMapper(parentField);
-                            String type = mapper.isNested() ? "nested" : "object";
+                            String type = searchExecutionContext.nestedLookup().getNestedMappers().get(parentField) != null
+                                ? "nested" : "object";
                             IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
                                     false, false, false, Collections.emptyMap());
                             responseMap.put(parentField, fieldCap);

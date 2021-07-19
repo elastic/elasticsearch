@@ -231,7 +231,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
             final MapperService mapperService = indexShard.mapperService();
             MappingLookup lookup = mapperService.mappingLookup();
             NestedLookup nestedLookup = lookup.nestedLookup();
-            if (nestedLookup != null) {
+            if (nestedLookup != NestedLookup.EMPTY) {
                 warmUp.add(Queries.newNonNestedFilter());
                 warmUp.addAll(nestedLookup.getNestedParentFilters().values());
             }

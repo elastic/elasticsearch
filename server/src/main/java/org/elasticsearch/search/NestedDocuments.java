@@ -45,7 +45,7 @@ public class NestedDocuments {
      */
     public NestedDocuments(MappingLookup mappingLookup, Function<Query, BitSetProducer> filterProducer) {
         this.nestedLookup = mappingLookup.nestedLookup();
-        if (this.nestedLookup == null) {
+        if (this.nestedLookup == NestedLookup.EMPTY) {
             this.parentDocumentFilter = null;
         } else {
             this.parentDocumentFilter = filterProducer.apply(Queries.newNonNestedFilter());

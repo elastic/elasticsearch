@@ -73,10 +73,10 @@ public class NestedSortBuilderTests extends ESTestCase {
     }
 
     /**
-     * Create a {@link NestedSortBuilder} with random path and filter of the given depth.
+     * Create a {@link NestedSortBuilder} with random filter of the given depth.
      */
     public static NestedSortBuilder createRandomNestedSort(int depth) {
-        NestedSortBuilder nestedSort = new NestedSortBuilder(randomAlphaOfLengthBetween(3, 10));
+        NestedSortBuilder nestedSort = new NestedSortBuilder("path");
         if (randomBoolean()) {
             nestedSort.setFilter(AbstractSortTestCase.randomNestedFilter());
         }

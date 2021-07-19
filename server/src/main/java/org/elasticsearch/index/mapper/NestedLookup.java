@@ -88,7 +88,7 @@ public interface NestedLookup {
             public String getNestedParent(String path) {
                 String parent = null;
                 for (String parentPath : nestedPathNames) {
-                    if (path.startsWith(parentPath)) {
+                    if (path.startsWith(parentPath) && path.equals(parentPath) == false) {
                         // path names are ordered so this will give us the
                         // parent with the longest path
                         parent = parentPath;

@@ -38,31 +38,14 @@ public class NestedObjectMapper extends ObjectMapper {
             this.indexCreatedVersion = indexCreatedVersion;
         }
 
-        public Builder(NestedObjectMapper fromMapper) {
-            super(fromMapper.simpleName());
-            this.indexCreatedVersion = fromMapper.indexCreatedVersion;
-            this.enabled = new Explicit<>(fromMapper.enabled.value(), fromMapper.enabled.explicit());
-            this.dynamic = fromMapper.dynamic;
-            includeInRoot(fromMapper.includeInRoot);
-            includeInParent(fromMapper.includeInParent);
-        }
-
         Builder includeInRoot(boolean includeInRoot) {
             this.includeInRoot = new Explicit<>(includeInRoot, true);
             return this;
         }
 
-        void includeInRoot(Explicit<Boolean> includeInRoot) {
-            this.includeInRoot = new Explicit<>(includeInRoot.value(), includeInRoot.explicit());
-        }
-
         Builder includeInParent(boolean includeInParent) {
             this.includeInParent = new Explicit<>(includeInParent, true);
             return this;
-        }
-
-        void includeInParent(Explicit<Boolean> includeInParent) {
-            this.includeInParent = new Explicit<>(includeInParent.value(), includeInParent.explicit());
         }
 
         @Override
@@ -111,7 +94,6 @@ public class NestedObjectMapper extends ObjectMapper {
     private Explicit<Boolean> includeInParent;
     private final String nestedTypePath;
     private final Query nestedTypeFilter;
-    private final Version indexCreatedVersion;
 
     NestedObjectMapper(
         String name,
@@ -128,7 +110,6 @@ public class NestedObjectMapper extends ObjectMapper {
         this.nestedTypeFilter = NestedPathFieldMapper.filter(builder.indexCreatedVersion, nestedTypePath);
         this.includeInParent = builder.includeInParent;
         this.includeInRoot = builder.includeInRoot;
-        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     public Query nestedTypeFilter() {

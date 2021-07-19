@@ -58,6 +58,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -490,9 +491,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         final IndexSearcher docSearcher;
         final boolean excludeNestedDocuments;
         if (docs.size() > 1 || docs.get(0).docs().size() > 1) {
-            assert docs.size() != 1 || context.hasNested();
+            assert docs.size() != 1 || context.nestedLookup() != NestedLookup.EMPTY;
             docSearcher = createMultiDocumentSearcher(analyzer, docs);
-            excludeNestedDocuments = context.hasNested() && docs.stream()
+            excludeNestedDocuments = context.nestedLookup() != NestedLookup.EMPTY && docs.stream()
                     .map(ParsedDocument::docs)
                     .mapToInt(List::size)
                     .anyMatch(size -> size > 1);

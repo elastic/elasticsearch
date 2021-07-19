@@ -67,8 +67,8 @@ public class InjectWarningsRegexTests extends InjectFeatureTests {
         List<ObjectNode> transformedTests = transformTests(tests);
         printTest(testName, transformedTests);
         validateSetupAndTearDown(transformedTests);
-        validateBodyHasWarnings(WARNINGS_REGEX, tests, Set.of("c", "d"));
-        validateBodyHasWarnings(WARNINGS_REGEX, "Test warnings", tests, addWarnings);
+        validateBodyHasWarnings(WARNINGS_REGEX, "Not the test to change", tests, Set.of("c", "d"));
+        validateBodyHasWarnings(WARNINGS_REGEX, "Test warnings", tests, Set.of("c", "d", "added warning"));
     }
 
     @Override

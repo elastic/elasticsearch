@@ -13,11 +13,12 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -219,6 +220,47 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         result = TransportGetAliasesAction.postProcess(resolver, getAliasesRequest, clusterState);
         assertThat(result.keySet(), containsInAnyOrder("logs-foo"));
         assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo"), null)));
+    }
+
+    public void testNetNewSystemIndicesDontErrorWhenNotRequested() {
+        GetAliasesRequest aliasesRequest = new GetAliasesRequest();
+        // `.b` will be the "net new" system index this test case
+        ClusterState clusterState = systemIndexTestClusterState();
+        String[] concreteIndices;
+
+        SystemIndexDescriptor netNewDescriptor = SystemIndexDescriptor.builder()
+            .setIndexPattern(".b")
+            .setAliasName(".y")
+            .setPrimaryIndex(".b")
+            .setDescription(this.getTestName())
+            .setMappings("{\"_meta\":  {\"version\":  \"1.0.0\"}}")
+            .setSettings(Settings.EMPTY)
+            .setVersionMetaKey("version")
+            .setOrigin(this.getTestName())
+            .setNetNew()
+            .build();
+        SystemIndices systemIndices = new SystemIndices(Collections.singletonMap(
+            this.getTestName(),
+            new SystemIndices.Feature(this.getTestName(), "test feature",
+                Collections.singletonList(netNewDescriptor))));
+
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+        concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(clusterState, aliasesRequest);
+
+        ImmutableOpenMap<String, List<AliasMetadata>> initialAliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder().build();
+        ImmutableOpenMap<String, List<AliasMetadata>> finalResponse = TransportGetAliasesAction.postProcess(
+            aliasesRequest,
+            concreteIndices,
+            initialAliases,
+            clusterState,
+            SystemIndexAccessLevel.NONE,
+            threadContext,
+            systemIndices
+        );
+
+        // The real assertion is that the above `postProcess` call doesn't throw
+        assertFalse(finalResponse.containsKey(".b"));
     }
 
     public ClusterState systemIndexTestClusterState() {

@@ -119,6 +119,11 @@ The following parameters are accepted by numeric types:
     Accepts `true` (default) and `false`. Not applicable for `unsigned_long`.
     Note that this cannot be set if the `script` parameter is used.
 
+include::keyword.asciidoc[tag=dimension]
++
+Of the numeric field types, only `byte`, `short`, `integer`, and `long` fields
+support this parameter.
+
 <<doc-values,`doc_values`>>::
 
     Should the field be stored on disk in a column-stride fashion, so that it

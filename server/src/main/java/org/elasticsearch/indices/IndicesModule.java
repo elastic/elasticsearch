@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeType;
@@ -137,7 +138,7 @@ public class IndicesModule extends AbstractModule {
         mappers.put(IpFieldMapper.CONTENT_TYPE, IpFieldMapper.PARSER);
         mappers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordFieldMapper.PARSER);
         mappers.put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser());
-        mappers.put(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser());
+        mappers.put(NestedObjectMapper.CONTENT_TYPE, new NestedObjectMapper.TypeParser());
         mappers.put(TextFieldMapper.CONTENT_TYPE, TextFieldMapper.PARSER);
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {

@@ -38,7 +38,7 @@ import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.index.IndexWarmer.TerminationHandle;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -232,7 +232,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
             MappingLookup lookup = mapperService.mappingLookup();
             if (lookup.hasNested()) {
                 warmUp.add(Queries.newNonNestedFilter(indexSettings.getIndexVersionCreated()));
-                lookup.getNestedParentMappers().stream().map(ObjectMapper::nestedTypeFilter).forEach(warmUp::add);
+                lookup.getNestedParentMappers().stream().map(NestedObjectMapper::nestedTypeFilter).forEach(warmUp::add);
             }
 
             final CountDownLatch latch = new CountDownLatch(reader.leaves().size() * warmUp.size());

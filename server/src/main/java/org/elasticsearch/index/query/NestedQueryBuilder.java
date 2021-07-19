@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.index.search.NestedHelper;
@@ -270,12 +271,12 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 throw new IllegalStateException("[" + NAME + "] failed to find nested object under path [" + path + "]");
             }
         }
-        if (nestedObjectMapper.nested().isNested() == false) {
+        if (nestedObjectMapper.isNested() == false) {
             throw new IllegalStateException("[" + NAME + "] nested object under path [" + path + "] is not of nested type");
         }
         final BitSetProducer parentFilter;
         Query innerQuery;
-        ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
+        NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         if (objectMapper == null) {
             parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
         } else {
@@ -283,7 +284,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
 
         try {
-            context.nestedScope().nextLevel(nestedObjectMapper);
+            context.nestedScope().nextLevel((NestedObjectMapper) nestedObjectMapper);
             innerQuery = this.query.toQuery(context);
         } finally {
             context.nestedScope().previousLevel();
@@ -293,7 +294,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         // in its child space
         NestedHelper nestedHelper = new NestedHelper(context::getObjectMapper, context::isFieldMapped);
         if (nestedHelper.mightMatchNonNestedDocs(innerQuery, path)) {
-            innerQuery = Queries.filtered(innerQuery, nestedObjectMapper.nestedTypeFilter());
+            innerQuery = Queries.filtered(innerQuery, ((NestedObjectMapper)nestedObjectMapper).nestedTypeFilter());
         }
 
         return new ESToParentBlockJoinQuery(innerQuery, parentFilter, scoreMode,
@@ -339,16 +340,17 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         protected void doBuild(SearchContext parentSearchContext,
                           InnerHitsContext innerHitsContext) throws IOException {
             SearchExecutionContext searchExecutionContext = parentSearchContext.getSearchExecutionContext();
-            ObjectMapper nestedObjectMapper = searchExecutionContext.getObjectMapper(path);
-            if (nestedObjectMapper == null) {
+            ObjectMapper objectMapper = searchExecutionContext.getObjectMapper(path);
+            if (objectMapper == null || objectMapper.isNested() == false) {
                 if (innerHitBuilder.isIgnoreUnmapped() == false) {
                     throw new IllegalStateException("[" + query.getName() + "] no mapping found for type [" + path + "]");
                 } else {
                     return;
                 }
             }
+            NestedObjectMapper nestedObjectMapper = (NestedObjectMapper) objectMapper;
             String name =  innerHitBuilder.getName() != null ? innerHitBuilder.getName() : nestedObjectMapper.fullPath();
-            ObjectMapper parentObjectMapper = searchExecutionContext.nestedScope().nextLevel(nestedObjectMapper);
+            NestedObjectMapper parentObjectMapper = searchExecutionContext.nestedScope().nextLevel(nestedObjectMapper);
             NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
                 name, parentSearchContext, parentObjectMapper, nestedObjectMapper
             );
@@ -360,10 +362,15 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     static final class NestedInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
 
-        private final ObjectMapper parentObjectMapper;
-        private final ObjectMapper childObjectMapper;
+        private final NestedObjectMapper parentObjectMapper;
+        private final NestedObjectMapper childObjectMapper;
 
-        NestedInnerHitSubContext(String name, SearchContext context, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper) {
+        NestedInnerHitSubContext(
+            String name,
+            SearchContext context,
+            NestedObjectMapper parentObjectMapper,
+            NestedObjectMapper childObjectMapper
+        ) {
             super(name, context);
             this.parentObjectMapper = parentObjectMapper;
             this.childObjectMapper = childObjectMapper;

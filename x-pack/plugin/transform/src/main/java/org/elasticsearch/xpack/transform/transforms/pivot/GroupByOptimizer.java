@@ -7,46 +7,19 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class GroupByOptimizer {
-
-    private static class UnmodifiableEntryWithPriority implements Entry<String, SingleGroupSource> {
-
-        private final Entry<String, SingleGroupSource> entry;
-        private final int priority;
-
-        UnmodifiableEntryWithPriority(Entry<String, SingleGroupSource> entry, int priority) {
-            this.entry = entry;
-            this.priority = priority;
-        }
-
-        public int compareTo(UnmodifiableEntryWithPriority o) {
-            return Integer.compare(priority, o.priority);
-        }
-
-        @Override
-        public String getKey() {
-            return entry.getKey();
-        }
-
-        @Override
-        public SingleGroupSource getValue() {
-            return entry.getValue();
-        }
-
-        @Override
-        public SingleGroupSource setValue(SingleGroupSource value) {
-            // not modifiable
-            throw new UnsupportedOperationException();
-        }
-    }
 
     private GroupByOptimizer() {}
 
@@ -66,38 +39,39 @@ public final class GroupByOptimizer {
             return groups.entrySet();
         }
 
-        // Arrays.sort provides stable sort (to respect the input order if priorities match), Collections.sort not
-        // as generic arrays and generic types can't be combined, the "struct" is necessary
-        UnmodifiableEntryWithPriority[] prioritizedGroups = new UnmodifiableEntryWithPriority[groups.size()];
+        List<Tuple<Entry<String, SingleGroupSource>, Integer>> prioritizedGroups = new ArrayList<>(groups.size());
 
-        int index = 0;
+        // respect the order in the configuration by giving every entry a base priority
+        int basePriority = groups.size();
+
         for (Entry<String, SingleGroupSource> groupBy : groups.entrySet()) {
             // prefer indexed fields over runtime fields over scripts
-            int priority = groupBy.getValue().getScriptConfig() == null
-                ? runtimeFields.contains(groupBy.getValue().getField()) ? 25 : 50
-                : 0;
+            int priority = basePriority-- + (groupBy.getValue().getScriptConfig() == null
+                ? runtimeFields.contains(groupBy.getValue().getField()) ? 250 : 500
+                : 0);
 
             switch (groupBy.getValue().getType()) {
                 case DATE_HISTOGRAM:
-                    priority += 400;
+                    priority += 4000;
                     break;
                 case HISTOGRAM:
-                    priority += 300;
+                    priority += 3000;
                     break;
                 case TERMS:
-                    priority += 200;
+                    priority += 2000;
                     break;
                 case GEOTILE_GRID:
-                    priority += 100;
+                    priority += 1000;
                     break;
                 default:
                     assert false : "new group source type misses priority definition";
             }
 
-            prioritizedGroups[index++] = new UnmodifiableEntryWithPriority(groupBy, priority);
+            prioritizedGroups.add(new Tuple<>(groupBy, priority));
         }
 
-        Arrays.sort(prioritizedGroups, (a, b) -> b.compareTo(a));
-        return Arrays.asList(prioritizedGroups);
+        prioritizedGroups.sort(Comparator.comparing(Tuple<Entry<String, SingleGroupSource>, Integer>::v2).reversed());
+
+        return prioritizedGroups.stream().map(x -> x.v1()).collect(Collectors.toList());
     }
 }

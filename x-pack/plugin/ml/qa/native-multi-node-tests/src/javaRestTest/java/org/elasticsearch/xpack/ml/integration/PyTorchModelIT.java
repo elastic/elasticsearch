@@ -88,6 +88,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         createModelStoreIndex();
         putTaskConfig();
         putModelDefinition();
+        refreshModelStoreIndex();
         createTrainedModel();
         startDeployment();
         try {
@@ -168,8 +169,13 @@ public class PyTorchModelIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
+    private void refreshModelStoreIndex() throws IOException {
+        Request request = new Request("POST", "/" + MODEL_INDEX + "/_refresh");
+        client().performRequest(request);
+    }
+
     private void startDeployment() throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + MODEL_ID + "/deployment/_start");
+        Request request = new Request("POST", "/_ml/trained_models/" + MODEL_ID + "/deployment/_start?timeout=40s");
         Response response = client().performRequest(request);
         logger.info("Start response: " + EntityUtils.toString(response.getEntity()));
     }

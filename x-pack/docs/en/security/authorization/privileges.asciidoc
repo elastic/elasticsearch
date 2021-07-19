@@ -112,11 +112,6 @@ All security-related operations on {es} service accounts including
 <<security-api-get-service-accounts>>,
 <<security-api-create-service-token>>, <<security-api-delete-service-token>>,
 and <<security-api-get-service-credentials>>.
-+
---
-beta::[]
-
---
 
 `manage_slm`::
 All {slm} ({slm-init}) actions, including creating and updating policies and

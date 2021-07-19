@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -22,11 +23,13 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyException;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
@@ -39,6 +42,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
@@ -80,8 +85,13 @@ public final class IndexLifecycleTransition {
                 "], currently: [" + realKey + "]");
         }
 
-        // Always allow moving to the terminal step, even if it doesn't exist in the policy
-        if (stepRegistry.stepExists(indexPolicySetting, newStepKey) == false && newStepKey.equals(TerminalPolicyStep.KEY) == false) {
+        final Set<Step.StepKey> cachedStepKeys =
+            stepRegistry.parseStepKeysFromPhase(lifecycleState.getPhaseDefinition(), lifecycleState.getPhase());
+        boolean isNewStepCached = cachedStepKeys != null && cachedStepKeys.contains(newStepKey);
+
+        // Always allow moving to the terminal step or to a step that's present in the cached phase, even if it doesn't exist in the policy
+        if (isNewStepCached == false &&
+            (stepRegistry.stepExists(indexPolicySetting, newStepKey) == false && newStepKey.equals(TerminalPolicyStep.KEY) == false)) {
             throw new IllegalArgumentException("step [" + newStepKey + "] for index [" + idxMeta.getIndex().getName() +
                 "] with policy [" + indexPolicySetting + "] does not exist");
         }
@@ -258,6 +268,71 @@ public final class IndexLifecycleTransition {
         if (currentStep == null || currentStep.getAction().equals(newStep.getAction()) == false) {
             updatedState.setActionTime(nowAsMillis);
         }
+        return updatedState.build();
+    }
+
+    /**
+     * Transition the managed index to the first step of the next action in the current phase and update the cached phase definition for
+     * the index to reflect the new phase definition.
+     *
+     * The intended purpose of this method is to help with the situations where a policy is updated and we need to update the cached
+     * phase for the indices that are currently executing an action that was potentially removed in the new policy.
+     *
+     * Returns the same {@link LifecycleExecutionState} if the transition is not possible or the new execution state otherwise.
+     */
+    public static LifecycleExecutionState moveStateToNextActionAndUpdateCachedPhase(IndexMetadata indexMetadata,
+                                                                                    LifecycleExecutionState existingState,
+                                                                                    LongSupplier nowSupplier, LifecyclePolicy oldPolicy,
+                                                                                    LifecyclePolicyMetadata newPolicyMetadata,
+                                                                                    Client client, XPackLicenseState licenseState) {
+        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(existingState);
+        if (currentStepKey == null) {
+            logger.warn("unable to identify what the current step is for index [{}] as part of policy [{}]. the " +
+                "cached phase definition will not be updated for this index", indexMetadata.getIndex().getName(), policyName);
+            return existingState;
+        }
+
+        List<Step> policySteps = oldPolicy.toSteps(client, licenseState);
+        Optional<Step> currentStep = policySteps.stream()
+            .filter(step -> step.getKey().equals(currentStepKey))
+            .findFirst();
+
+        if (currentStep.isPresent() == false) {
+            logger.warn("unable to find current step [{}] for index [{}] as part of policy [{}]. the cached phase definition will not be " +
+                "updated for this index", currentStepKey, indexMetadata.getIndex().getName(), policyName);
+            return existingState;
+        }
+
+        int indexOfCurrentStep = policySteps.indexOf(currentStep.get());
+        assert indexOfCurrentStep != -1 : "the current step must be part of the old policy";
+
+        Optional<Step> nextStepInActionAfterCurrent = policySteps.stream()
+            .skip(indexOfCurrentStep)
+            .filter(step -> step.getKey().getAction().equals(currentStepKey.getAction()) == false)
+            .findFirst();
+
+        assert nextStepInActionAfterCurrent.isPresent() : "there should always be a complete step at the end of every phase";
+        Step.StepKey nextStep = nextStepInActionAfterCurrent.get().getKey();
+        logger.debug("moving index [{}] in policy [{}] out of step [{}] to new step [{}]",
+            indexMetadata.getIndex().getName(), policyName, currentStepKey, nextStep);
+
+        long nowAsMillis = nowSupplier.getAsLong();
+        LifecycleExecutionState.Builder updatedState = LifecycleExecutionState.builder(existingState);
+        updatedState.setPhase(nextStep.getPhase());
+        updatedState.setAction(nextStep.getAction());
+        updatedState.setActionTime(nowAsMillis);
+        updatedState.setStep(nextStep.getName());
+        updatedState.setStepTime(nowAsMillis);
+        updatedState.setFailedStep(null);
+        updatedState.setStepInfo(null);
+        updatedState.setIsAutoRetryableError(null);
+        updatedState.setFailedStepRetryCount(null);
+
+        PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(newPolicyMetadata.getPolicy().getName(),
+            newPolicyMetadata.getPolicy().getPhases().get(currentStepKey.getPhase()), newPolicyMetadata.getVersion(),
+            newPolicyMetadata.getModifiedDate());
+        updatedState.setPhaseDefinition(Strings.toString(phaseExecutionInfo, false, false));
         return updatedState.build();
     }
 

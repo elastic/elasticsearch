@@ -10,7 +10,9 @@ package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
+import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -21,59 +23,66 @@ import java.security.Principal;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import javax.net.ssl.X509ExtendedTrustManager;
-
 public class PemTrustConfigTests extends ESTestCase {
 
+    private static final String CERTS_DIR = "/certs";
+    private Path basePath;
+
+    @Before
+    public void setupPath() {
+        basePath = getDataPath(CERTS_DIR);
+    }
+
     public void testBuildTrustConfigFromSinglePemFile() throws Exception {
-        final Path cert = getDataPath("/certs/ca1/ca.crt");
-        final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(cert));
-        assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert));
+        final String cert = "ca1/ca.crt";
+        final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(cert), basePath);
+        assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(resolvePath(cert)));
         assertCertificateChain(trustConfig, "CN=Test CA 1");
     }
 
     public void testBuildTrustConfigFromMultiplePemFiles() throws Exception {
-        final Path cert1 = getDataPath("/certs/ca1/ca.crt");
-        final Path cert2 = getDataPath("/certs/ca2/ca.crt");
-        final Path cert3 = getDataPath("/certs/ca3/ca.crt");
-        final PemTrustConfig trustConfig = new PemTrustConfig(Arrays.asList(cert1, cert2, cert3));
-        assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert1, cert2, cert3));
+        final String cert1 = "ca1/ca.crt";
+        final String cert2 = "ca2/ca.crt";
+        final String cert3 = "ca3/ca.crt";
+        final PemTrustConfig trustConfig = new PemTrustConfig(Arrays.asList(cert1, cert2, cert3), basePath);
+        assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(resolvePaths(cert1, cert2, cert3)));
         assertCertificateChain(trustConfig, "CN=Test CA 1", "CN=Test CA 2", "CN=Test CA 3");
     }
 
     public void testBadFileFormatFails() throws Exception {
         final Path ca = createTempFile("ca", ".crt");
         Files.write(ca, generateRandomByteArrayOfLength(128), StandardOpenOption.APPEND);
-        final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(ca));
+        final PemTrustConfig trustConfig = new PemTrustConfig(List.of(ca.toString()), basePath);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ca));
         assertInvalidFileFormat(trustConfig, ca);
     }
 
     public void testEmptyFileFails() throws Exception {
         final Path ca = createTempFile("ca", ".crt");
-        final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(ca));
+        final PemTrustConfig trustConfig = new PemTrustConfig(List.of(ca.toString()), basePath);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ca));
         assertEmptyFile(trustConfig, ca);
     }
 
     public void testMissingFileFailsWithMeaningfulMessage() throws Exception {
-        final Path cert = getDataPath("/certs/ca1/ca.crt").getParent().resolve("dne.crt");
-        final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(cert));
-        assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert));
-        assertFileNotFound(trustConfig, cert);
+        final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList("dne.crt"), basePath);
+        final Path path = resolvePath("dne.crt");
+        assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(path));
+        assertFileNotFound(trustConfig, path);
     }
 
     public void testOneMissingFileFailsWithMeaningfulMessageEvenIfOtherFileExist() throws Exception {
-        final Path cert1 = getDataPath("/certs/ca1/ca.crt");
-        final Path cert2 = getDataPath("/certs/ca2/ca.crt").getParent().resolve("dne.crt");
-        final Path cert3 = getDataPath("/certs/ca3/ca.crt");
-        final PemTrustConfig trustConfig = new PemTrustConfig(Arrays.asList(cert1, cert2, cert3));
-        assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert1, cert2, cert3));
-        assertFileNotFound(trustConfig, cert2);
+        final String cert1 = "ca1/ca.crt";
+        final String cert2 = "ca2/dne.crt";
+        final String cert3 = "ca3/ca.crt";
+        final PemTrustConfig trustConfig = new PemTrustConfig(Arrays.asList(cert1, cert2, cert3), basePath);
+        assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(resolvePaths(cert1, cert2, cert3)));
+        assertFileNotFound(trustConfig, resolvePath(cert2));
     }
 
     public void testTrustConfigReloadsFileContents() throws Exception {
@@ -84,7 +93,7 @@ public class PemTrustConfigTests extends ESTestCase {
         final Path ca1 = createTempFile("ca1", ".crt");
         final Path ca2 = createTempFile("ca2", ".crt");
 
-        final PemTrustConfig trustConfig = new PemTrustConfig(Arrays.asList(ca1, ca2));
+        final PemTrustConfig trustConfig = new PemTrustConfig(Arrays.asList(ca1.toString(), ca2.toString()), basePath);
 
         Files.copy(cert1, ca1, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(cert2, ca2, StandardCopyOption.REPLACE_EXISTING);
@@ -126,17 +135,25 @@ public class PemTrustConfigTests extends ESTestCase {
         if (inFipsJvm() && exception.getMessage().contains("failed to parse any certificates")) {
             return;
         }
-        assertThat(exception.getMessage(), Matchers.containsString("cannot create trust"));
-        assertThat(exception.getMessage(), Matchers.containsString("PEM"));
+        assertThat(exception.getMessage(), Matchers.containsString("cannot load"));
+        assertThat(exception.getMessage(), Matchers.containsString("PEM certificate"));
         assertThat(exception.getCause(), Matchers.instanceOf(GeneralSecurityException.class));
     }
 
     private void assertFileNotFound(PemTrustConfig trustConfig, Path file) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
-        assertThat(exception.getMessage(), Matchers.containsString("files do not exist"));
+        assertThat(exception.getMessage(), Matchers.containsString("not exist"));
         assertThat(exception.getMessage(), Matchers.containsString("PEM"));
         assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
         assertThat(exception.getCause(), Matchers.instanceOf(NoSuchFileException.class));
+    }
+
+    private Path resolvePath(String relativeName) {
+        return getDataPath(CERTS_DIR).resolve(relativeName);
+    }
+
+    private Path[] resolvePaths(String... names) {
+        return Stream.of(names).map(this::resolvePath).toArray(Path[]::new);
     }
 
     private byte[] generateRandomByteArrayOfLength(int length) {

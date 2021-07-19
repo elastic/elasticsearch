@@ -33,7 +33,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -135,13 +134,18 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             throw new IllegalArgumentException("Unexpected system index access level: " + systemIndexAccessLevel);
         }
 
+        List<String> netNewSystemIndices = new ArrayList<>();
         List<String> systemIndicesNames = new ArrayList<>();
         for (Iterator<String> it = aliasesMap.keysIt(); it.hasNext(); ) {
             String indexName = it.next();
             IndexMetadata index = state.metadata().index(indexName);
             if (index != null && index.isSystem()) {
                 if (systemIndexAccessAllowPredicate.test(index) == false) {
-                    systemIndicesNames.add(indexName);
+                    if (systemIndices.isNetNewSystemIndex(indexName)) {
+                        netNewSystemIndices.add(indexName);
+                    } else {
+                        systemIndicesNames.add(indexName);
+                    }
                 }
             }
         }
@@ -149,9 +153,11 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access",
                 "this request accesses system indices: {}, but in a future major version, direct access to system " +
                     "indices will be prevented by default", systemIndicesNames);
-        } else {
-            checkSystemAliasAccess(request, systemIndices, systemIndexAccessLevel, threadContext);
         }
+        if (netNewSystemIndices.isEmpty() == false) {
+            throw systemIndices.netNewSystemIndexAccessException(threadContext, netNewSystemIndices);
+        }
+        checkSystemAliasAccess(request, systemIndices, systemIndexAccessLevel, threadContext);
     }
 
     private static void checkSystemAliasAccess(GetAliasesRequest request, SystemIndices systemIndices,
@@ -165,14 +171,27 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             throw new IllegalArgumentException("Unexpected system index access level: " + systemIndexAccessLevel);
         }
 
-        final List<String> systemAliases = Arrays.stream(request.aliases())
-            .filter(systemIndices::isSystemName)
-            .filter(systemIndexAccessAllowPredicate)
-            .collect(Collectors.toList());
+        final List<String> systemAliases = new ArrayList<>();
+        final List<String> netNewSystemAliases = new ArrayList<>();
+        for (String alias : request.aliases()) {
+            if (systemIndices.isSystemName(alias)) {
+                if (systemIndexAccessAllowPredicate.test(alias)) {
+                    if (systemIndices.isNetNewSystemIndex(alias)) {
+                        netNewSystemAliases.add(alias);
+                    } else {
+                        systemAliases.add(alias);
+                    }
+                }
+            }
+        }
+
         if (systemAliases.isEmpty() == false) {
             deprecationLogger.deprecate(DeprecationCategory.API, "open_system_alias_access",
-                "this request accesses aliases with names reserved for system indices: {}, but in a future major version, direct" +
+                "this request accesses aliases with names reserved for system indices: {}, but in a future major version, direct " +
                     "access to system indices and their aliases will not be allowed", systemAliases);
+        }
+        if (netNewSystemAliases.isEmpty() == false) {
+            throw systemIndices.netNewSystemIndexAccessException(threadContext, netNewSystemAliases);
         }
     }
 }

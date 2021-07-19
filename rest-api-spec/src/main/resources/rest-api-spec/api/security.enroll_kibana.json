@@ -1,0 +1,24 @@
+{
+  "security.enroll_kibana":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-kibana-enrollment.html",
+      "description":"Allows a kibana instance to configure itself to communicate with a secured elasticsearch cluster."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/enroll/kibana",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

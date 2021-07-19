@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -37,17 +38,20 @@ final class OutboundHandler {
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
+    private final Compression.Scheme configuredCompressionScheme;
 
     private volatile long slowLogThresholdMs = Long.MAX_VALUE;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
-    OutboundHandler(String nodeName, Version version, StatsTracker statsTracker, ThreadPool threadPool, BigArrays bigArrays) {
+    OutboundHandler(String nodeName, Version version, StatsTracker statsTracker, ThreadPool threadPool, BigArrays bigArrays,
+                    Compression.Scheme compressionScheme) {
         this.nodeName = nodeName;
         this.version = version;
         this.statsTracker = statsTracker;
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
+        this.configuredCompressionScheme = compressionScheme;
     }
 
     void setSlowLogThreshold(TimeValue slowLogThreshold) {
@@ -66,10 +70,25 @@ final class OutboundHandler {
                      final TransportRequest request, final TransportRequestOptions options, final Version channelVersion,
                      final boolean compressRequest, final boolean isHandshake) throws IOException, TransportException {
         Version version = Version.min(this.version, channelVersion);
+        final Compression.Scheme compressionScheme;
+        if (compressRequest) {
+            compressionScheme = configuredCompressionScheme;
+        } else {
+            compressionScheme = null;
+        }
         OutboundMessage.Request message =
-            new OutboundMessage.Request(threadPool.getThreadContext(), request, version, action, requestId, isHandshake, compressRequest);
-        ActionListener<Void> listener = ActionListener.wrap(() ->
-            messageListener.onRequestSent(node, requestId, action, request, options));
+            new OutboundMessage.Request(threadPool.getThreadContext(), request, version, action, requestId, isHandshake, compressionScheme);
+        if (request.tryIncRef() == false) {
+            assert false : "request [" + request + "] has been released already";
+            throw new AlreadyClosedException("request [" + request + "] has been released already");
+        }
+        ActionListener<Void> listener = ActionListener.wrap(() -> {
+            try {
+                messageListener.onRequestSent(node, requestId, action, request, options);
+            } finally {
+                request.decRef();
+            }
+        });
         sendMessage(channel, message, listener);
     }
 
@@ -80,10 +99,16 @@ final class OutboundHandler {
      * @see #sendErrorResponse(Version, TcpChannel, long, String, Exception) for sending error responses
      */
     void sendResponse(final Version nodeVersion, final TcpChannel channel, final long requestId, final String action,
-                      final TransportResponse response, final boolean compress, final boolean isHandshake) throws IOException {
+                      final TransportResponse response, final boolean compressResponse, final boolean isHandshake) throws IOException {
         Version version = Version.min(this.version, nodeVersion);
+        final Compression.Scheme compressionScheme;
+        if (compressResponse) {
+            compressionScheme = configuredCompressionScheme;
+        } else {
+            compressionScheme = null;
+        }
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), response, version,
-            requestId, isHandshake, compress);
+            requestId, isHandshake, compressionScheme);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
         sendMessage(channel, message, listener);
     }
@@ -97,7 +122,7 @@ final class OutboundHandler {
         TransportAddress address = new TransportAddress(channel.getLocalAddress());
         RemoteTransportException tx = new RemoteTransportException(nodeName, address, action, error);
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), tx, version, requestId,
-            false, false);
+            false, null);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, error));
         sendMessage(channel, message, listener);
     }

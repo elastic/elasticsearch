@@ -561,12 +561,6 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private void wipeCluster() throws Exception {
 
-        // First we invoke system index cleanup so that we don't get wildcard errors
-        // later on
-        if (false == preserveFeatureStatesUponCompletion()) {
-            wipeSystemResources();
-        }
-
         // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
         // so we need to fully shut them down first otherwise a job might stall waiting
         // for a bulk to finish against a non-existing index (and then fail tests)
@@ -608,6 +602,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (preserveDataStreamsUponCompletion() == false) {
             wipeDataStreams();
         }
+
+        // Invoke system index cleanup so that we don't get wildcard errors later on
+        if (false == preserveFeatureStatesUponCompletion()) {
+            wipeSystemResources();
+        }
+
 
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
@@ -779,9 +779,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void wipeAllIndices() throws IOException {
         final String[] indicesToIgnore = new String[] {
             // ignore ilm history which can pop up after deleting all data streams but shouldn't interfere
-            ".ds-ilm-history-*",
-            // watcher may recreate its indices unexpectedly
-            ".watches*"
+            ".ds-ilm-history-*"
         };
 
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);

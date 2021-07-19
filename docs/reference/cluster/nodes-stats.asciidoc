@@ -970,7 +970,7 @@ Contains statistics about all shards assigned to the node.
 `total_count`::
 (integer)
 The total number of shards assigned to the node.
-======
+=======
 ======
 
 [[cluster-nodes-stats-api-response-body-os]]

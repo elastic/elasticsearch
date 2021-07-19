@@ -22,7 +22,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -226,7 +226,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
                         return new GoogleCloudStorageBlobStore(
-                                metadata.settings().get("bucket"), "test", metadata.name(), storageService,
+                                metadata.settings().get("bucket"), "test", metadata.name(), storageService, bigArrays,
                             randomIntBetween(1, 8) * 1024) {
                             @Override
                             long getLargeBlobThresholdInBytes() {

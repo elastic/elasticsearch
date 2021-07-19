@@ -13,10 +13,10 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -432,6 +432,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public String reason() {
             return reason;
+        }
+
+        public ShardSnapshotStatus withUpdatedGeneration(String newGeneration) {
+            assert state == ShardState.SUCCESS : "can't move generation in state " + state;
+            return new ShardSnapshotStatus(nodeId, state, reason, newGeneration,
+                    shardSnapshotResult == null ? null :
+                            new ShardSnapshotResult(newGeneration, shardSnapshotResult.getSize(), shardSnapshotResult.getSegmentCount()));
         }
 
         @Nullable

@@ -68,7 +68,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
 
         Map<String, Object> fieldNode = new HashMap<>();
         fieldNode.put("analyzer", "my_analyzer");
-        Mapper.TypeParser.ParserContext parserContext = mock(Mapper.TypeParser.ParserContext.class);
+        MappingParserContext parserContext = mock(MappingParserContext.class);
 
         // check AnalysisMode.ALL works
         Map<String, NamedAnalyzer> analyzers = defaultAnalyzers();
@@ -104,7 +104,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
             if (settingToTest.equals("search_quote_analyzer")) {
                 fieldNode.put("search_analyzer", "standard");
             }
-            Mapper.TypeParser.ParserContext parserContext = mock(Mapper.TypeParser.ParserContext.class);
+            MappingParserContext parserContext = mock(MappingParserContext.class);
 
             // check AnalysisMode.ALL and AnalysisMode.SEARCH_TIME works
             Map<String, NamedAnalyzer> analyzers = defaultAnalyzers();
@@ -143,7 +143,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
 
         Map<String, Object> fieldNode = new HashMap<>();
         fieldNode.put("analyzer", "my_analyzer");
-        Mapper.TypeParser.ParserContext parserContext = mock(Mapper.TypeParser.ParserContext.class);
+        MappingParserContext parserContext = mock(MappingParserContext.class);
 
         // check that "analyzer" set to AnalysisMode.INDEX_TIME is blocked if there is no search analyzer
         AnalysisMode mode = AnalysisMode.INDEX_TIME;

@@ -96,3 +96,24 @@ supplied in the `value` parameter.
 ----
 String urlDecode(String value);
 ----
+
+===== URI decomposition
+Use the {ref}/uri-parts-processor.html[URI parts processor] to decompose the URI string
+supplied in the `value` parameter. Returns a map of key-value pairs in which the key is
+the name of the URI component such as `domain` or `path` and the value is the
+corresponding value for that component.
+
+[source,Painless]
+----
+String uriParts(String value);
+----
+
+===== Network community ID
+Use the {ref}/community-id-processor.html[community ID processor] to compute the network
+community ID for network flow data.
+
+[source,Painless]
+----
+String communityId(String sourceIpAddrString, String destIpAddrString, Object ianaNumber, Object transport, Object sourcePort, Object destinationPort, Object icmpType, Object icmpCode, int seed)
+String communityId(String sourceIpAddrString, String destIpAddrString, Object ianaNumber, Object transport, Object sourcePort, Object destinationPort, Object icmpType, Object icmpCode)
+----

@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -154,7 +154,9 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("precision", precision);
         if (geoBoundingBox.isUnbounded() == false) {
-            geoBoundingBox.toXContent(builder, params);
+            builder.startObject(GeoBoundingBox.BOUNDS_FIELD.getPreferredName());
+            geoBoundingBox.toXContentFragment(builder, true);
+            builder.endObject();
         }
     }
 

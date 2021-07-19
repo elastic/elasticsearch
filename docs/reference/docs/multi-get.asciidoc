@@ -68,7 +68,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+`refresh`::
+(Optional, Boolean) If `true`, the request refreshes relevant shards before
+retrieving documents. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
@@ -208,7 +210,7 @@ You can include the `stored_fields` query parameter in the request URI to specif
 to use when there are no per-document instructions. 
 
 For example, the following request retrieves `field1` and `field2` from document 1, and
-`field3` and `field4`from document 2:
+`field3` and `field4` from document 2:
 
 [source,console]
 --------------------------------------------------

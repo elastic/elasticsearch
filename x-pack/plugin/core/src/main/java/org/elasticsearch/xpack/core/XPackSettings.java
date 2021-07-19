@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -100,6 +100,10 @@ public class XPackSettings {
     /** Setting for enabling or disabling FIPS mode. Defaults to false */
     public static final Setting<Boolean> FIPS_MODE_ENABLED =
         Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
+
+    /** Setting for enabling enrollment process; set-up by the es start-up script */
+    public static final Setting<Boolean> ENROLLMENT_ENABLED =
+        Setting.boolSetting("xpack.security.enrollment.enabled", false, Property.NodeScope);
 
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
@@ -227,6 +231,7 @@ public class XPackSettings {
         settings.add(API_KEY_SERVICE_ENABLED_SETTING);
         settings.add(USER_SETTING);
         settings.add(PASSWORD_HASHING_ALGORITHM);
+        settings.add(ENROLLMENT_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

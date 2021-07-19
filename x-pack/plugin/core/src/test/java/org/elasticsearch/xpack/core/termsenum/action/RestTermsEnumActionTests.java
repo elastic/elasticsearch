@@ -105,6 +105,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
         final String content = "{"
             + "\"field\":\"a\", "
             + "\"string\":\"foo\", "
+            + "\"search_after\":\"football\", "
             + "\"index_filter\":{\"bool\":{\"must\":{\"term\":{\"user\":\"kimchy\"}}}}}";
 
         final RestRequest request = createRestRequest(content);

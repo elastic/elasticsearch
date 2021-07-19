@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -20,8 +20,8 @@ public class TermsEnumAction extends ActionType<TermsEnumResponse> {
 
     public static final TermsEnumAction INSTANCE = new TermsEnumAction();
     public static final String NAME = "indices:data/read/xpack/termsenum/list";
-    
-    
+
+
     static final ParseField INDEX_FILTER = new ParseField("index_filter");
     static final ParseField TIMEOUT = new ParseField("timeout");
 
@@ -39,11 +39,12 @@ public class TermsEnumAction extends ActionType<TermsEnumResponse> {
     static {
         PARSER.declareString(TermsEnumRequest::field, new ParseField("field"));
         PARSER.declareString(TermsEnumRequest::string, new ParseField("string"));
+        PARSER.declareString(TermsEnumRequest::searchAfter, new ParseField("search_after"));
         PARSER.declareInt(TermsEnumRequest::size, new ParseField("size"));
         PARSER.declareBoolean(TermsEnumRequest::caseInsensitive, new ParseField("case_insensitive"));
         PARSER.declareField(TermsEnumRequest::timeout,
             (p, c) -> TimeValue.parseTimeValue(p.text(), TIMEOUT.getPreferredName()),
             TIMEOUT, ObjectParser.ValueType.STRING);
-        PARSER.declareObject(TermsEnumRequest::indexFilter, (p, context) -> parseInnerQueryBuilder(p),INDEX_FILTER);        
+        PARSER.declareObject(TermsEnumRequest::indexFilter, (p, context) -> parseInnerQueryBuilder(p), INDEX_FILTER);
     }
 }

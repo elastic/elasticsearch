@@ -14,12 +14,12 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.Point;
@@ -77,7 +77,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("points_only", b -> b.field("points_only", true));
         checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
             LegacyGeoShapeFieldMapper gsfm = (LegacyGeoShapeFieldMapper) m;
-            assertEquals(ShapeBuilder.Orientation.RIGHT, gsfm.orientation());
+            assertEquals(Orientation.RIGHT, gsfm.orientation());
         });
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
             LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
@@ -166,7 +166,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         assertThat(geoShapeFieldMapper.fieldType().distanceErrorPct(),
             equalTo(LegacyGeoShapeFieldMapper.Defaults.DISTANCE_ERROR_PCT));
         assertThat(geoShapeFieldMapper.fieldType().orientation(),
-            equalTo(ShapeBuilder.Orientation.RIGHT));
+            equalTo(Orientation.RIGHT));
         assertFieldWarnings("strategy");
     }
 
@@ -179,10 +179,10 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         );
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
-        ShapeBuilder.Orientation orientation = ((LegacyGeoShapeFieldMapper)fieldMapper).fieldType().orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
+        Orientation orientation = ((LegacyGeoShapeFieldMapper)fieldMapper).fieldType().orientation();
+        assertThat(orientation, equalTo(Orientation.CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.LEFT));
+        assertThat(orientation, equalTo(Orientation.CW));
 
         // explicit right orientation test
         mapper = createDocumentMapper(
@@ -191,9 +191,9 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
         orientation = ((LegacyGeoShapeFieldMapper)fieldMapper).fieldType().orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
+        assertThat(orientation, equalTo(Orientation.COUNTER_CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.RIGHT));
+        assertThat(orientation, equalTo(Orientation.CCW));
         assertFieldWarnings("tree", "strategy");
     }
 
@@ -488,7 +488,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         );
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("field");
         LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
-        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CCW));
+        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CCW));
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, fieldMapping(b -> b.field("type", "geo_shape")
             .field("tree", "quadtree")
@@ -510,7 +510,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
         assertThat(strategy.getDistErrPct(), equalTo(0.01));
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(1d)));
-        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CCW));
+        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CCW));
 
         // correct mapping
         merge(mapperService, fieldMapping(b -> b.field("type", "geo_shape")
@@ -529,7 +529,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
         assertThat(strategy.getDistErrPct(), equalTo(0.001));
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(1d)));
-        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CW));
+        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CW));
 
         assertFieldWarnings("tree", "strategy", "precision", "tree_levels", "distance_error_pct");
     }

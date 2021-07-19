@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -29,7 +29,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase {
 
-    private String index = "empty_index";
+    private final String index = "empty_index";
 
     @After
     public void cleanUpTest() {
@@ -218,7 +218,6 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
 
     private Job.Builder createJob(String id, TimeValue bucketSpan, String function, String field, String summaryCountField) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         dataDescription.setTimeField("time");
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
 

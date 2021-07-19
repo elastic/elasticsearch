@@ -7,7 +7,8 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -38,7 +39,7 @@ import java.util.Objects;
 /**
  * A key configuration that is backed by a {@link KeyStore}
  */
-class StoreKeyConfig extends KeyConfig {
+public class StoreKeyConfig extends KeyConfig {
 
     private static final String KEYSTORE_FILE = "keystore";
 
@@ -51,7 +52,7 @@ class StoreKeyConfig extends KeyConfig {
 
     /**
      * Creates a new configuration that can be used to load key and trust material from a {@link KeyStore}
-     * @param keyStorePath the path to the keystore file or null when keyStoreType is pkcs11
+     * @param keyStorePath the path to the keystore file
      * @param keyStoreType the type of the keystore file
      * @param keyStorePassword the password for the keystore
      * @param keyPassword the password for the private key in the keystore
@@ -60,7 +61,10 @@ class StoreKeyConfig extends KeyConfig {
      */
     StoreKeyConfig(String keyStorePath, String keyStoreType, SecureString keyStorePassword, SecureString keyPassword,
                    String keyStoreAlgorithm, String trustStoreAlgorithm) {
-        this.keyStorePath = keyStorePath;
+        if (keyStoreType.equalsIgnoreCase("pkcs11")) {
+            throw new IllegalArgumentException("PKCS#11 keystores are no longer supported by Elasticsearch");
+        }
+        this.keyStorePath = Objects.requireNonNull(keyStorePath);
         this.keyStoreType = Objects.requireNonNull(keyStoreType, "keystore type must be specified");
         // since we support reloading the keystore, we must store the passphrase in memory for the life of the node, so we
         // clone the password and never close it during our uses below
@@ -72,10 +76,27 @@ class StoreKeyConfig extends KeyConfig {
 
     @Override
     X509ExtendedKeyManager createKeyManager(@Nullable Environment environment) {
-        Path ksPath = keyStorePath == null ? null : CertParsingUtils.resolvePath(keyStorePath, environment);
+        Path ksPath = CertParsingUtils.resolvePath(keyStorePath, environment);
         try {
             KeyStore ks = getStore(ksPath, keyStoreType, keyStorePassword);
             checkKeyStore(ks);
+            // TBD: filter out only http.ssl.keystore
+            List<String> aliases = new ArrayList<>();
+            for (String s : Collections.list(ks.aliases())) {
+                if (ks.isKeyEntry(s)) {
+                    aliases.add(s);
+                }
+            }
+            if (aliases.size() > 1) {
+                for (String alias : aliases) {
+                    Certificate certificate = ks.getCertificate(alias);
+                    if (certificate instanceof X509Certificate) {
+                        if (((X509Certificate) certificate).getBasicConstraints() != -1) {
+                            ks.deleteEntry(alias);
+                        }
+                    }
+                }
+            }
             return CertParsingUtils.keyManager(ks, keyPassword.getChars(), keyStoreAlgorithm);
         } catch (FileNotFoundException | NoSuchFileException e) {
             throw missingKeyConfigFile(e, KEYSTORE_FILE, ksPath);
@@ -128,9 +149,6 @@ class StoreKeyConfig extends KeyConfig {
 
     @Override
     List<Path> filesToMonitor(@Nullable Environment environment) {
-        if (keyStorePath == null) {
-            return Collections.emptyList();
-        }
         return Collections.singletonList(CertParsingUtils.resolvePath(keyStorePath, environment));
     }
 
@@ -154,6 +172,26 @@ class StoreKeyConfig extends KeyConfig {
         }
     }
 
+    public List<Tuple<PrivateKey, X509Certificate>> getPrivateKeyEntries(Environment environment) {
+        try {
+            final KeyStore keyStore = getStore(CertParsingUtils.resolvePath(keyStorePath, environment), keyStoreType, keyStorePassword);
+            List<Tuple<PrivateKey, X509Certificate>> entries = new ArrayList<>();
+            for (Enumeration<String> e = keyStore.aliases(); e.hasMoreElements(); ) {
+                final String alias = e.nextElement();
+                if (keyStore.isKeyEntry(alias)) {
+                    Key key = keyStore.getKey(alias, keyPassword.getChars());
+                    Certificate certificate = keyStore.getCertificate(alias);
+                    if (key instanceof PrivateKey && certificate instanceof X509Certificate) {
+                        entries.add(Tuple.tuple((PrivateKey) key, (X509Certificate) certificate));
+                    }
+                }
+            }
+            return entries;
+        } catch (Exception e) {
+            throw new ElasticsearchException("failed to list keys and certificates", e);
+        }
+    }
+
     private void checkKeyStore(KeyStore keyStore) throws KeyStoreException {
         Enumeration<String> aliases = keyStore.aliases();
         while (aliases.hasMoreElements()) {
@@ -162,10 +200,7 @@ class StoreKeyConfig extends KeyConfig {
                 return;
             }
         }
-        final String message = null != keyStorePath ?
-            "the keystore [" + keyStorePath + "] does not contain a private key entry" :
-            "the configured PKCS#11 token does not contain a private key entry";
-        throw new IllegalArgumentException(message);
+        throw new IllegalArgumentException("the keystore [" + keyStorePath + "] does not contain a private key entry");
     }
 
     @Override

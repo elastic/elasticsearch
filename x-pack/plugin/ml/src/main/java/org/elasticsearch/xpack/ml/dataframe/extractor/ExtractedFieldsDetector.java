@@ -12,11 +12,12 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -241,7 +242,7 @@ public class ExtractedFieldsDetector {
 
     private void addExcludedNestedPattern(String pattern, Set<FieldSelection> fieldSelection) {
         fieldSelection.add(FieldSelection.excluded(
-            pattern, Collections.singleton(ObjectMapper.NESTED_CONTENT_TYPE), "nested fields are not supported"));
+            pattern, Collections.singleton(NestedObjectMapper.CONTENT_TYPE), "nested fields are not supported"));
     }
 
     private Set<String> getMappingTypes(String field) {
@@ -657,6 +658,6 @@ public class ExtractedFieldsDetector {
     }
 
     private static boolean isNested(Set<String> types) {
-        return types.size() == 1 && types.contains(ObjectMapper.NESTED_CONTENT_TYPE);
+        return types.size() == 1 && types.contains(NestedObjectMapper.CONTENT_TYPE);
     }
 }

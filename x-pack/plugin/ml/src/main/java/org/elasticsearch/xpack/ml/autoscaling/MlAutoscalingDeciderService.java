@@ -14,14 +14,14 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
@@ -30,7 +30,9 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.DatafeedParams;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
@@ -62,7 +64,6 @@ import static org.elasticsearch.xpack.core.ml.MlTasks.getJobStateModifiedForReas
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD;
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
-import static org.elasticsearch.xpack.ml.job.NodeLoad.taskStateFilter;
 
 public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     LocalNodeMasterListener {
@@ -71,6 +72,8 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     private static final Duration DEFAULT_MEMORY_REFRESH_RATE = Duration.ofMinutes(15);
     private static final String MEMORY_STALE = "unable to make scaling decision as job memory requirements are stale";
     private static final long NO_SCALE_DOWN_POSSIBLE = -1L;
+    // If ensureScaleDown changes the calculation by more than this much, log the error
+    private static final long ACCEPTABLE_DIFFERENCE = ByteSizeValue.ofMb(1).getBytes();
 
     public static final String NAME = "ml";
     public static final Setting<Integer> NUM_ANOMALY_JOBS_IN_QUEUE = Setting.intSetting("num_anomaly_jobs_in_queue", 0, 0);
@@ -359,6 +362,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
 
         final List<DiscoveryNode> nodes = getNodes(clusterState);
         final NativeMemoryCapacity currentScale = currentScale(nodes);
+
         final MlScalingReason.Builder reasonBuilder = MlScalingReason.builder()
             .setWaitingAnomalyJobs(waitingAnomalyJobs)
             .setWaitingAnalyticsJobs(waitingAnalyticsJobs)
@@ -370,6 +374,36 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
             && (waitingAnomalyJobs.isEmpty() == false
             || waitingAnalyticsJobs.isEmpty() == false)) {
             return scaleUpFromZero(waitingAnomalyJobs, waitingAnalyticsJobs, reasonBuilder);
+        }
+
+        // We don't need to check anything as there are no tasks
+        // This is a quick path to downscale.
+        // simply return `0` for scale down if delay is satisfied
+        if (anomalyDetectionTasks.isEmpty() && dataframeAnalyticsTasks.isEmpty()) {
+            long msLeftToScale = msLeftToDownScale(configuration);
+            if (msLeftToScale > 0) {
+                return new AutoscalingDeciderResult(
+                    context.currentCapacity(),
+                    reasonBuilder
+                        .setSimpleReason(
+                            String.format(
+                                Locale.ROOT,
+                                "Passing currently perceived capacity as down scale delay has not been satisfied; configured delay [%s]"
+                                    + "last detected scale down event [%s]. Will request scale down in approximately [%s]",
+                                DOWN_SCALE_DELAY.get(configuration).getStringRep(),
+                                XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(scaleDownDetected),
+                                TimeValue.timeValueMillis(msLeftToScale).getStringRep()
+                            )
+                        )
+                        .build());
+            }
+            return new AutoscalingDeciderResult(
+                AutoscalingCapacity.ZERO,
+                reasonBuilder
+                    .setRequiredCapacity(AutoscalingCapacity.ZERO)
+                    .setSimpleReason("Requesting scale down as tier and/or node size could be smaller")
+                    .build()
+            );
         }
 
         if (mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false) {
@@ -497,9 +531,22 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                     .build()));
         }
 
-        final Optional<AutoscalingDeciderResult> scaleDownDecision = checkForScaleDown(nodeLoads, largestJob, currentScale, reasonBuilder);
+        final Optional<AutoscalingDeciderResult> maybeScaleDown = checkForScaleDown(nodeLoads, largestJob, currentScale, reasonBuilder)
+            // Due to weird rounding errors, it may be that a scale down result COULD cause a scale up
+            // Ensuring the scaleDown here forces the scale down result to always be lower than the current capacity.
+            // This is safe as we know that ALL jobs are assigned at the current capacity
+            .map(result -> {
+                AutoscalingCapacity capacity = ensureScaleDown(result.requiredCapacity(), context.currentCapacity());
+                if (capacity == null) {
+                    return null;
+                }
+                return new AutoscalingDeciderResult(capacity, result.reason());
+            });
 
-        if (scaleDownDecision.isPresent()) {
+        if (maybeScaleDown.isPresent()) {
+            final AutoscalingDeciderResult scaleDownDecisionResult = maybeScaleDown.get();
+
+            context.currentCapacity();
             // Given maxOpenJobs, could we scale down to just one node?
             // We have no way of saying "we need X nodes"
             if (nodeLoads.size() > 1) {
@@ -516,33 +563,29 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                         MAX_OPEN_JOBS_PER_NODE.getKey());
                     logger.info(() -> new ParameterizedMessage("{} Calculated potential scaled down capacity [{}] ",
                         msg,
-                        scaleDownDecision.get().requiredCapacity()));
+                        scaleDownDecisionResult.requiredCapacity()));
                     return new AutoscalingDeciderResult(context.currentCapacity(), reasonBuilder.setSimpleReason(msg).build());
                 }
             }
 
-            final long now = timeSupplier.get();
-            if (newScaleDownCheck()) {
-                scaleDownDetected = now;
+            long msLeftToScale = msLeftToDownScale(configuration);
+            if (msLeftToScale <= 0) {
+                return scaleDownDecisionResult;
             }
             TimeValue downScaleDelay = DOWN_SCALE_DELAY.get(configuration);
-            long msLeftToScale = downScaleDelay.millis() - (now - scaleDownDetected);
-            if (msLeftToScale <= 0) {
-                return scaleDownDecision.get();
-            }
             logger.debug(() -> new ParameterizedMessage(
                 "not scaling down as the current scale down delay [{}] is not satisfied." +
                     " The last time scale down was detected [{}]. Calculated scaled down capacity [{}] ",
                 downScaleDelay.getStringRep(),
                 XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(scaleDownDetected),
-                scaleDownDecision.get().requiredCapacity()));
+                scaleDownDecisionResult.requiredCapacity()));
             return new AutoscalingDeciderResult(
                 context.currentCapacity(),
                 reasonBuilder
                     .setSimpleReason(
                         String.format(
                             Locale.ROOT,
-                            "Passing currently perceived capacity as down scale delay has not be satisfied; configured delay [%s]"
+                            "Passing currently perceived capacity as down scale delay has not been satisfied; configured delay [%s]"
                                 + "last detected scale down event [%s]. Will request scale down in approximately [%s]",
                             downScaleDelay.getStringRep(),
                             XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(scaleDownDetected),
@@ -558,6 +601,31 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                 reasonBuilder
                     .setSimpleReason("Passing currently perceived capacity as no scaling changes were detected to be possible")
                     .build()));
+    }
+
+    static AutoscalingCapacity ensureScaleDown(AutoscalingCapacity scaleDownResult, AutoscalingCapacity currentCapacity) {
+        if (scaleDownResult == null || currentCapacity == null) {
+            return null;
+        }
+        AutoscalingCapacity newCapacity = new AutoscalingCapacity(
+            new AutoscalingCapacity.AutoscalingResources(
+                currentCapacity.total().storage(),
+                ByteSizeValue.ofBytes(Math.min(scaleDownResult.total().memory().getBytes(), currentCapacity.total().memory().getBytes()))
+            ),
+            new AutoscalingCapacity.AutoscalingResources(
+                currentCapacity.node().storage(),
+                ByteSizeValue.ofBytes(Math.min(scaleDownResult.node().memory().getBytes(), currentCapacity.node().memory().getBytes()))
+            )
+        );
+        if (scaleDownResult.node().memory().getBytes() - newCapacity.node().memory().getBytes() > ACCEPTABLE_DIFFERENCE
+            || scaleDownResult.total().memory().getBytes() - newCapacity.total().memory().getBytes() > ACCEPTABLE_DIFFERENCE) {
+            logger.warn(
+                "scale down accidentally requested a scale up, auto-corrected; initial scaling [{}], corrected [{}]",
+                scaleDownResult,
+                newCapacity
+            );
+        }
+        return newCapacity;
     }
 
     AutoscalingDeciderResult noScaleResultOrRefresh(MlScalingReason.Builder reasonBuilder,
@@ -816,8 +884,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         // Or our largest job could be on a smaller node (meaning the same size tier but smaller nodes are possible).
         if (currentlyNecessaryTier < currentCapacity.getTier() || currentlyNecessaryNode < currentCapacity.getNode()) {
             NativeMemoryCapacity nativeMemoryCapacity = new NativeMemoryCapacity(
-                currentlyNecessaryTier,
-                currentlyNecessaryNode,
+                // Since we are in the `scaleDown` branch, we know jobs are running and we could be smaller
+                // If we have some weird rounding errors, it may be that the `currentlyNecessary` values are larger than
+                // current capacity. We never want to accidentally say "scale up" via a scale down.
+                Math.min(currentlyNecessaryTier, currentCapacity.getTier()),
+                Math.min(currentlyNecessaryNode, currentCapacity.getNode()),
                 // If our newly suggested native capacity is the same, we can use the previously stored jvm size
                 currentlyNecessaryNode == currentCapacity.getNode() ? currentCapacity.getJvmSize() : null);
             AutoscalingCapacity requiredCapacity = nativeMemoryCapacity.autoscalingCapacity(maxMachineMemoryPercent, useAuto);
@@ -835,6 +906,15 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         return Optional.empty();
     }
 
+    private long msLeftToDownScale(Settings configuration) {
+        final long now = timeSupplier.get();
+        if (newScaleDownCheck()) {
+            scaleDownDetected = now;
+        }
+        TimeValue downScaleDelay = DOWN_SCALE_DELAY.get(configuration);
+        return downScaleDelay.millis() - (now - scaleDownDetected);
+    }
+
     @Override
     public String name() {
         return NAME;
@@ -848,5 +928,15 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     @Override
     public List<DiscoveryNodeRole> roles() {
         return List.of(DiscoveryNodeRole.ML_ROLE);
+    }
+
+    private static boolean taskStateFilter(JobState jobState) {
+        return jobState == null || jobState.isNoneOf(JobState.CLOSED, JobState.FAILED);
+    }
+
+    private static boolean taskStateFilter(DataFrameAnalyticsState dataFrameAnalyticsState) {
+        // Don't count stopped and failed df-analytics tasks as they don't consume native memory
+        return dataFrameAnalyticsState == null
+            || dataFrameAnalyticsState.isNoneOf(DataFrameAnalyticsState.STOPPED, DataFrameAnalyticsState.FAILED);
     }
 }

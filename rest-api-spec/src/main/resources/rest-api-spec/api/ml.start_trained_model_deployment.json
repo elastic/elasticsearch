@@ -1,0 +1,37 @@
+{
+  "ml.start_trained_model_deployment":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-df-analytics-apis.html",
+      "description":"Start a trained model deployment."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/trained_models/{model_id}/deployment/_start",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "model_id":{
+              "type":"string",
+              "description":"The ID of the model to deploy"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait until the model is deployed"
+      }
+    }
+  }
+}

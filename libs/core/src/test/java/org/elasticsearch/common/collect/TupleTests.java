@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.collect;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;

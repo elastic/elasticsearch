@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
@@ -63,8 +64,10 @@ testClusters.matching { it.name == "integTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     setting 'ingest.geoip.downloader.enabled', 'false'
+    if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
+      setting 'es.shutdown_feature_flag_enabled', 'true'
+    }
     systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
-    systemProperty 'es.shutdown_feature_flag_enabled', 'true'
     keystorePassword 'keystore-password'
   }
 
@@ -84,6 +87,8 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   configFile 'KeywordTokenizer.rbbi'
   extraConfigFile 'hunspell/en_US/en_US.aff', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff')
   extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
+  extraConfigFile 'httpCa.p12', file("./httpCa.p12")
+  extraConfigFile 'transport.p12', file("./transport.p12")
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 

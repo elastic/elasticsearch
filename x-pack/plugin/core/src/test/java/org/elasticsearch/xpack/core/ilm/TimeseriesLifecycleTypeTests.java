@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
@@ -754,8 +754,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
 
             assertThat(err,
-                containsString("phases [cold] configure a [min_age] value less than the" +
-                    " [min_age] of [1d] for the [hot] phase, configuration: {cold=12h}"));
+                containsString("Your policy is configured to run the cold phase "+
+                    "(min_age: 12h) before the hot phase (min_age: 1d). You should change "+
+                    "the phase timing so that the phases will execute in the order of hot, warm, then cold."));
         }
 
         {
@@ -769,8 +770,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
 
             assertThat(err,
-                containsString("phases [frozen,delete] configure a [min_age] value less " +
-                    "than the [min_age] of [3d] for the [warm] phase, configuration: {frozen=1d, delete=2d}"));
+                containsString("Your policy is configured to run the frozen phase "+
+                    "(min_age: 1d) and the delete phase (min_age: 2d) before the warm phase (min_age: 3d)."+
+                    " You should change the phase timing so that the phases will execute in the order of hot, warm, then cold."));
         }
 
         {
@@ -784,8 +786,41 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
 
             assertThat(err,
-                containsString("phases [frozen,delete] configure a [min_age] value less than " +
-                    "the [min_age] of [3d] for the [warm] phase, configuration: {frozen=2d, delete=1d}"));
+                containsString("Your policy is configured to run the frozen phase "+
+                    "(min_age: 2d) and the delete phase (min_age: 1d) before the warm phase (min_age: 3d)."+
+                    " You should change the phase timing so that the phases will execute in the order of hot, warm, then cold."));
+        }
+
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(3), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+            Phase coldPhase = new Phase(COLD_PHASE, null, Collections.emptyMap());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+
+            String err =
+                validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
+
+            assertThat(err,
+                containsString("Your policy is configured to run the frozen phase "+
+                    "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the hot phase (min_age: 3d)."+
+                    " You should change the phase timing so that the phases will execute in the order of hot, warm, then cold."));
+        }
+
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(3), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+
+            String err =
+                validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
+
+            assertThat(err,
+                containsString("Your policy is configured to run the cold phase (min_age: 2d), the frozen phase "+
+                    "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the hot phase (min_age: 3d)."+
+                    " You should change the phase timing so that the phases will execute in the order of hot, warm, then cold."));
         }
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.packaging.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.DockerRun;
 import org.elasticsearch.packaging.util.Installation;
@@ -45,6 +46,7 @@ import static org.elasticsearch.packaging.util.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.Docker.getJson;
 import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
+import static org.elasticsearch.packaging.util.Docker.restartContainer;
 import static org.elasticsearch.packaging.util.Docker.rmDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
@@ -100,7 +102,7 @@ public class DockerTests extends PackagingTestCase {
      * Checks that the Docker image can be run, and that it passes various checks.
      */
     public void test010Install() {
-        verifyContainerInstallation(installation, distribution());
+        verifyContainerInstallation(installation);
     }
 
     /**
@@ -485,6 +487,50 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that settings are applied when they are supplied as environment variables with names that are:
+     * <ul>
+     *     <li>Prefixed with {@code ES_}</li>
+     *     <li>All uppercase</li>
+     *     <li>Dots (periods) are converted to underscores</li>
+     *     <li>Underscores in setting names are escaped by doubling them</li>
+     * </ul>
+     */
+    public void test086EnvironmentVariablesInSnakeCaseAreTranslated() {
+        // Note the double-underscore in the var name here, which retains the underscore in translation
+        installation = runContainer(distribution(), builder().envVars(Map.of("ES_XPACK_SECURITY_FIPS__MODE_ENABLED", "false")));
+
+        final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
+            .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
+            .findFirst();
+
+        assertThat(commandLine.isPresent(), equalTo(true));
+
+        assertThat(commandLine.get(), containsString("-Expack.security.fips_mode.enabled=false"));
+    }
+
+    /**
+     * Check that environment variables that do not match the criteria for translation to settings are ignored.
+     */
+    public void test087EnvironmentVariablesInIncorrectFormatAreIgnored() {
+        final Map<String, String> envVars = new HashMap<>();
+        // No ES_ prefix
+        envVars.put("XPACK_SECURITY_FIPS__MODE_ENABLED", "false");
+        // Not underscore-separated
+        envVars.put("ES.XPACK.SECURITY.FIPS_MODE.ENABLED", "false");
+        // Not uppercase
+        envVars.put("es_xpack_security_fips__mode_enabled", "false");
+        installation = runContainer(distribution(), builder().envVars(envVars));
+
+        final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
+            .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
+            .findFirst();
+
+        assertThat(commandLine.isPresent(), equalTo(true));
+
+        assertThat(commandLine.get(), not(containsString("-Expack.security.fips_mode.enabled=false")));
+    }
+
+    /**
      * Check whether the elasticsearch-certutil tool has been shipped correctly,
      * and if present then it can execute.
      */
@@ -674,6 +720,20 @@ public class DockerTests extends PackagingTestCase {
         final Result result = runContainerExpectingFailure(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "unknown")));
 
         assertThat(result.stderr, containsString("ERROR: ES_LOG_STYLE set to [unknown]. Expected [console] or [file]"));
+    }
+
+    /**
+     * Check that it when configuring logging to write to disk, the container can be restarted.
+     */
+    public void test124CanRestartContainerWithStackLoggingConfig() throws Exception {
+        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file")));
+
+        waitForElasticsearch(installation);
+
+        restartContainer();
+
+        // If something went wrong running Elasticsearch the second time, this will fail.
+        waitForElasticsearch(installation);
     }
 
     /**

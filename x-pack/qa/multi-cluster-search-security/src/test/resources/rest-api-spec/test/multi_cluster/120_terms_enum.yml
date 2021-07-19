@@ -1,0 +1,138 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "terms_enum_all_role"
+        body: >
+          {
+            "cluster": ["all"],
+            "indices": [
+              {
+                "names": ["my_remote_cluster:terms_enum_index"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "joe_all"
+        body: >
+          {
+            "password": "s3krit-password",
+            "roles" : [ "terms_enum_all_role" ]
+          }
+
+  - do:
+      security.put_role:
+        name: "terms_enum_none_role"
+        body: >
+          {
+            "cluster": ["all"],
+            "indices": [
+              {
+                "names": ["my_remote_cluster:terms_enum_index"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "joe_none"
+        body: >
+          {
+            "password": "s3krit-password",
+            "roles" : [ "terms_enum_none_role" ]
+          }
+
+  - do:
+      security.put_role:
+        name: "terms_enum_fls_role"
+        body: >
+          {
+            "cluster": ["all"],
+            "indices": [
+              {
+                "names": ["my_remote_cluster:terms_enum_index"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "joe_fls"
+        body: >
+          {
+            "password": "s3krit-password",
+            "roles" : [ "terms_enum_fls_role" ]
+          }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "joe_all"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "joe_none"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "joe_fls"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "terms_enum_all_role"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "terms_enum_none_role"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "terms_enum_fls_role"
+        ignore: 404
+
+---
+"Test terms enum on a remote cluster":
+  - do:
+      headers: { Authorization: "Basic am9lX2FsbDpzM2tyaXQtcGFzc3dvcmQ=" } # joe_all sees all docs
+      terms_enum:
+        index:  my_remote_cluster:terms_enum_index
+        body:  {"field": "foo", size: 2}
+  - length: { terms:           2 }
+  - match:  { terms.0:     "foo" }
+  - match:  { terms.1:  "foobar" }
+
+  - do:
+      headers: { Authorization: "Basic am9lX2FsbDpzM2tyaXQtcGFzc3dvcmQ=" } # joe_all sees all docs
+      terms_enum:
+        index: my_remote_cluster:terms_enum_*
+        body: { "field": "foo", "search_after": "foobar" }
+  - length: { terms:          1 }
+  - match: { terms.0:     "zar" }
+  - match: { complete:     true }
+
+  - do:
+      headers: { Authorization: "Basic am9lX25vbmU6czNrcml0LXBhc3N3b3Jk" } # joe_none can't see docs
+      terms_enum:
+        index:  my_remote_cluster:terms_enum_*
+        body:  {"field": "foo"}
+  - length: {terms: 0}
+
+  - do:
+      headers: { Authorization: "Basic am9lX2ZsczpzM2tyaXQtcGFzc3dvcmQ=" } # joe_fls can't see field
+      terms_enum:
+        index:  my_remote_*:terms_enum_index
+        body:  {"field": "foo"}
+  - length: {terms: 0}

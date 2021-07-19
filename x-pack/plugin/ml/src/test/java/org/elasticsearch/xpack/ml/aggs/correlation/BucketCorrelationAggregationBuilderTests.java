@@ -22,8 +22,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -48,10 +46,6 @@ public class BucketCorrelationAggregationBuilderTests extends BasePipelineAggreg
 
     @Override
     protected BucketCorrelationAggregationBuilder createTestAggregatorFactory() {
-        List<String> bucketPaths = Stream.generate(() -> randomAlphaOfLength(8))
-            .limit(2)
-            .collect(Collectors.toList());
-
         CorrelationFunction function = new CountCorrelationFunction(CountCorrelationIndicatorTests.randomInstance());
         return new BucketCorrelationAggregationBuilder(
             NAME,

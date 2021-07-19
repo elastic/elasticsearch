@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -254,6 +254,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     public ShardsIterator allShards(String[] indices) {
         return allShardsSatisfyingPredicate(indices, shardRouting -> true, false);
+    }
+
+    public ShardsIterator allActiveShards(String[] indices) {
+        return allShardsSatisfyingPredicate(indices, ShardRouting::active, false);
     }
 
     public ShardsIterator allShardsIncludingRelocationTargets(String[] indices) {

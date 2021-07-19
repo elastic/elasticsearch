@@ -375,7 +375,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }));
 
         Exception e = expectThrows(MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.field("field", randomAlphaOfLengthBetween(1024, 2048)))));
+            () -> mapper.parse(source(b -> b.field("field", randomAlphaOfLengthBetween(1025, 2048)))));
         assertThat(e.getCause().getMessage(),
             containsString("Dimension field [field] cannot be more than [1024] bytes long."));
     }

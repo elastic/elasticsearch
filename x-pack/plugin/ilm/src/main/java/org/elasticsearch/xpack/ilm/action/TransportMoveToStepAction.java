@@ -52,7 +52,8 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
             return;
         }
 
-        if (LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()) == null) {
+        final String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        if (policyName == null) {
             listener.onFailure(new IllegalArgumentException("index [" + request.getIndex() + "] is not managed by ILM"));
             return;
         }
@@ -68,8 +69,10 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
         // We do a pre-check here before invoking the cluster state update just so we can skip the submission if the request is bad.
         if (concreteTargetStepKey == null) {
             // This means we weren't able to find the key they specified
-            listener.onFailure(new IllegalArgumentException("unable to determine concrete " +
-                "step key from target next step key: " + abstractTargetKey));
+            String message = "cannot move index [" + indexMetadata.getIndex().getName() + "] with policy [" +
+                policyName + "]: unable to determine concrete step key from target next step key: " + abstractTargetKey;
+            logger.warn(message);
+            listener.onFailure(new IllegalArgumentException(message));
             return;
         }
 

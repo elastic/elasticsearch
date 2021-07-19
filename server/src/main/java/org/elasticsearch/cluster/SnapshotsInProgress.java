@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryOperation;
@@ -711,6 +712,22 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public Snapshot snapshot() {
             return this.snapshot;
+        }
+
+        public ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> shardsByRepoShardId() {
+            final ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> shardsByRepoShardId = ImmutableOpenMap.builder();
+            for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : shards) {
+                shardsByRepoShardId.put(new RepositoryShardId(indices.get(shard.key.getIndexName()), shard.key.getId()), shard.value);
+            }
+            return shardsByRepoShardId.build();
+        }
+
+        public Map<IndexId, Index> indexLookup() {
+            final Map<IndexId, Index> res = new HashMap<>();
+            for (ObjectCursor<ShardId> key : shards.keys()) {
+                res.put(indices.get(key.value.getIndexName()), key.value.getIndex());
+            }
+            return Map.copyOf(res);
         }
 
         public ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards() {

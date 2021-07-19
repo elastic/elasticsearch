@@ -68,6 +68,12 @@ import static org.hamcrest.Matchers.startsWith;
 public class SnapshotLifecycleRestIT extends ESRestTestCase {
     private static final String NEVER_EXECUTE_CRON_SCHEDULE = "* * * 31 FEB ? *";
 
+
+    @Override
+    protected boolean preserveFeatureStatesUponCompletion() {
+        return true;
+    }
+
     @Override
     protected boolean waitForAllSnapshotsWiped() {
         return true;

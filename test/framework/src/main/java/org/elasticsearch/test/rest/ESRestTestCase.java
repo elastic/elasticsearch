@@ -549,6 +549,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
+    protected boolean preserveFeatureStatesUponCompletion() {
+        return false;
+    }
+
     /**
      * Returns whether to wait to make absolutely certain that all snapshots
      * have been deleted.
@@ -559,7 +563,9 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         // First we invoke system index cleanup so that we don't get wildcard errors
         // later on
-        wipeSystemResources();
+        if (false == preserveFeatureStatesUponCompletion()) {
+            wipeSystemResources();
+        }
 
         // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
         // so we need to fully shut them down first otherwise a job might stall waiting

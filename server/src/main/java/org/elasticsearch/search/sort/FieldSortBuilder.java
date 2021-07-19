@@ -629,7 +629,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         NestedLookup nestedLookup = context.nestedLookup();
         String nestedParent = nestedLookup.getNestedParent(field);
-        if (nestedLookup.getNestedMappers().get(nestedParent).isIncludeInRoot() == false) {
+        if (nestedParent != null && nestedLookup.getNestedMappers().get(nestedParent).isIncludeInRoot() == false) {
             throw new QueryShardException(context,
                 "it is mandatory to set the [nested] context on the nested sort field: [" + field + "].");
         }

@@ -55,7 +55,7 @@ public interface NestedLookup {
         if (mappers == null || mappers.isEmpty()) {
             return NestedLookup.EMPTY;
         }
-        mappers.sort(Comparator.comparing(ObjectMapper::name));
+        mappers = mappers.stream().sorted(Comparator.comparing(ObjectMapper::name)).collect(Collectors.toList());
         Map<String, Query> parentFilters = new HashMap<>();
         Map<String, NestedObjectMapper> mappersByName = new HashMap<>();
         NestedObjectMapper previous = null;

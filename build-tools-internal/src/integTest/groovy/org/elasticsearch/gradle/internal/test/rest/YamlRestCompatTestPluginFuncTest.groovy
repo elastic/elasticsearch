@@ -212,7 +212,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               task.replaceKeyInMatch("match_.some.key_to_replace", "match_.some.key_that_was_replaced")
               task.replaceKeyInLength("key.in_length_to_replace", "key.in_length_that_was_replaced")
               task.replaceValueTextByKeyValue("keyvalue", "toreplace", "replacedkeyvalue")
-              task.replaceValueTextByKeyValue("index", "test", "test2", "two")
+              task.replaceValueTextByKeyValue("index", "ll", "test2", "two")
+              task.replaceValueInLength("something", 2, "one")
             })
             // can't actually spin up test cluster from this test
            tasks.withType(Test).configureEach{ enabled = false }
@@ -239,6 +240,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
           - is_true: "value_not_to_replace"
           - is_false: "value_not_to_replace"
           - length: { key.in_length_to_replace: 1 }
+          - length: { "something": 1 }
         ---
         "two":
           - do:
@@ -284,10 +286,6 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         ---
         one:
         - do:
-            do_.some.key_that_was_replaced:
-              index: "test"
-              id: 1
-              keyvalue : replacedkeyvalue
             warnings:
             - "warning1"
             - "warning2"
@@ -298,6 +296,10 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
             - "added allowed warning"
             allowed_warnings_regex:
             - "added allowed warning regex .* [0-9]"
+            do_.some.key_that_was_replaced:
+              index: "test"
+              id: 1
+              keyvalue: "replacedkeyvalue"
         - match:
             _source.values:
             - "z"
@@ -314,17 +316,19 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         - is_false: "replaced_value"
         - is_true: "value_not_to_replace"
         - is_false: "value_not_to_replace"
-        - length: { key.in_length_that_was_replaced: 1 }
+        - length:
+            key.in_length_that_was_replaced: 1
+        - length:
+            something: 2
         - match:
             _source.added:
               name: "jake"
               likes: "cheese"
-
         ---
         two:
         - do:
             get:
-              index: "test2"
+              index: "test"
               id: 1
             headers:
               Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
@@ -347,15 +351,14 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         - is_true: "value_not_to_replace"
         - is_false: "value_not_to_replace"
         ---
-        "use cat with no header":
-          - do:
-              cat.indices:
-                {}
-              allowed_warnings:
-                - "added allowed warning"
-              allowed_warnings_regex:
-                - "added allowed warning regex .* [0-9]"
-          - match: {}
+        use cat with no header:
+        - do:
+            cat.indices: {}
+            allowed_warnings:
+            - "added allowed warning"
+            allowed_warnings_regex:
+            - "added allowed warning regex .* [0-9]"
+        - match: {}
         """.stripIndent()).readAll()
 
         expectedAll.eachWithIndex{ ObjectNode expected, int i ->

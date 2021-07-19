@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SequenceWriter;
+import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -24,6 +25,7 @@ import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformer
 import org.elasticsearch.gradle.internal.test.rest.transform.do_.ReplaceKeyInDo;
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceKeyInLength;
+import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceValueInLength;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceKeyInMatch;
@@ -152,6 +154,10 @@ public class RestCompatTestTransformTask extends DefaultTask {
         transformations.add(new ReplaceKeyInLength(oldKeyName, newKeyName, null));
     }
 
+    public void replaceValueInLength(String oldKeyName, int newValue, String testName) {
+        transformations.add(new ReplaceValueInLength(oldKeyName, MAPPER.convertValue(newValue, IntNode.class), testName));
+    }
+
     /**
      * A transformation to replace the key in a match assertion.
      * @see ReplaceKeyInMatch
@@ -161,6 +167,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
     public void replaceKeyInMatch(String oldKeyName, String newKeyName) {
         transformations.add(new ReplaceKeyInMatch(oldKeyName, newKeyName, null));
     }
+
+
 
     /**
      * Replaces all the values of a is_true assertion for all project REST tests.

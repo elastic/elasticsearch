@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -587,7 +588,19 @@ public class AutodetectProcessManager implements ClusterStateListener {
                                 return;
                             }
                             processContext.getAutodetectCommunicator().restoreState(params.modelSnapshot());
-                            setJobState(jobTask, JobState.OPENED);
+                            setJobState(jobTask, JobState.OPENED, null, e -> {
+                                if (e != null) {
+                                    logSetJobStateFailure(JobState.OPENED, job.getId(), e);
+                                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                                        // Don't leave a process with no persistent task hanging around
+                                        processContext.newKillBuilder()
+                                            .setAwaitCompletion(false)
+                                            .setFinish(false)
+                                            .kill();
+                                        processByAllocation.remove(jobTask.getAllocationId());
+                                    }
+                                }
+                            });
                         }
                     } catch (Exception e1) {
                         // No need to log here as the persistent task framework will log it
@@ -903,14 +916,21 @@ public class AutodetectProcessManager implements ClusterStateListener {
         JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
         jobTask.updatePersistentTaskState(jobTaskState, ActionListener.wrap(
             persistentTask -> logger.info("Successfully set job state to [{}] for job [{}]", state, jobTask.getJobId()),
-            e -> logger.error(
-                () -> new ParameterizedMessage("Could not set job state to [{}] for job [{}]", state, jobTask.getJobId()),
-                e)
+            e -> logSetJobStateFailure(state, jobTask.getJobId(), e)
         ));
     }
 
-    void setJobState(JobTask jobTask, JobState state) {
-        setJobState(jobTask, state, null);
+    private void logSetJobStateFailure(JobState state, String jobId, Exception e) {
+        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+            logger.info(
+                () -> new ParameterizedMessage("Could not set job state to [{}] for job [{}] as it has been closed",
+                    state, jobId),
+                e);
+        } else {
+            logger.error(
+                () -> new ParameterizedMessage("Could not set job state to [{}] for job [{}]", state, jobId),
+                e);
+        }
     }
 
     void setJobState(JobTask jobTask, JobState state, String reason, CheckedConsumer<Exception, IOException> handler) {

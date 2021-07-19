@@ -35,6 +35,7 @@ import static org.mockito.Mockito.mock;
 
 public class ApiKeyGeneratorTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testGenerateApiKeySuccessfully() {
         final ApiKeyService apiKeyService = mock(ApiKeyService.class);
         final CompositeRolesStore rolesStore = mock(CompositeRolesStore.class);

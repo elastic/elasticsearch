@@ -85,7 +85,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
     private NativePrivilegeStore store;
     private List<ActionRequest> requests;
-    private AtomicReference<ActionListener> listener;
+    private AtomicReference<ActionListener<ActionResponse>> listener;
     private Client client;
     private SecurityIndexManager securityIndex;
     private CacheInvalidatorRegistry cacheInvalidatorRegistry;
@@ -96,10 +96,11 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         listener = new AtomicReference<>();
         client = new NoOpClient(getTestName()) {
             @Override
+            @SuppressWarnings("unchecked")
             protected <Request extends ActionRequest, Response extends ActionResponse>
             void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 NativePrivilegeStoreTests.this.requests.add(request);
-                NativePrivilegeStoreTests.this.listener.set(listener);
+                NativePrivilegeStoreTests.this.listener.set((ActionListener<ActionResponse>) listener);
             }
         };
         securityIndex = mock(SecurityIndexManager.class);
@@ -111,13 +112,13 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             assertThat(invocationOnMock.getArguments()[1], instanceOf(Runnable.class));
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         Mockito.doAnswer(invocationOnMock -> {
             assertThat(invocationOnMock.getArguments().length, equalTo(2));
             assertThat(invocationOnMock.getArguments()[1], instanceOf(Runnable.class));
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
         store = new NativePrivilegeStore(Settings.EMPTY, client, securityIndex, cacheInvalidatorRegistry);
     }
@@ -466,7 +467,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         requests.stream().map(IndexRequest.class::cast).forEach(indexRequests::add);
         requests.clear();
 
-        final ActionListener indexListener = listener.get();
+        final ActionListener<ActionResponse> indexListener = listener.get();
         final String uuid = UUIDs.randomBase64UUID(random());
         for (int i = 0; i < putPrivileges.size(); i++) {
             ApplicationPrivilegeDescriptor privilege = putPrivileges.get(i);
@@ -510,7 +511,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         requests.stream().map(DeleteRequest.class::cast).forEach(deletes::add);
         requests.clear();
 
-        final ActionListener deleteListener = listener.get();
+        final ActionListener<ActionResponse> deleteListener = listener.get();
         final String uuid = UUIDs.randomBase64UUID(random());
         for (int i = 0; i < privilegeNames.size(); i++) {
             String name = privilegeNames.get(i);
@@ -633,5 +634,10 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         final Collection<ApplicationPrivilegeDescriptor> getPrivileges = future.get(1, TimeUnit.SECONDS);
         assertThat(getPrivileges, iterableWithSize(sourcePrivileges.size()));
         assertThat(new HashSet<>(getPrivileges), equalTo(new HashSet<>(sourcePrivileges)));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Consumer<T> anyConsumer() {
+        return any(Consumer.class);
     }
 }

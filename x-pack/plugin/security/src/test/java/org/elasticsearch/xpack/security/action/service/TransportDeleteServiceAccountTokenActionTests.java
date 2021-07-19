@@ -13,12 +13,14 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.junit.Before;
 
 import java.util.Collections;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -45,13 +47,12 @@ public class TransportDeleteServiceAccountTokenActionTests extends ESTestCase {
         }).when(httpTlsRuntimeCheck).checkTlsThenExecute(any(), any(), any());
     }
 
-    @SuppressWarnings("rawtypes")
     public void testDoExecuteWillDelegate() {
         final DeleteServiceAccountTokenRequest request = new DeleteServiceAccountTokenRequest(
             randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
-        final ActionListener listener = mock(ActionListener.class);
+        @SuppressWarnings("unchecked") final ActionListener<DeleteServiceAccountTokenResponse> listener = mock(ActionListener.class);
         transportDeleteServiceAccountTokenAction.doExecute(mock(Task.class), request, listener);
-        verify(indexServiceAccountTokenStore).deleteToken(eq(request), any(ActionListener.class));
+        verify(indexServiceAccountTokenStore).deleteToken(eq(request), anyActionListener());
     }
 
 }

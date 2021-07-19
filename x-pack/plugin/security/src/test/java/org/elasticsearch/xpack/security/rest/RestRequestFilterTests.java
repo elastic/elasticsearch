@@ -35,8 +35,10 @@ public class RestRequestFilterTests extends ESTestCase {
         Map<String, Object> map = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput()).map();
+        @SuppressWarnings("unchecked")
         Map<String, Object> root = (Map<String, Object>) map.get("root");
         assertNotNull(root);
+        @SuppressWarnings("unchecked")
         Map<String, Object> second = (Map<String, Object>) root.get("second");
         assertNotNull(second);
         assertEquals("bar", second.get("foo"));
@@ -54,8 +56,10 @@ public class RestRequestFilterTests extends ESTestCase {
         Map<String, Object> map = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput()).map();
+        @SuppressWarnings("unchecked")
         Map<String, Object> root = (Map<String, Object>) map.get("root");
         assertNotNull(root);
+        @SuppressWarnings("unchecked")
         Map<String, Object> second = (Map<String, Object>) root.get("second");
         assertNotNull(second);
         assertEquals("bar", second.get("foo"));
@@ -73,8 +77,10 @@ public class RestRequestFilterTests extends ESTestCase {
         Map<String, Object> map = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput()).map();
+        @SuppressWarnings("unchecked")
         Map<String, Object> root = (Map<String, Object>) map.get("root");
         assertNotNull(root);
+        @SuppressWarnings("unchecked")
         Map<String, Object> second = (Map<String, Object>) root.get("second");
         assertNotNull(second);
         assertEquals("bar", second.get("foo"));

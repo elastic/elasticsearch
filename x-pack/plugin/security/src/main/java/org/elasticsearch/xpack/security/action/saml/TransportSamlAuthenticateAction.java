@@ -64,6 +64,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                     return;
                 }
                 assert authentication != null : "authentication should never be null at this point";
+                @SuppressWarnings("unchecked")
                 final Map<String, Object> tokenMeta = (Map<String, Object>) result.getMetadata().get(SamlRealm.CONTEXT_TOKEN_DATA);
                 tokenService.createOAuth2Tokens(authentication, originatingAuthentication,
                         tokenMeta, true, ActionListener.wrap(tokenResult -> {

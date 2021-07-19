@@ -38,12 +38,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -87,6 +87,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.enabled(), is(false));
     }
 
+    @SuppressWarnings("rawtypes")
     public void testUsage() throws Exception {
         final boolean explicitlyDisabled = randomBoolean();
         final boolean enabled = explicitlyDisabled == false && randomBoolean();
@@ -312,14 +313,16 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
     private void configureRealmsUsage(Map<String, Object> realmsUsageStats) {
         doAnswer(invocationOnMock -> {
-            ActionListener<Map<String, Object>> listener = (ActionListener) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<Map<String, Object>> listener = (ActionListener<Map<String, Object>>) invocationOnMock.getArguments()[0];
             listener.onResponse(realmsUsageStats);
             return Void.TYPE;
-        }).when(realms).usageStats(any(ActionListener.class));
+        }).when(realms).usageStats(anyActionListener());
     }
 
     private void configureRoleStoreUsage(boolean rolesStoreEnabled) {
         doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
             ActionListener<Map<String, Object>> listener = (ActionListener<Map<String, Object>>) invocationOnMock.getArguments()[0];
             if (rolesStoreEnabled) {
                 listener.onResponse(Collections.singletonMap("count", 1));
@@ -327,12 +330,13 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                 listener.onResponse(Collections.emptyMap());
             }
             return Void.TYPE;
-        }).when(rolesStore).usageStats(any(ActionListener.class));
+        }).when(rolesStore).usageStats(anyActionListener());
     }
 
     private void configureRoleMappingStoreUsage(boolean roleMappingStoreEnabled) {
         doAnswer(invocationOnMock -> {
-            ActionListener<Map<String, Object>> listener = (ActionListener) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<Map<String, Object>> listener = (ActionListener<Map<String, Object>>) invocationOnMock.getArguments()[0];
             if (roleMappingStoreEnabled) {
                 final Map<String, Object> map = new HashMap<>();
                 map.put("size", 12L);
@@ -342,7 +346,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                 listener.onResponse(Collections.emptyMap());
             }
             return Void.TYPE;
-        }).when(roleMappingStore).usageStats(any(ActionListener.class));
+        }).when(roleMappingStore).usageStats(anyActionListener());
     }
 
     private SecurityUsageTransportAction newUsageAction(Settings settings) {

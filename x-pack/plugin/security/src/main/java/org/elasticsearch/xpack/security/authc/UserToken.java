@@ -149,6 +149,7 @@ public final class UserToken implements Writeable, ToXContentObject {
         if (versionId == null) {
             throw new IllegalStateException("user token source document does not have the \"version\" field");
         }
+        @SuppressWarnings("unchecked")
         final Map<String, Object> metadata = (Map<String, Object>) source.get("metadata");
         final String authString = (String) source.get("authentication");
         if (authString == null) {

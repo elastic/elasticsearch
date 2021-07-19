@@ -18,20 +18,18 @@ import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -84,16 +82,14 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         request.name(roleName);
 
         final boolean found = randomBoolean();
-        doAnswer(new Answer() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                Object[] args = invocation.getArguments();
-                assert args.length == 2;
-                ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
-                listener.onResponse(found);
-                return null;
-            }
-        }).when(rolesStore).deleteRole(eq(request), any(ActionListener.class));
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
+            listener.onResponse(found);
+            return null;
+        }).when(rolesStore).deleteRole(eq(request), anyActionListener());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteRoleResponse> responseRef = new AtomicReference<>();
@@ -112,7 +108,7 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(responseRef.get().found(), is(found));
         assertThat(throwableRef.get(), is(nullValue()));
-        verify(rolesStore, times(1)).deleteRole(eq(request), any(ActionListener.class));
+        verify(rolesStore, times(1)).deleteRole(eq(request), anyActionListener());
     }
 
     public void testException() {
@@ -126,16 +122,14 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         DeleteRoleRequest request = new DeleteRoleRequest();
         request.name(roleName);
 
-        doAnswer(new Answer() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                Object[] args = invocation.getArguments();
-                assert args.length == 2;
-                ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
-                listener.onFailure(e);
-                return null;
-            }
-        }).when(rolesStore).deleteRole(eq(request), any(ActionListener.class));
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
+            listener.onFailure(e);
+            return null;
+        }).when(rolesStore).deleteRole(eq(request), anyActionListener());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteRoleResponse> responseRef = new AtomicReference<>();
@@ -154,6 +148,6 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(notNullValue()));
         assertThat(throwableRef.get(), is(sameInstance(e)));
-        verify(rolesStore, times(1)).deleteRole(eq(request), any(ActionListener.class));
+        verify(rolesStore, times(1)).deleteRole(eq(request), anyActionListener());
     }
 }

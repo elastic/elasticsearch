@@ -112,7 +112,8 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
     public void testKibanaEnrollmentFailedPasswordChange() {
         // Override change password mock
         doAnswer(invocation -> {
-            ActionListener<ActionResponse.Empty> listener = (ActionListener) invocation.getArguments()[2];
+            @SuppressWarnings("unchecked")
+            ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) invocation.getArguments()[2];
             listener.onFailure(new ValidationException());
             return null;
         }).when(client).execute(eq(ChangePasswordAction.INSTANCE), any(), any());

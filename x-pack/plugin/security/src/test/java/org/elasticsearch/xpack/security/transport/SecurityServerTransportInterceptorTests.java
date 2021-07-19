@@ -138,7 +138,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertTrue(calledWrappedSender.get());
         assertThat(sendingUser.get(), is(SystemUser.INSTANCE));
         verify(xPackLicenseState).isSecurityEnabled();
-        verify(securityContext).executeAsUser(any(User.class), any(Consumer.class), eq(Version.CURRENT));
+        verify(securityContext).executeAsUser(any(User.class), anyConsumer(), eq(Version.CURRENT));
         verifyNoMoreInteractions(xPackLicenseState);
     }
 
@@ -173,7 +173,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertTrue(calledWrappedSender.get());
         assertEquals(SystemUser.INSTANCE, sendingUser.get());
         verify(xPackLicenseState).isSecurityEnabled();
-        verify(securityContext).executeAsUser(any(User.class), any(Consumer.class), eq(Version.CURRENT));
+        verify(securityContext).executeAsUser(any(User.class), anyConsumer(), eq(Version.CURRENT));
         verifyNoMoreInteractions(xPackLicenseState);
     }
 
@@ -207,7 +207,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals(user, sendingUser.get());
         assertEquals(user, securityContext.getUser());
         verify(xPackLicenseState).isSecurityEnabled();
-        verify(securityContext, never()).executeAsUser(any(User.class), any(Consumer.class), any(Version.class));
+        verify(securityContext, never()).executeAsUser(any(User.class), anyConsumer(), any(Version.class));
         verifyNoMoreInteractions(xPackLicenseState);
     }
 
@@ -244,7 +244,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals(SystemUser.INSTANCE, sendingUser.get());
         assertEquals(user, securityContext.getUser());
         verify(xPackLicenseState).isSecurityEnabled();
-        verify(securityContext).executeAsUser(any(User.class), any(Consumer.class), eq(Version.CURRENT));
+        verify(securityContext).executeAsUser(any(User.class), anyConsumer(), eq(Version.CURRENT));
         verifyNoMoreInteractions(xPackLicenseState);
     }
 
@@ -274,7 +274,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals("there should always be a user when sending a message for action [indices:foo]", e.getMessage());
         assertNull(securityContext.getUser());
         verify(xPackLicenseState).isSecurityEnabled();
-        verify(securityContext, never()).executeAsUser(any(User.class), any(Consumer.class), any(Version.class));
+        verify(securityContext, never()).executeAsUser(any(User.class), anyConsumer(), any(Version.class));
         verifyNoMoreInteractions(xPackLicenseState);
     }
 
@@ -428,5 +428,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         return generateRandomStringArray(3, 10, false, true);
     }
 
-
+    @SuppressWarnings("unchecked")
+    private static Consumer<ThreadContext.StoredContext> anyConsumer() {
+        return any(Consumer.class);
+    }
 }

@@ -63,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -198,7 +199,7 @@ public class LdapRealmTests extends LdapTestCase {
         assertThat(future.actionGet().getStatus(), is(AuthenticationResult.Status.SUCCESS));
 
         //verify one and only one session -> caching is working
-        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), anyActionListener());
     }
 
     public void testAuthenticateCachingRefresh() throws Exception {
@@ -225,7 +226,7 @@ public class LdapRealmTests extends LdapTestCase {
         future.actionGet();
 
         //verify one and only one session -> caching is working
-        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), anyActionListener());
 
         roleMapper.notifyRefresh();
 
@@ -234,7 +235,7 @@ public class LdapRealmTests extends LdapTestCase {
         future.actionGet();
 
         //we need to session again
-        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), anyActionListener());
     }
 
     public void testAuthenticateNoncaching() throws Exception {
@@ -262,7 +263,7 @@ public class LdapRealmTests extends LdapTestCase {
         future.actionGet();
 
         //verify two and only two binds -> caching is disabled
-        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), anyActionListener());
     }
 
     public void testDelegatedAuthorization() throws Exception {

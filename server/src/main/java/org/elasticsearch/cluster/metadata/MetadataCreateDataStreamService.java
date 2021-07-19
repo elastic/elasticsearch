@@ -223,7 +223,7 @@ public class MetadataCreateDataStreamService {
             writeIndex.getIndex().getName(),
             Strings.arrayToCommaDelimitedString(backingIndices.stream().map(i -> i.getIndex().getName()).toArray()));
 
-        if (template.template().aliases() != null) {
+        if (template.template() != null && template.template().aliases() != null) {
             for (var alias : template.template().aliases().values()) {
                 builder.put(alias.getAlias(), dataStreamName, alias.writeIndex());
             }

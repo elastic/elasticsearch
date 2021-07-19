@@ -130,7 +130,6 @@ public class RootObjectMapper extends ObjectMapper {
                     child.setIncludeInParent(true);
                     child.setIncludeInRoot(false);
                 }
-                fixRedundantIncludes(child, includeInRootViaParent || includedInRoot);
             }
         }
     }

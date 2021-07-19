@@ -67,6 +67,7 @@ public final class GroupByOptimizer {
         }
 
         // Arrays.sort provides stable sort (to respect the input order if priorities match), Collections.sort not
+        // as generic arrays and generic types can't be combined, the "struct" is necessary
         UnmodifiableEntryWithPriority[] prioritizedGroups = new UnmodifiableEntryWithPriority[groups.size()];
 
         int index = 0;

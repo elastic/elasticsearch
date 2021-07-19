@@ -25,11 +25,11 @@ import java.util.Objects;
 public class SignificantLongTerms extends InternalMappedSignificantTerms<SignificantLongTerms, SignificantLongTerms.Bucket> {
     public static final String NAME = "siglterms";
 
-    static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
+    public static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
 
         long term;
 
-        Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations,
+        public Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations,
                 DocValueFormat format, double score) {
             super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
             this.term = term;

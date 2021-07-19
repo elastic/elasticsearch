@@ -92,7 +92,7 @@ public abstract class InternalMappedSignificantTerms<
     }
 
     @Override
-    protected SignificanceHeuristic getSignificanceHeuristic() {
+    public SignificanceHeuristic getSignificanceHeuristic() {
         return significanceHeuristic;
     }
 

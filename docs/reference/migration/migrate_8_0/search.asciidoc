@@ -173,5 +173,16 @@ If you query date fields without a specified `format`, check if the values in yo
 actually meant to be milliseconds-since-epoch and use a numeric value in this case. If not, use
 a string value which gets parsed by either the date format set on the field in the mappings or
 by `strict_date_optional_time` by default.
+====
 
+.The `geo_bounding_box` query's `type` parameter has been removed.
+[%collapsible]
+====
+*Details* +
+The `geo_bounding_box` query's `type` parameter was deprecated in 7.14.0 and has
+been removed in 8.0.0. This parameter is a no-op and has no effect on the query.
+
+*Impact* +
+Discontinue use of the `type` parameter. `geo_bounding_box` queries that include
+this parameter will return an error.
 ====

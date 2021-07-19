@@ -91,6 +91,11 @@ public class MapXContentParser extends AbstractXContentParser {
     }
 
     @Override
+    public void allowDuplicateKeys(boolean allowDuplicateKeys) {
+        throw new UnsupportedOperationException("Allowing duplicate keys is not possible for maps");
+    }
+
+    @Override
     public Token nextToken() throws IOException {
         if (iterator == null) {
             return null;

@@ -154,4 +154,12 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
         }
         return true;
     }
+
+    /**
+     * Whether this values source only guarantees stable hashes for {@link #hashCode(int)} and {@link #hashCodeCurrent()}
+     * in the context of a single LeafReader or whether rehashing is required when switching LeafReaders.
+     */
+    public boolean requiresRehashingWhenSwitchingLeafReaders() {
+        return false;
+    }
 }

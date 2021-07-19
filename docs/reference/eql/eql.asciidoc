@@ -600,8 +600,7 @@ GET /my-data-stream/_eql/search
 
 By default, EQL search requests are synchronous and wait for complete results
 before returning a response. However, complete results can take longer for
-searches across large data sets, <<data-tiers,cold>> or <<data-tiers,frozen>>
-data, or <<modules-cross-cluster-search,multiple clusters>>.
+searches across large data sets or <<data-tiers,frozen>> data.
 
 To avoid long waits, run an async EQL search. Set `wait_for_completion_timeout`
 to a duration you'd like to wait for synchronous results.
@@ -733,7 +732,7 @@ search is still ongoing, {es} cancels the search request.
 
 [source,console]
 ----
-DELETE /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?keep_alive=5d
+DELETE /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=
 ----
 // TEST[skip: no access to search ID]
 
@@ -792,6 +791,99 @@ results by using <<get-async-eql-status-api,get async EQL status API>>.
 
 You can also manually delete saved synchronous searches using the
 <<delete-async-eql-search-api,delete async EQL search API>>.
+
+[discrete]
+[[run-eql-search-across-clusters]]
+=== Run an EQL search across clusters
+
+experimental::[]
+
+The EQL search API supports <<modules-cross-cluster-search,cross-cluster
+search>>. However, the local and <<modules-remote-clusters,remote clusters>>
+must use the same {es} version.
+
+The following <<cluster-update-settings,update cluster settings>> request
+adds two remote clusters: `cluster_one` and `cluster_two`.
+
+[source,console]
+----
+PUT /_cluster/settings
+{
+  "persistent": {
+    "cluster": {
+      "remote": {
+        "cluster_one": {
+          "seeds": [
+            "127.0.0.1:9300"
+          ]
+        },
+        "cluster_two": {
+          "seeds": [
+            "127.0.0.1:9301"
+          ]
+        }
+      }
+    }
+  }
+}
+----
+// TEST[setup:host]
+// TEST[s/127.0.0.1:930\d+/\${transport_host}/]
+
+To target a data stream or index on a remote cluster, use the
+`<cluster>:<target>` syntax.
+
+[source,console]
+----
+GET /cluster_one:my-data-stream,cluster_two:my-data-stream/_eql/search
+{
+  "query": """
+    process where process.name == "regsvr32.exe"
+  """
+}
+----
+// TEST[continued]
+// TEST[setup:sec_logs]
+// TEST[teardown:data_stream_cleanup]
+
+[discrete]
+[[eql-circuit-breaker]]
+=== EQL circuit breaker settings
+
+When a <<eql-sequences, sequence>> query is executed, the node handling the query
+needs to keep some structures in memory, which are needed by the algorithm
+implementing the sequence matching. When large amounts of data need to be processed,
+and/or a large amount of matched sequences is requested by the user (by setting the
+<<eql-search-api-params-size, size>> query param), the memory occupied by those
+structures could potentially exceed the available memory of the JVM. This would cause
+an `OutOfMemory` exception which would bring down the node.
+
+To prevent this from happening, a special <<circuit-breaker, circuit breaker>> is used,
+which limits the memory allocation during the execution of a <<eql-sequences, sequence>>
+query. When the breaker is triggered, an `org.elasticsearch.common.breaker.CircuitBreakingException`
+is thrown and a descriptive error message is returned to the user.
+
+This <<circuit-breaker, circuit breaker>> can be configured using the following settings:
+
+`breaker.eql_sequence.limit`::
+(<<cluster-update-settings,Dynamic>>) The limit for circuit breaker used to restrict
+the memory utilisation during the execution of an EQL sequence query. This value is
+defined as a percentage of the JVM heap. Defaults to `50%`. If the
+<<parent-circuit-breaker,parent circuit breaker>> is set to a value less than `50%`,
+this setting uses that value as its default instead.
+
+`breaker.eql_sequence.overhead`::
+(<<cluster-update-settings,Dynamic>>) A constant that sequence query memory
+estimates are multiplied by to determine a final estimate. Defaults to `1`.
+
+`breaker.eql_sequence.type`::
+(<<static-cluster-setting,Static>>) Circuit breaker type. Valid values are:
+
+`memory` (Default):::
+The breaker limits memory usage for EQL sequence queries.
+
+`noop`:::
+Disables the breaker.
 
 include::syntax.asciidoc[]
 include::functions.asciidoc[]

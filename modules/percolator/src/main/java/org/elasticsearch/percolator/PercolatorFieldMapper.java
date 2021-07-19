@@ -44,14 +44,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -332,7 +333,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public void parse(DocumentParserContext context) throws IOException {
         SearchExecutionContext searchExecutionContext = this.searchExecutionContext.get();
         if (context.doc().getField(queryBuilderField.name()) != null) {
             // If a percolator query has been defined in an array object then multiple percolator queries
@@ -362,7 +363,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,
-                                        QueryBuilder queryBuilder, ParseContext context) throws IOException {
+                                        QueryBuilder queryBuilder, DocumentParserContext context) throws IOException {
         try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
             try (OutputStreamStreamOutput out  = new OutputStreamStreamOutput(stream)) {
                 out.setVersion(indexVersion);
@@ -380,8 +381,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         INDEXED_KEYWORD.freeze();
     }
 
-    void processQuery(Query query, ParseContext context) {
-        ParseContext.Document doc = context.doc();
+    void processQuery(Query query, DocumentParserContext context) {
+        LuceneDocument doc = context.doc();
         PercolatorFieldType pft = (PercolatorFieldType) this.fieldType();
         QueryAnalyzer.Result result;
         result = QueryAnalyzer.analyze(query);
@@ -451,7 +452,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) {
+    protected void parseCreateField(DocumentParserContext context) {
         throw new UnsupportedOperationException("should not be invoked");
     }
 

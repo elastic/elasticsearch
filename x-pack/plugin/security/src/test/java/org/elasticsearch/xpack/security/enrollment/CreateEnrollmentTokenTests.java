@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
 import org.elasticsearch.xpack.security.tool.HttpResponse;
 import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -50,6 +51,11 @@ import static org.mockito.Mockito.when;
 public class CreateEnrollmentTokenTests extends ESTestCase {
     private Environment environment;
 
+    @BeforeClass
+    public static void muteInFips(){
+        assumeFalse("Enrollment is not supported in FIPS 140-2 as we are using PKCS#12 keystores", inFipsJvm());
+    }
+
     @Before
     public void setupMocks() throws Exception {
         final Path tempDir = createTempDir();
@@ -63,9 +69,9 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             .put("xpack.security.enabled", true)
             .put("xpack.http.ssl.enabled", true)
             .put("xpack.security.authc.api_key.enabled", true)
-            .put("xpack.http.ssl.truststore.path", "httpCa.p12")
+            .put("xpack.http.ssl.truststore.path", httpCaPath)
             .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.keystore.path", "httpCa.p12")
+            .put("xpack.security.http.ssl.keystore.path", httpCaPath)
             .put("xpack.security.enrollment.enabled", "true")
             .setSecureSettings(secureSettings)
             .put("path.home", tempDir)
@@ -128,7 +134,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         Map<String, String> infoNode = getDecoded(tokenNode);
         assertEquals("8.0.0", infoNode.get("ver"));
         assertEquals("[192.168.0.1:9201, 172.16.254.1:9202, [2001:db8:0:1234:0:567:8:1]:9203]", infoNode.get("adr"));
-        assertEquals("ecdc64cebdfa501b771bcf43eb38b43dc3a90d78", infoNode.get("fgr"));
+        assertEquals("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d", infoNode.get("fgr"));
         assertEquals("DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg", infoNode.get("key"));
 
         final String tokenKibana = createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic"));
@@ -136,7 +142,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         Map<String, String> infoKibana = getDecoded(tokenKibana);
         assertEquals("8.0.0", infoKibana.get("ver"));
         assertEquals("[192.168.0.1:9201, 172.16.254.1:9202, [2001:db8:0:1234:0:567:8:1]:9203]", infoKibana.get("adr"));
-        assertEquals("ecdc64cebdfa501b771bcf43eb38b43dc3a90d78", infoKibana.get("fgr"));
+        assertEquals("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d", infoKibana.get("fgr"));
         assertEquals("DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg", infoKibana.get("key"));
     }
 
@@ -202,7 +208,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             .put("xpack.http.ssl.enabled", true)
             .put("xpack.security.authc.api_key.enabled", true)
             .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.keystore.path", "transport.p12")
+            .put("xpack.security.http.ssl.keystore.path", httpNoCaPath)
             .put("xpack.security.enrollment.enabled", "true")
             .setSecureSettings(secureSettings)
             .put("path.home", tempDir)
@@ -255,7 +261,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             .put("xpack.http.ssl.enabled", true)
             .put("xpack.security.authc.api_key.enabled", true)
             .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.keystore.path", "httpCa2.p12")
+            .put("xpack.security.http.ssl.keystore.path", httpNoCaPath)
             .put("xpack.security.enrollment.enabled", "true")
             .setSecureSettings(secureSettings)
             .put("path.home", tempDir)
@@ -324,9 +330,9 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             .put("xpack.security.enabled", true)
             .put("xpack.http.ssl.enabled", true)
             .put("xpack.security.authc.api_key.enabled", true)
-            .put("xpack.http.ssl.truststore.path", "httpCa.p12")
+            .put("xpack.http.ssl.truststore.path", httpCaPath)
             .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.keystore.path", "httpCa.p12")
+            .put("xpack.security.http.ssl.keystore.path", httpCaPath)
             .setSecureSettings(secureSettings)
             .put("path.home", tempDir)
             .build();
@@ -367,7 +373,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
 
         final List<String> invalid_addresses = Arrays.asList("nldfnbndflbnl");
         UnknownHostException ex = expectThrows(UnknownHostException.class, () -> getFilteredAddresses(invalid_addresses));
-        assertThat(ex.getMessage(), Matchers.startsWith("nldfnbndflbnl:"));
+        assertThat(ex.getMessage(), Matchers.containsString("nldfnbndflbnl"));
     }
 
     private Map<String, String> getDecoded(String token) throws IOException {

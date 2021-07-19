@@ -22,7 +22,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -392,8 +391,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException
-                        && Strings.isAllOrWildcard(request.getJobId())) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                         logger.trace(
                             () -> new ParameterizedMessage(
                                 "[{}] [{}] failed to close job due to resource not found exception",
@@ -416,8 +414,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
                 }
             });
         }, e -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException
-                && Strings.isAllOrWildcard(request.getJobId())) {
+            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                 logger.trace(
                     () -> new ParameterizedMessage(
                         "[{}] [{}] failed to update job to closing due to resource not found exception",
@@ -481,8 +478,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
                             @Override
                             public void onFailure(Exception e) {
                                 final int slot = counter.incrementAndGet();
-                                if ((ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException &&
-                                    Strings.isAllOrWildcard(new String[]{request.getJobId()})) == false) {
+                                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
                                     failures.set(slot - 1, e);
                                 }
                                 if (slot == numberOfJobs) {

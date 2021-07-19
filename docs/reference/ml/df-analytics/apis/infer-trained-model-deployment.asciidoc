@@ -1,0 +1,57 @@
+[role="xpack"]
+[testenv="basic"]
+[[infer-trained-model-deployment]]
+= Infer trained model deployment API
+[subs="attributes"]
+++++
+<titleabbrev>Infer trained model deployment</titleabbrev>
+++++
+
+Evaluates a trained model.
+
+[[infer-trained-model-deployment-request]]
+== {api-request-title}
+
+`POST _ml/trained_models/<model_id>/deployment/_infer`
+
+////
+[[infer-trained-model-deployment-prereq]]
+== {api-prereq-title}
+
+////
+////
+[[infer-trained-model-deployment-desc]]
+== {api-description-title}
+
+////
+
+[[infer-trained-model-deployment-path-params]]
+== {api-path-parms-title}
+
+`<model_id>`::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+[[infer-trained-model-deployment-query-params]]
+== {api-query-parms-title}
+
+`timeout`::
+(Optional, time)
+Controls the amount of time to wait for {infer} results. Defaults to 10 seconds.
+
+////
+[role="child_attributes"]
+[[infer-trained-model-deployment-results]]
+== {api-response-body-title}
+
+////
+////
+[[ml-get-trained-models-response-codes]]
+== {api-response-codes-title}
+
+////
+////
+[[infer-trained-model-deployment-example]]
+== {api-examples-title}
+
+////

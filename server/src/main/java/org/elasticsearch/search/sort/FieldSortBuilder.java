@@ -16,7 +16,6 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateMathParser;
@@ -24,6 +23,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSortConfig;
@@ -35,8 +35,8 @@ import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
-import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -622,8 +622,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Throws an exception if the provided <code>field</code> requires a nested context.
      */
     static void validateMissingNestedPath(SearchExecutionContext context, String field) {
-        NestedObjectMapper contextMapper = context.nestedScope().getObjectMapper();
-        if (contextMapper != null) {
+        ObjectMapper contextMapper = context.nestedScope().getObjectMapper();
+        if (contextMapper != null && contextMapper.nested().isNested() == false) {
             // already in nested context
             return;
         }

@@ -427,8 +427,9 @@ public final class DocumentParser {
                 + "] as object, but found a concrete value");
         }
 
-        if (mapper.isNested()) {
-            context = nestedContext(context, (NestedObjectMapper) mapper);
+        ObjectMapper.Nested nested = mapper.nested();
+        if (nested.isNested()) {
+            context = nestedContext(context, mapper);
         }
 
         // if we are at the end of the previous object, advance
@@ -442,8 +443,8 @@ public final class DocumentParser {
 
         innerParseObject(context, mapper, parser, currentFieldName, token);
         // restore the enable path flag
-        if (mapper.isNested()) {
-            nested(context, (NestedObjectMapper) mapper);
+        if (nested.isNested()) {
+            nested(context, nested);
         }
     }
 
@@ -791,7 +792,7 @@ public final class DocumentParser {
                             context.sourceToParse().dynamicTemplates().get(currentPath) + "]");
                     }
                     mapper = (ObjectMapper) fieldMapper;
-                    if (mapper.isNested()) {
+                    if (mapper.nested() != ObjectMapper.Nested.NO) {
                         throw new MapperParsingException("It is forbidden to create dynamic nested objects (["
                             + currentPath + "]) through `copy_to` or dots in field names");
                     }
@@ -853,7 +854,7 @@ public final class DocumentParser {
                 return null;
             }
             objectMapper = (ObjectMapper)mapper;
-            if (objectMapper.isNested()) {
+            if (objectMapper.nested().isNested()) {
                 throw new MapperParsingException("Cannot add a value for field ["
                         + fieldName + "] since one of the intermediate objects is mapped as a nested object: ["
                         + mapper.name() + "]");

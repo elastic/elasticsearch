@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -35,7 +36,7 @@ public class MappingLookupTests extends ESTestCase {
     private static MappingLookup createMappingLookup(List<FieldMapper> fieldMappers,
                                                      List<ObjectMapper> objectMappers,
                                                      List<RuntimeField> runtimeFields) {
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
@@ -63,8 +64,8 @@ public class MappingLookupTests extends ESTestCase {
 
     public void testSubfieldOverride() {
         MockFieldMapper fieldMapper = new MockFieldMapper("object.subfield");
-        ObjectMapper objectMapper = new ObjectMapper("object", "object", new Explicit<>(true, true),
-            ObjectMapper.Dynamic.TRUE, Collections.singletonMap("object.subfield", fieldMapper));
+        ObjectMapper objectMapper = new ObjectMapper("object", "object", new Explicit<>(true, true), ObjectMapper.Nested.NO,
+            ObjectMapper.Dynamic.TRUE, Collections.singletonMap("object.subfield", fieldMapper), Version.CURRENT);
         MappingLookup mappingLookup = createMappingLookup(
             Collections.singletonList(fieldMapper),
             Collections.singletonList(objectMapper),

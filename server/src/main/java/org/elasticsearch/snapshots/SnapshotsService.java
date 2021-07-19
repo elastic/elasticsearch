@@ -1424,21 +1424,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 ShardSnapshotStatus status = shardStatus.value;
                 final ShardState state = status.state();
                 if (state.failed()) {
-                    shardFailures.add(
-                        new SnapshotShardFailure(
-                            status.nodeId(),
-                            entry.shardId(shardId),
-                            status.reason()
-                        )
-                    );
+                    shardFailures.add(new SnapshotShardFailure(status.nodeId(), entry.shardId(shardId), status.reason()));
                 } else if (state.completed() == false) {
-                    shardFailures.add(
-                        new SnapshotShardFailure(
-                            status.nodeId(),
-                            entry.shardId(shardId),
-                            "skipped"
-                        )
-                    );
+                    shardFailures.add(new SnapshotShardFailure(status.nodeId(), entry.shardId(shardId), "skipped"));
                 } else {
                     assert state == ShardState.SUCCESS;
                 }
@@ -3205,7 +3193,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             );
                         } else {
                             startShardOperation(
-                                    shardsBuilder(), updatedState.nodeId(), updatedState.generation(), entry.shardId(repoShardId));
+                                shardsBuilder(),
+                                updatedState.nodeId(),
+                                updatedState.generation(),
+                                entry.shardId(repoShardId)
+                            );
                         }
                     }
                 }

@@ -247,7 +247,7 @@ public class TransformIndexerTests extends ESTestCase {
             // pretend that we processed 10k documents for each call
             getStats().incrementNumDocuments(10_000);
             return new IterationResult<>(
-                Collections.singletonList(new IndexRequest()),
+                Collections.singletonList(new IndexRequest()).stream(),
                 new TransformIndexerPosition(null, null),
                 numberOfLoops == 0
             );

@@ -52,13 +52,11 @@ import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformIndexerPosition, TransformIndexerStats> {
@@ -872,19 +870,18 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     private IterationResult<TransformIndexerPosition> processBuckets(final SearchResponse searchResponse) {
-        long docsBeforeProcess = getStats().getNumDocuments();
-
         Tuple<Stream<IndexRequest>, Map<String, Object>> indexRequestStreamAndCursor = function.processSearchResponse(
             searchResponse,
             getConfig().getDestination().getIndex(),
             getConfig().getDestination().getPipeline(),
             getFieldMappings(),
-            getStats()
+            getStats(),
+            progress
         );
 
         if (indexRequestStreamAndCursor == null || indexRequestStreamAndCursor.v1() == null) {
             if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false || changeCollector.queryForChanges() == false) {
-                return new IterationResult<>(Collections.emptyList(), null, true);
+                return new IterationResult<>(Stream.empty(), null, true);
             }
 
             // cleanup changed Buckets
@@ -895,7 +892,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
             // advance the cursor for changed bucket detection
             return new IterationResult<>(
-                Collections.emptyList(),
+                Stream.empty(),
                 new TransformIndexerPosition(null, nextChangeCollectorBucketPosition),
                 false
             );
@@ -908,28 +905,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             oldPosition != null ? getPosition().getBucketsPosition() : null
         );
 
-        List<IndexRequest> indexRequests = indexRequestStream.collect(Collectors.toList());
-        if (logger.isDebugEnabled()) {
-            if (indexRequests.isEmpty()) {
-                logger.debug("[{}] processed buckets, nothing to be indexed", getJobId());
-            } else {
-                logger.debug(
-                    "[{}] processed buckets and created [{}] documents to be indexed, 1st document: [{}]",
-                    getJobId(),
-                    indexRequests.size(),
-                    indexRequests.get(0)
-                );
-            }
-        }
-        IterationResult<TransformIndexerPosition> result = new IterationResult<>(indexRequests, newPosition, indexRequests.isEmpty());
-
-        // NOTE: progress is also mutated in onFinish
-        if (progress != null) {
-            progress.incrementDocsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
-            progress.incrementDocsIndexed(result.getToIndex().size());
-        }
-
-        return result;
+        return new IterationResult<>(indexRequestStream, newPosition, false);
     }
 
     private IterationResult<TransformIndexerPosition> processChangedBuckets(final SearchResponse searchResponse) {
@@ -937,13 +913,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         if (nextChangeCollectorBucketPosition == null) {
             changeCollector.clear();
-            return new IterationResult<>(Collections.emptyList(), null, true);
+            return new IterationResult<>(Stream.empty(), null, true);
         }
 
         // reset the runState to fetch the partial updates next
         runState = RunState.APPLY_RESULTS;
 
-        return new IterationResult<>(Collections.emptyList(), getPosition(), false);
+        return new IterationResult<>(Stream.empty(), getPosition(), false);
     }
 
     protected QueryBuilder buildFilterQuery() {

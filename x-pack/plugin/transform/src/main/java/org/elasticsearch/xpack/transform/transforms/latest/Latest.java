@@ -23,6 +23,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
 import org.elasticsearch.xpack.transform.transforms.common.AbstractCompositeAggFunction;
@@ -75,8 +76,13 @@ public class Latest extends AbstractCompositeAggFunction {
 
     private static Map<String, Object> convertBucketToDocument(CompositeAggregation.Bucket bucket,
                                                                LatestConfig config,
-                                                               TransformIndexerStats transformIndexerStats) {
+                                                               TransformIndexerStats transformIndexerStats,
+                                                               TransformProgress progress) {
         transformIndexerStats.incrementNumDocuments(bucket.getDocCount());
+        if (progress != null) {
+            progress.incrementDocsProcessed(bucket.getDocCount());
+            progress.incrementDocsIndexed(1L);
+        }
 
         TopHits topHits = bucket.getAggregations().get(TOP_HITS_AGGREGATION_NAME);
         if (topHits.getHits().getHits().length != 1) {
@@ -121,9 +127,10 @@ public class Latest extends AbstractCompositeAggFunction {
     protected Stream<Map<String, Object>> extractResults(
         CompositeAggregation agg,
         Map<String, String> fieldTypeMap,
-        TransformIndexerStats transformIndexerStats
+        TransformIndexerStats transformIndexerStats,
+        TransformProgress transformProgress
     ) {
-        return agg.getBuckets().stream().map(bucket -> convertBucketToDocument(bucket, config, transformIndexerStats));
+        return agg.getBuckets().stream().map(bucket -> convertBucketToDocument(bucket, config, transformIndexerStats, transformProgress));
     }
 
     @Override

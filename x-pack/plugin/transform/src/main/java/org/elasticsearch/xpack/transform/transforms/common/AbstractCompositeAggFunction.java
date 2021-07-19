@@ -86,7 +86,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
                     final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
                     TransformIndexerStats stats = new TransformIndexerStats();
 
-                    List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats)
+                    List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats, null)
                         .map(this::documentTransformationFunction)
                         .collect(Collectors.toList());
 
@@ -137,7 +137,8 @@ public abstract class AbstractCompositeAggFunction implements Function {
         String destinationIndex,
         String destinationPipeline,
         Map<String, String> fieldTypeMap,
-        TransformIndexerStats stats
+        TransformIndexerStats stats,
+        TransformProgress progress
     ) {
         Aggregations aggregations = searchResponse.getAggregations();
 
@@ -152,7 +153,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
             return null;
         }
 
-        Stream<IndexRequest> indexRequestStream = extractResults(compositeAgg, fieldTypeMap, stats)
+        Stream<IndexRequest> indexRequestStream = extractResults(compositeAgg, fieldTypeMap, stats, progress)
             .map(doc -> {
                 String docId = (String)doc.remove(TransformField.DOCUMENT_ID_FIELD);
                 return DocumentConversionUtils.convertDocumentToIndexRequest(
@@ -171,7 +172,8 @@ public abstract class AbstractCompositeAggFunction implements Function {
     protected abstract Stream<Map<String, Object>> extractResults(
         CompositeAggregation agg,
         Map<String, String> fieldTypeMap,
-        TransformIndexerStats transformIndexerStats
+        TransformIndexerStats transformIndexerStats,
+        TransformProgress progress
     );
 
     private SearchRequest buildSearchRequest(SourceConfig sourceConfig, Map<String, Object> position, int pageSize) {

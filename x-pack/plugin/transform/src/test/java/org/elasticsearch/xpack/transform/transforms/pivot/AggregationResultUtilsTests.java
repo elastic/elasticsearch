@@ -1100,6 +1100,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 pipelineAggregationBuilders,
                 fieldTypeMap,
                 stats,
+                null,
                 true
             ).collect(Collectors.toList());
         }

@@ -232,7 +232,11 @@ public class TransformIndexerStateTests extends ESTestCase {
         protected IterationResult<TransformIndexerPosition> doProcess(SearchResponse searchResponse) {
             // pretend that we processed 10k documents for each call
             getStats().incrementNumDocuments(10_000);
-            return new IterationResult<>(Collections.singletonList(new IndexRequest()), new TransformIndexerPosition(null, null), false);
+            return new IterationResult<>(
+                Collections.singletonList(new IndexRequest()).stream(),
+                new TransformIndexerPosition(null, null),
+                false
+            );
         }
 
         public boolean waitingForNextSearch() {

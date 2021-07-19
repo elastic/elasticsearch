@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
 import org.elasticsearch.xpack.core.spatial.search.aggregations.GeoShapeMetricAggregation;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GeoTileGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
@@ -98,10 +99,16 @@ public final class AggregationResultUtils {
         Collection<PipelineAggregationBuilder> pipelineAggs,
         Map<String, String> fieldTypeMap,
         TransformIndexerStats stats,
+        TransformProgress progress,
         boolean datesAsEpoch
     ) {
         return agg.getBuckets().stream().map(bucket -> {
             stats.incrementNumDocuments(bucket.getDocCount());
+            if (progress != null) {
+                progress.incrementDocsProcessed(bucket.getDocCount());
+                progress.incrementDocsIndexed(1L);
+            }
+
             Map<String, Object> document = new HashMap<>();
             // generator to create unique but deterministic document ids, so we
             // - do not create duplicates if we re-run after failure

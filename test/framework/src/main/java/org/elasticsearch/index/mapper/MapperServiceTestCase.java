@@ -413,7 +413,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public ObjectMapper getObjectMapper(String path) {
+            public NestedLookup nestedLookup() {
                 throw new UnsupportedOperationException();
             }
 
@@ -522,8 +522,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
         when(searchExecutionContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
         when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
-        when(searchExecutionContext.getObjectMapper(anyString())).thenAnswer(
-            inv -> mapperService.mappingLookup().objectMappers().get(inv.getArguments()[0].toString()));
+        when(searchExecutionContext.nestedLookup()).thenReturn(mapperService.mappingLookup().nestedLookup());
+        NestedScope nestedScope = new NestedScope();
+        when(searchExecutionContext.nestedScope()).thenReturn(nestedScope);
+
         when(searchExecutionContext.getMatchingFieldNames(anyObject())).thenAnswer(
             inv -> mapperService.mappingLookup().getMatchingFieldNames(inv.getArguments()[0].toString())
         );

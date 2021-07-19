@@ -84,7 +84,7 @@ public class DocumentMapper {
                     + "required for partitioned index [" + settings.getIndex().getName() + "]");
             }
         }
-        if (settings.getIndexSortConfig().hasIndexSort() && mappers().hasNested()) {
+        if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
         if (checkLimits) {

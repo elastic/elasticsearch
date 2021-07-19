@@ -8,35 +8,32 @@
 
 package org.elasticsearch.index.search;
 
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.index.query.support.NestedScope;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import static java.util.Collections.emptyMap;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-public class NestedHelperTests extends ESSingleNodeTestCase {
+public class NestedHelperTests extends MapperServiceTestCase {
 
-    IndexService indexService;
     MapperService mapperService;
 
     @Override
@@ -88,12 +85,11 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject().endObject();
-        indexService = createIndex("index", Settings.EMPTY, mapping);
-        mapperService = indexService.mapperService();
+        mapperService = createMapperService(mapping);
     }
 
     private static NestedHelper buildNestedHelper(MapperService mapperService) {
-        return new NestedHelper(mapperService.mappingLookup().objectMappers()::get, field -> mapperService.fieldType(field) != null);
+        return new NestedHelper(mapperService.mappingLookup().nestedLookup(), field -> mapperService.fieldType(field) != null);
     }
 
     public void testMatchAll() {
@@ -173,7 +169,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     }
 
     public void testRangeQuery() {
-        SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
         Query rangeQuery = mapperService.fieldType("foo2").rangeQuery(2, 5, true, true, null, null, null, context);
         assertFalse(buildNestedHelper(mapperService).mightMatchNestedDocs(rangeQuery));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested1"));
@@ -324,14 +320,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     }
 
     public void testNested() throws IOException {
-        SearchExecutionContext context = indexService.newSearchExecutionContext(
-            0,
-            0,
-            new IndexSearcher(new MultiReader()),
-            () -> 0,
-            null,
-            emptyMap()
-        );
+        SearchExecutionContext context = createSearchExecutionContext(mapperService);
         NestedQueryBuilder queryBuilder = new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.Avg);
         ESToParentBlockJoinQuery query = (ESToParentBlockJoinQuery) queryBuilder.toQuery(context);
 

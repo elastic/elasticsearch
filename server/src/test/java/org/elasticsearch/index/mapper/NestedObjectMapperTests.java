@@ -57,7 +57,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> b.startObject("nested1").field("type", "nested").endObject()));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper, instanceOf(NestedObjectMapper.class));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper;
@@ -114,7 +114,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper1 = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper1, instanceOf(NestedObjectMapper.class));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper1;
@@ -186,7 +186,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper1 = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper1, instanceOf(NestedObjectMapper.class));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper1;
@@ -259,7 +259,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper1 = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper1, instanceOf(NestedObjectMapper.class));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper1;
@@ -331,11 +331,11 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertEquals("nested1", docMapper.mappers().getNestedParent("nested1.nested2"));
-        assertNull(docMapper.mappers().getNestedParent("nonexistent"));
-        assertNull(docMapper.mappers().getNestedParent("nested1"));
+        assertEquals("nested1", docMapper.mappers().nestedLookup().getNestedParent("nested1.nested2"));
+        assertNull(docMapper.mappers().nestedLookup().getNestedParent("nonexistent"));
+        assertNull(docMapper.mappers().nestedLookup().getNestedParent("nested1"));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper1 = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper1, instanceOf(NestedObjectMapper.class));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper1;
@@ -577,7 +577,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper, instanceOf(NestedObjectMapper.class));
         assertThat(nested1Mapper.dynamic(), equalTo(Dynamic.STRICT));
@@ -791,7 +791,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         DocumentMapper docMapper
             = createDocumentMapper(version, mapping(b -> b.startObject("nested1").field("type", "nested").endObject()));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper, instanceOf(NestedObjectMapper.class));
 

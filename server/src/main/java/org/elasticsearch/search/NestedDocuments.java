@@ -35,7 +35,6 @@ public class NestedDocuments {
 
     private final Map<String, BitSetProducer> parentObjectFilters = new HashMap<>();
     private final Map<String, Weight> childObjectFilters = new HashMap<>();
-    private final Map<String, NestedObjectMapper> childObjectMappers = new HashMap<>();
     private final BitSetProducer parentDocumentFilter;
     private final NestedLookup nestedLookup;
 
@@ -52,9 +51,8 @@ public class NestedDocuments {
             this.parentDocumentFilter = filterProducer.apply(Queries.newNonNestedFilter());
             nestedLookup.getNestedParentFilters()
                 .forEach((k, v) -> parentObjectFilters.put(k, filterProducer.apply(v)));
-            for (NestedObjectMapper mapper : mappingLookup.getNestedMappers()) {
-                childObjectFilters.put(mapper.name(), null);
-                childObjectMappers.put(mapper.name(), mapper);
+            for (String nestedPath : nestedLookup.getNestedMappers().keySet()) {
+                childObjectFilters.put(nestedPath, null);
             }
         }
     }
@@ -70,12 +68,12 @@ public class NestedDocuments {
     }
 
     private Weight getNestedChildWeight(LeafReaderContext ctx, String path) throws IOException {
-        if (childObjectFilters.containsKey(path) == false || childObjectMappers.containsKey(path) == false) {
+        if (childObjectFilters.containsKey(path) == false) {
             throw new IllegalStateException("Cannot find object mapper for path " + path);
         }
         if (childObjectFilters.get(path) == null) {
             IndexSearcher searcher = new IndexSearcher(ReaderUtil.getTopLevelContext(ctx));
-            NestedObjectMapper childMapper = childObjectMappers.get(path);
+            NestedObjectMapper childMapper = nestedLookup.getNestedMappers().get(path);
             childObjectFilters.put(path,
                 searcher.createWeight(searcher.rewrite(childMapper.nestedTypeFilter()), ScoreMode.COMPLETE_NO_SCORES, 1));
         }
@@ -166,7 +164,7 @@ public class NestedDocuments {
             int parentNameLength;
             String path = findObjectPath(doc);
             while (path != null) {
-                String parent = mappingLookup.getNestedParent(path);
+                String parent = nestedLookup.getNestedParent(path);
                 // We have to pull a new scorer for each document here, because we advance from
                 // the last parent which will be behind the doc
                 Scorer childScorer = getNestedChildWeight(ctx, path).scorer(ctx);

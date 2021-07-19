@@ -42,8 +42,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
-import org.elasticsearch.index.mapper.NestedObjectMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -289,16 +288,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mapperService.documentParser().parseDocument(source, mappingLookup);
     }
 
-    public boolean hasNested() {
-        return mappingLookup.hasNested();
+    public NestedLookup nestedLookup() {
+        return mappingLookup.nestedLookup();
     }
 
     public boolean hasMappings() {
         return mappingLookup.hasMappings();
-    }
-
-    public List<NestedObjectMapper> nestedMappings() {
-        return mappingLookup.getNestedMappers();
     }
 
     /**
@@ -354,10 +349,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private MappedFieldType fieldType(String name) {
         MappedFieldType fieldType = runtimeMappings.get(name);
         return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
-    }
-
-    public ObjectMapper getObjectMapper(String name) {
-        return mappingLookup.objectMappers().get(name);
     }
 
     public boolean isMetadataField(String field) {
@@ -632,17 +623,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public MappingLookup.CacheKey mappingCacheKey() {
         return mappingLookup.cacheKey();
-    }
-
-    /**
-     * Given a nested object path, returns the path to its nested parent
-     *
-     * In particular, if a nested field `foo` contains an object field
-     * `bar.baz`, then calling this method with `foo.bar.baz` will return
-     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
-     */
-    public String getNestedParent(String nestedPath) {
-        return mappingLookup.getNestedParent(nestedPath);
     }
 
     public NestedDocuments getNestedDocuments() {

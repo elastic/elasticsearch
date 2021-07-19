@@ -34,13 +34,13 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
@@ -54,7 +54,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.MILLISECONDS;
 import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.NANOSECONDS;
-import static org.elasticsearch.index.search.NestedHelper.parentObject;
 import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
 /**
@@ -628,15 +627,11 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             // already in nested context
             return;
         }
-        for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
-            ObjectMapper parentMapper = context.getObjectMapper(parent);
-            if (parentMapper != null && parentMapper.isNested()) {
-                NestedObjectMapper parentNested = (NestedObjectMapper) parentMapper;
-                if (parentNested.isIncludeInRoot() == false) {
-                    throw new QueryShardException(context,
-                        "it is mandatory to set the [nested] context on the nested sort field: [" + field + "].");
-                }
-            }
+        NestedLookup nestedLookup = context.nestedLookup();
+        String nestedParent = nestedLookup.getNestedParent(field);
+        if (nestedLookup.getNestedMappers().get(nestedParent).isIncludeInRoot() == false) {
+            throw new QueryShardException(context,
+                "it is mandatory to set the [nested] context on the nested sort field: [" + field + "].");
         }
     }
 

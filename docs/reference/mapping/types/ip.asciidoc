@@ -45,6 +45,8 @@ The following parameters are accepted by `ip` fields:
 
 [horizontal]
 
+include::keyword.asciidoc[tag=dimension]
+
 <<doc-values,`doc_values`>>::
 
     Should the field be stored on disk in a column-stride fashion, so that it

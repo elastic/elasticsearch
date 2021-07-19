@@ -43,9 +43,17 @@ public class NestedObjectMapper extends ObjectMapper {
             return this;
         }
 
+        void includeInRoot(Explicit<Boolean> includeInRoot) {
+            this.includeInRoot = includeInRoot;
+        }
+
         Builder includeInParent(boolean includeInParent) {
             this.includeInParent = new Explicit<>(includeInParent, true);
             return this;
+        }
+
+        void includeInParent(Explicit<Boolean> includeInParent) {
+            this.includeInParent = includeInParent;
         }
 
         @Override
@@ -94,6 +102,7 @@ public class NestedObjectMapper extends ObjectMapper {
     private Explicit<Boolean> includeInParent;
     private final String nestedTypePath;
     private final Query nestedTypeFilter;
+    private final Version indexCreatedVersion;
 
     NestedObjectMapper(
         String name,
@@ -110,6 +119,7 @@ public class NestedObjectMapper extends ObjectMapper {
         this.nestedTypeFilter = NestedPathFieldMapper.filter(builder.indexCreatedVersion, nestedTypePath);
         this.includeInParent = builder.includeInParent;
         this.includeInRoot = builder.includeInRoot;
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     public Query nestedTypeFilter() {
@@ -184,9 +194,11 @@ public class NestedObjectMapper extends ObjectMapper {
             if (includeInParent.value() != mergeWithObject.includeInParent.value()) {
                 throw new MapperException("the [include_in_parent] parameter can't be updated on a nested object mapping");
             }
+            builder.includeInParent(includeInParent);
             if (includeInRoot.value() != mergeWithObject.includeInRoot.value()) {
                 throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
             }
+            builder.includeInRoot(includeInRoot);
         }
         toMerge.doMerge(mergeWithObject, reason);
         return toMerge;

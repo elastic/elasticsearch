@@ -152,10 +152,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     protected ValuesSourceAggregationBuilder(StreamInput in)
         throws IOException {
         super(in);
-        if (serializeTargetValueType(in.getVersion())) {
-            ValueType valueType = in.readOptionalWriteable(ValueType::readFromStream);
-            assert valueType == null;
-        }
         read(in);
     }
 
@@ -177,10 +173,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (serializeTargetValueType(out.getVersion())) {
-            // TODO: deprecate this so we don't need to carry around a useless null in the wire format
-            out.writeOptionalWriteable(null);
-        }
         out.writeOptionalString(field);
         boolean hasScript = script != null;
         out.writeBoolean(hasScript);
@@ -203,17 +195,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      */
     protected abstract void innerWriteTo(StreamOutput out) throws IOException;
 
-    /**
-     * DO NOT OVERRIDE THIS!
-     * <p>
-     * This method only exists for legacy support.  No new aggregations need this, nor should they override it.
-     *
-     * @param version For backwards compatibility, subclasses can change behavior based on the version
-     */
-    protected boolean serializeTargetValueType(Version version) {
-        return false;
-    }
-
+    
     /**
      * Sets the field to use for this aggregation.
      */

@@ -76,11 +76,6 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     }
 
     @Override
-    protected boolean serializeTargetValueType(Version version) {
-        return true;
-    }
-
-    @Override
     protected ValueCountAggregatorFactory innerBuild(AggregationContext context,
                                                      ValuesSourceConfig config,
                                                      AggregatorFactory parent,

@@ -137,11 +137,6 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     }
 
     @Override
-    protected boolean serializeTargetValueType(Version version) {
-        return true;
-    }
-
-    @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         bucketCountThresholds.writeTo(out);
         out.writeOptionalWriteable(collectMode);

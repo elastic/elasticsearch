@@ -91,11 +91,6 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected boolean serializeTargetValueType(Version version) {
-        return true;
-    }
-
-    @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(includeExclude);
         out.writeVInt(maxDocCount);

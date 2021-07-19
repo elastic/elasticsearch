@@ -146,11 +146,6 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         out.writeNamedWriteable(significanceHeuristic);
     }
 
-    @Override
-    protected boolean serializeTargetValueType(Version version) {
-        return true;
-    }
-
     protected TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
         return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
     }

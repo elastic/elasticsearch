@@ -77,11 +77,6 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     }
 
     @Override
-    protected boolean serializeTargetValueType(Version version) {
-        return true;
-    }
-
-    @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.ONE;
     }

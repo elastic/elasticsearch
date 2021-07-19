@@ -458,13 +458,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             // we need to detect stopped/stopping by both considering the persistent task state in
             // cluster state and also whether an explicit request to stop has been received on this
             // node.
-            DatafeedTask.StoppedOrIsolatedBeforeRunning stoppedOrIsolatedBeforeRunning;
             if (DatafeedState.STOPPING.equals(datafeedState)) {
-                stoppedOrIsolatedBeforeRunning = DatafeedTask.StoppedOrIsolatedBeforeRunning.STOPPED;
-            } else {
-                stoppedOrIsolatedBeforeRunning = datafeedTask.setDatafeedRunner(datafeedRunner);
+                logger.info("[{}] datafeed got reassigned while stopping. Marking as completed", params.getDatafeedId());
+                datafeedTask.markAsCompleted();
+                return;
             }
-            switch (stoppedOrIsolatedBeforeRunning) {
+            switch (datafeedTask.setDatafeedRunner(datafeedRunner)) {
                 case NEITHER:
                     datafeedRunner.run(datafeedTask, datafeedTask::completeOrFailIfRequired);
                     break;
@@ -472,7 +471,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     logger.info("[{}] datafeed isolated immediately after reassignment.", params.getDatafeedId());
                     break;
                 case STOPPED:
-                    logger.info("[{}] datafeed got reassigned while stopping. Marking as completed", params.getDatafeedId());
+                    logger.info("[{}] datafeed stopped immediately after reassignment. Marking as completed", params.getDatafeedId());
                     datafeedTask.markAsCompleted();
                     break;
             }

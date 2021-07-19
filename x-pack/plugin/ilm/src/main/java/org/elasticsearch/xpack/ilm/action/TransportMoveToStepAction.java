@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -23,6 +24,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction;
 import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction.Request;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
@@ -47,12 +50,53 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
             listener.onFailure(new IllegalArgumentException("index [" + request.getIndex() + "] does not exist"));
             return;
         }
-        clusterService.submitStateUpdateTask("index[" + request.getIndex() + "]-move-to-step",
+
+        final String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        if (policyName == null) {
+            listener.onFailure(new IllegalArgumentException("index [" + request.getIndex() + "] is not managed by ILM"));
+            return;
+        }
+
+        final Request.PartialStepKey abstractTargetKey = request.getNextStepKey();
+        final String targetStr = abstractTargetKey.getPhase() + "/" + abstractTargetKey.getAction() + "/" + abstractTargetKey.getName();
+
+        // Resolve the key that could have optional parts into one
+        // that is totally concrete given the existing policy and index
+        Step.StepKey concreteTargetStepKey = indexLifecycleService.resolveStepKey(state, indexMetadata.getIndex(),
+            abstractTargetKey.getPhase(), abstractTargetKey.getAction(), abstractTargetKey.getName());
+
+        // We do a pre-check here before invoking the cluster state update just so we can skip the submission if the request is bad.
+        if (concreteTargetStepKey == null) {
+            // This means we weren't able to find the key they specified
+            String message = "cannot move index [" + indexMetadata.getIndex().getName() + "] with policy [" +
+                policyName + "]: unable to determine concrete step key from target next step key: " + abstractTargetKey;
+            logger.warn(message);
+            listener.onFailure(new IllegalArgumentException(message));
+            return;
+        }
+
+        clusterService.submitStateUpdateTask("index[" + request.getIndex() + "]-move-to-step-" + targetStr,
             new AckedClusterStateUpdateTask(request, listener) {
+                final SetOnce<Step.StepKey> concreteTargetKey = new SetOnce<>();
+
                 @Override
                 public ClusterState execute(ClusterState currentState) {
+                    // Resolve the key that could have optional parts into one
+                    // that is totally concrete given the existing policy and index
+                    Step.StepKey concreteTargetStepKey = indexLifecycleService.resolveStepKey(state, indexMetadata.getIndex(),
+                        abstractTargetKey.getPhase(), abstractTargetKey.getAction(), abstractTargetKey.getName());
+
+                    // Make one more check, because it could have changed in the meantime. If that is the case, the request is ignored.
+                    if (concreteTargetStepKey == null) {
+                        // This means we weren't able to find the key they specified
+                        logger.error("unable to move index " + indexMetadata.getIndex() + " as we are unable to resolve a concrete " +
+                            "step key from target next step key: " + abstractTargetKey);
+                        return currentState;
+                    }
+
+                    concreteTargetKey.set(concreteTargetStepKey);
                     return indexLifecycleService.moveClusterStateToStep(currentState, indexMetadata.getIndex(), request.getCurrentStepKey(),
-                        request.getNextStepKey());
+                        concreteTargetKey.get());
                 }
 
                 @Override
@@ -61,10 +105,10 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
                     if (newIndexMetadata == null) {
                         // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.
                         logger.debug("index [" + indexMetadata.getIndex() + "] has been deleted after moving to step [" +
-                            request.getNextStepKey() + "], skipping async action check");
+                            concreteTargetKey.get() + "], skipping async action check");
                         return;
                     }
-                    indexLifecycleService.maybeRunAsyncAction(newState, newIndexMetadata, request.getNextStepKey());
+                    indexLifecycleService.maybeRunAsyncAction(newState, newIndexMetadata, concreteTargetKey.get());
                 }
             });
     }

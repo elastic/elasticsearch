@@ -61,6 +61,22 @@ The following parameters are accepted by `keyword` fields:
     Mapping field-level query time boosting. Accepts a floating point number, defaults
     to `1.0`.
 
+// tag::dimension[]
+`dimension`::
+For internal use by {kib} only. Marks the field as a time series dimension.
+Accepts `true` or `false` (default).
++
+The <<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
+index setting limits the number of dimensions in an index.
++
+Dimension fields have the following constraints:
++
+* The `doc_values` and `index` mapping parameters must be `true`.
+* Field values cannot be an <<array,array or multi-value>>.
+// end::dimension[]
+* Field values cannot be larger than 1024 bytes.
+* The field cannot use a <<normalizer,`normalizer`>>.
+
 <<doc-values,`doc_values`>>::
 
     Should the field be stored on disk in a column-stride fashion, so that it

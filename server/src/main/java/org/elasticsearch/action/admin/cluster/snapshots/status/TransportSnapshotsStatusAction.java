@@ -127,7 +127,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
 
         Set<String> nodesIds = new HashSet<>();
         for (SnapshotsInProgress.Entry entry : currentSnapshots) {
-            for (ObjectCursor<SnapshotsInProgress.ShardSnapshotStatus> status : entry.shards().values()) {
+            for (ObjectCursor<SnapshotsInProgress.ShardSnapshotStatus> status : entry.shardsByRepoShardId().values()) {
                 if (status.value.nodeId() != null) {
                     nodesIds.add(status.value.nodeId());
                 }

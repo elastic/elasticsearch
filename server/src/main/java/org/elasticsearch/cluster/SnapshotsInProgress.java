@@ -197,12 +197,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         final Map<String, Set<Tuple<String, Integer>>> assignedShardsByRepo = new HashMap<>();
         final Map<String, Set<Tuple<String, Integer>>> queuedShardsByRepo = new HashMap<>();
         for (Entry entry : entries) {
-            for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
-                final ShardId sid = shard.key;
-                assert assertShardStateConsistent(entries, assignedShardsByRepo, queuedShardsByRepo, entry, sid.getIndexName(), sid.id(),
-                        shard.value);
-            }
-            for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> shard : entry.clones()) {
+            for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> shard : entry.shardsByRepoShardId()) {
                 final RepositoryShardId sid = shard.key;
                 assert assertShardStateConsistent(entries, assignedShardsByRepo, queuedShardsByRepo, entry, sid.indexName(), sid.shardId(),
                         shard.value);
@@ -700,7 +695,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public Entry withStartedShards(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             final SnapshotsInProgress.Entry updated = new Entry(snapshot, includeGlobalState, partial, state, indices, dataStreams,
                     featureStates, startTime, repositoryStateId, shards, failure, userMetadata, version);
-            assert updated.state().completed() == false && completed(updated.shards().values()) == false
+            assert updated.state().completed() == false && completed(updated.shardsByRepoShardId().values()) == false
                     : "Only running snapshots allowed but saw [" + updated + "]";
             return updated;
         }
@@ -715,6 +710,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> shardsByRepoShardId() {
+            if (isClone()) {
+                return clones;
+            }
             final ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> shardsByRepoShardId = ImmutableOpenMap.builder();
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : shards) {
                 shardsByRepoShardId.put(new RepositoryShardId(indices.get(shard.key.getIndexName()), shard.key.getId()), shard.value);
@@ -731,11 +729,17 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards() {
+            assert isClone() == false : "tried to get routing shards for clone entry [" + this + "]";
             return this.shards;
         }
 
         public ShardId shardId(RepositoryShardId repositoryShardId) {
             return new ShardId(indexLookup().get(repositoryShardId.index()), repositoryShardId.shardId());
+        }
+
+        public RepositoryShardId repositoryShardId(ShardId shardId) {
+            // TODO: this should be a global map per repository
+            return new RepositoryShardId(indices.get(shardId.getIndexName()), shardId.id());
         }
 
         public State state() {
@@ -793,10 +797,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public boolean isClone() {
             return source != null;
-        }
-
-        public ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> clones() {
-            return clones;
         }
 
         @Override

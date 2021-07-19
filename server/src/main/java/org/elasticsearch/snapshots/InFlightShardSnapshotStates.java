@@ -46,9 +46,8 @@ public final class InFlightShardSnapshotStates {
             if (runningSnapshot.repository().equals(repoName) == false) {
                 continue;
             }
-            for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot.isClone()
-                ? runningSnapshot.clones()
-                : runningSnapshot.shardsByRepoShardId()) {
+            for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot
+                .shardsByRepoShardId()) {
                 final RepositoryShardId sid = shard.key;
                 addStateInformation(generations, busyIds, shard.value, sid.shardId(), sid.indexName());
             }

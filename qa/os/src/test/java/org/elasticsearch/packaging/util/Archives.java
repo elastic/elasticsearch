@@ -108,7 +108,7 @@ public class Archives {
         Installation installation = Installation.ofArchive(sh, distribution, fullInstallPath);
         ServerUtils.disableGeoIpDownloader(installation);
         // TODO: Adjust all tests so that they can run with security on, which is the default behavior
-        ServerUtils.disableSecurityFeatures(installation);
+        ServerUtils.possiblyDisableSecurityFeatures(installation);
 
         return installation;
     }

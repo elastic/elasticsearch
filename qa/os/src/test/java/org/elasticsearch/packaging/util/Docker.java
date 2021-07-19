@@ -570,7 +570,7 @@ public class Docker {
      * @return the parsed response
      */
     public static JsonNode getJson(String path) throws Exception {
-        path = Objects.requireNonNull(path).trim();
+        path = Objects.requireNonNull(path, "path can not be null").trim();
         if (path.isEmpty()) {
             throw new IllegalArgumentException("path must be supplied");
         }
@@ -585,7 +585,7 @@ public class Docker {
     }
 
     public static JsonNode getJson(String path, String user, String password) throws Exception {
-        path = Objects.requireNonNull(path).trim();
+        path = Objects.requireNonNull(path, "path can not be null").trim();
         if (path.isEmpty()) {
             throw new IllegalArgumentException("path must be supplied");
         }

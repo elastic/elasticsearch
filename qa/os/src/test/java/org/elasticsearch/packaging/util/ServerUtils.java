@@ -305,7 +305,11 @@ public class ServerUtils {
         Files.write(yml, lines, TRUNCATE_EXISTING);
     }
 
-    public static void disableSecurityFeatures(Installation installation) throws IOException {
+    /**
+     * Explicitly disables security if the existing configuration didn't already have an explicit value for the
+     * xpack.security.enabled setting
+     */
+    public static void possiblyDisableSecurityFeatures(Installation installation) throws IOException {
         List<String> configLines = Collections.singletonList("xpack.security.enabled: false");
         Path yamlFile = installation.config("elasticsearch.yml");
         try (Stream<String> lines = Files.readAllLines(yamlFile).stream()) {

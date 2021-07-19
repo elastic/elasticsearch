@@ -95,7 +95,7 @@ public class Packages {
             ServerUtils.disableGeoIpDownloader(installation);
         }
         // TODO Figure out how to run all packaging tests with security enabled which is now the default behavior
-        ServerUtils.disableSecurityFeatures(installation);
+        ServerUtils.possiblyDisableSecurityFeatures(installation);
         return installation;
     }
 

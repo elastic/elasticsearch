@@ -116,7 +116,7 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
         file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiFoo).exists()
         file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiXpackFoo).exists()
-        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiBar).exists() ==false
+        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiBar).exists() == false
         file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiXpackBar).exists() == false
     }
 

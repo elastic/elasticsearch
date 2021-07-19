@@ -4,6 +4,8 @@
 <titleabbrev>Search vector tile</titleabbrev>
 ++++
 
+experimental::[]
+
 Searches a vector tile for geospatial values. Returns results as a binary
 https://docs.mapbox.com/vector-tiles/specification[Mapbox vector tile].
 
@@ -60,6 +62,10 @@ this parameter or use `*` or `_all`.
 `<field>`::
 (Required, string) Field containing geospatial values to return. Must be a
 <<geo-point,`geo_point`>> or <<geo-shape,`geo_shape`>> field.
++
+Vector tiles do not support geometry collections. Behavior for `geo_shape`
+fields with `geometrycollection` values is undefined and may change in a future
+release.
 
 `<zoom>`::
 (Required, integer) Zoom level for the vector tile to search. Accepts `0`-`29`.
@@ -144,17 +150,22 @@ https://github.com/mapbox/vector-tile-spec[Mapbox vector tile]. Mapbox vector
 tiles are encoded as https://github.com/protocolbuffers/protobuf[Google
 Protobufs (PBF)]. By default, the tile contains three layers:
 
-* A `hits` layer containing a feature for each document matching the
+* A `hits` layer containing a feature for `<field>` value matching the
 `geo_bounding_box` query.
 
-*  An `aggs` layer containing a feature for each cell of the `geotile_grid`.
-The layer only contains features for cells with matching data.
+*  An `aggs` layer containing a feature for each cell of the `geotile_grid`. The
+layer only contains features for cells with matching data. These cells act as
+tiles for lower zoom levels.
 
 * A `meta` layer containing:
 ** A feature containing a bounding box. By default, this is the bounding box of
 the tile.
 ** Value ranges for any sub-aggregations on the `geotile_grid`.
 ** Metadata for the search.
+
+The API only returns features that can display at its zoom level. For example,
+if a polygon feature would have no area at its zoom level, the API omits the
+feature.
 
 The API returns errors as UTF-8 encoded JSON.
 
@@ -181,7 +192,8 @@ to `false`.
 If `true`, the `meta` layer's feature is a bounding box resulting from a
 <<search-aggregations-metrics-geobounds-aggregation,`geo_bounds`>> aggregation.
 The aggregation runs on `<field>` values that intersect the `<zoom>/<x>/<y>`
-tile with `wrap_longitude` set to `false`.
+tile with `wrap_longitude` set to `false`. The resulting bounding box may be
+larger than the returned vector tile.
 
 `extent`::
 (Optional, integer) Size, in pixels, of a side of the tile. Vector tiles are
@@ -213,10 +225,12 @@ Other field data types do not support this parameter.
 ====
 
 `grid_precision`::
-(Optional, integer) Determines the grid size of the `geotile_grid`. Accepts
-`0`-`8`. Defaults to `8`. If `0`, results don't include the `aggs` layer.
+(Optional, integer) Additional zoom levels available through the `aggs` layer.
+For example, if `<zoom>` is `7` and `grid_precision` is `8`, you can zoom in up
+to level 15. Accepts `0`-`8`. Defaults to `8`. If `0`, results don't include the
+`aggs` layer.
 +
-The request calculates the grid size as:
+This value determines the grid size of the `geotile_grid` as follows:
 +
 `(2^grid_precision) x (2^grid_precision)`
 +
@@ -273,8 +287,8 @@ https://github.com/mapbox/vector-tile-spec[Mapbox vector tile specification].
 // end::version[]
 
 `features`::
-(array of objects) Array of features. Contains a feature for each document that
-matches the `geo_bounding_box` query.
+(array of objects) Array of features. Contains a feature for each `<field>`
+value that matches the `geo_bounding_box` query.
 +
 .Properties of `features` objects
 [%collapsible%open]

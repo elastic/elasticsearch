@@ -45,68 +45,61 @@ setup:
 
   - gt: { testindex.store_size_in_bytes: 100 }
   # all_fields
-  - set: { testindex.all_fields: all }
-  - gt: { $all.total_in_bytes: 0 }
-  - gt: { $all.inverted_index.total_in_bytes: 0 }
-  - gt: { $all.stored_fields_in_bytes: 0 }
-  - gt: { $all.doc_values_in_bytes: 0 }
-  - gt: { $all.points_in_bytes: 0 }
-  - match: { $all.term_vectors_in_bytes: 0 }
+  - gt: { testindex.all_fields.total_in_bytes: 0 }
+  - gt: { testindex.all_fields.inverted_index.total_in_bytes: 0 }
+  - gt: { testindex.all_fields.stored_fields_in_bytes: 0 }
+  - gt: { testindex.all_fields.doc_values_in_bytes: 0 }
+  - gt: { testindex.all_fields.points_in_bytes: 0 }
+  - match: { testindex.all_fields.term_vectors_in_bytes: 0 }
 
   # genre
-  - set: { testindex.fields.genre: genre }
-  - gt: { $genre.total_in_bytes: 0 }
-  - gt: { $genre.inverted_index.total_in_bytes: 0 }
-  - match: { $genre.stored_fields_in_bytes: 0 }
-  - gt: { $genre.doc_values_in_bytes: 0 }
-  - match: { $genre.points_in_bytes: 0 }
-  - match: { $genre.norms_in_bytes: 0 }
-  - match: { $genre.term_vectors_in_bytes: 0 }
+  - gt: { testindex.fields.genre.total_in_bytes: 0 }
+  - gt: { testindex.fields.genre.inverted_index.total_in_bytes: 0 }
+  - match: { testindex.fields.genre.stored_fields_in_bytes: 0 }
+  - gt: { testindex.fields.genre.doc_values_in_bytes: 0 }
+  - match: { testindex.fields.genre.points_in_bytes: 0 }
+  - match: { testindex.fields.genre.norms_in_bytes: 0 }
+  - match: { testindex.fields.genre.term_vectors_in_bytes: 0 }
 
   # name
-  - set: { testindex.fields.name: name }
-  - gt: { $name.total_in_bytes: 0 }
-  - gt: { $name.inverted_index.total_in_bytes: 0 }
-  - match: { $name.stored_fields_in_bytes: 0 }
-  - match: { $name.doc_values_in_bytes: 0 }
-  - match: { $name.points_in_bytes: 0 }
-  - match: { $name.term_vectors_in_bytes: 0 }
+  - gt: { testindex.fields.name.total_in_bytes: 0 }
+  - gt: { testindex.fields.name.inverted_index.total_in_bytes: 0 }
+  - match: { testindex.fields.name.stored_fields_in_bytes: 0 }
+  - match: { testindex.fields.name.doc_values_in_bytes: 0 }
+  - match: { testindex.fields.name.points_in_bytes: 0 }
+  - match: { testindex.fields.name.term_vectors_in_bytes: 0 }
 
   # quantity
-  - set: { testindex.fields.quantity: quantity }
-  - gt: { $quantity.total_in_bytes: 0 }
-  - match: { $quantity.inverted_index.total_in_bytes: 0 }
-  - match: { $quantity.stored_fields_in_bytes: 0 }
-  - match: { $quantity.doc_values_in_bytes: 0 }
-  - gt: { $quantity.points_in_bytes: 0 }
-  - match: { $quantity.norms_in_bytes: 0 }
-  - match: { $quantity.term_vectors_in_bytes: 0 }
+  - gt: { testindex.fields.quantity.total_in_bytes: 0 }
+  - match: { testindex.fields.quantity.inverted_index.total_in_bytes: 0 }
+  - match: { testindex.fields.quantity.stored_fields_in_bytes: 0 }
+  - match: { testindex.fields.quantity.doc_values_in_bytes: 0 }
+  - gt: { testindex.fields.quantity.points_in_bytes: 0 }
+  - match: { testindex.fields.quantity.norms_in_bytes: 0 }
+  - match: { testindex.fields.quantity.term_vectors_in_bytes: 0 }
 
   # _source
-  - set: { testindex.fields._source: source }
-  - gt: { $source.total_in_bytes: 0 }
-  - match: { $source.inverted_index.total_in_bytes: 0 }
-  - gt: { $source.stored_fields_in_bytes: 0 }
-  - match: { $source.doc_values_in_bytes: 0 }
-  - match: { $source.points_in_bytes: 0 }
-  - match: { $source.norms_in_bytes: 0 }
-  - match: { $source.term_vectors_in_bytes: 0 }
+  - gt: { testindex.fields._source.total_in_bytes: 0 }
+  - match: { testindex.fields._source.inverted_index.total_in_bytes: 0 }
+  - gt: { testindex.fields._source.stored_fields_in_bytes: 0 }
+  - match: { testindex.fields._source.doc_values_in_bytes: 0 }
+  - match: { testindex.fields._source.points_in_bytes: 0 }
+  - match: { testindex.fields._source.norms_in_bytes: 0 }
+  - match: { testindex.fields._source.term_vectors_in_bytes: 0 }
 
   # _id
-  - set: { testindex.fields._id: id }
-  - gt: { $id.total_in_bytes: 0 }
-  - gt: { $id.inverted_index.total_in_bytes: 0 }
-  - gt: { $id.stored_fields_in_bytes: 0 }
-  - match: { $id.doc_values_in_bytes: 0 }
-  - match: { $id.points_in_bytes: 0 }
-  - match: { $id.norms_in_bytes: 0 }
-  - match: { $id.term_vectors_in_bytes: 0 }
+  - gt: { testindex.fields._id.total_in_bytes: 0 }
+  - gt: { testindex.fields._id.inverted_index.total_in_bytes: 0 }
+  - gt: { testindex.fields._id.stored_fields_in_bytes: 0 }
+  - match: { testindex.fields._id.doc_values_in_bytes: 0 }
+  - match: { testindex.fields._id.points_in_bytes: 0 }
+  - match: { testindex.fields._id.norms_in_bytes: 0 }
+  - match: { testindex.fields._id.term_vectors_in_bytes: 0 }
 
   # _seq_no
-  - set: { testindex.fields._seq_no: seqno }
-  - gt: { $seqno.total_in_bytes: 0 }
-  - match: { $seqno.inverted_index.total_in_bytes: 0 }
-  - match: { $seqno.stored_fields_in_bytes: 0 }
-  - gt: { $seqno.points_in_bytes: 0 }
-  - match: { $seqno.norms_in_bytes: 0 }
-  - match: { $seqno.term_vectors_in_bytes: 0 }
+  - gt: { testindex.fields._seq_no.total_in_bytes: 0 }
+  - match: { testindex.fields._seq_no.inverted_index.total_in_bytes: 0 }
+  - match: { testindex.fields._seq_no.stored_fields_in_bytes: 0 }
+  - gt: { testindex.fields._seq_no.points_in_bytes: 0 }
+  - match: { testindex.fields._seq_no.norms_in_bytes: 0 }
+  - match: { testindex.fields._seq_no.term_vectors_in_bytes: 0 }

@@ -17,6 +17,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
+import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -330,5 +333,20 @@ public final class MlTasks {
         }
 
         return tasks.findTasks(DATAFEED_TASK_NAME, task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes));
+    }
+
+    public static MemoryTrackedTaskState getMemoryTrackedTaskState(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+        String taskName = task.getTaskName();
+        switch (taskName) {
+            case JOB_TASK_NAME:
+                return getJobStateModifiedForReassignments(task);
+            case JOB_SNAPSHOT_UPGRADE_TASK_NAME:
+                SnapshotUpgradeTaskState taskState = (SnapshotUpgradeTaskState) task.getState();
+                return taskState == null ? SnapshotUpgradeState.LOADING_OLD_STATE : taskState.getState();
+            case DATA_FRAME_ANALYTICS_TASK_NAME:
+                return getDataFrameAnalyticsState(task);
+            default:
+                throw new IllegalStateException("unexpected task type [" + task.getTaskName() + "]");
+        }
     }
 }

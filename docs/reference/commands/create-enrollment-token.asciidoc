@@ -1,0 +1,59 @@
+[roles="xpack"]
+[[create-enrollment-token]]
+
+== elasticsearch-create-enrollment-token
+
+The `elasticsearch-create-enrollment-token` command creates enrollment tokens for
+{es} nodes and {kib} instances.
+
+[discrete]
+=== Synopsis
+
+[source,shell]
+----
+bin/elasticsearch-create-enrollment-token
+[-f, --force] [-h, --help] [-E <KeyValuePair>] [-s, --scope]
+----
+
+[discrete]
+=== Description
+
+Use this command to create enrollment tokens, which you can use to enroll new
+{es} nodes to an existing cluster or configure {kib} instances to communicate
+with an existing {es} cluster that has security features enabled.
+The command generates (and subsequently removes) a temporary user in the
+<<file-realm,file realm>> to run the request that creates enrollment tokens.
+IMPORTANT: You cannot use this tool if the file realm is disabled in your 
+`elasticsearch.yml` file.
+
+This command uses an HTTP connection to connect to the cluster and run the user
+management requests. The command automatically attempts to establish the connection
+over HTTPS by using the `xpack.security.http.ssl` settings in
+the `elasticsearch.yml` file. If you do not use the default configuration directory,
+ensure that the `ES_PATH_CONF` environment variable returns the
+correct path before you run the `elasticsearch-create-enrollment-token` command. You can
+override settings in your `elasticsearch.yml` file by using the `-E` command
+option. For more information about debugging connection failures, see
+<<trb-security-setup>>.
+
+[discrete]
+[[create-enrollment-token-parameters]]
+=== Parameters
+
+`-E <KeyValuePair>`:: Configures a standard {es} or {xpack} setting.
+
+`-f, --force`:: Forces the command to run against an unhealthy cluster. 
+
+`-h, --help`:: Returns all of the command parameters.
+
+`-s, --scope`:: Specifies the scope of the generated token. Supported values are `node` and `kibana`.
+
+[discrete]
+=== Examples
+
+The following command creates an enrollment token for enrolling an {es} node into a cluster:
+
+[source,shell]
+----
+bin/elasticsearch-create-enrollment-token -s node
+----

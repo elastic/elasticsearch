@@ -434,6 +434,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return reason;
         }
 
+        public ShardSnapshotStatus withUpdatedGeneration(String newGeneration) {
+            assert state == ShardState.SUCCESS : "can't move generation in state " + state;
+            return new ShardSnapshotStatus(nodeId, state, reason, newGeneration,
+                    shardSnapshotResult == null ? null :
+                            new ShardSnapshotResult(newGeneration, shardSnapshotResult.getSize(), shardSnapshotResult.getSegmentCount()));
+        }
+
         @Nullable
         public ShardSnapshotResult shardSnapshotResult() {
             assert state == ShardState.SUCCESS : "result is unavailable in state " + state;

@@ -20,6 +20,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ public class NestedDocuments {
     private final Map<String, Weight> childObjectFilters = new HashMap<>();
     private final Map<String, NestedObjectMapper> childObjectMappers = new HashMap<>();
     private final BitSetProducer parentDocumentFilter;
-    private final MappingLookup mappingLookup;
+    private final NestedLookup nestedLookup;
 
     /**
      * Create a new NestedDocuments object for an index
@@ -44,15 +45,13 @@ public class NestedDocuments {
      * @param filterProducer    a function to build BitSetProducers from filter queries
      */
     public NestedDocuments(MappingLookup mappingLookup, Function<Query, BitSetProducer> filterProducer) {
-        this.mappingLookup = mappingLookup;
-        if (mappingLookup.hasNested() == false) {
+        this.nestedLookup = mappingLookup.nestedLookup();
+        if (this.nestedLookup == null) {
             this.parentDocumentFilter = null;
         } else {
             this.parentDocumentFilter = filterProducer.apply(Queries.newNonNestedFilter());
-            for (NestedObjectMapper mapper : mappingLookup.getNestedParentMappers()) {
-                parentObjectFilters.put(mapper.name(),
-                    filterProducer.apply(mapper.nestedTypeFilter()));
-            }
+            nestedLookup.getNestedParentFilters()
+                .forEach((k, v) -> parentObjectFilters.put(k, filterProducer.apply(v)));
             for (NestedObjectMapper mapper : mappingLookup.getNestedMappers()) {
                 childObjectFilters.put(mapper.name(), null);
                 childObjectMappers.put(mapper.name(), mapper);

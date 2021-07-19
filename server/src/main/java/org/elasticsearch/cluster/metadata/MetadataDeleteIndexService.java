@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -183,9 +184,17 @@ public class MetadataDeleteIndexService {
             }
 
             final String repositoryName = repositoryNameFromIndexSettings(currentState, indexSettings);
+            final String snapshotName = indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY);
             final String snapshotUuid = indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY);
 
             boolean canDeleteSnapshot = true;
+
+            // TODO change this to an assertion once it becomes impossible to delete a snapshot that is mounted as an index
+            if (currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                .getEntries().stream().anyMatch(entry -> entry.getSnapshots().contains(new SnapshotId(snapshotName, snapshotUuid)))) {
+                continue; // this snapshot is part of an existing snapshot deletion in progress, nothing to do
+            }
+
             for (IndexMetadata other : currentState.metadata()) {
                 if (indicesToDelete.contains(other.getIndex())) {
                     continue; // do not check indices that are going to be deleted

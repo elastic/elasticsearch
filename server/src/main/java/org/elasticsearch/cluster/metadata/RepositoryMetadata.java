@@ -58,7 +58,7 @@ public class RepositoryMetadata implements Writeable {
     }
 
     public RepositoryMetadata(RepositoryMetadata metadata, long generation, long pendingGeneration) {
-        this(metadata.name, metadata.uuid, metadata.type, metadata.settings, generation, pendingGeneration, List.of());
+        this(metadata.name, metadata.uuid, metadata.type, metadata.settings, generation, pendingGeneration, metadata.snapshotsToDelete);
     }
 
     public RepositoryMetadata(

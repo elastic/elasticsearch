@@ -529,7 +529,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
             response -> {
                 for (String jobId : movedJobs) {
                     PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
-                    persistentTasksService.sendRemoveRequest(datafeedTask.getId(), ActionListener.wrap(
+                    persistentTasksService.sendRemoveRequest(jobTask.getId(), ActionListener.wrap(
                         r -> logger.trace("[{}] removed persistent task for relocated job", jobId),
                         e -> {
                             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {

@@ -24,6 +24,7 @@ import java.io.IOException;
 
 public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder> {
     public static final String NAME = "type";
+    public static final ParseField NAME_V7 = new ParseField("type").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
     private static final ParseField VALUE_FIELD = new ParseField("value");
     private static final ObjectParser<TypeQueryV7Builder, Void> PARSER = new ObjectParser<>(NAME, TypeQueryV7Builder::new);
 
@@ -32,8 +33,7 @@ public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder>
             AbstractQueryBuilder.NAME_FIELD.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)));
         PARSER.declareFloat(QueryBuilder::boost,
             AbstractQueryBuilder.BOOST_FIELD.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)));
-        PARSER.declareString((queryBuilder, value) -> {
-            },
+        PARSER.declareString((queryBuilder, value) -> {},
             VALUE_FIELD.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)));
     }
 

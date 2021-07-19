@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
@@ -256,6 +257,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
 
@@ -838,7 +840,6 @@ public class SearchModule {
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
         }
-        registerQuery(new QuerySpec<>(TypeQueryV7Builder.NAME, TypeQueryV7Builder::new, TypeQueryV7Builder::fromXContent));
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
     }
@@ -894,5 +895,13 @@ public class SearchModule {
 
     public FetchPhase getFetchPhase() {
         return new FetchPhase(fetchSubPhases);
+    }
+
+    public List<NamedXContentRegistry.Entry> getNamedXContentForCompatibility() {
+        if (RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
+            return List.of(
+                new NamedXContentRegistry.Entry(QueryBuilder.class, TypeQueryV7Builder.NAME_V7, TypeQueryV7Builder::fromXContent));
+        }
+        return emptyList();
     }
 }

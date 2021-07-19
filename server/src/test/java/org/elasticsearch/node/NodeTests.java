@@ -29,6 +29,7 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
@@ -55,6 +56,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class NodeTests extends ESTestCase {
@@ -340,25 +342,25 @@ public class NodeTests extends ESTestCase {
         RestApiVersion minimumRestCompatibilityVersion();
     }
 
-    static MockRestApiVersion MockCompatibleVersion = Mockito.mock(MockRestApiVersion.class);
+    static MockRestApiVersion MockCompatibleVersion = mock(MockRestApiVersion.class);
 
     static NamedXContentRegistry.Entry v7CompatibleEntries = new NamedXContentRegistry.Entry(Integer.class,
-        new ParseField("name"), Mockito.mock(ContextParser.class));
+        new ParseField("name"), mock(ContextParser.class));
     static NamedXContentRegistry.Entry v8CompatibleEntries = new NamedXContentRegistry.Entry(Integer.class,
-        new ParseField("name2"), Mockito.mock(ContextParser.class));
+        new ParseField("name2"), mock(ContextParser.class));
 
     public static class TestRestCompatibility1 extends Plugin {
 
         @Override
         public List<NamedXContentRegistry.Entry> getNamedXContentForCompatibility() {
             // real plugin will use CompatibleVersion.minimumRestCompatibilityVersion()
-            if (/*CompatibleVersion.minimumRestCompatibilityVersion()*/
+            if (/*RestApiVersion.minimumSupported() == */
                 MockCompatibleVersion.minimumRestCompatibilityVersion().equals(RestApiVersion.V_7)) {
                 //return set of N-1 entries
                 return List.of(v7CompatibleEntries);
             }
             // after major release, new compatible apis can be added before the old ones are removed.
-            if (/*CompatibleVersion.minimumRestCompatibilityVersion()*/
+            if (/*RestApiVersion.minimumSupported() == */
                 MockCompatibleVersion.minimumRestCompatibilityVersion().equals(RestApiVersion.V_8)) {
                 return List.of(v8CompatibleEntries);
 
@@ -381,7 +383,7 @@ public class NodeTests extends ESTestCase {
             plugins.add(TestRestCompatibility1.class);
 
             try (Node node = new MockNode(settings.build(), plugins)) {
-                List<NamedXContentRegistry.Entry> compatibleNamedXContents = node.getCompatibleNamedXContents();
+                List<NamedXContentRegistry.Entry> compatibleNamedXContents = node.getCompatibleNamedXContents(mock(SearchModule.class));
                 assertThat(compatibleNamedXContents, contains(v7CompatibleEntries));
             }
         }
@@ -396,7 +398,7 @@ public class NodeTests extends ESTestCase {
             plugins.add(TestRestCompatibility1.class);
 
             try (Node node = new MockNode(settings.build(), plugins)) {
-                List<NamedXContentRegistry.Entry> compatibleNamedXContents = node.getCompatibleNamedXContents();
+                List<NamedXContentRegistry.Entry> compatibleNamedXContents = node.getCompatibleNamedXContents(mock(SearchModule.class));
                 assertThat(compatibleNamedXContents, contains(v8CompatibleEntries));
             }
         }

@@ -71,6 +71,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -452,14 +453,29 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             DatafeedTask datafeedTask = (DatafeedTask) allocatedPersistentTask;
             DatafeedState datafeedState = (DatafeedState) state;
 
-            // If we are "stopping" there is nothing to do
+            // If we are stopping, stopped or isolated we should not start the runner.  Due to
+            // races in the way messages pass between nodes via cluster state or direct action calls
+            // we need to detect stopped/stopping by both considering the persistent task state in
+            // cluster state and also whether an explicit request to stop has been received on this
+            // node.
+            DatafeedTask.StoppedOrIsolatedBeforeRunning stoppedOrIsolatedBeforeRunning;
             if (DatafeedState.STOPPING.equals(datafeedState)) {
-                logger.info("[{}] datafeed got reassigned while stopping. Marking as completed", params.getDatafeedId());
-                datafeedTask.markAsCompleted();
-                return;
+                stoppedOrIsolatedBeforeRunning = DatafeedTask.StoppedOrIsolatedBeforeRunning.STOPPED;
+            } else {
+                stoppedOrIsolatedBeforeRunning = datafeedTask.setDatafeedRunner(datafeedRunner);
             }
-            datafeedTask.datafeedRunner = datafeedRunner;
-            datafeedRunner.run(datafeedTask, datafeedTask::completeOrFailIfRequired);
+            switch (stoppedOrIsolatedBeforeRunning) {
+                case NEITHER:
+                    datafeedRunner.run(datafeedTask, datafeedTask::completeOrFailIfRequired);
+                    break;
+                case ISOLATED:
+                    logger.info("[{}] datafeed isolated immediately after reassignment.", params.getDatafeedId());
+                    break;
+                case STOPPED:
+                    logger.info("[{}] datafeed got reassigned while stopping. Marking as completed", params.getDatafeedId());
+                    datafeedTask.markAsCompleted();
+                    break;
+            }
         }
 
         @Override
@@ -473,11 +489,17 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
     public static class DatafeedTask extends AllocatedPersistentTask implements StartDatafeedAction.DatafeedTaskMatcher {
 
+        public enum StoppedOrIsolatedBeforeRunning { NEITHER, ISOLATED, STOPPED }
+
         private final String datafeedId;
         private final long startTime;
         private final Long endTime;
-        /* only pck protected for testing */
-        volatile DatafeedRunner datafeedRunner;
+        /**
+         * This must always be set within a synchronized block that also checks
+         * the value of the {@code stoppedOrIsolatedBeforeRunning} flag.
+         */
+        private DatafeedRunner datafeedRunner;
+        private StoppedOrIsolatedBeforeRunning stoppedOrIsolatedBeforeRunning = StoppedOrIsolatedBeforeRunning.NEITHER;
 
         DatafeedTask(long id, String type, String action, TaskId parentTaskId, StartDatafeedAction.DatafeedParams params,
                      Map<String, String> headers) {
@@ -504,6 +526,20 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             return endTime != null;
         }
 
+        /**
+         * Set the datafeed runner <em>if</em> the task has not already been told to stop or isolate.
+         * @return A {@link StoppedOrIsolatedBeforeRunning} object that indicates whether the
+         *         datafeed task had previously been told to stop or isolate.  {@code datafeedRunner}
+         *         will only be set to the supplied value if the return value of this method is
+         *         {@link StoppedOrIsolatedBeforeRunning#NEITHER}.
+         */
+        synchronized StoppedOrIsolatedBeforeRunning setDatafeedRunner(DatafeedRunner datafeedRunner) {
+            if (stoppedOrIsolatedBeforeRunning == StoppedOrIsolatedBeforeRunning.NEITHER) {
+                this.datafeedRunner = Objects.requireNonNull(datafeedRunner);
+            }
+            return stoppedOrIsolatedBeforeRunning;
+        }
+
         @Override
         protected void onCancelled() {
             // If the persistent task framework wants us to stop then we should do so immediately and
@@ -520,15 +556,29 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         public void stop(String reason, TimeValue timeout) {
-            if (datafeedRunner != null) {
-                datafeedRunner.stopDatafeed(this, reason, timeout);
+            synchronized (this) {
+                if (datafeedRunner == null) {
+                    stoppedOrIsolatedBeforeRunning = StoppedOrIsolatedBeforeRunning.STOPPED;
+                    return;
+                }
             }
+            datafeedRunner.stopDatafeed(this, reason, timeout);
         }
 
         public void isolate() {
-            if (datafeedRunner != null) {
-                datafeedRunner.isolateDatafeed(getAllocationId());
+            synchronized (this) {
+                if (datafeedRunner == null) {
+                    // Stopped takes precedence over isolated for what we report externally,
+                    // as stopped needs to cause the persistent task to be marked as completed
+                    // (regardless of whether it was isolated) whereas isolated but not stopped
+                    // mustn't do this.
+                    if (stoppedOrIsolatedBeforeRunning == StoppedOrIsolatedBeforeRunning.NEITHER) {
+                        stoppedOrIsolatedBeforeRunning = StoppedOrIsolatedBeforeRunning.ISOLATED;
+                    }
+                    return;
+                }
             }
+            datafeedRunner.isolateDatafeed(getAllocationId());
         }
 
         void completeOrFailIfRequired(Exception error) {
@@ -544,8 +594,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         public Optional<GetDatafeedRunningStateAction.Response.RunningState> getRunningState() {
-            if (datafeedRunner == null) {
-                return Optional.empty();
+            synchronized (this) {
+                if (datafeedRunner == null) {
+                    return Optional.empty();
+                }
             }
             return Optional.of(new GetDatafeedRunningStateAction.Response.RunningState(
                 this.endTime == null,

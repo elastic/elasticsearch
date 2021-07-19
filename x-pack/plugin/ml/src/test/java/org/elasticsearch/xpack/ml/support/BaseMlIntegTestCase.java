@@ -346,7 +346,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         final QueryPage<DatafeedConfig> datafeeds =
             client.execute(GetDatafeedsAction.INSTANCE, new GetDatafeedsAction.Request(GetDatafeedsAction.ALL)).actionGet().getResponse();
         try {
-            logger.info("Closing all datafeeds (using _all)");
+            logger.info("Stopping all datafeeds (using _all)");
             StopDatafeedAction.Response stopResponse = client
                     .execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request("_all"))
                     .get();
@@ -361,8 +361,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             } catch (ExecutionException e2) {
                 logger.warn("Force-stopping datafeed with _all failed.", e2);
             }
-            throw new RuntimeException(
-                    "Had to resort to force-stopping datafeed, something went wrong?", e1);
+            throw new RuntimeException("Had to resort to force-stopping datafeed, something went wrong?", e1);
         }
 
         for (final DatafeedConfig datafeed : datafeeds.results()) {

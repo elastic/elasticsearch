@@ -1215,6 +1215,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         DiscoveryNodes nodes,
         Map<ShardId, ShardSnapshotStatus> knownFailures
     ) {
+        if (entry.isClone()) {
+            return null;
+        }
         boolean snapshotChanged = false;
         ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shards = ImmutableOpenMap.builder();
         for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> shardEntry : entry.shardsByRepoShardId()) {
@@ -1325,8 +1328,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         final Set<String> removedNodeIds = removedNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         return snapshotsInProgress.entries().stream().anyMatch(snapshot -> {
-            if (snapshot.state().completed()) {
-                // nothing to do for already completed snapshots
+            if (snapshot.state().completed() || snapshot.isClone()) {
+                // nothing to do for already completed snapshots or clones that run on master anyways
                 return false;
             }
             for (ObjectCursor<ShardSnapshotStatus> shardStatus : snapshot.shards().values()) {
@@ -3191,10 +3194,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             private void tryStartNextTaskAfterSnapshotUpdated(ShardId shardId, ShardSnapshotStatus updatedState) {
                 // We applied the update for a shard snapshot state to its snapshot entry, now check if we can update
                 // either a clone or a snapshot
-                if (entry.isClone()) {
-                    tryStartCloneAfterSnapshotFinish(shardId, updatedState);
-                } else if (isQueued(entry.shardsByRepoShardId().get(entry.repositoryShardId(shardId)))) {
-                    startShardOperation(shardsBuilder(), updatedState.nodeId(), updatedState.generation(), shardId);
+                if (entry.indices().containsKey(shardId.getIndexName())) {
+                    final RepositoryShardId repoShardId = entry.repositoryShardId(shardId);
+                    if (isQueued(entry.shardsByRepoShardId().get(repoShardId))) {
+                        if (entry.isClone()) {
+                            // shard snapshot was completed, we check if we can start a clone operation for the same repo shard
+                            startShardOperation(
+                                clonesBuilder(),
+                                currentState.nodes().getLocalNodeId(),
+                                updatedState.generation(),
+                                repoShardId
+                            );
+                        } else {
+                            startShardOperation(shardsBuilder(), updatedState.nodeId(), updatedState.generation(), shardId);
+                        }
+                    }
                 }
             }
 
@@ -3221,19 +3235,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // update to queued snapshot did not result in an actual update execution so we just record it but keep applying
                         // the update to e.g. fail all snapshots for a given shard if the primary for the shard went away
                         shardsBuilder().put(finishedRoutingShardId, shardSnapshotStatus);
-                    }
-                }
-            }
-
-            private void tryStartCloneAfterSnapshotFinish(ShardId shardId, ShardSnapshotStatus updatedState) {
-                // shard snapshot was completed, we check if we can start a clone operation for the same repo shard
-                // TODO: shorter
-                final IndexId indexId = entry.indices().get(shardId.getIndexName());
-                // If the lookup finds the index id then at least the entry is concerned with the index id just updated
-                if (indexId != null) {
-                    final RepositoryShardId repoShardId = entry.repositoryShardId(shardId);
-                    if (isQueued(entry.shardsByRepoShardId().get(repoShardId))) {
-                        startShardOperation(clonesBuilder(), currentState.nodes().getLocalNodeId(), updatedState.generation(), repoShardId);
                     }
                 }
             }

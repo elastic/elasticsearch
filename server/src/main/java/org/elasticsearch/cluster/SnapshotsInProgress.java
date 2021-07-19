@@ -734,6 +734,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public ShardId shardId(RepositoryShardId repositoryShardId) {
+            assert isClone() == false : "must not be called for clone [" + this + "]";
             return new ShardId(indexLookup().get(repositoryShardId.index()), repositoryShardId.shardId());
         }
 

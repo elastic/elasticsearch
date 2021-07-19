@@ -19,8 +19,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
@@ -142,7 +142,7 @@ public class Classification implements DataFrameAnalysis {
 
         Map<String, Object> classesMapping = new HashMap<>();
         classesMapping.put("dynamic", false);
-        classesMapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        classesMapping.put("type", NestedObjectMapper.CONTENT_TYPE);
         classesMapping.put("properties", classesProperties);
 
         Map<String, Object> properties = new HashMap<>();
@@ -151,7 +151,7 @@ public class Classification implements DataFrameAnalysis {
 
         Map<String, Object> mapping = new HashMap<>();
         mapping.put("dynamic", false);
-        mapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        mapping.put("type", NestedObjectMapper.CONTENT_TYPE);
         mapping.put("properties", properties);
 
         FEATURE_IMPORTANCE_MAPPING = Collections.unmodifiableMap(mapping);
@@ -422,7 +422,7 @@ public class Classification implements DataFrameAnalysis {
         topClassesProperties.put("class_score", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
 
         Map<String, Object> topClassesMapping = new HashMap<>();
-        topClassesMapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        topClassesMapping.put("type", NestedObjectMapper.CONTENT_TYPE);
         topClassesMapping.put("properties", topClassesProperties);
 
         additionalProperties.put(resultsFieldName + ".top_classes", topClassesMapping);

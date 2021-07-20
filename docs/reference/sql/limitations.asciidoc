@@ -147,8 +147,8 @@ The query above is possible because it is equivalent with:
 include-tagged::{sql-specs}/docs/docs.csv-spec[limitationSubSelectRewritten]
 --------------------------------------------------
 
-But, if the sub-select would include a `GROUP BY` or `HAVING` or the enclosing `SELECT` would be more complex than `SELECT X
-FROM (SELECT ...) WHERE [simple_condition]`, this is currently **un-supported**.
+Sub-selects that require the aggregation of already aggregated data are currently **not supported**. For example,
+`SELECT SUM(c) FROM (SELECT COUNT(*) c FROM emp)` fails because it results in a nested aggregation.
 
 [discrete]
 [[first-last-agg-functions-having-clause]]

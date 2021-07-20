@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.StaticCacheKeyDirectoryReaderWrapper;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.CheckedSupplier;
@@ -104,33 +105,35 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
     BytesReference getOrCompute(CacheEntity cacheEntity, CheckedSupplier<BytesReference, IOException> loader,
                                 MappingLookup.CacheKey mappingCacheKey, DirectoryReader reader, BytesReference cacheKey) throws Exception {
-        assert reader.getReaderCacheHelper() != null;
-        final Key key =  new Key(cacheEntity, mappingCacheKey, reader.getReaderCacheHelper().getKey(), cacheKey);
-        Loader cacheLoader = new Loader(cacheEntity, loader);
-        BytesReference value = cache.computeIfAbsent(key, cacheLoader);
-        if (cacheLoader.isLoaded()) {
-            key.entity.onMiss();
-            // see if its the first time we see this reader, and make sure to register a cleanup key
-            CleanupKey cleanupKey = new CleanupKey(cacheEntity, reader.getReaderCacheHelper().getKey());
-            if (registeredClosedListeners.containsKey(cleanupKey) == false) {
-                Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
-                if (previous == null) {
-                    ElasticsearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
+        return StaticCacheKeyDirectoryReaderWrapper.withStaticCacheHelper(reader, () -> {
+            assert reader.getReaderCacheHelper() != null;
+            final Key key =  new Key(cacheEntity, mappingCacheKey, reader.getReaderCacheHelper().getKey(), cacheKey);
+            Loader cacheLoader = new Loader(cacheEntity, loader);
+            BytesReference value = cache.computeIfAbsent(key, cacheLoader);
+            if (cacheLoader.isLoaded()) {
+                key.entity.onMiss();
+                // see if its the first time we see this reader, and make sure to register a cleanup key
+                CleanupKey cleanupKey = new CleanupKey(cacheEntity, reader.getReaderCacheHelper().getKey());
+                if (registeredClosedListeners.containsKey(cleanupKey) == false) {
+                    Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
+                    if (previous == null) {
+                        ElasticsearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
+                    }
                 }
+                /*
+                 * Note that we don't use a closed listener for the mapping. Instead
+                 * we let cache entries for out of date mappings age out. We do this
+                 * because we don't reference count the MappingLookup so we can't tell
+                 * when one is no longer used. Mapping updates should be a lot less
+                 * frequent than reader closes so this is probably ok. On the other
+                 * hand, for read only indices mapping changes are, well, possible,
+                 * and readers are never changed. Oh well.
+                 */
+            } else {
+                key.entity.onHit();
             }
-            /*
-             * Note that we don't use a closed listener for the mapping. Instead
-             * we let cache entries for out of date mappings age out. We do this
-             * because we don't reference count the MappingLookup so we can't tell
-             * when one is no longer used. Mapping updates should be a lot less
-             * frequent than reader closes so this is probably ok. On the other
-             * hand, for read only indices mapping changes are, well, possible,
-             * and readers are never changed. Oh well.
-             */
-        } else {
-            key.entity.onHit();
-        }
-        return value;
+            return value;
+        });
     }
 
     /**
@@ -140,8 +143,11 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
      * @param cacheKey the cache key to invalidate
      */
     void invalidate(CacheEntity cacheEntity, MappingLookup.CacheKey mappingCacheKey, DirectoryReader reader, BytesReference cacheKey) {
-        assert reader.getReaderCacheHelper() != null;
-        cache.invalidate(new Key(cacheEntity, mappingCacheKey, reader.getReaderCacheHelper().getKey(), cacheKey));
+        StaticCacheKeyDirectoryReaderWrapper.withStaticCacheHelper(reader, () -> {
+            assert reader.getReaderCacheHelper() != null;
+            cache.invalidate(new Key(cacheEntity, mappingCacheKey, reader.getReaderCacheHelper().getKey(), cacheKey));
+            return null;
+        });
     }
 
     private static class Loader implements CacheLoader<Key, BytesReference> {

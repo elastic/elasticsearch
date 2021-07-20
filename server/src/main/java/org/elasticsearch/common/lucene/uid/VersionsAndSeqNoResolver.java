@@ -11,7 +11,6 @@ package org.elasticsearch.common.lucene.uid;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.StaticCacheKeyDirectoryReaderWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -42,7 +41,6 @@ public final class VersionsAndSeqNoResolver {
         // proved to be cheaper than having to perform a CHM and a TL get for every segment.
         // See https://github.com/elastic/elasticsearch/pull/19856.
         IndexReader.CacheHelper cacheHelper = reader.getReaderCacheHelper();
-        assert cacheHelper instanceof StaticCacheKeyDirectoryReaderWrapper.StaticCacheKeyHelper == false;
         CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]> ctl = lookupStates.get(cacheHelper.getKey());
         if (ctl == null) {
             // First time we are seeing this reader's core; make a new CTL:
@@ -121,10 +119,6 @@ public final class VersionsAndSeqNoResolver {
      * </ul>
      */
     public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term, boolean loadSeqNo) throws IOException {
-        if (reader.getReaderCacheHelper() instanceof StaticCacheKeyDirectoryReaderWrapper.StaticCacheKeyHelper) {
-            // can't cache as we hold onto reader-internal state
-            return loadDocIdAndVersionUncached(reader, term, loadSeqNo);
-        }
         PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field());
         List<LeafReaderContext> leaves = reader.leaves();
         // iterate backwards to optimize for the frequently updated documents
@@ -158,10 +152,6 @@ public final class VersionsAndSeqNoResolver {
      * The result is either null or the live and latest version of the given uid.
      */
     public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, Term term) throws IOException {
-        if (reader.getReaderCacheHelper() instanceof StaticCacheKeyDirectoryReaderWrapper.StaticCacheKeyHelper) {
-            // can't cache as we hold onto reader-internal state
-            return loadDocIdAndSeqNoUncached(reader, term);
-        }
         final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field());
         final List<LeafReaderContext> leaves = reader.leaves();
         // iterate backwards to optimize for the frequently updated documents
@@ -169,21 +159,6 @@ public final class VersionsAndSeqNoResolver {
         for (int i = leaves.size() - 1; i >= 0; i--) {
             final LeafReaderContext leaf = leaves.get(i);
             final PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
-            final DocIdAndSeqNo result = lookup.lookupSeqNo(term.bytes(), leaf);
-            if (result != null) {
-                return result;
-            }
-        }
-        return null;
-    }
-
-    public static DocIdAndSeqNo loadDocIdAndSeqNoUncached(IndexReader reader, Term term) throws IOException {
-        final List<LeafReaderContext> leaves = reader.leaves();
-        // iterate backwards to optimize for the frequently updated documents
-        // which are likely to be in the last segments
-        for (int i = leaves.size() - 1; i >= 0; i--) {
-            final LeafReaderContext leaf = leaves.get(i);
-            final PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), term.field(), false);
             final DocIdAndSeqNo result = lookup.lookupSeqNo(term.bytes(), leaf);
             if (result != null) {
                 return result;

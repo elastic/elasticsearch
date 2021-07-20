@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.index.StaticCacheKeyDirectoryReaderWrapper;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -212,6 +213,11 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      */
     @Nullable
     public BitSet getBitSet(final Query query, final LeafReaderContext context) throws ExecutionException {
+        return StaticCacheKeyDirectoryReaderWrapper.withStaticCacheHelper(context.reader(),
+            () -> getBitSetInternal(query, context));
+    }
+
+    private BitSet getBitSetInternal(Query query, LeafReaderContext context) throws ExecutionException {
         final IndexReader.CacheHelper coreCacheHelper = context.reader().getCoreCacheHelper();
         if (coreCacheHelper == null) {
             try {

@@ -91,7 +91,11 @@ public class AggConstructionContentionBenchmark {
     private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     private final PageCacheRecycler recycler = new PageCacheRecycler(Settings.EMPTY);
     private final Index index = new Index("test", "uuid");
-    private IndicesFieldDataCache indicesFieldDataCache;
+    private final IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(
+        Settings.EMPTY,
+        new IndexFieldDataCache.Listener() {
+        }
+    );
 
     private CircuitBreakerService breakerService;
     private BigArrays bigArrays;
@@ -117,7 +121,6 @@ public class AggConstructionContentionBenchmark {
                 throw new UnsupportedOperationException();
         }
         bigArrays = new BigArrays(recycler, breakerService, "request");
-        indicesFieldDataCache = new IndicesFieldDataCache(Settings.EMPTY, breakerService);
     }
 
     @Benchmark

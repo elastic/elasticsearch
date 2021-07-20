@@ -11,6 +11,7 @@ package org.elasticsearch.indices;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.StaticCacheKeyDirectoryReaderWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
@@ -135,26 +136,34 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
         @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-            shardKeyMap.add(context.reader());
-            return in.explain(context, doc);
+            return StaticCacheKeyDirectoryReaderWrapper.withStaticCacheHelper(context.reader(), () -> {
+                shardKeyMap.add(context.reader());
+                return in.explain(context, doc);
+            });
         }
 
         @Override
         public Scorer scorer(LeafReaderContext context) throws IOException {
-            shardKeyMap.add(context.reader());
-            return in.scorer(context);
+            return StaticCacheKeyDirectoryReaderWrapper.withStaticCacheHelper(context.reader(), () -> {
+                shardKeyMap.add(context.reader());
+                return in.scorer(context);
+            });
         }
 
         @Override
         public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-            shardKeyMap.add(context.reader());
-            return in.scorerSupplier(context);
+            return StaticCacheKeyDirectoryReaderWrapper.withStaticCacheHelper(context.reader(), () -> {
+                shardKeyMap.add(context.reader());
+                return in.scorerSupplier(context);
+            });
         }
 
         @Override
         public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-            shardKeyMap.add(context.reader());
-            return in.bulkScorer(context);
+            return StaticCacheKeyDirectoryReaderWrapper.withStaticCacheHelper(context.reader(), () -> {
+                shardKeyMap.add(context.reader());
+                return in.bulkScorer(context);
+            });
         }
 
         @Override

@@ -48,8 +48,7 @@ supports this parameter for CSV responses.
 <<sql-rest-format>>.
 +
 You can also specify a format using the `Accept` HTTP header. If you specify
-both this parameter and the `Accept` HTTP header, the API only uses this
-parameter.
+both this parameter and the `Accept` HTTP header, this parameter take precedence.
 
 [role="child_attributes"]
 [[sql-search-api-request-body]]
@@ -85,15 +84,22 @@ search. See <<sql-rest-filtering>>.
 `false`.
 
 `keep_alive`::
-(Optional, <<time-units,time value>>) Retention period for the search and its
-results. Defaults to `5d` (five days).
+(Optional, <<time-units,time value>>) Retention period for an
+<<sql-async,async>> or <<sql-store-searches,saved synchronous search>>. Defaults
+to `5d` (five days).
+
+`keep_on_completion`::
+(Optional, Boolean) If `true`, {es} <<sql-store-searches,stores synchronous
+searches>> if you also specify the `wait_for_completion_timeout` parameter. If
+`false`, {es} only stores <<sql-async,async searches>> that don't finish before
+the `wait_for_completion_timeout`. Defaults to `false`.
 
 `page_timeout`::
 (Optional, <<time-units,time value>>) Timeout before a
 <<sql-pagination,pagination request>> fails. Defaults to `45s` (45 seconds).
 
 `params`::
-(Optional, array) Values for variables in the `query`. For variable syntax, see
+(Optional, array) Values for parameters in the `query`. For syntax, see
 <<sql-rest-params>>.
 
 `query`::
@@ -116,6 +122,9 @@ to `Z` (UTC).
 Defaults to no timeout, meaning the request waits for complete search results.
 If the search doesn’t finish within this period, the search becomes
 <<sql-async,async>>.
++
+To <<sql-store-searches,save a synchronous search>>, you specify this parameter
+and the `keep_on_completion` parameter.
 
 [role="child_attributes"]
 [[sql-search-api-response-body]]

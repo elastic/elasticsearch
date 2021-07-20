@@ -197,7 +197,7 @@ public class ScriptTransformTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
                 .build();
-        Map<String, ScriptContext> contexts = new HashMap<>(ScriptModule.CORE_CONTEXTS);
+        Map<String, ScriptContext<?>> contexts = new HashMap<>(ScriptModule.CORE_CONTEXTS);
         contexts.put(WatcherTransformScript.CONTEXT.name, WatcherTransformScript.CONTEXT);
         contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         return new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());

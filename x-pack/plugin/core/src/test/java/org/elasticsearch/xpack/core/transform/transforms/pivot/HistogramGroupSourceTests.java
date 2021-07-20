@@ -20,12 +20,20 @@ public class HistogramGroupSourceTests extends AbstractSerializingTestCase<Histo
         return randomHistogramGroupSource(Version.CURRENT);
     }
 
+    public static HistogramGroupSource randomHistogramGroupSourceNoScript() {
+        return randomHistogramGroupSource(Version.CURRENT, false);
+    }
+
     public static HistogramGroupSource randomHistogramGroupSource(Version version) {
+        return randomHistogramGroupSource(version, randomBoolean());
+    }
+
+    public static HistogramGroupSource randomHistogramGroupSource(Version version, boolean withScript) {
         ScriptConfig scriptConfig = null;
         String field;
 
         // either a field or a script must be specified, it's possible to have both, but disallowed to have none
-        if (version.onOrAfter(Version.V_7_7_0) && randomBoolean()) {
+        if (version.onOrAfter(Version.V_7_7_0) && withScript) {
             scriptConfig = ScriptConfigTests.randomScriptConfig();
             field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
         } else {

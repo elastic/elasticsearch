@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
@@ -358,14 +358,14 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
   testFixtures.useFixture ':test:fixtures:azure-fixture', 'azure-fixture'
 }
 
-Map<String, Object> expansions = [
+Map<String, String> expansions = [
   'container': azureContainer,
   'base_path': azureBasePath + "_integration_tests"
 ]
 
 tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 tasks.named("internalClusterTest").configure {

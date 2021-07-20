@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
 
 import java.nio.file.Files
 import java.security.KeyPair
@@ -88,7 +88,7 @@ Map<String, Object> expansions = [
 
 tasks.named("processTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 if (useFixture) {

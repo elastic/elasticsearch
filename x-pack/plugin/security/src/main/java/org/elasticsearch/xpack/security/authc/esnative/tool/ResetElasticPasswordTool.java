@@ -49,7 +49,7 @@ public class ResetElasticPasswordTool extends BaseRunAsSuperuserCommand {
     protected ResetElasticPasswordTool(
         Function<Environment, CommandLineHttpClient> clientFunction,
         CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
-        super(clientFunction, keyStoreFunction, "Resets the password or the elastic built-in user");
+        super(clientFunction, keyStoreFunction, "Resets the password of the elastic built-in user");
         interactive = parser.acceptsAll(List.of("i", "interactive"));
         auto = parser.acceptsAll(List.of("a", "auto")); // default
         batch = parser.acceptsAll(List.of("b", "batch"));

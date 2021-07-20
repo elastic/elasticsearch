@@ -502,6 +502,11 @@ logging should have corresponding tests. These tests typically use a
 `org.elasticsearch.test.MockLogAppender` to capture the logs and assert that
 they are as expected.
 
+Logging is a powerful diagnostic technique but it is not the only possibility.
+You should also consider exposing information about your component via an API
+instead of in logs. For instance you can implement APIs to report its current
+status, various statistics, and maybe even details of recent failures.
+
 #### Log levels
 
 Each log message is written at a particular _level_. By default Elasticsearch
@@ -542,7 +547,9 @@ help determine whether a fault lies within Elasticsearch or elsewhere. These
 logs may be used in production so it is important to limit the volume of
 messages logged at this level to avoid the log volume overwhelming the system.
 On the other hand, these messages must still provide enough detail to diagnose
-the sorts of problems that a component might encounter.
+the sorts of problems that a component might encounter. In some cases you might
+need to collect information over a period of time and then log a summary when
+it's appropriate to do so.
 
 It's possible that the reader of `DEBUG` logs is also reading the code, but
 that is less likely than for `TRACE` logs. You should strive to avoid

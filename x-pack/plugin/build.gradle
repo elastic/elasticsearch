@@ -162,13 +162,7 @@ tasks.named("yamlRestCompatTest").configure {
    */
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
 
-  //TODO: blacklist specific to REST API compatibility
-  restTestBlacklist.addAll([
-//    'license/30_enterprise_license/Installing enterprise license',
-    ] + v7compatibilityNotSupportedTests())
-
-
-  systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
+  systemProperty 'tests.rest.blacklist', v7compatibilityNotSupportedTests().join(',')
   dependsOn "copyExtraResources"
 }
 
@@ -223,9 +217,5 @@ tasks.named("precommit").configure {
 tasks.named("transformV7RestTests").configure({ task ->
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
-  task.replaceValueInLength("license", 12, "Installing enterprise license")
-  task.replaceValueInMatch("license.type", "enterprise", "Installing enterprise license")
-  task.replaceValueInMatch("license.mode", "enterprise", "Installing enterprise license")
   task.addAllowedWarningRegexForTest("Including \\[accept_enterprise\\] in get license.*", "Installing enterprise license")
-  task.replaceValueInMatch("license.max_nodes", null, "Installing enterprise license")
 })

@@ -48,7 +48,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.ValueType;
  *     ]
  * }
  */
-public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
+public abstract class DateHistogramGroupConfig implements Writeable, ToXContentObject {
 
     static final String NAME = "date_histogram";
     public static final String INTERVAL = "interval";
@@ -184,19 +184,6 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
     }
 
     /**
-     * Create a new {@link DateHistogramGroupConfig} using the given field and interval parameters.
-     *
-     * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
-     * or {@link DateHistogramGroupConfig.FixedInterval} instead
-     *
-     * @since 7.2.0
-     */
-    @Deprecated
-    public DateHistogramGroupConfig(final String field, final DateHistogramInterval interval) {
-        this(field, interval, null, null);
-    }
-
-    /**
      * Create a new {@link DateHistogramGroupConfig} using the given configuration parameters.
      * <p>
      *     The {@code field} and {@code interval} are required to compute the date histogram for the rolled up documents.
@@ -209,13 +196,9 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      * @param delay the time delay (optional)
      * @param timeZone the id of time zone to use to calculate the date histogram (optional). When {@code null}, the UTC timezone is used.
      *
-     * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
-     * or {@link DateHistogramGroupConfig.FixedInterval} instead
-     *
      * @since 7.2.0
      */
-    @Deprecated
-    public DateHistogramGroupConfig(final String field,
+    protected DateHistogramGroupConfig(final String field,
                                     final DateHistogramInterval interval,
                                     final @Nullable DateHistogramInterval delay,
                                     final @Nullable String timeZone) {
@@ -239,14 +222,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         }
     }
 
-    /**
-     * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
-     * or {@link DateHistogramGroupConfig.FixedInterval} instead
-     *
-     * @since 7.2.0
-     */
-    @Deprecated
-    DateHistogramGroupConfig(final StreamInput in) throws IOException {
+    protected DateHistogramGroupConfig(final StreamInput in) throws IOException {
         interval = new DateHistogramInterval(in);
         field = in.readString();
         delay = in.readOptionalWriteable(DateHistogramInterval::new);

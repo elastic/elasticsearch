@@ -150,6 +150,7 @@ public class License implements ToXContentObject {
      */
     public static final String LICENSE_VERSION_MODE = "license_version";
     /**
+     * Set on v7 rest compatible requests only
      * XContent param name to map the "enterprise" license type to "platinum"
      * for backwards compatibility with older clients
      */
@@ -557,8 +558,8 @@ public class License implements ToXContentObject {
         if (expiryDate != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
             builder.timeField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
         }
-        if (hideEnterprise && maxNodes == -1 && builder.getRestApiVersion().matches(onOrAfter(RestApiVersion.V_7))) {
-            builder.field(Fields.MAX_NODES, maxResourceUnits);
+        if (hideEnterprise && builder.getRestApiVersion().matches(onOrAfter(RestApiVersion.V_7))) {
+            builder.field(Fields.MAX_NODES,maxNodes == -1  ? maxResourceUnits : maxNodes);
         }else if (version >= VERSION_ENTERPRISE ) {
             builder.field(Fields.MAX_NODES, maxNodes == -1 ? null : maxNodes);
             builder.field(Fields.MAX_RESOURCE_UNITS, maxResourceUnits == -1 ? null : maxResourceUnits);

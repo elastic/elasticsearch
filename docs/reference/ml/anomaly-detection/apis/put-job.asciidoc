@@ -251,12 +251,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=data-description]
 .Properties of `datafeed`
 [%collapsible%open]
 ====
-`datafeed_id`:::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
-+
-Defaults to the same ID as the {anomaly-job}.
-
 `aggregations`:::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=aggregations]
@@ -276,6 +270,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=mode]
 (<<time-units,time units>>)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-span]
 =====
+
+`datafeed_id`:::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
++
+Defaults to the same ID as the {anomaly-job}.
 
 `delayed_data_check_config`:::
 (Optional, object)

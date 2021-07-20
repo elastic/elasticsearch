@@ -15,7 +15,7 @@ import org.elasticsearch.geometry.Rectangle;
  */
 public class SphericalMercatorUtils {
 
-    private static double MERCATOR_FACTOR = 20037508.34 / 180.0;
+    private static final double MERCATOR_FACTOR = 20037508.34 / 180.0;
 
     /**
      * Transforms WGS84 longitude to a Spherical mercator longitude

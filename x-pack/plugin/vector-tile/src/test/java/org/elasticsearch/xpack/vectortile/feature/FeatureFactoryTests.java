@@ -31,31 +31,38 @@ import java.util.List;
 
 public class FeatureFactoryTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75325")
     public void testPoint() throws IOException {
-        int z = randomIntBetween(1, 10);
+        int z = randomIntBetween(3, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);
         int extent = randomIntBetween(1 << 8, 1 << 14);
         FeatureFactory builder = new FeatureFactory(z, x, y, extent);
         Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
         {
-            double lat = randomValueOtherThanMany((l) -> rectangle.getMinY() > l || rectangle.getMaxY() < l, GeoTestUtil::nextLatitude);
-            double lon = randomValueOtherThanMany((l) -> rectangle.getMinX() > l || rectangle.getMaxX() < l, GeoTestUtil::nextLongitude);
+            double lat = randomValueOtherThanMany((l) -> rectangle.getMinY() >= l || rectangle.getMaxY() <= l, GeoTestUtil::nextLatitude);
+            double lon = randomValueOtherThanMany((l) -> rectangle.getMinX() >= l || rectangle.getMaxX() <= l, GeoTestUtil::nextLongitude);
             VectorTile.Tile.Feature feature = VectorTile.Tile.Feature.parseFrom(builder.getFeature(new Point(lon, lat)));
             assertThat(feature, Matchers.notNullValue());
             assertThat(feature.getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POINT));
         }
         {
-            double lat = randomValueOtherThanMany((l) -> rectangle.getMinY() <= l && rectangle.getMaxY() >= l, GeoTestUtil::nextLatitude);
-            double lon = randomValueOtherThanMany((l) -> rectangle.getMinX() <= l && rectangle.getMaxX() >= l, GeoTestUtil::nextLongitude);
+            int xNew = randomValueOtherThanMany(v -> Math.abs(v - x) < 2, () -> randomIntBetween(0, (1 << z) - 1));
+            int yNew = randomValueOtherThanMany(v -> Math.abs(v - y) < 2, () -> randomIntBetween(0, (1 << z) - 1));
+            Rectangle rectangleNew = GeoTileUtils.toBoundingBox(xNew, yNew, z);
+            double lat = randomValueOtherThanMany(
+                (l) -> rectangleNew.getMinY() >= l || rectangleNew.getMaxY() <= l,
+                GeoTestUtil::nextLatitude
+            );
+            double lon = randomValueOtherThanMany(
+                (l) -> rectangleNew.getMinX() >= l || rectangleNew.getMaxX() <= l,
+                GeoTestUtil::nextLongitude
+            );
             assertThat(builder.getFeature(new Point(lon, lat)).length, Matchers.equalTo(0));
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75325")
     public void testMultiPoint() throws IOException {
-        int z = randomIntBetween(1, 10);
+        int z = randomIntBetween(3, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);
         int extent = randomIntBetween(1 << 8, 1 << 14);
@@ -64,8 +71,8 @@ public class FeatureFactoryTests extends ESTestCase {
         int numPoints = randomIntBetween(2, 10);
         {
             List<Point> points = new ArrayList<>();
-            double lat = randomValueOtherThanMany((l) -> rectangle.getMinY() > l || rectangle.getMaxY() < l, GeoTestUtil::nextLatitude);
-            double lon = randomValueOtherThanMany((l) -> rectangle.getMinX() > l || rectangle.getMaxX() < l, GeoTestUtil::nextLongitude);
+            double lat = randomValueOtherThanMany((l) -> rectangle.getMinY() >= l || rectangle.getMaxY() <= l, GeoTestUtil::nextLatitude);
+            double lon = randomValueOtherThanMany((l) -> rectangle.getMinX() >= l || rectangle.getMaxX() <= l, GeoTestUtil::nextLongitude);
             points.add(new Point(lon, lat));
             for (int i = 0; i < numPoints - 1; i++) {
                 points.add(new Point(GeoTestUtil.nextLongitude(), GeoTestUtil.nextLatitude()));
@@ -75,14 +82,17 @@ public class FeatureFactoryTests extends ESTestCase {
             assertThat(feature.getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POINT));
         }
         {
+            int xNew = randomValueOtherThanMany(v -> Math.abs(v - x) < 2, () -> randomIntBetween(0, (1 << z) - 1));
+            int yNew = randomValueOtherThanMany(v -> Math.abs(v - y) < 2, () -> randomIntBetween(0, (1 << z) - 1));
+            Rectangle rectangleNew = GeoTileUtils.toBoundingBox(xNew, yNew, z);
             List<Point> points = new ArrayList<>();
             for (int i = 0; i < numPoints; i++) {
                 double lat = randomValueOtherThanMany(
-                    (l) -> rectangle.getMinY() <= l && rectangle.getMaxY() >= l,
+                    (l) -> rectangleNew.getMinY() >= l || rectangleNew.getMaxY() <= l,
                     GeoTestUtil::nextLatitude
                 );
                 double lon = randomValueOtherThanMany(
-                    (l) -> rectangle.getMinX() <= l && rectangle.getMaxX() >= l,
+                    (l) -> rectangleNew.getMinX() >= l || rectangleNew.getMaxX() <= l,
                     GeoTestUtil::nextLongitude
                 );
                 points.add(new Point(lon, lat));

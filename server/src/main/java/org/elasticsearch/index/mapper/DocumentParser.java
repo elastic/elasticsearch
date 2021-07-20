@@ -880,9 +880,11 @@ public final class DocumentParser {
         String fieldPath = context.path().pathAsText(fieldName);
         MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldPath);
         if (fieldType != null) {
-            //we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
-            assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
-            return new NoOpFieldMapper(subfields[subfields.length - 1], fieldType.name());
+            RuntimeField runtimeField = context.root().getRuntimeField(fieldPath);
+            if (runtimeField != null) {
+                assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
+                return new NoOpFieldMapper(subfields[subfields.length - 1], fieldType.name());
+            }
         }
         return null;
     }

@@ -21,12 +21,12 @@ def pluginPaths = project(':plugins').getChildProjects().findAll { pluginName, p
 }.collect {pluginName, pluginProject -> pluginProject.path }
 
 ext.expansions = [
-        'expected.plugins.count': pluginPaths.size().toString()
+  'expected.plugins.count': pluginPaths.size()
 ]
 
 tasks.named("processTestResources").configure {
   inputs.properties(project.expansions)
-  filter("tokens" : expansions, ReplaceTokens.class)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
 testClusters.matching { it.name == "integTest" }.configureEach {

@@ -36,12 +36,12 @@ def gceFixtureProvider = tasks.register("gceFixture", AntFixture) {
 }
 
 Map<String, Object> expansions = [
-  'expected_nodes': gceNumberOfNodes.toString()
+  'expected_nodes': gceNumberOfNodes
 ]
 
 tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
-  filter("tokens" : expansions, ReplaceTokens.class)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
 tasks.named("yamlRestTest").configure {

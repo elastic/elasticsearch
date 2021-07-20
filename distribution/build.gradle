@@ -215,7 +215,7 @@ void copyLog4jProperties(TaskProvider buildTask, Project module) {
 }
 
 ext.restTestExpansions = [
-  'expected.modules.count': "0", //TODO: is it safe to make this a string ?
+  'expected.modules.count': 0
 ]
 // we create the buildOssModules task above but fill it here so we can do a single
 // loop over modules to also setup cross task dependencies and increment our modules counter

@@ -153,10 +153,10 @@ tasks.named("processYamlRestTestResources").configure {
     'ec2_base_path'           : s3EC2BasePath,
     'ecs_bucket'              : s3ECSBucket,
     'ecs_base_path'           : s3ECSBasePath,
-    'disable_chunked_encoding': s3DisableChunkedEncoding.toString(), //TODO: ensure string is OK here
+    'disable_chunked_encoding': s3DisableChunkedEncoding
   ]
   inputs.properties(expansions)
-  filter("tokens" : expansions, ReplaceTokens.class)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
 tasks.named("internalClusterTest").configure {

@@ -29,12 +29,12 @@ restResources {
 final int ec2NumberOfNodes = 3
 
 Map<String, Object> expansions = [
-  'expected_nodes': ec2NumberOfNodes.toString()
+  'expected_nodes': ec2NumberOfNodes
 ]
 
 tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
-  filter("tokens" : expansions, ReplaceTokens.class)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
 // disable default yamlRestTest task, use spezialized ones below

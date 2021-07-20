@@ -31,11 +31,11 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 }
 
 ext.expansions = [
-  'expected.plugins.count': pluginPaths.size().toString()
+  'expected.plugins.count': pluginPaths.size()
 ]
 
 tasks.named("processTestResources").configure {
   assert pluginPaths.size() > 0
   inputs.properties(expansions)
-  filter("tokens" : expansions, ReplaceTokens.class)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }

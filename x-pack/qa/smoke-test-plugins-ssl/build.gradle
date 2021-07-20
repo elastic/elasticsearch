@@ -85,7 +85,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 }
 
 ext.expansions = [
-  'expected.plugins.count': pluginPaths.size().toString()
+  'expected.plugins.count': pluginPaths.size()
 ]
 
 tasks.named("processTestResources").configure {
@@ -93,6 +93,6 @@ tasks.named("processTestResources").configure {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     include '**/*.yml'
     inputs.properties(expansions)
-    filter("tokens" : expansions, ReplaceTokens.class)
+    filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
   }
 }

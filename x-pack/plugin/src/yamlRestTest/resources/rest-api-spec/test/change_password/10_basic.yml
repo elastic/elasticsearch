@@ -118,9 +118,7 @@ teardown:
       headers:
         Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       cluster.health: {}
-  - match: { timed_out: false
-
-
+  - match: { timed_out: false }
 
 ---
 "Test user changing their own password":

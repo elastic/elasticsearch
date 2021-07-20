@@ -48,7 +48,8 @@ supports this parameter for CSV responses.
 <<sql-rest-format>>.
 +
 You can also specify a format using the `Accept` HTTP header. If you specify
-both this parameter and the `Accept` HTTP header, this parameter take precedence.
+both this parameter and the `Accept` HTTP header, this parameter takes
+precedence.
 
 [role="child_attributes"]
 [[sql-search-api-request-body]]
@@ -123,8 +124,8 @@ Defaults to no timeout, meaning the request waits for complete search results.
 If the search doesn’t finish within this period, the search becomes
 <<sql-async,async>>.
 +
-To <<sql-store-searches,save a synchronous search>>, you specify this parameter
-and the `keep_on_completion` parameter.
+To <<sql-store-searches,save a synchronous search>>, you must specify this
+parameter and the `keep_on_completion` parameter.
 
 [role="child_attributes"]
 [[sql-search-api-response-body]]

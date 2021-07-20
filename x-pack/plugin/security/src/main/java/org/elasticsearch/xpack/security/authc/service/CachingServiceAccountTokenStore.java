@@ -127,7 +127,7 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
      */
     @Override
     public final void invalidate(Collection<String> qualifiedTokenNames) {
-        if (cache != null && false == qualifiedTokenNames.isEmpty()) {
+        if (cache != null) {
             logger.trace("invalidating cache for service token [{}]", Strings.collectionToCommaDelimitedString(qualifiedTokenNames));
             final Set<String> exacts = new HashSet<>(qualifiedTokenNames);
             final Set<String> prefixes = new HashSet<>();
@@ -140,22 +140,17 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
                 }
             }
 
-            final Predicate<String> predicate;
-            if (exacts.isEmpty()) {
-                predicate = k -> prefixes.stream().anyMatch(k::startsWith);
-            } else if (prefixes.isEmpty()) {
-                predicate = exacts::contains;
-            } else {
-                predicate = k -> exacts.contains(k) || prefixes.stream().anyMatch(k::startsWith);
+            exacts.forEach(cache::invalidate);
+            if (false == prefixes.isEmpty()) {
+                final Predicate<String> predicate = k -> prefixes.stream().anyMatch(k::startsWith);
+                final List<String> keys = new ArrayList<>();
+                cache.forEach((k, v) -> {
+                    if (predicate.test(k)) {
+                        keys.add(k);
+                    }
+                });
+                keys.forEach(cache::invalidate);
             }
-
-            final List<String> keys = new ArrayList<>();
-            cache.forEach((k, v) -> {
-                if (predicate.test(k)) {
-                    keys.add(k);
-                }
-            });
-            keys.forEach(cache::invalidate);
         }
     }
 

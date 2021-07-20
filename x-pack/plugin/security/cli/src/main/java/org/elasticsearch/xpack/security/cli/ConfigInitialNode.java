@@ -86,7 +86,7 @@ public class ConfigInitialNode extends EnvironmentAwareCommand {
     private final OptionSpec<Void> strictOption = parser.accepts("strict", "Error if auto config cannot be performed for any reason");
 
     public ConfigInitialNode() {
-        super("Generates all the necessary configuration for the initial node of a new secure cluster");
+        super("Generates all the necessary security configuration for the initial node of a new secure cluster");
     }
 
     public static void main(String[] args) throws Exception {

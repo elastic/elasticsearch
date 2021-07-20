@@ -165,30 +165,38 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
   }
 }
 
-def buildDefaultLog4jConfigTaskProvider = tasks.register("buildDefaultLog4jConfig") {
-  def outputFile = file("${defaultOutputs}/log4j2.properties")
-
-  def inputFiles = fileTree('src/config').matching { include 'log4j2.properties' }
-  project(':modules').subprojects.each {
-    inputFiles = inputFiles + it.fileTree('src/main/config').matching { include 'log4j2.properties' }
-  }
-  project(':x-pack:plugin').subprojects.each {
-    inputFiles = inputFiles + it.fileTree('src/main/config').matching { include 'log4j2.properties' }
-  }
-
-  inputs.files(inputFiles)
-  outputs.file outputFile
-
-  doLast {
-    outputFile.setText('', 'UTF-8')
-    inputFiles.files.eachWithIndex({ f, i ->
-      if (i != 0) {
-        outputFile.append('\n\n', 'UTF-8')
+ext.buildLog4jConfigTask = { oss ->
+  return tasks.register("build${oss ? 'Oss' : 'Default'}Log4jConfig") {
+    def outputFile = file("${defaultOutputs}/log4j2.properties")
+    def inputFiles = fileTree('src/config').matching { include 'log4j2.properties' }
+    project(':modules').subprojects.each {
+      inputFiles = inputFiles + it.fileTree('src/main/config').matching { include 'log4j2.properties' }
+    }
+    if (oss == false) {
+      project(':x-pack:plugin').subprojects.each {
+        inputFiles = inputFiles + it.fileTree('src/main/config').matching { include 'log4j2.properties' }
       }
-      outputFile.append(f.text, 'UTF-8')
-    })
+    }
+
+    inputs.files(inputFiles)
+    outputs.file outputFile
+
+    doLast {
+      outputFile.setText('', 'UTF-8')
+      inputFiles.files.eachWithIndex(
+        { f, i ->
+          if (i != 0) {
+            outputFile.append('\n\n', 'UTF-8')
+          }
+          outputFile.append(f.text, 'UTF-8')
+        }
+      )
+    }
   }
 }
+
+def buildOssLog4jConfigTaskProvider = buildLog4jConfigTask(true)
+def buildDefaultLog4jConfigTaskProvider = buildLog4jConfigTask(false)
 
 ext.restTestExpansions = [
   'expected.modules.count': 0,

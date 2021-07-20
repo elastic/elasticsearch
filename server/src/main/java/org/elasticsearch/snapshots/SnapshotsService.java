@@ -842,7 +842,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             snapshot.shardsByRepoShardId().forEach(c -> builder.put(c.key.index(), c.key.shardId(), c.value.generation()));
         } else {
             snapshot.shardsByRepoShardId().forEach(c -> {
-                final Index index = snapshot.indexLookup().get(c.key.index());
+                final Index index = snapshot.indexByName(c.key.indexName());
                 if (metadata.index(index) == null) {
                     assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
                     return;
@@ -1301,7 +1301,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     if (event.indexRoutingTableChanged(shardId.indexName())) {
                         IndexRoutingTable indexShardRoutingTable = event.state()
                             .getRoutingTable()
-                            .index(entry.indexLookup().get(shardId.index()));
+                            .index(entry.indexByName(shardId.indexName()));
                         if (indexShardRoutingTable == null) {
                             // index got removed concurrently and we have to fail WAITING state shards
                             return true;
@@ -2571,7 +2571,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             // Keep track of shardIds that we started snapshots for as a result of removing this delete so we don't assign
             // them to multiple snapshots by accident
-            final Map<String, Set<Integer>> reassignedShardIds = new HashMap<>();
+            final Set<RepositoryShardId> reassignedShardIds = new HashSet<>();
 
             boolean changed = false;
 
@@ -2590,7 +2590,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             final List<RepositoryShardId> canBeUpdated = new ArrayList<>();
                             for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> value : entry.shardsByRepoShardId()) {
                                 if (value.value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)
-                                    && alreadyReassigned(value.key.indexName(), value.key.shardId(), reassignedShardIds) == false) {
+                                    && reassignedShardIds.contains(value.key) == false) {
                                     canBeUpdated.add(value.key);
                                 }
                             }
@@ -2607,7 +2607,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     ImmutableOpenMap.builder(entry.shardsByRepoShardId());
                                 for (RepositoryShardId shardId : canBeUpdated) {
                                     if (inFlightShardStates.isActive(shardId.indexName(), shardId.shardId()) == false) {
-                                        markShardReassigned(shardId.indexName(), shardId.shardId(), reassignedShardIds);
+                                        markShardReassigned(shardId, reassignedShardIds);
                                         updatedAssignmentsBuilder.put(
                                             shardId,
                                             new ShardSnapshotStatus(
@@ -2629,7 +2629,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             final List<RepositoryShardId> canBeUpdated = new ArrayList<>();
                             for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> value : entry.shardsByRepoShardId()) {
                                 if (value.value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)
-                                    && alreadyReassigned(value.key.indexName(), value.key.shardId(), reassignedShardIds) == false) {
+                                    && reassignedShardIds.contains(value.key) == false) {
                                     canBeUpdated.add(value.key);
                                 }
                             }
@@ -2659,7 +2659,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                             : "Missing assignment for [" + sid + "]";
                                         updatedAssignmentsBuilder.put(sid, ShardSnapshotStatus.MISSING);
                                     } else {
-                                        markShardReassigned(shardId.indexName(), shardId.shardId(), reassignedShardIds);
+                                        markShardReassigned(shardId, reassignedShardIds);
                                         updatedAssignmentsBuilder.put(sid, updated);
                                     }
                                 }
@@ -2685,13 +2685,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return changed ? SnapshotsInProgress.of(snapshotEntries) : null;
         }
 
-        private void markShardReassigned(String indexName, int shardId, Map<String, Set<Integer>> reassignments) {
-            final boolean added = reassignments.computeIfAbsent(indexName, k -> new HashSet<>()).add(shardId);
-            assert added : "should only ever reassign each shard once but assigned [" + indexName + "][" + shardId + "] multiple times";
-        }
-
-        private boolean alreadyReassigned(String indexName, int shardId, Map<String, Set<Integer>> reassignments) {
-            return reassignments.getOrDefault(indexName, Collections.emptySet()).contains(shardId);
+        private void markShardReassigned(RepositoryShardId shardId, Set<RepositoryShardId> reassignments) {
+            final boolean added = reassignments.add(shardId);
+            assert added : "should only ever reassign each shard once but assigned [" + shardId + "] multiple times";
         }
     }
 
@@ -3202,7 +3198,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 assert entry.source() == null;
                 // current entry is a snapshot operation so we must translate the repository shard id to a routing shard id
                 if (isQueued(entry.shardsByRepoShardId().get(repoShardId))) {
-                    final Index index = entry.indexLookup().get(repoShardId.index());
+                    final Index index = entry.indexByName(repoShardId.indexName());
                     assert index != null
                         : "index ["
                             + repoShardId.index()

@@ -86,7 +86,7 @@ teardown:
 ---
 "Test changing users password with prehashed password":
   - skip:
-      features: catch_unauthorized
+      features: ["catch_unauthorized", "warnings"]
   - do:
       headers:
         Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="

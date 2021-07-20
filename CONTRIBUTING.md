@@ -495,7 +495,7 @@ If you wish to use placeholders and an exception at the same time, construct a
 You can also use a `Supplier<ParameterizedMessage>` to avoid constructing
 expensive messages that will usually be discarded:
 
-    logger.trace(() -> new ParameterizedMessage("Tolstoy says [{}]", warAndPeace.toString()));
+    logger.trace(() -> new ParameterizedMessage("rarely seen output [{}]", expensiveMethod()));
 
 Logging is an important behaviour of the system and all but the most trivial
 logging should have corresponding tests. These tests typically use a

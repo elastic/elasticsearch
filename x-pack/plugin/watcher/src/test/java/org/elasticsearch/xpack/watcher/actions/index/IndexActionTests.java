@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.lang.SuppressWarnings;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;

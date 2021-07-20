@@ -79,6 +79,14 @@ public class DatafeedNodeSelector {
         }
     }
 
+    /**
+     * Select which node to run the datafeed on.  The logic is to always choose the same node that the job
+     * is already running on <em>unless</em> this node is not permitted for some reason or there is some
+     * problem in the cluster that would stop the datafeed working.
+     * @param candidateNodes Only nodes in this collection may be chosen as the executor node.
+     * @return The assignment for the datafeed, containing either an executor node or a reason why an
+     *         executor node was not returned.
+     */
     public PersistentTasksCustomMetadata.Assignment selectNode(Collection<DiscoveryNode> candidateNodes) {
         if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
             return AWAITING_UPGRADE;
@@ -96,6 +104,7 @@ public class DatafeedNodeSelector {
             // During node shutdown the datafeed will have been unassigned but the job will still be gracefully persisting state.
             // During this time the datafeed will be trying to select the job's node, but we must disallow this.  Instead the
             // datafeed must remain in limbo until the job has finished persisting state and can move to a different node.
+            // Nodes that are shutting down will have been excluded from the candidate nodes.
             if (candidateNodes.stream().anyMatch(candidateNode -> candidateNode.getId().equals(jobNode)) == false) {
                 return AWAITING_JOB_RELOCATION;
             }

@@ -233,7 +233,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
         // Create a template
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
         putComposableIndexTemplateRequest.setJsonEntity(
-            "{\"index_patterns\": [\"logs-*\"], \"aliases\": { \"\": { logs } }, \"data_stream\": {}}");
+            "{\"index_patterns\": [\"logs-*\"], \"template\": { \"aliases\": { \"logs\": {} } }, \"data_stream\": {}}");
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         Request createDocRequest = new Request("POST", "/logs-emea/_doc?refresh=true");

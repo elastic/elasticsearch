@@ -183,16 +183,16 @@ public class WatchTests extends ESTestCase {
         Schedule schedule = randomSchedule();
         Trigger trigger = new ScheduleTrigger(schedule);
         ScheduleRegistry scheduleRegistry = registry(schedule);
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(scheduleRegistry, clock);
+        TriggerEngine<?, ?> triggerEngine = new ParseOnlyScheduleTriggerEngine(scheduleRegistry, clock);
         TriggerService triggerService = new TriggerService(singleton(triggerEngine));
 
-        ExecutableInput input = randomInput();
+        ExecutableInput<?, ?> input = randomInput();
         InputRegistry inputRegistry = registry(input.type());
 
         ExecutableCondition condition = AlwaysConditionTests.randomCondition(scriptService);
         ConditionRegistry conditionRegistry = conditionRegistry();
 
-        ExecutableTransform transform = randomTransform();
+        ExecutableTransform<?, ?> transform = randomTransform();
 
         List<ActionWrapper> actions = randomActions();
         ActionRegistry actionRegistry = registry(actions, conditionRegistry, transformRegistry);
@@ -272,10 +272,10 @@ public class WatchTests extends ESTestCase {
     public void testParserBadActions() throws Exception {
         ClockMock clock = ClockMock.frozen();
         ScheduleRegistry scheduleRegistry = registry(randomSchedule());
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(scheduleRegistry, clock);
+        TriggerEngine<?, ?> triggerEngine = new ParseOnlyScheduleTriggerEngine(scheduleRegistry, clock);
         TriggerService triggerService = new TriggerService(singleton(triggerEngine));
         ConditionRegistry conditionRegistry = conditionRegistry();
-        ExecutableInput input = randomInput();
+        ExecutableInput<?, ?> input = randomInput();
         InputRegistry inputRegistry = registry(input.type());
 
         TransformRegistry transformRegistry = transformRegistry();
@@ -300,7 +300,7 @@ public class WatchTests extends ESTestCase {
     public void testParserDefaults() throws Exception {
         Schedule schedule = randomSchedule();
         ScheduleRegistry scheduleRegistry = registry(schedule);
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(scheduleRegistry, Clock.systemUTC());
+        TriggerEngine<?, ?> triggerEngine = new ParseOnlyScheduleTriggerEngine(scheduleRegistry, Clock.systemUTC());
         TriggerService triggerService = new TriggerService(singleton(triggerEngine));
 
         ConditionRegistry conditionRegistry = conditionRegistry();
@@ -328,7 +328,7 @@ public class WatchTests extends ESTestCase {
     public void testParseWatch_verifyScriptLangDefault() throws Exception {
         ScheduleRegistry scheduleRegistry = registry(new IntervalSchedule(new IntervalSchedule.Interval(1,
                 IntervalSchedule.Interval.Unit.SECONDS)));
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(scheduleRegistry, Clock.systemUTC());
+        TriggerEngine<?, ?> triggerEngine = new ParseOnlyScheduleTriggerEngine(scheduleRegistry, Clock.systemUTC());
         TriggerService triggerService = new TriggerService(singleton(triggerEngine));
 
         ConditionRegistry conditionRegistry = conditionRegistry();
@@ -447,7 +447,7 @@ public class WatchTests extends ESTestCase {
 
         ScheduleRegistry scheduleRegistry = registry(new IntervalSchedule(new IntervalSchedule.Interval(1,
                 IntervalSchedule.Interval.Unit.SECONDS)));
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(scheduleRegistry, Clock.systemUTC());
+        TriggerEngine<?, ?> triggerEngine = new ParseOnlyScheduleTriggerEngine(scheduleRegistry, Clock.systemUTC());
         TriggerService triggerService = new TriggerService(singleton(triggerEngine));
 
         ConditionRegistry conditionRegistry = conditionRegistry();
@@ -480,7 +480,7 @@ public class WatchTests extends ESTestCase {
     }
 
     private static ScheduleRegistry registry(Schedule schedule) {
-        Set<Schedule.Parser> parsers = new HashSet<>();
+        Set<Schedule.Parser<?>> parsers = new HashSet<>();
         switch (schedule.type()) {
             case CronSchedule.TYPE:
                 parsers.add(new CronSchedule.Parser());
@@ -508,7 +508,7 @@ public class WatchTests extends ESTestCase {
         }
     }
 
-    private ExecutableInput randomInput() {
+    private ExecutableInput<?, ?> randomInput() {
         String type = randomFrom(SearchInput.TYPE, SimpleInput.TYPE);
         switch (type) {
             case SearchInput.TYPE:
@@ -523,7 +523,7 @@ public class WatchTests extends ESTestCase {
     }
 
     private InputRegistry registry(String inputType) {
-        Map<String, InputFactory> parsers = new HashMap<>();
+        Map<String, InputFactory<?, ?, ?>> parsers = new HashMap<>();
         switch (inputType) {
             case SearchInput.TYPE:
                 parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, xContentRegistry(), scriptService));
@@ -546,7 +546,7 @@ public class WatchTests extends ESTestCase {
         return new ConditionRegistry(parsers, ClockMock.frozen());
     }
 
-    private ExecutableTransform randomTransform() {
+    private ExecutableTransform<?, ?> randomTransform() {
         String type = randomFrom(ScriptTransform.TYPE, SearchTransform.TYPE, ChainTransform.TYPE);
         TimeValue timeout = randomBoolean() ? timeValueSeconds(between(1, 10000)) : null;
         ZoneOffset timeZone = randomBoolean() ? ZoneOffset.UTC : null;
@@ -563,7 +563,7 @@ public class WatchTests extends ESTestCase {
                 ScriptTransform scriptTransform = new ScriptTransform(mockScript("_script"));
 
                 ChainTransform chainTransform = new ChainTransform(Arrays.asList(searchTransform, scriptTransform));
-                return new ExecutableChainTransform(chainTransform, logger, Arrays.<ExecutableTransform>asList(
+                return new ExecutableChainTransform(chainTransform, logger, Arrays.asList(
                         new ExecutableSearchTransform(new SearchTransform(
                                 templateRequest(searchSource()), timeout, timeZone),
                                 logger, client, searchTemplateService, TimeValue.timeValueMinutes(1)),

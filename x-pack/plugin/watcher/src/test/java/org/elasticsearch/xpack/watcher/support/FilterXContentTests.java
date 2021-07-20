@@ -134,6 +134,7 @@ public class FilterXContentTests extends ESTestCase {
         assertThat(filteredData.get("buckets"), instanceOf(List.class));
 
         // both buckets have to include the following keys
+        @SuppressWarnings("unchecked")
         List<Map<String, Object>> buckets = (List<Map<String, Object>>) filteredData.get("buckets");
         assertThat(buckets, hasSize(2));
         assertThat(buckets.get(0).keySet(), containsInAnyOrder("foo"));

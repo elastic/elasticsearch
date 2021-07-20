@@ -305,11 +305,12 @@ public final class MlTasks {
             if (nodeId.equals(task.getExecutorNode()) == false) {
                 return false;
             }
-            SnapshotUpgradeTaskState state = (SnapshotUpgradeTaskState) task.getState();
-            if (state == null) {
+            SnapshotUpgradeTaskState taskState = (SnapshotUpgradeTaskState) task.getState();
+            if (taskState == null) {
                 return true;
             }
-            return state.getState() != SnapshotUpgradeState.FAILED;
+            SnapshotUpgradeState state = taskState.getState();
+            return state != SnapshotUpgradeState.FAILED;
         });
     }
 

@@ -54,8 +54,9 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         setupJobAndDatafeed("shutdown-job-5", ByteSizeValue.ofMb(2));
         setupJobAndDatafeed("shutdown-job-6", ByteSizeValue.ofMb(2));
 
-        // Choose one non-master node to shut down.
-        String nodeNameToShutdown = Arrays.stream(internalCluster().getNodeNames())
+        // Choose a node to shut down.  Choose a non-master node most of the time, as ML nodes in Cloud
+        // will never be master, and Cloud is where the node shutdown API will primarily be used.
+        String nodeNameToShutdown = rarely() ? internalCluster().getMasterName() : Arrays.stream(internalCluster().getNodeNames())
             .filter(nodeName -> internalCluster().getMasterName().equals(nodeName) == false).findFirst().get();
         SetOnce<String> nodeIdToShutdown = new SetOnce<>();
 
@@ -115,8 +116,10 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         setupJobAndDatafeed("shutdown-close-job-5", ByteSizeValue.ofMb(2));
         setupJobAndDatafeed("shutdown-close-job-6", ByteSizeValue.ofMb(2));
 
-        // Choose one non-master node to shut down, and one job on that node to close after the shutdown request has been sent.
-        String nodeNameToShutdown = Arrays.stream(internalCluster().getNodeNames())
+        // Choose a node to shut down, and one job on that node to close after the shutdown request has been sent.
+        // Choose a non-master node most of the time, as ML nodes in Cloud will never be master, and Cloud is where
+        // the node shutdown API will primarily be used.
+        String nodeNameToShutdown = rarely() ? internalCluster().getMasterName() : Arrays.stream(internalCluster().getNodeNames())
             .filter(nodeName -> internalCluster().getMasterName().equals(nodeName) == false).findFirst().get();
         SetOnce<String> nodeIdToShutdown = new SetOnce<>();
         SetOnce<String> jobIdToClose = new SetOnce<>();

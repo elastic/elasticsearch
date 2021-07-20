@@ -30,7 +30,7 @@ public class EmailAttachments implements ToXContentFragment {
         this.attachments = attachments;
     }
 
-    public Collection<EmailAttachmentParser.EmailAttachment> getAttachments() {
+    public Collection<? extends EmailAttachmentParser.EmailAttachment> getAttachments() {
         return attachments;
     }
 

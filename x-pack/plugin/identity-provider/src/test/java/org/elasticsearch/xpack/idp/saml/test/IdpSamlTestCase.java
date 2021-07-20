@@ -34,11 +34,6 @@ import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.security.x509.X509Credential;
 import org.w3c.dom.Element;
 
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerException;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.StringWriter;
@@ -55,6 +50,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
@@ -87,6 +87,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     protected static void mockRegisteredServiceProvider(SamlIdentityProvider idp, String entityId, SamlServiceProvider sp) {
         Mockito.doAnswer(inv -> {
             final Object[] args = inv.getArguments();
@@ -101,6 +102,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
             Mockito.any(ActionListener.class));
     }
 
+    @SuppressWarnings("unchecked")
     protected static void mockRegisteredServiceProvider(SamlServiceProviderResolver resolverMock, String entityId,
                                                         SamlServiceProvider sp) {
         Mockito.doAnswer(inv -> {

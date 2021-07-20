@@ -590,9 +590,9 @@ may be appropriate to log the exception message at `WARN` and only log the full
 exception if the user has enabled `DEBUG` logging:
 
     if (logger.isDebugEnabled()) {
-	logger.warn("investigate me", exception);
+        logger.warn("investigate me", exception);
     } else {
-	logger.warn("investigate me: [{}]", exception.getMessage())
+        logger.warn("investigate me: [{}]", exception.getMessage())
     }
 
 In a situation where occasional transient failures are expected and handled,

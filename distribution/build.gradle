@@ -8,9 +8,9 @@
 
 
 import org.apache.tools.ant.filters.FixCrLfFilter
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoTask
-import org.elasticsearch.gradle.internal.MavenFilteringHack
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
@@ -194,7 +194,7 @@ def buildDefaultLog4jConfigTaskProvider = tasks.register("buildDefaultLog4jConfi
 }
 
 ext.restTestExpansions = [
-  'expected.modules.count': 0,
+  'expected.modules.count': 0
 ]
 // we create the buildOssModules task above but fill it here so we can do a single
 // loop over modules to also setup cross task dependencies and increment our modules counter
@@ -357,7 +357,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           // main config files, processed with distribution specific substitutions
           from '../src/config'
           exclude 'log4j2.properties' // this is handled separately below
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, testDistro, jdk))
+          filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
         }
         from buildDefaultLog4jConfigTaskProvider
         from defaultConfigFiles
@@ -372,7 +372,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           exclude '*.exe'
           exclude '*.bat'
           eachFile { it.setMode(0755) }
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, testDistro, jdk))
+          filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
         }
         // windows files, only for zip
         if (distributionType == 'zip') {
@@ -380,7 +380,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             from '../src/bin'
             include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, testDistro, jdk))
+            filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
           }
           with copySpec {
             from '../src/bin'
@@ -460,10 +460,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
  *  <dt>scripts.footer</dt>
  *  <dd>Footer appended to control scripts embedded in the distribution that is
  *    (almost) entirely there for cosmetic reasons.</dd>
- *  <dt>stopping.timeout</dt>
- *  <dd>RPM's init script needs to wait for elasticsearch to stop before
- *    returning from stop and it needs a maximum time to wait. This is it. One
- *    day. DEB retries forever.</dd>
  * </dl>
  */
 subprojects {
@@ -533,10 +529,6 @@ subprojects {
         'def': "-XX:ErrorFile=logs/hs_err_pid%p.log"
       ],
 
-      'stopping.timeout': [
-        'rpm': 86400,
-      ],
-
       'scripts.footer': [
         /* Debian needs exit 0 on these scripts so we add it here and preserve
           the pretty footer. */
@@ -568,7 +560,7 @@ subprojects {
       ],
     ]
     Map<String, String> result = [:]
-    expansions = expansions.each { key, value ->
+    expansions.each { key, value ->
       if (value instanceof Map) {
         // 'def' is for default but its three characters like 'rpm' and 'deb'
         value = value[distributionType] ?: value['def']
@@ -576,7 +568,8 @@ subprojects {
           return
         }
       }
-      result[key] = value
+      // expansions is String->Object but result is String->String, so we have to coerce the values
+      result[key] = value.toString()
     }
     return result
   }

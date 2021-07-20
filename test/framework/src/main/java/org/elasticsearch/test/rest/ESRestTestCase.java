@@ -788,23 +788,13 @@ public abstract class ESRestTestCase extends ESTestCase {
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
 
             // TODO: 7.14 for backwards compatibility
+            RequestOptions.Builder allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder();
             if (minimumNodeVersion().before(Version.CURRENT)) {
-                RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder()
-                    .setWarningsHandler(warnings -> {
-                        if (warnings.size() == 0) {
-                            return false;
-                        } else if (warnings.size() > 1) {
-                            return true;
-                        }
-                        // We don't know exactly which indices we're cleaning up in advance,
-                        // so just accept all system index access warnings.
-                        final String warning = warnings.get(0);
-                        final boolean isSystemIndexWarning = warning.contains("this request accesses system indices") &&
-                            warning.contains("but in a future major version, direct access to system indices will be prevented by default");
-                        return isSystemIndexWarning == false;
-                    }).build();
-                deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
+                allowSystemIndexAccessWarningOptions.setWarningsHandler(handleAllSystemIndexWarnings());
+            } else {
+                allowSystemIndexAccessWarningOptions.setWarningsHandler(handleWatcherSystemIndexWarnings());
             }
+            deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
 
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
@@ -816,6 +806,38 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw e;
             }
         }
+    }
+
+    // The watcher index may be recreated between when we reset system features and when
+    // we call a wildcard deletion
+    private static WarningsHandler handleWatcherSystemIndexWarnings() {
+        return warnings -> {
+            if (warnings.size() == 0) {
+                return false;
+            } else if (warnings.size() > 1) {
+                return true;
+            }
+            final String warning = warnings.get(0);
+            final boolean isSystemIndexWarning = warning.contains("this request accesses system indices [.watches], " +
+                "but in a future major version, direct access to system indices will be prevented by default");
+            return isSystemIndexWarning == false;
+        };
+    }
+
+    private static WarningsHandler handleAllSystemIndexWarnings() {
+        return warnings -> {
+            if (warnings.size() == 0) {
+                return false;
+            } else if (warnings.size() > 1) {
+                return true;
+            }
+            // We don't know exactly which indices we're cleaning up in advance,
+            // so just accept all system index access warnings.
+            final String warning = warnings.get(0);
+            final boolean isSystemIndexWarning = warning.contains("this request accesses system indices") &&
+                warning.contains("but in a future major version, direct access to system indices will be prevented by default");
+            return isSystemIndexWarning == false;
+        };
     }
 
     protected static void wipeDataStreams() throws IOException {

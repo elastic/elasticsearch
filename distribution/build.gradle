@@ -605,10 +605,10 @@ subprojects {
           return
         }
       }
-      if (!(value instanceof String)) {
-        throw new GradleException("expected String value [${value}], but was ${value.getClass().getName()}")
+      if (!(value instanceof String) && !(value instanceof GString)) {
+        throw new GradleException("expected String-like value [${value}], but was ${value.getClass().getName()}")
       }
-      result[key] = value
+      result[key] = value.toString() // convert GStrings to actual Strings
     }
     return result
   }

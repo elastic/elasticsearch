@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.lang.SuppressWarnings;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -180,11 +181,11 @@ public class IndexActionTests extends ESTestCase {
         expectFailure(ElasticsearchParseException.class, builder);
     }
 
-    private void expectFailure(Class clazz, XContentBuilder builder) throws Exception {
+    private void expectFailure(Class<? extends Exception> clazz, XContentBuilder builder) throws Exception {
         expectFailure(clazz, builder, null);
     }
 
-    private void expectFailure(Class clazz, XContentBuilder builder, String expectedMessage) throws Exception {
+    private void expectFailure(Class<? extends Exception> clazz, XContentBuilder builder, String expectedMessage) throws Exception {
         IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, client);
         XContentParser parser = createParser(builder);
         parser.nextToken();
@@ -203,10 +204,11 @@ public class IndexActionTests extends ESTestCase {
 
         // using doc_id with bulk fails regardless of using ID
         expectThrows(IllegalStateException.class, () -> {
-            final List<Map> idList = Arrays.asList(docWithId, MapBuilder.newMapBuilder().put("foo", "bar1").put("_id", "1").map());
+            final List<Map<?, ?>> idList = Arrays.asList(docWithId, MapBuilder.newMapBuilder().put("foo", "bar1").put("_id", "1").map());
 
+            @SuppressWarnings("unchecked")
             final Object list = randomFrom(
-                    new Map[] { singletonMap("foo", "bar"), singletonMap("foo", "bar1") },
+                    new Map<?,?>[] { singletonMap("foo", "bar"), singletonMap("foo", "bar1") },
                     Arrays.asList(singletonMap("foo", "bar"), singletonMap("foo", "bar1")),
                     unmodifiableSet(newHashSet(singletonMap("foo", "bar"), singletonMap("foo", "bar1"))),
                     idList

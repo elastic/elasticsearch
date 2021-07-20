@@ -107,7 +107,7 @@ public class ChainInput implements Input {
             inputs = new ArrayList<>();
         }
 
-        public Builder add(String name, Input.Builder input) {
+        public Builder add(String name, Input.Builder<?> input) {
             inputs.add(new Tuple<>(name, input.build()));
             return this;
         }

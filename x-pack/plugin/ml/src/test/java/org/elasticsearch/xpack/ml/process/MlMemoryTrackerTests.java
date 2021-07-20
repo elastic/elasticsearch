@@ -21,6 +21,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -106,6 +107,13 @@ public class MlMemoryTrackerTests extends ESTestCase {
             String id = "analytics" + i;
             allIds.add(id);
             PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id, false);
+            tasks.put(task.getId(), task);
+        }
+
+        int numTrainedModelTasks = randomIntBetween(2, 5);
+        for (int i = 1; i <= numTrainedModelTasks; ++i) {
+            String id = "trained_model_" + i;
+            PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestTrainedModelTask(id, randomLongBetween(1000, 1000000));
             tasks.put(task.getId(), task);
         }
 
@@ -274,11 +282,20 @@ public class MlMemoryTrackerTests extends ESTestCase {
             new OpenJobAction.JobParams(jobId), 0, PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT);
     }
 
-    private
-    PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>
-    makeTestDataFrameAnalyticsTask(String id, boolean allowLazyStart) {
+    private PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> makeTestDataFrameAnalyticsTask(
+        String id, boolean allowLazyStart) {
         return new PersistentTasksCustomMetadata.PersistentTask<>(MlTasks.dataFrameAnalyticsTaskId(id),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT, allowLazyStart),
             0, PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT);
+    }
+
+    private PersistentTasksCustomMetadata.PersistentTask<StartTrainedModelDeploymentAction.TaskParams> makeTestTrainedModelTask(
+        String id, long memUsage) {
+        return new PersistentTasksCustomMetadata.PersistentTask<>(MlTasks.trainedModelDeploymentTaskId(id),
+            MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME,
+            new StartTrainedModelDeploymentAction.TaskParams(id, randomAlphaOfLength(10), memUsage),
+            0,
+            PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT
+        );
     }
 }

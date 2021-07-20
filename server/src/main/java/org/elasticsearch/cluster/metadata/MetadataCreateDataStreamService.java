@@ -157,12 +157,11 @@ public class MetadataCreateDataStreamService {
     }
 
     static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
-                                                 ClusterState currentState,
-                                                 String dataStreamName,
-                                                 List<IndexMetadata> backingIndices,
-                                                 IndexMetadata writeIndex,
-                                                 SystemDataStreamDescriptor systemDataStreamDescriptor) throws Exception
-    {
+                                         ClusterState currentState,
+                                         String dataStreamName,
+                                         List<IndexMetadata> backingIndices,
+                                         IndexMetadata writeIndex,
+                                         SystemDataStreamDescriptor systemDataStreamDescriptor) throws Exception {
         Objects.requireNonNull(metadataCreateIndexService);
         Objects.requireNonNull(currentState);
         Objects.requireNonNull(backingIndices);
@@ -177,8 +176,7 @@ public class MetadataCreateDataStreamService {
             throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must be lowercase");
         }
         if (dataStreamName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
-            throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must not start with '"
-                + DataStream.BACKING_INDEX_PREFIX + "'");
+            throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must not start with '" + DataStream.BACKING_INDEX_PREFIX + "'");
         }
 
         final boolean isSystem = systemDataStreamDescriptor != null;

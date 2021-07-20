@@ -229,6 +229,31 @@ public class DataStreamsRestIT extends ESRestTestCase {
         assertEquals(404, getAliasesResponse.get("status"));
     }
 
+    public void testDataStreamWithAliasFromTemplate() throws IOException {
+        // Create a template
+        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
+        putComposableIndexTemplateRequest.setJsonEntity(
+            "{\"index_patterns\": [\"logs-*\"], \"aliases\": { \"\": { logs } }, \"data_stream\": {}}");
+        assertOK(client().performRequest(putComposableIndexTemplateRequest));
+
+        Request createDocRequest = new Request("POST", "/logs-emea/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+
+        createDocRequest = new Request("POST", "/logs-nasa/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+
+        Request getAliasesRequest = new Request("GET", "/_aliases");
+        Map<String, Object> getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
+        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
+        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse));
+
+        Request searchRequest = new Request("GET", "/logs/_search");
+        Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
+        assertEquals(2, XContentMapValues.extractValue("hits.total.value", searchResponse));
+    }
+
     public void testDataStreamWriteAlias() throws IOException {
         // Create a template
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
@@ -288,5 +313,6 @@ public class DataStreamsRestIT extends ESRestTestCase {
             XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse)
         );
     }
+
 
 }

@@ -27,6 +27,11 @@ public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase 
     }
 
     @Override
+    protected boolean preserveFeatureStatesUponCompletion() {
+        return true;
+    }
+
+    @Override
     protected boolean preserveIndicesUponCompletion() {
         return true;
     }

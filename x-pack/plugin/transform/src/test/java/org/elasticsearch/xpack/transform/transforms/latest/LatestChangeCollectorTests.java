@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.transform.transforms.latest;
 
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -19,11 +22,19 @@ public class LatestChangeCollectorTests extends ESTestCase {
         LatestChangeCollector changeCollector = new LatestChangeCollector("timestamp");
 
         assertThat(
-            changeCollector.buildFilterQuery(0, 123456789),
-            is(equalTo(QueryBuilders.rangeQuery("timestamp").gte(0L).lt(123456789L).format("epoch_millis"))));
+            changeCollector.buildFilterQuery(
+                new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 0L),
+                new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 123456789L)
+            ),
+            is(equalTo(QueryBuilders.rangeQuery("timestamp").gte(0L).lt(123456789L).format("epoch_millis")))
+        );
 
         assertThat(
-            changeCollector.buildFilterQuery(123456789, 234567890),
-            is(equalTo(QueryBuilders.rangeQuery("timestamp").gte(123456789L).lt(234567890L).format("epoch_millis"))));
+            changeCollector.buildFilterQuery(
+                new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 123456789L),
+                new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 234567890L)
+            ),
+            is(equalTo(QueryBuilders.rangeQuery("timestamp").gte(123456789L).lt(234567890L).format("epoch_millis")))
+        );
     }
 }

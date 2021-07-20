@@ -34,6 +34,11 @@ public abstract class AbstractRollingTestCase extends ESRestTestCase {
     protected static final boolean firstMixedRound = Boolean.parseBoolean(System.getProperty("tests.first_round", "false"));
 
     @Override
+    protected final boolean preserveFeatureStatesUponCompletion() {
+        return true;
+    }
+
+    @Override
     protected final boolean preserveIndicesUponCompletion() {
         return true;
     }

@@ -31,6 +31,11 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     @Override
+    protected boolean preserveFeatureStatesUponCompletion() {
+        return true;
+    }
+
+    @Override
     protected boolean preserveIndicesUponCompletion() {
         return true;
     }

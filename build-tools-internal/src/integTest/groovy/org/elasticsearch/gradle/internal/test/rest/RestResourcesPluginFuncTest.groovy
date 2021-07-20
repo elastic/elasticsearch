@@ -138,10 +138,7 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
             }
 
             tasks.named("copyYamlTestsTask").configure {
-                Map<String, Object> expansions = [
-                    'replacedValue' : 'replacedWithValue'
-                ]
-                it.substitutions = expansions
+                it.substitutions = [ 'replacedValue' : 'replacedWithValue' ]
             }
         """
         String apiCore1 = "foo1.json"

@@ -126,7 +126,7 @@ public class ChangePasswordRequestBuilder
 
     private static ValidationException validationException(String message) {
         ValidationException validationException = new ValidationException();
-        validationException.addValidationError(abc);
+        validationException.addValidationError(message);
         return validationException;
     }
 }

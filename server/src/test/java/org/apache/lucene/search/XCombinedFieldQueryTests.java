@@ -97,6 +97,12 @@ public class XCombinedFieldQueryTests extends LuceneTestCase {
         doc.add(new StringField("b", "value", Store.NO));
         doc.add(new TextField("c", "value", Store.NO));
         w.addDocument(doc);
+        w.commit();
+
+        doc = new Document();
+        doc.add(new StringField("a", "value", Store.NO));
+        doc.add(new TextField("c", "value", Store.NO));
+        w.addDocument(doc);
 
         IndexReader reader = w.getReader();
         IndexSearcher searcher = newSearcher(reader);
@@ -105,19 +111,26 @@ public class XCombinedFieldQueryTests extends LuceneTestCase {
         searcher.setSimilarity(searchSimilarity);
         TopScoreDocCollector collector = TopScoreDocCollector.create(10, null, 10);
 
-        XCombinedFieldQuery query = new XCombinedFieldQuery.Builder().addField("a", 1.0f)
-            .addField("b", 1.0f)
-            .addTerm(new BytesRef("value"))
-            .build();
+        XCombinedFieldQuery query =
+            new XCombinedFieldQuery.Builder()
+                .addField("a", 1.0f)
+                .addField("b", 1.0f)
+                .addTerm(new BytesRef("value"))
+                .build();
         searcher.search(query, collector);
         TopDocs topDocs = collector.topDocs();
-        assertEquals(new TotalHits(1, TotalHits.Relation.EQUAL_TO), topDocs.totalHits);
+        assertEquals(new TotalHits(2, TotalHits.Relation.EQUAL_TO), topDocs.totalHits);
 
-        XCombinedFieldQuery invalidQuery = new XCombinedFieldQuery.Builder().addField("b", 1.0f)
-            .addField("c", 1.0f)
-            .addTerm(new BytesRef("value"))
-            .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> searcher.search(invalidQuery, collector));
+        TopScoreDocCollector invalidCollector = TopScoreDocCollector.create(10, null, 10);
+        XCombinedFieldQuery invalidQuery =
+            new XCombinedFieldQuery.Builder()
+                .addField("b", 1.0f)
+                .addField("c", 1.0f)
+                .addTerm(new BytesRef("value"))
+                .build();
+        IllegalArgumentException e =
+            expectThrows(
+                IllegalArgumentException.class, () -> searcher.search(invalidQuery, invalidCollector));
         assertTrue(e.getMessage().contains("requires norms to be consistent across fields"));
 
         reader.close();

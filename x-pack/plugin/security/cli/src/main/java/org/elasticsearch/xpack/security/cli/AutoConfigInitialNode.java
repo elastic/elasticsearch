@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import org.apache.lucene.util.SetOnce;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
@@ -249,8 +250,12 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
             }
         }
 
-        try (SecureString nodeKeystorePassword = new SecureString(terminal.readSecret("", KeyStoreWrapper.MAX_PASSPHRASE_LENGTH));
-             KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> nodeKeystorePassword)) {
+        final SetOnce<SecureString> nodeKeystorePassword = new SetOnce<>();
+        try (KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> {
+            nodeKeystorePassword.set(new SecureString(terminal.readSecret("Enter password for the elasticsearch keystore : ",
+                    KeyStoreWrapper.MAX_PASSPHRASE_LENGTH)));
+            return nodeKeystorePassword.get().clone();
+        })) {
             // do not overwrite keystore entries
             // instead expect the user to manually remove them herself
             if (nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.keystore.secure_password") ||
@@ -285,7 +290,7 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 nodeKeystore.setString("xpack.security.http.ssl.keystore.secure_password", httpKeystorePassword.getChars());
             }
             // finally overwrites the node keystore (if the keystores have been successfully written)
-            nodeKeystore.save(env.configFile(), nodeKeystorePassword.getChars());
+            nodeKeystore.save(env.configFile(), nodeKeystorePassword.get() == null ? new char[0] : nodeKeystorePassword.get().getChars());
         } catch (Exception e) {
             // restore keystore to revert possible keystore bootstrap
             try {
@@ -310,6 +315,10 @@ public final class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 throw e;
             } else {
                 return; // ignoring if the keystore contains password values already, so that the node startup deals with it (fails)
+            }
+        } finally {
+            if (nodeKeystorePassword.get() != null) {
+                nodeKeystorePassword.get().close();
             }
         }
 

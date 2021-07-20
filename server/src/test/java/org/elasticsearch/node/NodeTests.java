@@ -12,14 +12,14 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
@@ -29,7 +29,6 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
@@ -45,6 +44,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -383,7 +383,8 @@ public class NodeTests extends ESTestCase {
             plugins.add(TestRestCompatibility1.class);
 
             try (Node node = new MockNode(settings.build(), plugins)) {
-                List<NamedXContentRegistry.Entry> compatibleNamedXContents = node.getCompatibleNamedXContents(mock(SearchModule.class));
+                List<NamedXContentRegistry.Entry> compatibleNamedXContents = node.getCompatibleNamedXContents()
+                    .collect(Collectors.toList());
                 assertThat(compatibleNamedXContents, contains(v7CompatibleEntries));
             }
         }
@@ -398,7 +399,8 @@ public class NodeTests extends ESTestCase {
             plugins.add(TestRestCompatibility1.class);
 
             try (Node node = new MockNode(settings.build(), plugins)) {
-                List<NamedXContentRegistry.Entry> compatibleNamedXContents = node.getCompatibleNamedXContents(mock(SearchModule.class));
+                List<NamedXContentRegistry.Entry> compatibleNamedXContents = node.getCompatibleNamedXContents()
+                    .collect(Collectors.toList());;
                 assertThat(compatibleNamedXContents, contains(v8CompatibleEntries));
             }
         }

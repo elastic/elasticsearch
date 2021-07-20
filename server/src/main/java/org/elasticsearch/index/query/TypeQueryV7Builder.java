@@ -9,6 +9,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,8 +24,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 
 public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder> {
-    public static final String NAME = "type";
-    public static final ParseField NAME_V7 = new ParseField("type").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
+    private static final String NAME = "type";
+    public static final ParseField NAME_V7 = new ParseField(NAME).forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
     private static final ParseField VALUE_FIELD = new ParseField("value");
     private static final ObjectParser<TypeQueryV7Builder, Void> PARSER = new ObjectParser<>(NAME, TypeQueryV7Builder::new);
 
@@ -33,9 +34,11 @@ public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder>
             AbstractQueryBuilder.NAME_FIELD.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)));
         PARSER.declareFloat(QueryBuilder::boost,
             AbstractQueryBuilder.BOOST_FIELD.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)));
-        PARSER.declareString((queryBuilder, value) -> {},
+        PARSER.declareString(TypeQueryV7Builder::setValue,
             VALUE_FIELD.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)));
     }
+
+    private String value;
 
     public TypeQueryV7Builder() {
     }
@@ -61,7 +64,11 @@ public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder>
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        return new MatchAllDocsQuery();
+        final String typeName = context.getMappingLookup().getMapping().getRoot().name();
+        if (value.equals(typeName)) {
+            return new MatchAllDocsQuery();
+        }
+        return new MatchNoDocsQuery();
     }
 
     @Override
@@ -85,5 +92,9 @@ public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder>
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    public void setValue(String value){
+        this.value = value;
     }
 }

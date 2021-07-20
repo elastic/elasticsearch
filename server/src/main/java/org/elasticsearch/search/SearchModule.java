@@ -11,7 +11,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.NamedRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -21,6 +20,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
@@ -257,7 +257,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
 
@@ -842,6 +841,10 @@ public class SearchModule {
         }
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
+
+        if(RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
+            registerQuery(new QuerySpec<>(TypeQueryV7Builder.NAME_V7, TypeQueryV7Builder::new, TypeQueryV7Builder::fromXContent));
+        }
     }
 
     private void registerIntervalsSourceProviders() {
@@ -884,7 +887,7 @@ public class SearchModule {
     private void registerQuery(QuerySpec<?> spec) {
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class, spec.getName(),
-                (p, c) -> spec.getParser().fromXContent(p)));
+                (p, c) -> spec.getParser().fromXContent(p), spec.getName().getForRestApiVersion()));
     }
 
     private void registerBoolQuery(ParseField name, Writeable.Reader reader) {
@@ -897,11 +900,4 @@ public class SearchModule {
         return new FetchPhase(fetchSubPhases);
     }
 
-    public List<NamedXContentRegistry.Entry> getNamedXContentForCompatibility() {
-        if (RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
-            return List.of(
-                new NamedXContentRegistry.Entry(QueryBuilder.class, TypeQueryV7Builder.NAME_V7, TypeQueryV7Builder::fromXContent));
-        }
-        return emptyList();
-    }
 }

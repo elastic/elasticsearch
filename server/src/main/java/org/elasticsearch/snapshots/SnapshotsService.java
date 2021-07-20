@@ -847,10 +847,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
                     return;
                 }
-                final IndexId indexId = snapshot.indices().get(c.key.indexName());
-                if (indexId != null) {
-                    builder.put(indexId, c.key.shardId(), c.value.generation());
-                }
+                builder.put(c.key.index(), c.key.shardId(), c.value.generation());
             });
         }
         return builder.build();

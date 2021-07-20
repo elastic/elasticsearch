@@ -597,7 +597,7 @@ subprojects {
       ],
     ]
     Map<String, String> result = [:]
-    expansions = expansions.each { key, value ->
+    expansions.each { key, value ->
       if (value instanceof Map) {
         // 'def' is for default but its three characters like 'rpm' and 'deb'
         value = value[distributionType] ?: value['def']
@@ -605,7 +605,10 @@ subprojects {
           return
         }
       }
-      result[key] = value.toString()
+      if (!(value instanceof String)) {
+        throw new GradleException("expected String value [${value}], but was ${value.getClass().getName()}")
+      }
+      result[key] = value
     }
     return result
   }

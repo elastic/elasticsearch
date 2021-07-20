@@ -489,10 +489,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
  *  <dt>scripts.footer</dt>
  *  <dd>Footer appended to control scripts embedded in the distribution that is
  *    (almost) entirely there for cosmetic reasons.</dd>
- *  <dt>stopping.timeout</dt>
- *  <dd>RPM's init script needs to wait for elasticsearch to stop before
- *    returning from stop and it needs a maximum time to wait. This is it. One
- *    day. DEB retries forever.</dd>
  * </dl>
  */
 subprojects {
@@ -560,10 +556,6 @@ subprojects {
         'deb': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
         'rpm': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
         'def': "-XX:ErrorFile=logs/hs_err_pid%p.log"
-      ],
-
-      'stopping.timeout': [
-        'rpm': 86400,
       ],
 
       'scripts.footer': [

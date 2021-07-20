@@ -21,10 +21,16 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -219,6 +225,38 @@ public class FeatureFactoryTests extends ESTestCase {
                 () -> builder.getFeatures(new GeometryCollection<>(geometries), new UserDataIgnoreConverter())
             );
             assertThat(ex.getMessage(), Matchers.equalTo("GeometryCollection is not supported"));
+        }
+    }
+
+    public void testStackOverflowError() throws Exception {
+        InputStream is = getClass().getResourceAsStream("polygon.wkt");
+        BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+        String wkt = reader.readLine();
+        {
+            // creates a very small feature
+            FeatureFactory builder = new FeatureFactory(0, 0, 0, 512);
+            List<VectorTile.Tile.Feature> features = builder.getFeatures(
+                WellKnownText.fromWKT(StandardValidator.instance(true), true, wkt),
+                new UserDataIgnoreConverter()
+            );
+            assertThat(features.size(), Matchers.greaterThan(0));
+        }
+        {
+            // Polygon is smaller than the tile precision, ignored
+            FeatureFactory builder = new FeatureFactory(0, 0, 0, 128);
+            List<VectorTile.Tile.Feature> features = builder.getFeatures(
+                WellKnownText.fromWKT(StandardValidator.instance(true), true, wkt),
+                new UserDataIgnoreConverter()
+            );
+            assertThat(features.size(), Matchers.equalTo(0));
+        }
+        {
+            // Polygon size is just over the precision of the tile. In this case the algorithm fails
+            FeatureFactory builder = new FeatureFactory(0, 0, 0, 256);
+            expectThrows(
+                StackOverflowError.class,
+                () -> builder.getFeatures(WellKnownText.fromWKT(StandardValidator.instance(true), true, wkt), new UserDataIgnoreConverter())
+            );
         }
     }
 

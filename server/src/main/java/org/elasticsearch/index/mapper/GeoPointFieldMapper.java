@@ -19,10 +19,10 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -242,9 +242,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        protected Function<GeoPoint, Object> getFormatter(String format) {
-            Function<Geometry, Object> formatter = GeoFormatterFactory.getFormatter(format);
-            return (point) -> formatter.apply(new Point(point.lon(), point.lat()));
+        protected  Function<List<GeoPoint>, List<Object>> getFormatter(String format) {
+            return GeometryFormatterFactory.getFormatter(format, p -> new Point(p.lon(), p.lat()));
         }
 
         @Override
@@ -252,8 +251,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (scriptValues == null) {
                 return super.valueFetcher(context, format);
             }
-            Function<GeoPoint, Object> formatter = getFormatter(format != null ? format : GeoFormatterFactory.GEOJSON);
-            return FieldValues.valueFetcher(scriptValues, v -> formatter.apply((GeoPoint) v), context);
+            Function<List<GeoPoint>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
+            return FieldValues.valueListFetcher(scriptValues, formatter, context);
         }
 
         @Override

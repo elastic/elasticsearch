@@ -176,7 +176,8 @@ public class MetadataCreateDataStreamService {
             throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must be lowercase");
         }
         if (dataStreamName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
-            throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must not start with '" + DataStream.BACKING_INDEX_PREFIX + "'");
+            throw new IllegalArgumentException(
+                "data_stream [" + dataStreamName + "] must not start with '" + DataStream.BACKING_INDEX_PREFIX + "'");
         }
 
         final boolean isSystem = systemDataStreamDescriptor != null;

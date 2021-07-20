@@ -182,29 +182,34 @@ public class FollowersCheckerTests extends ESTestCase {
         final int retryCount = FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings);
         final int timeoutCount = between(0, retryCount);
         final int failureCount = retryCount - timeoutCount;
-        final AtomicInteger timeoutsRemaining = new AtomicInteger(timeoutCount);
-        final AtomicInteger failuresRemaining = new AtomicInteger(failureCount);
 
         testBehaviourOfFailingNode(
             settings,
-            () -> {
-                if (timeoutsRemaining.get() == 0 && failuresRemaining.get() == 0) {
-                    // node was added back, reset counters
-                    timeoutsRemaining.set(timeoutCount);
-                    failuresRemaining.set(failureCount);
-                }
-                if (timeoutsRemaining.get() == 0) {
-                    assertThat(failuresRemaining.getAndDecrement(), greaterThan(0));
-                    throw new ElasticsearchException("simulated exception");
-                } else if (failuresRemaining.get() == 0) {
-                    assertThat(timeoutsRemaining.getAndDecrement(), greaterThan(0));
-                    return null;
-                } else if (randomBoolean()) {
-                    assertThat(failuresRemaining.getAndDecrement(), greaterThan(0));
-                    throw new ElasticsearchException("simulated exception");
-                } else {
-                    assertThat(timeoutsRemaining.getAndDecrement(), greaterThan(0));
-                    return null;
+            new Supplier<Empty>() {
+
+                private int timeoutsRemaining;
+                private int failuresRemaining;
+
+                @Override
+                public Empty get() {
+                    if (timeoutsRemaining == 0 && failuresRemaining == 0) {
+                        // node was added, reset counters
+                        timeoutsRemaining = timeoutCount;
+                        failuresRemaining = failureCount;
+                    }
+                    if (timeoutsRemaining == 0) {
+                        assertThat(failuresRemaining--, greaterThan(0));
+                        throw new ElasticsearchException("simulated exception");
+                    } else if (failuresRemaining == 0) {
+                        assertThat(timeoutsRemaining--, greaterThan(0));
+                        return null;
+                    } else if (randomBoolean()) {
+                        assertThat(failuresRemaining--, greaterThan(0));
+                        throw new ElasticsearchException("simulated exception");
+                    } else {
+                        assertThat(timeoutsRemaining--, greaterThan(0));
+                        return null;
+                    }
                 }
             },
             "followers check retry count exceeded [timeouts=" + timeoutCount + ", failures=" + failureCount + "]",

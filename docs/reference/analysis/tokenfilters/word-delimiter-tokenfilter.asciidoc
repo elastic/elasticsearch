@@ -55,7 +55,7 @@ Parameters include:
 Advance settings include:
 
 `protected_words`::
-    A list of protected words from being delimiter.
+    List of tokens the filter won’t split.
     Either an array, or also can set `protected_words_path` which resolved
     to a file configured with protected words (one on each line).
     Automatically resolves to `config/` based location if exists.

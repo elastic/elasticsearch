@@ -281,7 +281,7 @@ separately.
   `transport.ping_schedule` setting, which defaults to `-1` meaning that pings
   are not sent. It is preferable to correctly configure TCP keep-alives instead
   of configuring a `ping_schedule`, because TCP keep-alives are handled by the
-  operating system and not by {es}. By default {es} sends TCP keep-alives on
+  operating system and not by {es}. By default {es} enables TCP keep-alives on
   remote cluster connections. Remote cluster connections are transport
   connections so the `transport.tcp.*` <<transport-settings,advanced settings>>
   regarding TCP keep-alives apply to them.

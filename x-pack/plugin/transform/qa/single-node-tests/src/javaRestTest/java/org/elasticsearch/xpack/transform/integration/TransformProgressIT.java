@@ -168,7 +168,7 @@ public class TransformProgressIT extends ESRestTestCase {
             null
         );
 
-        Pivot pivot = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT);
+        Pivot pivot = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT, Collections.emptySet());
 
         TransformProgress progress = getProgress(pivot, getProgressQuery(pivot, config.getSource().getIndex(), null));
 
@@ -196,7 +196,7 @@ public class TransformProgressIT extends ESRestTestCase {
             Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", null, missingBucket, 50.0))
         );
         pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
-        pivot = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT);
+        pivot = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT, Collections.emptySet());
 
         progress = getProgress(
             pivot,

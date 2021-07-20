@@ -470,10 +470,9 @@ do by declaring a static field of the class as follows:
 
     private static final Logger logger = LogManager.getLogger(MyClassName.class);
 
-There are a number of other acceptable ways to obtain a `Logger`. For example,
-if there will be many instances of a long-lived component whose logs should be
-distinguished then each instance can use a prefixed logger obtained from one of
-the methods in `org.elasticsearch.common.logging.Loggers`.
+In rare situations you may want to configure your `Logger` slightly
+differently, perhaps using one of the methods on
+`org.elasticsearch.common.logging.Loggers` instead.
 
 If the log message includes values from your code then you must use use
 placeholders rather than constructing the string yourself. Consider wrapping
@@ -497,10 +496,10 @@ expensive messages that will usually be discarded:
 
     logger.trace(() -> new ParameterizedMessage("rarely seen output [{}]", expensiveMethod()));
 
-Logging is an important behaviour of the system and all but the most trivial
-logging should have corresponding tests. These tests typically use a
-`org.elasticsearch.test.MockLogAppender` to capture the logs and assert that
-they are as expected.
+Logging is an important behaviour of the system and sometimes deserves its own
+unit tests, especially if there is complex logic for computing what is logged
+and when to log it. You can use a `org.elasticsearch.test.MockLogAppender` to
+make assertions about the logs that are being emitted.
 
 Logging is a powerful diagnostic technique but it is not the only possibility.
 You should also consider exposing information about your component via an API

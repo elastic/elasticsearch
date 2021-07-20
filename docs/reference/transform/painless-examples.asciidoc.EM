@@ -1,35 +1,44 @@
-[role="xpack"]
-[testenv="basic"]
-[[transform-painless-examples]]
-= Painless examples for {transforms}
-++++
-<titleabbrev>Painless examples</titleabbrev>
-++++
-
-These examples demonstrate how to use Painless in {transforms}. You can learn 
-more about the Painless scripting language in the 
-{painless}/painless-guide.html[Painless guide].
-
+* ][
+*  ['./:#*# [role="xpack"]
+* [testenv="basic"]
+* [[transform-painless-examples]]
+*= Painless examples for {transforms}
+*++++
+*<titleabbrev>Painless examples</titleabbrev>
+*++++
+*>=============≠=================≠============<]
+*][*These examples demonstrate how to use Painless
+*>
+*{transforms}. You can learn 
+*more about the Painless scripting language in the 
+*{painless}/painless-guide.html[Painless guide].
+*>
 * <<painless-top-hits>>
 * <<painless-time-features>>
-// * <<painless-group-by>>
+*< * <<painless-group-by>>
 * <<painless-bucket-script>>
 * <<painless-count-http>>
 * <<painless-compare>>
 * <<painless-web-session>>
+*>
+*[NOTE] 
+*--
+* While the context of the following examples is the
 
-[NOTE] 
---
-* While the context of the following examples is the {transform} use case, 
-the Painless scripts in the snippets below can be used in other {es} search 
-aggregations, too.
-* All the following examples use scripts, {transforms} cannot deduce mappings of 
-output fields when the fields are created by a script. {transforms-cap} don't 
-create any mappings in the destination index for these fields, which means they 
-get dynamically mapped. Create the destination index prior to starting the 
-{transform} in case you want explicit mappings.
---
-
+ {transform} use case, 
+*the Painless scripts in the snippets below can be used in other 
+{es} search 
+*aggregations, too.
+* All the following examples use scripts,
+{transforms} cannot deduce mappings of 
+*output fields when the fields are created by a script.
+{transforms-cap} don't 
+*create any mappings in the destination index for these fields,
+which means they 
+*get dynamically mapped. Create the destination index prior to starting the 
+*{transform} in case you want explicit mappings.
+*--
+*>
 [[painless-top-hits]]
 == Getting top hits by using scripted metric aggregation
 
@@ -629,7 +638,7 @@ The API call results in a similar response:
     "exit_path" : "http://www.leroymerlin.fr/v3/p/produits/materiaux-menuiserie/porte-coulissante-porte-interieure-escalier-et-rambarde/barriere-de-securite-l1308218463?__result-wrapper?pageTemplate=Famille%2FMat%C3%A9riaux+et+menuiserie&resultOffset=0&resultLimit=50&resultListShape=PLAIN&nomenclatureId=17942&priceStyle=SALEUNIT_PRICE&fcr=1&*4294718806=4294718806&*14072=14072&*4294718593=4294718593&*17942=17942"
   },
   "distinct_paths" : 1.0,
-  "sessionid" : "000046f8154a80fd89849369c984b8cc9d795814"
+  "sessionid" : "46f8154a80fd89849369c984b8cc9d795814"
 },
 {
   "num_pages_viewed" : 10.0,

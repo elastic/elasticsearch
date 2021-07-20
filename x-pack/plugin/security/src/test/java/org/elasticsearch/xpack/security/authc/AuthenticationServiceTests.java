@@ -2124,6 +2124,6 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private static <T> Consumer<T> anyConsumer() {
-        return anyConsumer();
+        return any(Consumer.class);
     }
 }

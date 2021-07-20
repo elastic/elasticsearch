@@ -318,8 +318,8 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result.size(), equalTo(4));
-        assertThat(((Map<String, String>) result.get("api_key")).get("version"), equalTo(42));
-        assertThat(((Map<String, String>) result.get("realm")).get("id"), equalTo(7));
+        assertThat(((Map<String, Integer>) result.get("api_key")).get("version"), equalTo(42));
+        assertThat(((Map<String, Integer>) result.get("realm")).get("id"), equalTo(7));
     }
 
     @SuppressWarnings("unchecked")

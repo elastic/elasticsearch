@@ -387,7 +387,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
         // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
         // when we run these commands as a role user we won't have to do this
-        Platforms.onWindows(() -> sh.chown(keystore));
+        //Platforms.onWindows(() -> sh.chown(keystore));
 
         if (distribution().isDocker()) {
             try {

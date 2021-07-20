@@ -6,16 +6,16 @@
 # Side Public License, v 1.
 #
 
-# The whitelist for object runtime fields
+# The whitelist for composite runtime fields
 
 # These two whitelists are required for painless to find the classes
-class org.elasticsearch.script.ObjectFieldScript @no_import {
+class org.elasticsearch.script.CompositeFieldScript @no_import {
 }
-class org.elasticsearch.script.ObjectFieldScript$Factory @no_import {
+class org.elasticsearch.script.CompositeFieldScript$Factory @no_import {
 }
 
 static_import {
     # The `emit` callback to collect values for the fields
-    void emit(org.elasticsearch.script.ObjectFieldScript, String, Object) bound_to org.elasticsearch.script.ObjectFieldScript$EmitField
-    void emit(org.elasticsearch.script.ObjectFieldScript, Map) bound_to org.elasticsearch.script.ObjectFieldScript$EmitMap
+    void emit(org.elasticsearch.script.CompositeFieldScript, String, Object) bound_to org.elasticsearch.script.CompositeFieldScript$EmitField
+    void emit(org.elasticsearch.script.CompositeFieldScript, Map) bound_to org.elasticsearch.script.CompositeFieldScript$EmitMap
 }

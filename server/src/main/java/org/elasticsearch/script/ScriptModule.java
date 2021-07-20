@@ -36,7 +36,7 @@ public class ScriptModule {
         StringFieldScript.CONTEXT,
         GeoPointFieldScript.CONTEXT,
         IpFieldScript.CONTEXT,
-        ObjectFieldScript.CONTEXT);
+        CompositeFieldScript.CONTEXT);
 
     public static final Map<String, ScriptContext<?>> CORE_CONTEXTS;
     static {

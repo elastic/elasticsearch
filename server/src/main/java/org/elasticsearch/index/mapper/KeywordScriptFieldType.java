@@ -16,7 +16,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.StringScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.ObjectFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -62,8 +62,8 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         }
 
         @Override
-        StringFieldScript.Factory getObjectSubfieldFactory(Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
-            return StringFieldScript.objectAdapter(parentScriptFactory);
+        StringFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+            return StringFieldScript.leafAdapter(parentScriptFactory);
         }
     }
 

@@ -9,7 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.script.ObjectFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -26,7 +26,9 @@ import java.util.stream.Collectors;
  * A runtime field of type object. Defines a script at the top level, which emits multiple sub-fields.
  * The sub-fields are declared within the object in order to be made available to the field_caps and search API.
  */
-public class ObjectRuntimeField implements RuntimeField {
+public class CompositeRuntimeField implements RuntimeField {
+
+    public static final String CONTENT_TYPE = "composite";
 
     public static final Parser PARSER = new Parser(name ->
         new RuntimeField.Builder(name) {
@@ -38,7 +40,7 @@ public class ObjectRuntimeField implements RuntimeField {
                 RuntimeField.initializerNotSupported()
             ).setValidator(s -> {
                 if (s == null) {
-                    throw new IllegalArgumentException("object runtime field [" + name + "] must declare a [script]");
+                    throw new IllegalArgumentException("composite runtime field [" + name + "] must declare a [script]");
                 }
             });
 
@@ -50,7 +52,7 @@ public class ObjectRuntimeField implements RuntimeField {
                 RuntimeField.initializerNotSupported()
             ).setValidator(objectMap -> {
                 if (objectMap == null || objectMap.isEmpty()) {
-                    throw new IllegalArgumentException("object runtime field [" + name + "] must declare its [fields]");
+                    throw new IllegalArgumentException("composite runtime field [" + name + "] must declare its [fields]");
                 }
             });
 
@@ -65,17 +67,17 @@ public class ObjectRuntimeField implements RuntimeField {
             @Override
             protected RuntimeField createRuntimeField(MappingParserContext parserContext,
                                                       String parent,
-                                                      Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
+                                                      Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
                 if (parent != null) {
                     throw new IllegalArgumentException(
-                        "Runtime field [" + name + "] of type [object] cannot be nested within field [" + parent + "]"
+                        "Runtime field [" + name + "] of type [composite] cannot be nested within field [" + parent + "]"
                     );
                 }
                 assert parentScriptFactory == null : "parent is null, we can't be parsing subfields";
-                ObjectFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.get(), ObjectFieldScript.CONTEXT);
+                CompositeFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.get(), CompositeFieldScript.CONTEXT);
                 Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(fields.getValue(),
                     parserContext, name, searchLookup -> factory.newFactory(name, script.get().getParams(), searchLookup), false);
-                return new ObjectRuntimeField(name, getParameters(), runtimeFields.values());
+                return new CompositeRuntimeField(name, getParameters(), runtimeFields.values());
             }
         });
 
@@ -83,7 +85,7 @@ public class ObjectRuntimeField implements RuntimeField {
     private final List<FieldMapper.Parameter<?>> parameters;
     private final Collection<RuntimeField> subfields;
 
-    ObjectRuntimeField(String name, List<FieldMapper.Parameter<?>> parameters, Collection<RuntimeField> subfields) {
+    CompositeRuntimeField(String name, List<FieldMapper.Parameter<?>> parameters, Collection<RuntimeField> subfields) {
         this.name = name;
         this.parameters = parameters;
         this.subfields = subfields;
@@ -102,7 +104,7 @@ public class ObjectRuntimeField implements RuntimeField {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field("type", "object");
+        builder.field("type", "composite");
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         for (FieldMapper.Parameter<?> parameter : parameters) {
             parameter.toXContent(builder, includeDefaults);

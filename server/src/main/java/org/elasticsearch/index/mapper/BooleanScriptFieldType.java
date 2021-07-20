@@ -18,7 +18,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
-import org.elasticsearch.script.ObjectFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -54,8 +54,8 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         }
 
         @Override
-        BooleanFieldScript.Factory getObjectSubfieldFactory(Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
-            return BooleanFieldScript.objectAdapter(parentScriptFactory);
+        BooleanFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+            return BooleanFieldScript.leafAdapter(parentScriptFactory);
         }
 
     }

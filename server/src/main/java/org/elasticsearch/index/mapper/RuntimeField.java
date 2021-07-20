@@ -10,7 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
-import org.elasticsearch.script.ObjectFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collection;
@@ -57,7 +57,7 @@ public interface RuntimeField extends ToXContentFragment {
 
         protected abstract RuntimeField createRuntimeField(MappingParserContext parserContext,
                                                            String parent,
-                                                           Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory);
+                                                           Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
 
         public final void parse(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
             Map<String, Parameter<?>> paramsMap = new HashMap<>();
@@ -103,7 +103,7 @@ public interface RuntimeField extends ToXContentFragment {
                            Map<String, Object> node,
                            MappingParserContext parserContext,
                            String parent,
-                           Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory)
+                           Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory)
             throws MapperParsingException {
 
             RuntimeField.Builder builder = builderFunction.apply(name);
@@ -125,7 +125,7 @@ public interface RuntimeField extends ToXContentFragment {
     static Map<String, RuntimeField> parseRuntimeFields(Map<String, Object> node,
                                                         MappingParserContext parserContext,
                                                         String parent,
-                                                        Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory,
+                                                        Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory,
                                                         boolean supportsRemoval) {
         Map<String, RuntimeField> runtimeFields = new HashMap<>();
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
@@ -152,7 +152,7 @@ public interface RuntimeField extends ToXContentFragment {
                 Object scriptNode = propNode.get("script");
                 if (scriptNode != null && parent != null) {
                     throw new MapperParsingException(
-                        "Cannot use [script] parameter on sub-field [" + fieldName + "] of object field [" + parent + "]"
+                        "Cannot use [script] parameter on sub-field [" + fieldName + "] of composite field [" + parent + "]"
                     );
                 }
                 Parser typeParser = parserContext.runtimeFieldParser(type);

@@ -22,7 +22,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.GeoPointFieldScript;
-import org.elasticsearch.script.ObjectFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
@@ -53,9 +53,9 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
             }
 
             @Override
-            GeoPointFieldScript.Factory getObjectSubfieldFactory(
-                Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
-                return GeoPointFieldScript.objectAdapter(parentScriptFactory);
+            GeoPointFieldScript.Factory getCompositeLeafFactory(
+                Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+                return GeoPointFieldScript.leafAdapter(parentScriptFactory);
             }
         });
 

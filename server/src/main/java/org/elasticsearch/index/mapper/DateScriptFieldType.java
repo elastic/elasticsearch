@@ -23,7 +23,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DateFieldScript;
-import org.elasticsearch.script.ObjectFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -98,8 +98,8 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         }
 
         @Override
-        DateFieldScript.Factory getObjectSubfieldFactory(Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
-            return DateFieldScript.objectAdapter(parentScriptFactory);
+        DateFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+            return DateFieldScript.leafAdapter(parentScriptFactory);
         }
     }
 

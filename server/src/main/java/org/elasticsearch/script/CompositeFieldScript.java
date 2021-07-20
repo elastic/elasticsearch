@@ -17,23 +17,23 @@ import java.util.List;
 import java.util.Map;
 
 //TODO expose this context to the painless execute API
-public abstract class ObjectFieldScript extends AbstractFieldScript {
-    public static final ScriptContext<ObjectFieldScript.Factory> CONTEXT = newContext("object_field", Factory.class);
+public abstract class CompositeFieldScript extends AbstractFieldScript {
+    public static final ScriptContext<CompositeFieldScript.Factory> CONTEXT = newContext("object_field", Factory.class);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        ObjectFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
+        CompositeFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
     }
 
     public interface LeafFactory {
-        ObjectFieldScript newInstance(LeafReaderContext ctx);
+        CompositeFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private final Map<String, List<Object>> fieldValues = new HashMap<>();
 
-    public ObjectFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public CompositeFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
 
@@ -61,9 +61,9 @@ public abstract class ObjectFieldScript extends AbstractFieldScript {
     }
 
     public static class EmitField {
-        private final ObjectFieldScript script;
+        private final CompositeFieldScript script;
 
-        public EmitField(ObjectFieldScript script) {
+        public EmitField(CompositeFieldScript script) {
             this.script = script;
         }
 
@@ -82,9 +82,9 @@ public abstract class ObjectFieldScript extends AbstractFieldScript {
     }
 
     public static class EmitMap {
-        private final ObjectFieldScript script;
+        private final CompositeFieldScript script;
 
-        public EmitMap(ObjectFieldScript script) {
+        public EmitMap(CompositeFieldScript script) {
             this.script = script;
         }
 

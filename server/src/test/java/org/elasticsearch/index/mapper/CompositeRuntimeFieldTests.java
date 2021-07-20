@@ -12,7 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.LongFieldScript;
-import org.elasticsearch.script.ObjectFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -25,13 +25,13 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
+public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
 
     @Override
     @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
-        if (context == ObjectFieldScript.CONTEXT) {
-            return (T) (ObjectFieldScript.Factory) (fieldName, params, searchLookup) -> ctx -> new ObjectFieldScript(
+        if (context == CompositeFieldScript.CONTEXT) {
+            return (T) (CompositeFieldScript.Factory) (fieldName, params, searchLookup) -> ctx -> new CompositeFieldScript(
                 fieldName,
                 params,
                 searchLookup,
@@ -64,7 +64,7 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> {
             b.startObject("runtime");
             b.startObject("obj");
-            b.field("type", "object");
+            b.field("type", "composite");
             b.startObject("script").field("source", "dummy").endObject();
             b.startObject("fields");
             b.startObject("long-subfield").field("type", "long").endObject();
@@ -131,7 +131,7 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
             b.startObject("runtime");
             b.startObject("obj");
-            b.field("type", "object");
+            b.field("type", "composite");
             b.startObject("script").field("source", "dummy").endObject();
             b.startObject("fields");
             b.startObject("long-subfield").field("type", "unsupported").endObject();
@@ -146,7 +146,7 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> {
             b.startObject("runtime");
             b.startObject("message");
-            b.field("type", "object");
+            b.field("type", "composite");
             b.field("script", "dummy");
             b.startObject("meta").field("test-meta", "value").endObject();
             b.startObject("fields").startObject("response").field("type", "long").endObject().endObject();
@@ -154,7 +154,7 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
             b.endObject();
         }));
         assertEquals("{\"_doc\":{\"runtime\":{" +
-            "\"message\":{\"type\":\"object\"," +
+            "\"message\":{\"type\":\"composite\"," +
             "\"meta\":{\"test-meta\":\"value\"}," +
             "\"script\":{\"source\":\"dummy\",\"lang\":\"painless\"}," +
             "\"fields\":{\"response\":{\"type\":\"long\"}}}}}}",
@@ -164,7 +164,7 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
     public void testScriptOnSubFieldThrowsError() {
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(runtimeMapping(b -> {
             b.startObject("obj");
-            b.field("type", "object");
+            b.field("type", "composite");
             b.field("script", "dummy");
             b.startObject("fields");
             b.startObject("long").field("type", "long").field("script", "dummy").endObject();
@@ -172,32 +172,32 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
             b.endObject();
         })));
 
-        assertThat(e.getMessage(), containsString("Cannot use [script] parameter on sub-field [long] of object field [obj]"));
+        assertThat(e.getMessage(), containsString("Cannot use [script] parameter on sub-field [long] of composite field [obj]"));
     }
 
     public void testObjectWithoutScript() {
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(runtimeMapping(b -> {
             b.startObject("obj");
-            b.field("type", "object");
+            b.field("type", "composite");
             b.startObject("fields");
             b.startObject("long").field("type", "long").endObject();
             b.endObject();
             b.endObject();
         })));
-        assertThat(e.getMessage(), containsString("object runtime field [obj] must declare a [script]"));
+        assertThat(e.getMessage(), containsString("composite runtime field [obj] must declare a [script]"));
     }
 
     public void testObjectNullScript() {
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(runtimeMapping(b -> {
             b.startObject("obj");
-            b.field("type", "object");
+            b.field("type", "composite");
             b.nullField("script");
             b.startObject("fields");
             b.startObject("long").field("type", "long").endObject();
             b.endObject();
             b.endObject();
         })));
-        assertThat(e.getMessage(), containsString(" [script] on runtime field [obj] of type [object] must not have a [null] value"));
+        assertThat(e.getMessage(), containsString(" [script] on runtime field [obj] of type [composite] must not have a [null] value"));
 
     }
 
@@ -205,21 +205,21 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(runtimeMapping(b -> {
                 b.startObject("obj");
-                b.field("type", "object");
+                b.field("type", "composite");
                 b.field("script", "dummy");
                 b.endObject();
             })));
-            assertThat(e.getMessage(), containsString("object runtime field [obj] must declare its [fields]"));
+            assertThat(e.getMessage(), containsString("composite runtime field [obj] must declare its [fields]"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(runtimeMapping(b -> {
                 b.startObject("obj");
-                b.field("type", "object");
+                b.field("type", "composite");
                 b.field("script", "dummy");
                 b.startObject("fields").endObject();
                 b.endObject();
             })));
-            assertThat(e.getMessage(), containsString("object runtime field [obj] must declare its [fields]"));
+            assertThat(e.getMessage(), containsString("composite runtime field [obj] must declare its [fields]"));
         }
     }
 
@@ -227,7 +227,7 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> {
             b.startObject("runtime");
             b.startObject("obj");
-            b.field("type", "object");
+            b.field("type", "composite");
             b.startObject("script").field("source", "dummy").endObject();
             b.startObject("fields");
             b.startObject("long-subfield").field("type", "long").endObject();
@@ -242,7 +242,7 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
         b.startObject("_doc");
         b.startObject("runtime");
         b.startObject("obj");
-        b.field("type", "object");
+        b.field("type", "composite");
         b.startObject("script").field("source", "dummy2").endObject();
         b.startObject("fields");
         b.startObject("double-subfield").field("type", "double").endObject();
@@ -267,7 +267,7 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
         assertEquals(1, mappedFieldTypes.size());
         assertSame(doubleSubField, mappedFieldTypes.iterator().next());
 
-        assertEquals("{\"obj\":{\"type\":\"object\"," +
+        assertEquals("{\"obj\":{\"type\":\"composite\"," +
             "\"script\":{\"source\":\"dummy2\",\"lang\":\"painless\"}," +
             "\"fields\":{\"double-subfield\":{\"type\":\"double\"}}}}", Strings.toString(rf));
     }
@@ -277,7 +277,7 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
             b.startObject("runtime");
             b.startObject("obj.long-subfield").field("type", "long").endObject();
             b.startObject("obj");
-            b.field("type", "object");
+            b.field("type", "composite");
             b.startObject("script").field("source", "dummy").endObject();
             b.startObject("fields");
             b.startObject("long-subfield").field("type", "long").endObject();
@@ -291,7 +291,7 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
             b.startObject("runtime");
             b.startObject("obj.str-subfield").field("type", "long").endObject();
             b.startObject("obj");
-            b.field("type", "object");
+            b.field("type", "composite");
             b.startObject("script").field("source", "dummy").endObject();
             b.startObject("fields");
             b.startObject("long-subfield").field("type", "long").endObject();
@@ -317,7 +317,7 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
             b.field("dynamic", false);
             b.startObject("runtime");
             b.startObject("obj");
-            b.field("type", "object");
+            b.field("type", "composite");
             b.field("script", "split-str-long");
             b.startObject("fields");
             b.startObject("str").field("type", "keyword").endObject();
@@ -352,7 +352,7 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> {
             b.startObject("runtime");
             b.startObject("obj");
-            b.field("type", "object");
+            b.field("type", "composite");
             b.field("script", "dummy");
             b.startObject("fields");
             b.startObject("str").field("type", "keyword").endObject();
@@ -399,7 +399,7 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> {
             b.startObject("runtime");
             b.startObject("obj");
-            b.field("type", "object");
+            b.field("type", "composite");
             b.field("script", "dummy");
             b.startObject("fields");
             b.startObject("long").field("type", "long").endObject();
@@ -419,7 +419,7 @@ public class ObjectRuntimeFieldTests extends MapperServiceTestCase {
             b.field("dynamic", "runtime");
             b.startObject("runtime");
             b.startObject("obj");
-            b.field("type", "object");
+            b.field("type", "composite");
             b.field("script", "dummy");
             b.startObject("fields");
             b.startObject("long").field("type", "long").endObject();

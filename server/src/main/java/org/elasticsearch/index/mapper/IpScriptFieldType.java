@@ -22,7 +22,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IpScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
-import org.elasticsearch.script.ObjectFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -59,8 +59,8 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
             }
 
             @Override
-            IpFieldScript.Factory getObjectSubfieldFactory(Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
-                return IpFieldScript.objectAdapter(parentScriptFactory);
+            IpFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+                return IpFieldScript.leafAdapter(parentScriptFactory);
             }
         });
 

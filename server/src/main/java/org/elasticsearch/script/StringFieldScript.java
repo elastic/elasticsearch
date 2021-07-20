@@ -40,15 +40,15 @@ public abstract class StringFieldScript extends AbstractFieldScript {
         }
     };
 
-    public static Factory objectAdapter(Function<SearchLookup, ObjectFieldScript.LeafFactory> objectFactory) {
+    public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
         return (leafFieldName, params, searchLookup) -> {
-            ObjectFieldScript.LeafFactory objectLeafFactory = objectFactory.apply(searchLookup);
+            CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
             return (LeafFactory) ctx -> {
-                ObjectFieldScript objectFieldScript = objectLeafFactory.newInstance(ctx);
+                CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
                 return new StringFieldScript(leafFieldName, params, searchLookup, ctx) {
                     @Override
                     public void execute() {
-                        emitFromObjectScript(objectFieldScript);
+                        emitFromCompositeScript(compositeFieldScript);
                     }
                 };
             };

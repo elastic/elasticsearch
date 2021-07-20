@@ -18,7 +18,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.ObjectFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
@@ -211,17 +211,17 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
         abstract Factory getParseFromSourceFactory();
 
-        abstract Factory getObjectSubfieldFactory(Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory);
+        abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
 
         @Override
         protected final RuntimeField createRuntimeField(MappingParserContext parserContext,
                                                         String parent,
-                                                        Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
+                                                        Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
             if (script.get() == null) {
                 if (parentScriptFactory == null) {
                     return createRuntimeField(parent, getParseFromSourceFactory());
                 }
-                return createRuntimeField(parent, getObjectSubfieldFactory(parentScriptFactory));
+                return createRuntimeField(parent, getCompositeLeafFactory(parentScriptFactory));
             }
             assert parent == null && parentScriptFactory == null : "a script is set, hence we can't be parsing sub-fields";
             Factory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);

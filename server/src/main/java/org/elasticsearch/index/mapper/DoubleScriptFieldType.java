@@ -18,7 +18,7 @@ import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
-import org.elasticsearch.script.ObjectFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -56,8 +56,8 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         }
 
         @Override
-        DoubleFieldScript.Factory getObjectSubfieldFactory(Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
-            return DoubleFieldScript.objectAdapter(parentScriptFactory);
+        DoubleFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+            return DoubleFieldScript.leafAdapter(parentScriptFactory);
         }
     }
 

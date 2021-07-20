@@ -78,8 +78,9 @@ def v7compatibilityNotSupportedTests = {
 
           'indices.create/10_basic/Create index without soft deletes', //Make soft-deletes mandatory in 8.0 #51122 - settings changes are note supported in Rest Api compatibility
 
-
           'field_caps/30_filter/Field caps with index filter', //behaviour change after #63692 4digits dates are parsed as epoch and in quotes as year
+
+          'indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set', //#44761 bug fix
   ]
 }
 tasks.named("yamlRestCompatTest").configure {
@@ -91,13 +92,7 @@ tasks.named("yamlRestCompatTest").configure {
     'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion and specifying both node_ids and node_names',
     'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion without specifying nodes',
     'indices.flush/10_basic/Index synced flush rest test',
-    'indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set',
-    // not fixing this in #70966
-    'indices.put_template/11_basic_with_types/Put template with empty mappings',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
-    'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
-    'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', //terms_lookup
-    'search/260_parameter_validation/test size=-1 is deprecated', //size=-1 change
     'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
     'search/340_type_query/type query', // type_query - probably should behave like match_all
   ] + v7compatibilityNotSupportedTests())

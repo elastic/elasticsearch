@@ -34,12 +34,14 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
+import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction.DatafeedTask.StoppedOrIsolatedBeforeRunning;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -85,10 +87,10 @@ public class DatafeedRunner {
 
     public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> finishHandler) {
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
-                datafeedJob -> {
-                    String jobId = datafeedJob.getJobId();
-                    Holder holder = new Holder(task, task.getDatafeedId(), datafeedJob,
-                            new ProblemTracker(auditor, jobId), finishHandler);
+            datafeedJob -> {
+                String jobId = datafeedJob.getJobId();
+                Holder holder = new Holder(task, task.getDatafeedId(), datafeedJob, new ProblemTracker(auditor, jobId), finishHandler);
+                if (task.getStoppedOrIsolatedBeforeRunning() == StoppedOrIsolatedBeforeRunning.NEITHER) {
                     runningDatafeedsOnThisNode.put(task.getAllocationId(), holder);
                     task.updatePersistentTaskState(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
                         @Override
@@ -101,16 +103,28 @@ public class DatafeedRunner {
                             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                 // The task was stopped in the meantime, no need to do anything
                                 logger.info("[{}] Aborting as datafeed has been stopped", task.getDatafeedId());
+                                runningDatafeedsOnThisNode.remove(task.getAllocationId());
                             } else {
                                 finishHandler.accept(e);
                             }
                         }
                     });
-                }, finishHandler
+                } else {
+                    logger.info("[{}] Datafeed has been {} before running", task.getDatafeedId(),
+                        task.getStoppedOrIsolatedBeforeRunning().toString().toLowerCase(Locale.ROOT));
+                }
+            }, finishHandler
         );
 
         ActionListener<DatafeedContext> datafeedContextListener = ActionListener.wrap(
-            datafeedContext -> datafeedJobBuilder.build(task, datafeedContext, datafeedJobHandler),
+            datafeedContext -> {
+                if (task.getStoppedOrIsolatedBeforeRunning() == StoppedOrIsolatedBeforeRunning.NEITHER) {
+                    datafeedJobBuilder.build(task, datafeedContext, datafeedJobHandler);
+                } else {
+                    logger.info("[{}] Datafeed has been {} while building context", task.getDatafeedId(),
+                        task.getStoppedOrIsolatedBeforeRunning().toString().toLowerCase(Locale.ROOT));
+                }
+            },
             finishHandler
         );
 

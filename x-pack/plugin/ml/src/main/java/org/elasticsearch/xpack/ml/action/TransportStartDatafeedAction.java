@@ -564,6 +564,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             datafeedRunner.stopDatafeed(this, reason, timeout);
         }
 
+        public synchronized StoppedOrIsolatedBeforeRunning getStoppedOrIsolatedBeforeRunning() {
+            return stoppedOrIsolatedBeforeRunning;
+        }
+
         public void isolate() {
             synchronized (this) {
                 if (datafeedRunner == null) {

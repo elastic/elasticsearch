@@ -20,8 +20,8 @@ public class PassThroughProcessor implements NlpTask.Processor {
 
     private final BertRequestBuilder bertRequestBuilder;
 
-    PassThroughProcessor(BertTokenizer tokenizer) {
-        this.bertRequestBuilder = new BertRequestBuilder(tokenizer);
+    PassThroughProcessor(BertTokenizer tokenizer, NlpTaskConfig config) {
+        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config);
     }
 
     @Override

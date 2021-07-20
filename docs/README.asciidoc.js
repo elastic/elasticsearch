@@ -1,12 +1,110 @@
-The Elasticsearch docs are in AsciiDoc format and can be built using the
-Elasticsearch documentation build process.
-
-See: https://github.com/elastic/docs
-
-=== Adding API reference pages
-
-When you need to add a reference page for a new API:
-
+'*<-]-[*-## @@ -1,90 +1,120 @@
+'= Elasticsearch
+'# Elasticsearch is the distributed, RESTful search and analytics engine at the
+'->]->[-[*]->(->*'heart of the https:"('www.elastic.co/products')[Elastic Stack]').
+'You can use
+'Elasticsearch to store, search, and manage data for:
+'->
+"*->*Logs
+'* Metrics
+'* A search backend
+'* Application monitoring
+'* Endpoint security
+'\... and more!
+'To learn more about Elasticsearch's features and capabilities, see our
+'https://www.elastic.co/products/elasticsearch[product page].
+'[[get-started]]
+'== Get started
+'The simplest way to set up Elasticsearch is to create a managed deployment with
+'https://www.elastic.co/cloud/as-a-service[Elasticsearch Service on Elastic
+'Cloud].
+'If you prefer to install and manage Elasticsearch yourself, you can download
+'the latest version from 
+'https://www.elastic.co/downloads/elasticsearch[elastic.co/downloads/elasticsearch].
+'For more installation options, see the
+'https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Elasticsearch installation'
+'documentation].
+'[[upgrade]]
+'== Upgrade
+'To upgrade from an earlier version of Elasticsearch, see the
+'https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html[Elasticsearch upgrade
+'documentation].
+'[[build-source]]
+'== Build from source
+'Elasticsearch uses https://gradle.org[Gradle] for its build system.
+'To build a distribution for your local OS and print its output location upon
+'completion, run:
+'---->
+'./gradlew localDistro
+'---->
+'To build a distribution for another platform, run the related command:
+'---->
+./gradlew :distribution:archives:linux-tar:assemble
+./gradlew :distribution:archives:darwin-tar:assemble
+./gradlew :distribution:archives:windows-zip:assemble
+---->
+To build distributions for all supported platforms, run:
+---->
+./gradlew assemble
+---->
+Distributions are output to `distributions/archives`.
+To run the test suite, see xref:TESTING.asciidoc[TESTING].
+[[docs]]
+== Documentation
+For the complete Elasticsearch documentation visit
+https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[elastic.co].
+For information about our documentation processes, see the
+xref:docs/README.asciidoc[docs README].
+[[contribute]]
+== Contribute
+For contribution guidelines, see xref:CONTRIBUTING.md[CONTRIBUTING]. 
+[[questions]]
+== Questions? Problems? Suggestions?
+* To report a bug or request a feature, create a
+https://github.com/elastic/elasticsearch/issues/new/choose[GitHub Issue]. Please
+ensure someone else hasn't created an issue for the same topic.
+* Need help using Elasticsearch? Reach out on the
+https://discuss.elastic.co[Elastic Forum] or https://ela.st/slack[Slack]. A
+fellow community member or Elastic engineer will be happy to help you out.
+->
+[[painless-guide]]
+== Painless Guide
+->
+_Painless_ is a simple, secure scripting language designed specifically for use
+with Elasticsearch. It is the default scripting language for Elasticsearch and
+can safely be used for inline and stored scripts. For a jump start into
+Painless, see <<painless-walkthrough, A Brief Painless Walkthrough>>. For a
+detailed description of the Painless syntax and language features, see the
+<<painless-lang-spec, Painless Language Specification>>.
+->
+->You can use Painless anywhere scripts are used in Elasticsearch. Painless
+->provides:
+->
+->* 'Fast performance: Painless scripts https://benchmarks.elastic.co/index.html#search_qps_scripts[
+'run several times faster] than the alternatives.
+'->
+'* Safety: Fine-grained allowlist with method call/field granularity. See the
+'{painless}/painless-api-reference.html[Painless API Reference] for a
+'complete list of available classes and methods.
+''>
+'* Optional typing: Variables and parameters can use explicit types or the
+'dynamic `def` type.
+'->
+'* Syntax: Extends a subset of Java's syntax to provide additional scripting
+'language features.
+'->
+'* Optimizations: Designed specifically for Elasticsearch scripting.
+'->
+'include::painless-guide/index.asciidoc[]
+'The Elasticsearch docs are in AsciiDoc format and can be built using the
+'Elasticsearch documentation build process.
+'->
+'See: https://github.com/elastic/docs
+'->
+'->=== Adding API reference pages
+'->
+'->When you need to add a reference page for a new API:
+'->
 * Use the API reference template: 
 https://github.com/elastic/docs/blob/master/shared/api-ref-ex.asciidoc[template], 
 https://www.elastic.co/guide/en/elasticsearch/reference/master/get-snapshot-repo-api.html[real-life example].

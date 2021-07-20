@@ -391,7 +391,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                 .addAggregation(
                         dateHistogram("histo")
                                 .field("date")
-                                .dateHistogramInterval(DateHistogramInterval.DAY)
+                                .fixedInterval(DateHistogramInterval.DAY)
                                 .order(order)
                                 .minDocCount(0))
                 .get();
@@ -405,7 +405,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                     .addAggregation(
                             dateHistogram("histo")
                                     .field("date")
-                                    .dateHistogramInterval(DateHistogramInterval.DAY)
+                                    .fixedInterval(DateHistogramInterval.DAY)
                                     .order(order)
                                     .minDocCount(minDocCount))
                     .get();

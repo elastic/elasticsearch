@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasAction;
+import org.elasticsearch.cluster.metadata.AliasAction.AddDataStreamAlias;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -107,9 +108,6 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 switch (action.actionType()) {
                     case ADD:
                         // Fail if parameters are used that data stream aliases don't support:
-                        if (action.filter() != null) {
-                            throw new IllegalArgumentException("aliases that point to data streams don't support filters");
-                        }
                         if (action.routing() != null) {
                             throw new IllegalArgumentException("aliases that point to data streams don't support routing");
                         }
@@ -129,7 +127,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                         }
                         for (String dataStreamName : concreteDataStreams) {
                             for (String alias : concreteDataStreamAliases(action, state.metadata(), dataStreamName)) {
-                                finalActions.add(new AliasAction.AddDataStreamAlias(alias, dataStreamName, action.writeIndex()));
+                                finalActions.add(new AddDataStreamAlias(alias, dataStreamName, action.writeIndex(), action.filter()));
                             }
                         }
                         continue;

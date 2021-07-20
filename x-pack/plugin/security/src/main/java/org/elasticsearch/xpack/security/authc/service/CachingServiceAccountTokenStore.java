@@ -23,9 +23,15 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 public abstract class CachingServiceAccountTokenStore implements ServiceAccountTokenStore, CacheInvalidatorRegistry.CacheInvalidator {
 
@@ -125,17 +131,35 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
      */
     @Override
     public final void invalidate(Collection<String> qualifiedTokenNames) {
-        if (cache != null) {
-            logger.trace("invalidating cache for service token [{}]",
-                Strings.collectionToCommaDelimitedString(qualifiedTokenNames));
-            for (String qualifiedTokenName : qualifiedTokenNames) {
-                if (qualifiedTokenName.endsWith("/")) {
-                    // Wildcard case of invalidating all tokens for a service account, e.g. "elastic/fleet-server/"
-                    cacheIteratorHelper.removeKeysIf(key -> key.startsWith(qualifiedTokenName));
-                } else {
-                    cache.invalidate(qualifiedTokenName);
+        if (cache != null && false == qualifiedTokenNames.isEmpty()) {
+            logger.trace("invalidating cache for service token [{}]", Strings.collectionToCommaDelimitedString(qualifiedTokenNames));
+            final Set<String> exacts = new HashSet<>(qualifiedTokenNames);
+            final Set<String> prefixes = new HashSet<>();
+            final Iterator<String> it = exacts.iterator();
+            while (it.hasNext()) {
+                final String name = it.next();
+                if (name.endsWith("/")) {
+                    prefixes.add(name);
+                    it.remove();
                 }
             }
+
+            final Predicate<String> predicate;
+            if (exacts.isEmpty()) {
+                predicate = k -> prefixes.stream().anyMatch(k::startsWith);
+            } else if (prefixes.isEmpty()) {
+                predicate = exacts::contains;
+            } else {
+                predicate = k -> exacts.contains(k) || prefixes.stream().anyMatch(k::startsWith);
+            }
+
+            final List<String> keys = new ArrayList<>();
+            cache.forEach((k, v) -> {
+                if (predicate.test(k)) {
+                    keys.add(k);
+                }
+            });
+            keys.forEach(cache::invalidate);
         }
     }
 

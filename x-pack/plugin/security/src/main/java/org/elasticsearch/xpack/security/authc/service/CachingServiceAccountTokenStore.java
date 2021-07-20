@@ -20,7 +20,6 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 
 import java.util.ArrayList;
@@ -48,7 +47,6 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
     private final Settings settings;
     private final ThreadPool threadPool;
     private final Cache<String, ListenableFuture<CachedResult>> cache;
-    private CacheIteratorHelper<String, ListenableFuture<CachedResult>> cacheIteratorHelper;
     private final Hasher hasher;
 
     CachingServiceAccountTokenStore(Settings settings, ThreadPool threadPool) {
@@ -60,10 +58,8 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
                 .setExpireAfterWrite(ttl)
                 .setMaximumWeight(CACHE_MAX_TOKENS_SETTING.get(settings))
                 .build();
-            cacheIteratorHelper = new CacheIteratorHelper<>(cache);
         } else {
             cache = null;
-            cacheIteratorHelper = null;
         }
         hasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
     }

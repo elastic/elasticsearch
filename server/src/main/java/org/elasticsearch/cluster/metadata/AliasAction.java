@@ -204,12 +204,14 @@ public abstract class AliasAction {
         private final String aliasName;
         private final String dataStreamName;
         private final Boolean isWriteDataStream;
+        private final String filter;
 
-        public AddDataStreamAlias(String aliasName, String dataStreamName, Boolean isWriteDataStream) {
+        public AddDataStreamAlias(String aliasName, String dataStreamName, Boolean isWriteDataStream, String filter) {
             super(dataStreamName);
             this.aliasName = aliasName;
             this.dataStreamName = dataStreamName;
             this.isWriteDataStream = isWriteDataStream;
+            this.filter = filter;
         }
 
         public String getAliasName() {
@@ -231,8 +233,8 @@ public abstract class AliasAction {
 
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
-            aliasValidator.validate(aliasName, null, null, isWriteDataStream);
-            return metadata.put(aliasName, dataStreamName, isWriteDataStream);
+            aliasValidator.validate(aliasName, null, filter, isWriteDataStream);
+            return metadata.put(aliasName, dataStreamName, isWriteDataStream, filter);
         }
     }
 

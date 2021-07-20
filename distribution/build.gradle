@@ -597,10 +597,8 @@ subprojects {
           return
         }
       }
-      if (!(value instanceof String) && !(value instanceof GString)) {
-        throw new GradleException("expected String-like value [${value}], but was ${value.getClass().getName()}")
-      }
-      result[key] = value.toString() // convert GStrings to actual Strings
+      // expansions is String->Object but result is String->String, so we have to coerce the values
+      result[key] = value.toString()
     }
     return result
   }

@@ -59,19 +59,8 @@ teardown:
 ---
 "Test two sub-queries with only one having inner_hits":
     - skip:
-        version: " - 7.59.99"
+        version: " - 7.5.99"
         reason: "The bug was corrected from 7.6"
-
-    - do:
-        indices.create:
-          index: test
-          body:
-            mappings:
-              properties:
-                entity_type: { "type": "keyword" }
-                join_field: { "type": "join", "relations": { "question": "answer", "person" : "address" } }
-            settings:
-              number_of_shards: 1
 
     - do:
         index:

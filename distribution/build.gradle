@@ -165,53 +165,32 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
   }
 }
 
-// log4j config could be contained in modules, so we must join it together using these tasks
-def buildOssLog4jConfigTaskProvider = tasks.register("buildOssLog4jConfig") {
-  ext.contents = []
-  ext.log4jFile = file("${ossOutputs}/log4j2.properties")
-  outputs.file log4jFile
-}
 def buildDefaultLog4jConfigTaskProvider = tasks.register("buildDefaultLog4jConfig") {
-  dependsOn processDefaultOutputsTaskProvider
-  ext.contents = []
-  ext.log4jFile = file("${defaultOutputs}/log4j2.properties")
-  outputs.file log4jFile
-}
+  mustRunAfter('processDefaultOutputs')
 
-Closure writeLog4jProperties = {
-  def file = file('src/config/log4j2.properties')
-  String mainLog4jProperties = file.getText('UTF-8')
-  it.log4jFile.setText(mainLog4jProperties, 'UTF-8')
-  for (String moduleLog4jProperties : it.contents.reverse()) {
-    it.log4jFile.append(moduleLog4jProperties, 'UTF-8')
+  def outputFile = file("${defaultOutputs}/log4j2.properties")
+  def inputFiles = fileTree('src/config').matching { include 'log4j2.properties' }
+  project(':modules').subprojects.each {
+    inputFiles = inputFiles + it.fileTree('src/main/config').matching { include 'log4j2.properties' }
   }
-}
-buildOssLog4jConfigTaskProvider.configure {
-  doLast(writeLog4jProperties)
-}
-
-buildDefaultLog4jConfigTaskProvider.configure {
-  doLast(writeLog4jProperties)
-}
-
-// copy log4j2.properties from modules that have it
-void copyLog4jProperties(TaskProvider buildTask, Project module) {
-  buildTask.configure {
-    Configuration moduleConfig = moduleZip(module)
-
-    dependsOn moduleConfig
-    doFirst {
-      FileTree tree = zipTree(moduleConfig.singleFile)
-      FileTree filtered = tree.matching {
-        include 'config/log4j2.properties'
-        include '*/config/log4j2.properties' // could be in a bundled plugin
-      }
-      if (filtered.isEmpty() == false) {
-        contents.add('\n\n' + filtered.singleFile.getText('UTF-8'))
-      }
-    }
+  project(':x-pack:plugin').subprojects.each {
+    inputFiles = inputFiles + it.fileTree('src/main/config').matching { include 'log4j2.properties' }
   }
 
+  inputs.files(inputFiles)
+  outputs.file outputFile
+
+  doLast {
+    outputFile.setText('', 'UTF-8')
+    inputFiles.files.eachWithIndex(
+      { f, i ->
+        if (i != 0) {
+          outputFile.append('\n\n', 'UTF-8')
+        }
+        outputFile.append(f.text, 'UTF-8')
+      }
+    )
+  }
 }
 
 ext.restTestExpansions = [
@@ -237,9 +216,6 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
     copyModule(processTransportOutputsTaskProvider, module)
   }
 
-  copyLog4jProperties(buildOssLog4jConfigTaskProvider, module)
-  copyLog4jProperties(buildDefaultLog4jConfigTaskProvider, module)
-
   restTestExpansions['expected.modules.count'] += 1
 }
 
@@ -254,7 +230,6 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
     }
   }
   copyModule(processDefaultOutputsTaskProvider, xpackModule)
-  copyLog4jProperties(buildDefaultLog4jConfigTaskProvider, xpackModule)
 }
 
 copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
@@ -384,12 +359,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           exclude 'log4j2.properties' // this is handled separately below
           MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, testDistro, jdk))
         }
-        if (testDistro) {
-          from buildOssLog4jConfigTaskProvider
-        } else {
-          from buildDefaultLog4jConfigTaskProvider
-          from defaultConfigFiles
-        }
+        from buildDefaultLog4jConfigTaskProvider
+        from defaultConfigFiles
       }
     }
 

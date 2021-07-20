@@ -166,6 +166,8 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
 }
 
 def buildDefaultLog4jConfigTaskProvider = tasks.register("buildDefaultLog4jConfig") {
+  mustRunAfter('processDefaultOutputs')
+
   def outputFile = file("${defaultOutputs}/log4j2.properties")
   def inputFiles = fileTree('src/config').matching { include 'log4j2.properties' }
   project(':modules').subprojects.each {

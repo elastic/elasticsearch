@@ -14,7 +14,7 @@ tags:
 # Build args passed to Dockerfile ARGs
 args:
   BASE_IMAGE: "redhat/ubi/ubi8"
-  BASE_TAG: "8.3"
+  BASE_TAG: "8.4"
 
 # Docker image labels
 labels:

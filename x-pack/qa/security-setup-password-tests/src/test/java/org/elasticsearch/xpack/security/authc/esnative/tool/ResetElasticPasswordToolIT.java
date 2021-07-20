@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.tool;
+package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.client.Request;

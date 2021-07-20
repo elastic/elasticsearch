@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.enrollment.tool;
+package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
@@ -24,7 +24,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
 import org.elasticsearch.xpack.security.tool.HttpResponse;
-import org.elasticsearch.xpack.security.tool.ResetElasticPasswordTool;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;

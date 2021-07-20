@@ -44,7 +44,7 @@ public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
         CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction,
         CheckedFunction<Environment, CreateEnrollmentToken, Exception> createEnrollmentTokenFunction
     ) {
-        super(clientFunction, keyStoreFunction, "Creates enrollment tokens for Elasticsearch nodes and Kibana instances");
+        super(clientFunction, keyStoreFunction, "Creates enrollment tokens for elasticsearch nodes and kibana instances");
         this.createEnrollmentTokenFunction = createEnrollmentTokenFunction;
         scope = parser.acceptsAll(List.of("scope", "s"), "The scope of this enrollment token, can be either \"node\" or \"kibana\"")
             .withRequiredArg()
@@ -71,10 +71,10 @@ public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
     }
 
     @Override
-    protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        final String username = getUsername();
+    protected void executeCommand(Terminal terminal, OptionSet options, Environment env, String username, SecureString password)
+        throws Exception {
         final String tokenScope = scope.value(options);
-        try (SecureString password = getPassword()) {
+        try {
             CreateEnrollmentToken createEnrollmentTokenService = createEnrollmentTokenFunction.apply(env);
             if (tokenScope.equals("node")) {
                 terminal.println(createEnrollmentTokenService.createNodeEnrollmentToken(username, password));

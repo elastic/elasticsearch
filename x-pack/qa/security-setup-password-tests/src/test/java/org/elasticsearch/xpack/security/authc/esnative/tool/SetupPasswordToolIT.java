@@ -10,7 +10,6 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.xpack.security.tool.AbstractPasswordToolTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

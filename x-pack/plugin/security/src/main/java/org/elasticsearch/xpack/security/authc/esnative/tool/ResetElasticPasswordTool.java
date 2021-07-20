@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.tool;
+package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import joptsimple.OptionSet;
 
@@ -22,6 +22,9 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.support.Validation;
+import org.elasticsearch.xpack.security.tool.BaseRunAsSuperuserCommand;
+import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
+import org.elasticsearch.xpack.security.tool.HttpResponse;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -35,7 +38,7 @@ public class ResetElasticPasswordTool extends BaseRunAsSuperuserCommand {
     private final OptionSpecBuilder auto;
     private final OptionSpecBuilder batch;
 
-    ResetElasticPasswordTool() {
+    public ResetElasticPasswordTool() {
         this(environment -> new CommandLineHttpClient(environment), environment -> KeyStoreWrapper.load(environment.configFile()));
     }
 
@@ -54,7 +57,8 @@ public class ResetElasticPasswordTool extends BaseRunAsSuperuserCommand {
     }
 
     @Override
-    protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    protected void executeCommand(Terminal terminal, OptionSet options, Environment env, String username, SecureString password)
+        throws Exception {
         final SecureString elasticPassword;
         if (options.has(interactive)) {
             if (options.has(batch) == false) {
@@ -79,15 +83,14 @@ public class ResetElasticPasswordTool extends BaseRunAsSuperuserCommand {
             }
             elasticPassword = new SecureString(generatePassword(20));
         }
-        try (SecureString fileRealmSuperuserPassword = getPassword()) {
-            final String fileRealmSuperuser = getUsername();
+        try {
             final CommandLineHttpClient client = clientFunction.apply(env);
             final URL changePasswordUrl = createURL(new URL(client.getDefaultURL()), "_security/user/elastic/_password", "?pretty");
             final HttpResponse httpResponse = client.execute(
                 "POST",
                 changePasswordUrl,
-                fileRealmSuperuser,
-                fileRealmSuperuserPassword,
+                username,
+                password,
                 () -> requestBodySupplier(elasticPassword),
                 this::responseBuilder
             );

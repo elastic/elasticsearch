@@ -1878,6 +1878,31 @@ public class DocumentParserTests extends MapperServiceTestCase {
             + "Existing mapping for [alias-field] must be of type object but found [alias].", exception.getMessage());
     }
 
+    public void testMultifieldOverwriteFails() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("message");
+            {
+                b.field("type", "keyword");
+                b.startObject("fields");
+                {
+                    b.startObject("text");
+                    {
+                        b.field("type", "text");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        MapperParsingException exception = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("message", "original").field("message.text", "overwrite"))));
+
+        assertEquals("Could not dynamically add mapping for field [message.text]. "
+            + "Existing mapping for [message] must be of type object but found [keyword].", exception.getMessage());
+    }
+
     public void testTypeless() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject().startObject("type").startObject("properties")

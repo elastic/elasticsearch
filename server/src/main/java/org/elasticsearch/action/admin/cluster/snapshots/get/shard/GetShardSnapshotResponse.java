@@ -15,10 +15,13 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardSnapshotInfo;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
 public class GetShardSnapshotResponse extends ActionResponse {
+    public static GetShardSnapshotResponse EMPTY = new GetShardSnapshotResponse(Collections.emptyMap(), Collections.emptyMap());
+
     private final Map<String, ShardSnapshotInfo> repositoryShardSnapshots;
     private final Map<String, RepositoryException> repositoryFailures;
 

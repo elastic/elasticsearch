@@ -31,7 +31,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -79,7 +78,7 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
         final ShardId shardId = request.getShardId();
 
         if (repositories.isEmpty()) {
-            listener.onResponse(new GetShardSnapshotResponse(Collections.emptyMap(), Collections.emptyMap()));
+            listener.onResponse(GetShardSnapshotResponse.EMPTY);
             return;
         }
 
@@ -89,17 +88,21 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
         );
 
         BlockingQueue<String> repositoriesQueue = new LinkedBlockingQueue<>(repositories);
-        getShardSnapshots(
-            repositoriesQueue,
-            shardId,
-            ActionListener.wrap(shardSnapshotInfo -> groupedActionListener.onResponse(Tuple.tuple(shardSnapshotInfo, null)), err -> {
+        getShardSnapshots(repositoriesQueue, shardId, new ActionListener<>() {
+            @Override
+            public void onResponse(Optional<ShardSnapshotInfo> shardSnapshotInfo) {
+                groupedActionListener.onResponse(Tuple.tuple(shardSnapshotInfo, null));
+            }
+
+            @Override
+            public void onFailure(Exception err) {
                 if (request.isSingleRepositoryRequest() == false && err instanceof RepositoryException) {
                     groupedActionListener.onResponse(Tuple.tuple(Optional.empty(), (RepositoryException) err));
                 } else {
                     groupedActionListener.onFailure(err);
                 }
-            })
-        );
+            }
+        });
     }
 
     private void getShardSnapshots(

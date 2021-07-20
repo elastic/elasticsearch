@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotResponse;
@@ -24,7 +25,6 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 
 import java.nio.file.Path;
@@ -37,21 +37,21 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
+import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
-    public void testGetShardSnapshotFromUnknownRepoReturnsAnError() {
+    public void testGetShardSnapshotFromUnknownRepoReturnsAnError() throws Exception {
         boolean useMultipleUnknownRepositories = randomBoolean();
         List<String> repositories = useMultipleUnknownRepositories ? List.of("unknown", "unknown-2") : List.of("unknown");
         final ActionFuture<GetShardSnapshotResponse> responseFuture = getLatestSnapshotForShardFuture(repositories, "idx", 0, false);
 
         if (useMultipleUnknownRepositories) {
-            GetShardSnapshotResponse response = responseFuture.actionGet();
+            GetShardSnapshotResponse response = responseFuture.get();
             assertThat(response.getRepositoryShardSnapshots(), is(anEmptyMap()));
 
             final Map<String, RepositoryException> failures = response.getRepositoryFailures();
@@ -116,12 +116,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         final boolean useBwCFormat = randomBoolean();
         if (useBwCFormat) {
-            final Version version = randomFrom(
-                SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION,
-                SnapshotsService.INDEX_GEN_IN_REPO_DATA_VERSION,
-                SnapshotsService.UUIDS_IN_REPO_DATA_VERSION,
-                SnapshotsService.OLD_SNAPSHOT_FORMAT
-            );
+            final Version version = randomVersionBetween(random(), Version.V_7_5_0, Version.CURRENT);
             initWithSnapshotVersion(repoName, repoPath, version);
             // Re-create repo to clear repository data cache
             assertAcked(clusterAdmin().prepareDeleteRepository(repoName).get());
@@ -186,7 +181,12 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         blockAllDataNodes(fsRepoName);
 
         final String snapshotName = "snap-1";
-        client().admin().cluster().prepareCreateSnapshot(fsRepoName, snapshotName).setIndices(indexName).setWaitForCompletion(false).get();
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(fsRepoName, snapshotName)
+            .setIndices(indexName)
+            .setWaitForCompletion(true)
+            .execute();
 
         waitForBlockOnAnyDataNode(fsRepoName);
 
@@ -194,18 +194,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         unblockAllDataNodes(fsRepoName);
 
-        assertBusy(() -> {
-            final Optional<ShardSnapshotInfo> indexShardSnapshotInfoOpt = getLatestSnapshotForShard(fsRepoName, indexName, 0);
-
-            assertThat(indexShardSnapshotInfoOpt.isPresent(), equalTo(true));
-            final ShardSnapshotInfo shardSnapshotInfo = indexShardSnapshotInfoOpt.get();
-            assertThat(shardSnapshotInfo.getIndexMetadataIdentifier(), is(notNullValue()));
-
-            final SnapshotInfo snapshotInfo = shardSnapshotInfo.getSnapshotInfo();
-            assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
-            assertThat(snapshotInfo.endTime(), greaterThanOrEqualTo(0L));
-            assertThat(snapshotInfo.indices().contains(indexName), equalTo(true));
-        });
+        assertSuccessful(snapshotFuture);
     }
 
     public void testGetShardSnapshotFailureHandlingLetOtherRepositoriesRequestsMakeProgress() throws Exception {

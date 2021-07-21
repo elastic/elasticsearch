@@ -303,9 +303,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 validationException = source.aggregations().validate(validationException);
             }
             if (source.rescores() != null) {
-                if (source.searchAfter() != null) {
-                    validationException = addValidationError("[rescore] can't be with [search_after]", validationException);
-                }
                 if (source.from() > 0) {
                     for (RescorerBuilder<?> rescore : source.rescores()) {
                         final int requestingDocs = source.from() + source.size();

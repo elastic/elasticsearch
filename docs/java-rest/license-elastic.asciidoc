@@ -1,9 +1,9 @@
 == License
 
 The Java High Level REST Client depends on the Elasticsearch core project.
-Due to this dependency the Java High Level REST Client
-falls under the Elastic License v2. Work is in progress to introduce https://github.com/elastic/elasticsearch-java[a new Java client library]
-that will be release an Apache 2.0 license library. For additional information please reference
+Due to this dependency the Java High Level REST Client is licensed
+under the Elastic License v2 (ELv2) license. Work is in progress to introduce https://github.com/elastic/elasticsearch-java[a new Java client library]
+that will be released under the Apache 2.0 license. For additional information please reference
 the https://www.elastic.co/pricing/faq/licensing#im-using-elasticsearch-via-apis-how-does-this-change-affect-me[Elastic License v2 FAQ]
 
 The full license terms are available at https://www.elastic.co/licensing/elastic-license

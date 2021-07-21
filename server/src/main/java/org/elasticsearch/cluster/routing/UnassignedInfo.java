@@ -394,15 +394,14 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     public long getRemainingDelay(
         final long nanoTimeNow,
         final Settings indexSettings,
-        final Metadata metadata
+        final Map<String, SingleNodeShutdownMetadata> nodesShutdownMap
     ) {
-        Map<String, SingleNodeShutdownMetadata> nodeShutdowns = metadata.nodeShutdowns() != null
-            ? metadata.nodeShutdowns()
-            : Collections.emptyMap();
+        Map<String, SingleNodeShutdownMetadata> nodeShutdowns = nodesShutdownMap != null ? nodesShutdownMap : Collections.emptyMap();
         long delayTimeoutNanos = Optional.ofNullable(lastAllocatedNodeId)
             .map(nodeShutdowns::get)
             .filter(shutdownMetadata -> SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownMetadata.getType()))
-            .map(shutdownMetadata -> new TimeValue(10, TimeUnit.MINUTES).getNanos()) // GWB-> NOCOMMIT plumb in a setting here
+            .map(SingleNodeShutdownMetadata::getShardReallocationDelay)
+            .map(TimeValue::nanos)
             .orElse(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexSettings).nanos());
         assert nanoTimeNow >= unassignedTimeNanos;
         return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
@@ -438,7 +437,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
                 final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(
                     currentNanoTime,
                     indexSettings,
-                    metadata
+                    metadata.nodeShutdowns()
                 );
                 if (newComputedLeftDelayNanos < nextDelayNanos) {
                     nextDelayNanos = newComputedLeftDelayNanos;

@@ -306,7 +306,7 @@ public class AllocationService {
                 final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(
                     allocation.getCurrentNanoTime(),
                     metadata.getIndexSafe(shardRouting.index()).getSettings(),
-                    metadata
+                    metadata.nodeShutdowns()
                 );
                 if (newComputedLeftDelayNanos == 0) {
                     unassignedIterator.updateUnassigned(

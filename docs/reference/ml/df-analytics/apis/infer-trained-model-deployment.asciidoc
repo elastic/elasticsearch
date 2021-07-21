@@ -39,19 +39,78 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 (Optional, time)
 Controls the amount of time to wait for {infer} results. Defaults to 10 seconds.
 
+[[infer-trained-model-request-body]]
+== {api-request-body-title}
+
+`input`::
+(Required,string)
+The input text for evaluation.
+
 ////
-[role="child_attributes"]
 [[infer-trained-model-deployment-results]]
 == {api-response-body-title}
-
 ////
 ////
 [[ml-get-trained-models-response-codes]]
 == {api-response-codes-title}
 
 ////
-////
+
 [[infer-trained-model-deployment-example]]
 == {api-examples-title}
 
-////
+The response depends on the task the model is trained for. If it is a 
+sentiment analysis task, the response is the score. For example:
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/model1/deployment/_infer
+{
+	"input": "Hi my name is Josh and I live in Berlin"
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The API returns scores in this case, for example:
+
+[source,console-result]
+----
+{
+  "entities" : [
+    {
+      "label" : "person",
+      "score" : 0.9988716330253505,
+      "word" : "Josh"
+    },
+    {
+      "label" : "location",
+      "score" : 0.9980872542990656,
+      "word" : "Berlin"
+    }
+  ]
+}
+----
+// NOTCONSOLE
+
+For named entity recognition (NER) tasks, the response contains the recognized
+entities and their type. For example:
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/model2/deployment/_infer
+{
+	"input": "The movie was awesome!!"
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The API returns scores in this case, for example:
+
+[source,console-result]
+----
+{
+  "positive" : 0.9998062667902223,
+  "negative" : 1.9373320977752957E-4	
+}
+----
+// NOTCONSOLE

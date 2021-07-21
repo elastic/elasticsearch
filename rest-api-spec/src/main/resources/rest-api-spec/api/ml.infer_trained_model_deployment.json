@@ -34,6 +34,10 @@
         "description":"Controls the amount of time to wait for inference results.",
         "default":"10s"
       }
+    },
+    "body":{
+      "description":"The input text to be evaluated.",
+      "required":true
     }
   }
 }

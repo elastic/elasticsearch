@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.Reserved
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.Answer;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -45,6 +46,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -133,6 +135,7 @@ public class ReservedRealmTests extends ESTestCase {
         verifySuccessfulAuthentication(false);
     }
 
+    @SuppressWarnings("unchecked")
     private void verifySuccessfulAuthentication(boolean enabled) throws Exception {
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
@@ -142,11 +145,7 @@ public class ReservedRealmTests extends ESTestCase {
         // Mocked users store is initiated with default hashing algorithm
         final Hasher hasher = Hasher.resolve("bcrypt");
         when(securityIndex.indexExists()).thenReturn(true);
-        doAnswer((i) -> {
-            ActionListener callback = (ActionListener) i.getArguments()[1];
-            callback.onResponse(new ReservedUserInfo(hasher.hash(newPassword), enabled));
-            return null;
-        }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
+        doAnswer(getAnswer(enabled, newPassword, hasher)).when(usersStore).getReservedUserInfo(eq(principal), anyActionListener());
 
         // test empty password
         final PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
@@ -154,11 +153,7 @@ public class ReservedRealmTests extends ESTestCase {
         assertFailedAuthentication(listener, expectedUser.principal());
 
         // the realm assumes it owns the hashed password so it fills it with 0's
-        doAnswer((i) -> {
-            ActionListener callback = (ActionListener) i.getArguments()[1];
-            callback.onResponse(new ReservedUserInfo(hasher.hash(newPassword), true));
-            return null;
-        }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
+        doAnswer(getAnswer(true, newPassword, hasher)).when(usersStore).getReservedUserInfo(eq(principal), anyActionListener());
 
         // test new password
         final PlainActionFuture<AuthenticationResult> authListener = new PlainActionFuture<>();
@@ -168,7 +163,8 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(expectedUser.enabled(), is(enabled));
 
         verify(securityIndex, times(2)).indexExists();
-        verify(usersStore, times(2)).getReservedUserInfo(eq(principal), any(ActionListener.class));
+        verify(usersStore, times(2)).getReservedUserInfo(eq(principal), anyActionListener());
+        @SuppressWarnings("rawtypes")
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
         verify(securityIndex, times(2)).checkMappingVersion(predicateCaptor.capture());
         verifyVersionPredicate(principal, predicateCaptor.getValue());
@@ -180,6 +176,16 @@ public class ReservedRealmTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private Answer<Class<Void>> getAnswer(boolean enabled, SecureString newPassword, Hasher hasher) {
+        return (i) -> {
+            ActionListener<ReservedUserInfo> callback = (ActionListener<ReservedUserInfo>) i.getArguments()[1];
+            callback.onResponse(new ReservedUserInfo(hasher.hash(newPassword), enabled));
+            return null;
+        };
+    }
+
+    @SuppressWarnings("unchecked")
     public void testLookup() throws Exception {
         final ReservedRealm reservedRealm =
             new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
@@ -193,6 +199,7 @@ public class ReservedRealmTests extends ESTestCase {
         assertEquals(expectedUser, user);
         verify(securityIndex).indexExists();
 
+        @SuppressWarnings("rawtypes")
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
         verify(securityIndex).checkMappingVersion(predicateCaptor.capture());
         verifyVersionPredicate(principal, predicateCaptor.getValue());
@@ -236,6 +243,7 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(listener.actionGet(), equalTo(expectedUser));
     }
 
+    @SuppressWarnings("unchecked")
     public void testLookupThrows() throws Exception {
         final ReservedRealm reservedRealm =
             new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
@@ -245,10 +253,10 @@ public class ReservedRealmTests extends ESTestCase {
         when(securityIndex.indexExists()).thenReturn(true);
         final RuntimeException e = new RuntimeException("store threw");
         doAnswer((i) -> {
-            ActionListener callback = (ActionListener) i.getArguments()[1];
+            ActionListener<?> callback = (ActionListener<?>) i.getArguments()[1];
             callback.onFailure(e);
             return null;
-        }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
+        }).when(usersStore).getReservedUserInfo(eq(principal), anyActionListener());
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
         reservedRealm.lookupUser(principal, future);
@@ -256,8 +264,9 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(securityException.getMessage(), containsString("failed to lookup"));
 
         verify(securityIndex).indexExists();
-        verify(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
+        verify(usersStore).getReservedUserInfo(eq(principal), anyActionListener());
 
+        @SuppressWarnings("rawtypes")
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
         verify(securityIndex).checkMappingVersion(predicateCaptor.capture());
         verifyVersionPredicate(principal, predicateCaptor.getValue());
@@ -357,10 +366,11 @@ public class ReservedRealmTests extends ESTestCase {
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
         doAnswer((i) -> {
+            @SuppressWarnings("rawtypes")
             ActionListener callback = (ActionListener) i.getArguments()[1];
             callback.onResponse(null);
             return null;
-        }).when(usersStore).getReservedUserInfo(eq("elastic"), any(ActionListener.class));
+        }).when(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
         reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
                 mockSecureSettings.getString("bootstrap.password")),
             listener);
@@ -381,12 +391,13 @@ public class ReservedRealmTests extends ESTestCase {
         // Mocked users store is initiated with default hashing algorithm
         final Hasher hasher = Hasher.resolve("bcrypt");
         doAnswer((i) -> {
-            ActionListener callback = (ActionListener) i.getArguments()[1];
+            @SuppressWarnings("unchecked")
+            ActionListener<ReservedUserInfo> callback = (ActionListener<ReservedUserInfo>) i.getArguments()[1];
             char[] hash = hasher.hash(password);
             ReservedUserInfo userInfo = new ReservedUserInfo(hash, true);
             callback.onResponse(userInfo);
             return null;
-        }).when(usersStore).getReservedUserInfo(eq("elastic"), any(ActionListener.class));
+        }).when(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
         reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
             mockSecureSettings.getString("bootstrap.password")), listener);
         assertFailedAuthentication(listener, "elastic");
@@ -428,10 +439,10 @@ public class ReservedRealmTests extends ESTestCase {
         final String principal = randomFrom(KibanaUser.NAME, KibanaSystemUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME,
             APMSystemUser.NAME, RemoteMonitoringUser.NAME);
         doAnswer((i) -> {
-            ActionListener callback = (ActionListener) i.getArguments()[1];
+            ActionListener<?> callback = (ActionListener<?>) i.getArguments()[1];
             callback.onResponse(null);
             return null;
-        }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
+        }).when(usersStore).getReservedUserInfo(eq(principal), anyActionListener());
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, mockSecureSettings.getString("bootstrap.password")), listener);
         final AuthenticationResult result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
@@ -463,17 +474,18 @@ public class ReservedRealmTests extends ESTestCase {
     /*
      * NativeUserStore#getAllReservedUserInfo is pkg private we can't mock it otherwise
      */
+    @SuppressWarnings("unchecked")
     public static void mockGetAllReservedUserInfo(NativeUsersStore usersStore, Map<String, ReservedUserInfo> collection) {
         doAnswer((i) -> {
-            ((ActionListener) i.getArguments()[0]).onResponse(collection);
+            ((ActionListener<Map<String, ReservedUserInfo>>) i.getArguments()[0]).onResponse(collection);
             return null;
-        }).when(usersStore).getAllReservedUserInfo(any(ActionListener.class));
+        }).when(usersStore).getAllReservedUserInfo(anyActionListener());
 
         for (Entry<String, ReservedUserInfo> entry : collection.entrySet()) {
             doAnswer((i) -> {
-                ((ActionListener) i.getArguments()[1]).onResponse(entry.getValue());
+                ((ActionListener<ReservedUserInfo>) i.getArguments()[1]).onResponse(entry.getValue());
                 return null;
-            }).when(usersStore).getReservedUserInfo(eq(entry.getKey()), any(ActionListener.class));
+            }).when(usersStore).getReservedUserInfo(eq(entry.getKey()), anyActionListener());
         }
     }
 

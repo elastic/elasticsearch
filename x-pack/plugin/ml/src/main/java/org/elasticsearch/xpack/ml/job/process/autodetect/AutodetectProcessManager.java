@@ -491,8 +491,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
                         BiConsumer<Exception, Boolean> closeHandler) {
         String jobId = jobTask.getJobId();
         if (jobTask.isClosing()) {
-            // We shouldn't need to cancel the persistent task here, as the thread that closed the job should do that
             logger.info("Aborting opening of job [{}] as it is being closed", jobId);
+            jobTask.markAsCompleted();
             return;
         }
         logger.info("Opening job [{}]", jobId);
@@ -922,14 +922,9 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     private void logSetJobStateFailure(JobState state, String jobId, Exception e) {
         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-            logger.info(
-                () -> new ParameterizedMessage("Could not set job state to [{}] for job [{}] as it has been closed",
-                    state, jobId),
-                e);
+            logger.debug("Could not set job state to [{}] for job [{}] as it has been closed", state, jobId);
         } else {
-            logger.error(
-                () -> new ParameterizedMessage("Could not set job state to [{}] for job [{}]", state, jobId),
-                e);
+            logger.error(() -> new ParameterizedMessage("Could not set job state to [{}] for job [{}]", state, jobId), e);
         }
     }
 

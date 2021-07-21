@@ -10,7 +10,9 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopFieldDocs;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.TransportSearchAction.FieldsOptionSourceAdapter;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -20,6 +22,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Transport.Connection;
 
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -64,11 +67,40 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             SearchProgressListener.buildSearchShards(toSkipShardsIts), clusters, hasFetchPhase);
     }
 
+    @Override
     protected void executePhaseOnShard(final SearchShardIterator shardIt,
                                        final SearchShardTarget shard,
                                        final SearchActionListener<SearchPhaseResult> listener) {
         ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt, listener.requestIndex));
-        getSearchTransport().sendExecuteQuery(getConnection(shard.getClusterAlias(), shard.getNodeId()), request, getTask(), listener);
+        final FieldsOptionSourceAdapter fieldsOptionAdapter;
+        Connection connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
+        if (connection.getVersion().before(Version.V_7_10_0)) {
+            fieldsOptionAdapter = TransportSearchAction.createFieldsOptionAdapter(connection, request.source());
+            fieldsOptionAdapter.adaptRequest(request.source(), request::source);
+        } else {
+            fieldsOptionAdapter = null;
+        }
+
+        getSearchTransport().sendExecuteQuery(
+            connection,
+            request,
+            getTask(),
+            new SearchActionListener<SearchPhaseResult>(shard, listener.requestIndex) {
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                protected void innerOnResponse(SearchPhaseResult response) {
+                    if (response instanceof QuerySearchResult) {
+                        response = new WrappedQuerySearchResult((QuerySearchResult) response, fieldsOptionAdapter);
+                    }
+                    listener.onResponse(response);
+                }
+            }
+        );
     }
 
     @Override

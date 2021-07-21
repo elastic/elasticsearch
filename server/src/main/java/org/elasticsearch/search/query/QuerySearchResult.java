@@ -8,12 +8,6 @@
 
 package org.elasticsearch.search.query;
 
-import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
-import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
-
-import java.io.IOException;
-
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
@@ -33,7 +27,13 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
-public final class QuerySearchResult extends SearchPhaseResult {
+import java.io.IOException;
+
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
+import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
+
+public class QuerySearchResult extends SearchPhaseResult {
 
     private int from;
     private int size;

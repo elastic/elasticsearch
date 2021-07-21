@@ -8,10 +8,12 @@
 package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.TransportSearchAction.FieldsOptionSourceAdapter;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.RescoreDocIds;
@@ -162,11 +164,20 @@ final class FetchSearchPhase extends SearchPhase {
                               final CountedCollector<FetchSearchResult> counter,
                               final ShardFetchSearchRequest fetchSearchRequest, final QuerySearchResult querySearchResult,
                               final Transport.Connection connection) {
+        final FieldsOptionSourceAdapter adapter;
+        if (querySearchResult instanceof WrappedQuerySearchResult) {
+            adapter = ((WrappedQuerySearchResult) querySearchResult).getAdapter();
+        } else {
+            adapter = null;
+        }
         context.getSearchTransport().sendExecuteFetch(connection, fetchSearchRequest, context.getTask(),
             new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
                 @Override
                 public void innerOnResponse(FetchSearchResult result) {
                     try {
+                        if (adapter != null) {
+                            adapter.adaptResponse(result.hits().getHits());
+                        }
                         progressListener.notifyFetchResult(shardIndex);
                         counter.onResult(result);
                     } catch (Exception e) {

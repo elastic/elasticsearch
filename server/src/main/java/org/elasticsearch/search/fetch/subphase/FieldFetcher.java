@@ -141,7 +141,7 @@ public class FieldFetcher {
     private final CharacterRunAutomaton unmappedFieldsFetchAutomaton;
     private final List<String> unmappedConcreteFields;
 
-    private FieldFetcher(
+    public FieldFetcher(
         Map<String, FieldContext> fieldContexts,
         @Nullable CharacterRunAutomaton unmappedFieldsFetchAutomaton,
         @Nullable List<String> unmappedConcreteFields

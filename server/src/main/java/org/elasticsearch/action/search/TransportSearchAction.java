@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -28,31 +30,38 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
+import org.elasticsearch.search.fetch.subphase.FieldFetcher;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.tasks.Task;
@@ -62,8 +71,10 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Transport.Connection;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -79,6 +90,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -348,6 +360,98 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             source.collapse().getInnerHits().isEmpty();
     }
 
+   public static FieldsOptionSourceAdapter createFieldsOptionAdapter(Connection connection, SearchSourceBuilder ccsSearchSource) {
+        Version version = connection.getVersion();
+        if (version.before(Version.V_7_10_0)) {
+            List<FieldAndFormat> fetchFields = ccsSearchSource.fetchFields();
+            if (fetchFields != null) {
+                if (fetchFields.isEmpty() == false) {
+                    String[] includes = fetchFields.stream().map(ff -> ff.field).toArray(i -> new String[i]);
+                    CharacterRunAutomaton unmappedFieldsFetchAutomaton = null;
+                    // We separate the "include_unmapped" field patters with wildcards from the rest in order to use less space in the
+                    // lookup automaton
+                    Map<Boolean, List<String>> partitions = fetchFields.stream()
+                        .map(ff -> ff.field)
+                        .collect(Collectors.partitioningBy((s -> Regex.isSimpleMatchPattern(s))));
+                    List<String> unmappedWildcardPattern = partitions.get(true);
+                    List<String> unmappedConcreteFields = partitions.get(false);
+                    if (unmappedWildcardPattern.isEmpty() == false) {
+                        unmappedFieldsFetchAutomaton = new CharacterRunAutomaton(
+                            Regex.simpleMatchToAutomaton(unmappedWildcardPattern.toArray(new String[unmappedWildcardPattern.size()])),
+                            100000
+                        );
+                    }
+                    final FieldFetcher fieldFetcher = new FieldFetcher(
+                        Collections.emptyMap(),
+                        unmappedFieldsFetchAutomaton,
+                        unmappedConcreteFields
+                    );
+
+                    return new FieldsOptionSourceAdapter() {
+
+                        private boolean removeSourceOnResponse = false;
+
+                        @Override
+                        public void adaptRequest(SearchSourceBuilder source, Consumer<SearchSourceBuilder> sourceConsumer) {
+                            FetchSourceContext fetchSource = source.fetchSource();
+                            // case 1: original request has source: true, but no includes/exclude -> do nothing on request
+                            if (fetchSource != null && fetchSource.fetchSource()) {
+                                if (fetchSource.includes().length == 0 && fetchSource.excludes().length == 0) {
+                                    // do nothing, we can get everything from source and can leave it when translating the response
+                                } else {
+                                    // we probably need to error here
+                                }
+                            }
+
+                            // case 2: original request has source: false
+                            if (fetchSource != null && fetchSource.fetchSource() == false) {
+                                SearchSourceBuilder adaptedSource = source.shallowCopy();
+                                adaptedSource.fetchSource(new FetchSourceContext(true));
+                                adaptedSource.fetchSource(includes, null);
+                                sourceConsumer.accept(adaptedSource);
+                                removeSourceOnResponse = true;
+                            }
+                        }
+
+                        @Override
+                        public void adaptResponse(SearchHit[] hits) {
+                            for (SearchHit hit : hits) {
+                                SourceLookup lookup = new SourceLookup();
+                                lookup.setSource(hit.getSourceAsMap());
+                                Map<String, DocumentField> documentFields = Collections.emptyMap();
+                                try {
+                                    documentFields = fieldFetcher.fetch(lookup);
+                                } catch (IOException e) {
+                                   // best effort fetching field, if this doesn't work continue
+                                }
+                                for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
+                                    hit.setDocumentField(entry.getKey(), entry.getValue());
+                                }
+                                if (removeSourceOnResponse) {
+                                    // original request didn't request source, so we remove it
+                                    hit.sourceRef(null);
+                                }
+                            }
+                        }
+                    };
+                }
+            }
+        }
+        return NOOP_ADAPTER;
+    }
+
+    interface FieldsOptionSourceAdapter {
+        default void adaptRequest(SearchSourceBuilder source, Consumer<SearchSourceBuilder> sourceConsumer) {
+            // noop
+        }
+
+        default void adaptResponse(SearchHit[] searchHits) {
+            // noop
+        }
+    }
+
+    private static final FieldsOptionSourceAdapter NOOP_ADAPTER = new FieldsOptionSourceAdapter() {};
+
     static void ccsRemoteReduce(TaskId parentTaskId, SearchRequest searchRequest, OriginalIndices localIndices,
                                 Map<String, OriginalIndices> remoteIndices, SearchTimeProvider timeProvider,
                                 InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
@@ -361,12 +465,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String clusterAlias = entry.getKey();
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
             OriginalIndices indices = entry.getValue();
+            final FieldsOptionSourceAdapter adapter = createFieldsOptionAdapter(
+                // TODO getting the connection here breaks a mock in TransportSearchActionTests#testCCSRemoteReduce
+                remoteClusterService.getConnection(clusterAlias),
+                searchRequest.source()
+            );
             SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, indices.indices(),
                 clusterAlias, timeProvider.getAbsoluteStartMillis(), true);
+            adapter.adaptRequest(ccsSearchRequest.source(), ccsSearchRequest::source);
+
             Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
+                    adapter.adaptResponse(searchResponse.getHits().getHits());
                     Map<String, ProfileShardResult> profileResults = searchResponse.getProfileResults();
                     SearchProfileShardResults profile = profileResults == null || profileResults.isEmpty()
                         ? null : new SearchProfileShardResults(profileResults);
@@ -399,16 +511,45 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 String clusterAlias = entry.getKey();
                 boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
                 OriginalIndices indices = entry.getValue();
-                SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, indices.indices(),
-                    clusterAlias, timeProvider.getAbsoluteStartMillis(), false);
-                ActionListener<SearchResponse> ccsListener = createCCSListener(clusterAlias, skipUnavailable, countDown,
-                    skippedClusters, exceptions, searchResponseMerger, totalClusters,  listener);
+                FieldsOptionSourceAdapter adapter = createFieldsOptionAdapter(
+                    remoteClusterService.getConnection(clusterAlias),
+                    searchRequest.source()
+                );
+                SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(
+                    parentTaskId,
+                    searchRequest,
+                    indices.indices(),
+                    clusterAlias,
+                    timeProvider.getAbsoluteStartMillis(),
+                    false
+                );
+                adapter.adaptRequest(ccsSearchRequest.source(), ccsSearchRequest::source);
+                ActionListener<SearchResponse> ccsListener = createCCSListener(
+                    clusterAlias,
+                    skipUnavailable,
+                    countDown,
+                    skippedClusters,
+                    exceptions,
+                    searchResponseMerger,
+                    totalClusters,
+                    listener,
+                    adapter
+                );
                 Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
                 remoteClusterClient.search(ccsSearchRequest, ccsListener);
             }
             if (localIndices != null) {
-                ActionListener<SearchResponse> ccsListener = createCCSListener(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                    false, countDown, skippedClusters, exceptions, searchResponseMerger, totalClusters, listener);
+                ActionListener<SearchResponse> ccsListener = createCCSListener(
+                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    false,
+                    countDown,
+                    skippedClusters,
+                    exceptions,
+                    searchResponseMerger,
+                    totalClusters,
+                    listener,
+                    NOOP_ADAPTER
+                );
                 SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, localIndices.indices(),
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
                 localSearchConsumer.accept(ccsLocalSearchRequest, ccsListener);
@@ -448,8 +589,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
             Client clusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
             final String[] indices = entry.getValue().indices();
+
             ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices)
                 .indicesOptions(indicesOptions).local(true).preference(preference).routing(routing);
+
             clusterClient.admin().cluster().searchShards(searchShardsRequest,
                 new CCSActionListener<ClusterSearchShardsResponse, Map<String, ClusterSearchShardsResponse>>(
                     clusterAlias, skipUnavailable, responsesCountDown, skippedClusters, exceptions, listener) {
@@ -470,11 +613,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private static ActionListener<SearchResponse> createCCSListener(String clusterAlias, boolean skipUnavailable, CountDown countDown,
                                                              AtomicInteger skippedClusters, AtomicReference<Exception> exceptions,
                                                              SearchResponseMerger searchResponseMerger, int totalClusters,
-                                                             ActionListener<SearchResponse> originalListener) {
+                                                             ActionListener<SearchResponse> originalListener,
+                                                             FieldsOptionSourceAdapter adapter) {
         return new CCSActionListener<SearchResponse, SearchResponse>(clusterAlias, skipUnavailable, countDown, skippedClusters,
             exceptions, originalListener) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
+                adapter.adaptResponse(searchResponse.getHits().getHits());
                 searchResponseMerger.add(searchResponse);
             }
 

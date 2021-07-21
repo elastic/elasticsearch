@@ -21,6 +21,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -164,6 +165,9 @@ public class RestGetAliasesAction extends BaseRestHandler {
                             builder.startObject(alias.getName());
                             if (entry.getKey().equals(alias.getWriteDataStream())) {
                                 builder.field("is_write_index", true);
+                            }
+                            if (alias.getFilter() != null) {
+                                builder.field("filter", XContentHelper.convertToMap(alias.getFilter().uncompressed(), true).v2());
                             }
                             builder.endObject();
                         }

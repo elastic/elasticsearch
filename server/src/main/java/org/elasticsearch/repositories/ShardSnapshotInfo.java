@@ -13,14 +13,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.Snapshot;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class ShardSnapshotInfo implements Writeable {
     private final IndexId indexId;
-    private final SnapshotInfo snapshotInfo;
+    private final Snapshot snapshot;
     private final ShardId shardId;
     private final String indexMetadataIdentifier;
     @Nullable
@@ -29,22 +29,20 @@ public class ShardSnapshotInfo implements Writeable {
     public ShardSnapshotInfo(
         IndexId indexId,
         ShardId shardId,
-        SnapshotInfo snapshotInfo,
+        Snapshot snapshot,
         String indexMetadataIdentifier,
         @Nullable String shardStateIdentifier
     ) {
-        assert snapshotInfo.indices().contains(indexId.getName());
-
         this.indexId = indexId;
         this.shardId = shardId;
-        this.snapshotInfo = snapshotInfo;
+        this.snapshot = snapshot;
         this.indexMetadataIdentifier = indexMetadataIdentifier;
         this.shardStateIdentifier = shardStateIdentifier;
     }
 
     public ShardSnapshotInfo(StreamInput in) throws IOException {
         this.indexId = new IndexId(in);
-        this.snapshotInfo = SnapshotInfo.readFrom(in);
+        this.snapshot = new Snapshot(in);
         this.shardId = new ShardId(in);
         this.indexMetadataIdentifier = in.readString();
         this.shardStateIdentifier = in.readOptionalString();
@@ -53,7 +51,7 @@ public class ShardSnapshotInfo implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         indexId.writeTo(out);
-        snapshotInfo.writeTo(out);
+        snapshot.writeTo(out);
         shardId.writeTo(out);
         out.writeString(indexMetadataIdentifier);
         out.writeOptionalString(shardStateIdentifier);
@@ -70,8 +68,12 @@ public class ShardSnapshotInfo implements Writeable {
         return indexMetadataIdentifier;
     }
 
-    public SnapshotInfo getSnapshotInfo() {
-        return snapshotInfo;
+    public Snapshot getSnapshot() {
+        return snapshot;
+    }
+
+    public String getRepository() {
+        return snapshot.getRepository();
     }
 
     @Override
@@ -80,7 +82,7 @@ public class ShardSnapshotInfo implements Writeable {
         if (o == null || getClass() != o.getClass()) return false;
         ShardSnapshotInfo that = (ShardSnapshotInfo) o;
         return Objects.equals(indexId, that.indexId)
-            && Objects.equals(snapshotInfo, that.snapshotInfo)
+            && Objects.equals(snapshot, that.snapshot)
             && Objects.equals(shardId, that.shardId)
             && Objects.equals(indexMetadataIdentifier, that.indexMetadataIdentifier)
             && Objects.equals(shardStateIdentifier, that.shardStateIdentifier);
@@ -88,6 +90,6 @@ public class ShardSnapshotInfo implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexId, snapshotInfo, shardId, indexMetadataIdentifier, shardStateIdentifier);
+        return Objects.hash(indexId, snapshot, shardId, indexMetadataIdentifier, shardStateIdentifier);
     }
 }

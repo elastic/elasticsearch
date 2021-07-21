@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.io.IOException;
 import java.util.List;
 
 public class GetShardSnapshotRequestSerializationTests extends AbstractWireSerializingTestCase<GetShardSnapshotRequest> {
@@ -23,12 +24,26 @@ public class GetShardSnapshotRequestSerializationTests extends AbstractWireSeria
 
     @Override
     protected GetShardSnapshotRequest createTestInstance() {
-        ShardId shardId = new ShardId(randomAlphaOfLength(10), UUIDs.randomBase64UUID(), randomIntBetween(0, 100));
+        ShardId shardId = randomShardId();
         if (randomBoolean()) {
             return GetShardSnapshotRequest.latestSnapshotInAllRepositories(shardId);
         } else {
-            List<String> repositories = randomList(0, randomIntBetween(1, 100), () -> randomAlphaOfLength(randomIntBetween(1, 100)));
+            List<String> repositories = randomList(1, randomIntBetween(1, 100), () -> randomAlphaOfLength(randomIntBetween(1, 100)));
             return GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, repositories);
         }
+    }
+
+    @Override
+    protected GetShardSnapshotRequest mutateInstance(GetShardSnapshotRequest instance) throws IOException {
+        ShardId shardId = randomShardId();
+        if (instance.getFromAllRepositories()) {
+            return GetShardSnapshotRequest.latestSnapshotInAllRepositories(shardId);
+        } else {
+            return GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, instance.getRepositories());
+        }
+    }
+
+    private ShardId randomShardId() {
+        return new ShardId(randomAlphaOfLength(10), UUIDs.randomBase64UUID(), randomIntBetween(0, 100));
     }
 }

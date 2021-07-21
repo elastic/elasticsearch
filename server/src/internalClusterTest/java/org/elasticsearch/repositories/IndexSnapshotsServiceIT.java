@@ -10,7 +10,6 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotRequest;
@@ -23,6 +22,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -104,9 +104,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testGetShardSnapshotOnEmptyRepositoriesListThrowsAnError() {
-        final ActionFuture<GetShardSnapshotResponse> response = getLatestSnapshotForShardFuture(Collections.emptyList(), "idx", 0, false);
-
-        expectThrows(ActionRequestValidationException.class, response::actionGet);
+        expectThrows(IllegalArgumentException.class, () -> getLatestSnapshotForShardFuture(Collections.emptyList(), "idx", 0, false));
     }
 
     public void testGetShardSnapshotReturnsTheLatestSuccessfulSnapshot() throws Exception {
@@ -162,10 +160,8 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             final String indexMetadataId = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetadata);
             assertThat(shardSnapshotInfo.getIndexMetadataIdentifier(), equalTo(indexMetadataId));
 
-            final SnapshotInfo snapshotInfo = shardSnapshotInfo.getSnapshotInfo();
-            assertThat(snapshotInfo, equalTo(lastSnapshot));
-            assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
-            assertThat(snapshotInfo.indices().contains(indexName), equalTo(true));
+            final Snapshot snapshot = shardSnapshotInfo.getSnapshot();
+            assertThat(snapshot, equalTo(lastSnapshot.snapshot()));
         }
     }
 
@@ -271,7 +267,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             assertThat(shardSnapshotInfoOpt.isPresent(), equalTo(true));
 
             ShardSnapshotInfo shardSnapshotInfo = shardSnapshotInfoOpt.get();
-            assertThat(shardSnapshotInfo.getSnapshotInfo(), equalTo(repositorySnapshots.get(repository)));
+            assertThat(shardSnapshotInfo.getSnapshot(), equalTo(repositorySnapshots.get(repository).snapshot()));
         }
     }
 
@@ -309,7 +305,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         Optional<ShardSnapshotInfo> latestSnapshotForShard = getLatestSnapshotForShard(repoName, indexName, 0);
         assertThat(latestSnapshotForShard.isPresent(), equalTo(true));
-        assertThat(latestSnapshotForShard.get().getSnapshotInfo(), equalTo(snapshotInfo));
+        assertThat(latestSnapshotForShard.get().getSnapshot(), equalTo(snapshotInfo.snapshot()));
     }
 
     private Optional<ShardSnapshotInfo> getLatestSnapshotForShard(String repository, String indexName, int shard) {

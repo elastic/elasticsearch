@@ -28,6 +28,10 @@ public class GetShardSnapshotRequest extends MasterNodeRequest<GetShardSnapshotR
     private final ShardId shardId;
 
     GetShardSnapshotRequest(List<String> repositories, ShardId shardId) {
+        assert repositories.isEmpty() == false;
+        assert repositories.stream().noneMatch(Objects::isNull);
+        assert repositories.size() == 1 && repositories.get(0).equals(ALL_REPOSITORIES)
+            || repositories.stream().noneMatch(repo -> repo.equals(ALL_REPOSITORIES));
         this.repositories = Objects.requireNonNull(repositories);
         this.shardId = Objects.requireNonNull(shardId);
     }
@@ -50,6 +54,10 @@ public class GetShardSnapshotRequest extends MasterNodeRequest<GetShardSnapshotR
     }
 
     public static GetShardSnapshotRequest latestSnapshotInRepositories(ShardId shardId, List<String> repositories) {
+        if (repositories.isEmpty()) {
+            throw new IllegalArgumentException("Expected at least 1 repository but got none");
+        }
+
         if (repositories.stream().anyMatch(Objects::isNull)) {
             throw new NullPointerException("null values are not allowed in the repository list");
         }

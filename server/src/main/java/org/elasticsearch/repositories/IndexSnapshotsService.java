@@ -166,7 +166,7 @@ public class IndexSnapshotsService {
         }
 
         private ShardSnapshotInfo createIndexShardSnapshotInfo(String indexMetadataId, SnapshotFiles snapshotFiles) {
-            return new ShardSnapshotInfo(indexId, shardId, snapshotInfo, indexMetadataId, snapshotFiles.shardStateIdentifier());
+            return new ShardSnapshotInfo(indexId, shardId, snapshotInfo.snapshot(), indexMetadataId, snapshotFiles.shardStateIdentifier());
         }
 
         SnapshotInfo getSnapshotInfo() {

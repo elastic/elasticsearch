@@ -18,8 +18,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardSnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.FileNotFoundException;
@@ -70,15 +70,16 @@ public class GetShardSnapshotResponseSerializationTests extends ESTestCase {
     private Tuple<String, ShardSnapshotInfo> repositoryShardSnapshot() {
         String repositoryName = randomString(50);
 
-        ShardId shardId = new ShardId(randomString(50), UUIDs.randomBase64UUID(), randomIntBetween(0, 100));
-        SnapshotInfo snapshotInfo = SnapshotInfoTestUtils.createRandomSnapshotInfo();
+        final String indexName = randomString(50);
+        ShardId shardId = new ShardId(indexName, UUIDs.randomBase64UUID(), randomIntBetween(0, 100));
+        Snapshot snapshot = new Snapshot(randomAlphaOfLength(5), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
         String indexMetadataIdentifier = randomString(50);
 
-        IndexId indexId = new IndexId(randomFrom(snapshotInfo.indices()), randomString(25));
+        IndexId indexId = new IndexId(indexName, randomString(25));
         String shardStateIdentifier = randomBoolean() ? randomString(30) : null;
         return Tuple.tuple(
             repositoryName,
-            new ShardSnapshotInfo(indexId, shardId, snapshotInfo, indexMetadataIdentifier, shardStateIdentifier)
+            new ShardSnapshotInfo(indexId, shardId, snapshot, indexMetadataIdentifier, shardStateIdentifier)
         );
     }
 

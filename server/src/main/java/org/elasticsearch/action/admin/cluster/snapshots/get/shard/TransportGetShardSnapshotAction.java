@@ -130,7 +130,7 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
             .filter(Objects::nonNull)
             .filter(Optional::isPresent)
             .map(Optional::get)
-            .collect(Collectors.toMap(k -> k.getSnapshotInfo().repository(), Function.identity()));
+            .collect(Collectors.toMap(ShardSnapshotInfo::getRepository, Function.identity()));
 
         final Map<String, RepositoryException> failures = shardSnapshots.stream()
             .map(Tuple::v2)

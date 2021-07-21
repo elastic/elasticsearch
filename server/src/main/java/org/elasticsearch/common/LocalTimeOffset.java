@@ -635,15 +635,15 @@ public abstract class LocalTimeOffset {
         ZoneOffsetTransition t = null;
         Iterator<ZoneOffsetTransition> itr = rules.getTransitions().iterator();
         // Skip all transitions that are before our start time
-        while (itr.hasNext() ){
+        while (itr.hasNext()) {
             t = itr.next();
-            final int diff = Math.abs(t.getOffsetAfter().getTotalSeconds() - t.getOffsetBefore().getTotalSeconds());
-            if((t.toEpochSecond()+diff) >= minSecond) {
+            final int diff = Math.max(t.getOffsetBefore().getTotalSeconds()-t.getOffsetAfter().getTotalSeconds() , 0);
+            if ((t.toEpochSecond() + diff) >= minSecond) {
                 break;
             }
         }
         if (false == itr.hasNext()) {
-            final int diff = Math.abs(t.getOffsetAfter().getTotalSeconds() - t.getOffsetBefore().getTotalSeconds());
+            final int diff = Math.max(t.getOffsetBefore().getTotalSeconds()-t.getOffsetAfter().getTotalSeconds() , 0);
 
             if (minSecond < (t.toEpochSecond()+diff)  && t.toEpochSecond() < maxSecond) {
                 transitions.add(t);

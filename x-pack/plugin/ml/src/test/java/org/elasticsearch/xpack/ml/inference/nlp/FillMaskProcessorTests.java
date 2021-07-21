@@ -46,7 +46,7 @@ public class FillMaskProcessorTests extends ESTestCase {
             tokenIds, tokenMap);
 
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), mock(NlpTaskConfig.class));
-        FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, new PyTorchResult("1", scores, null));
+        FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 0L, null));
         assertThat(result.getPredictions(), hasSize(5));
         FillMaskResults.Prediction prediction = result.getPredictions().get(0);
         assertEquals("France", prediction.getToken());
@@ -67,7 +67,7 @@ public class FillMaskProcessorTests extends ESTestCase {
             new int[] {}, new int[] {});
 
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), mock(NlpTaskConfig.class));
-        PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][]{{}}, null);
+        PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][]{{}}, 0L, null);
         FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, pyTorchResult);
         assertThat(result.getPredictions(), empty());
     }

@@ -79,7 +79,7 @@ public class NerProcessorTests extends ESTestCase {
 
     public void testProcessResults_GivenNoTokens() {
         NerProcessor.NerResultProcessor processor = createProcessor(Collections.emptyList(), "");
-        NerResults result = (NerResults) processor.processResult(new PyTorchResult("test", null, null));
+        NerResults result = (NerResults) processor.processResult(new PyTorchResult("test", null, 0L, null));
         assertThat(result.getEntityGroups(), is(empty()));
     }
 
@@ -95,7 +95,7 @@ public class NerProcessorTests extends ESTestCase {
             { 0, 0, 0, 0, 0, 0, 0, 0, 0}, // in
             { 0, 0, 0, 0, 0, 0, 0, 6, 0} // london
         };
-        NerResults result = (NerResults) processor.processResult(new PyTorchResult("1", scores, null));
+        NerResults result = (NerResults) processor.processResult(new PyTorchResult("1", scores, 1L, null));
 
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getWord(), equalTo("elasticsearch"));
@@ -131,7 +131,7 @@ public class NerProcessorTests extends ESTestCase {
             { 0, 0, 0, 0, 0, 0, 0, 0, 5}, // in
             { 6, 0, 0, 0, 0, 0, 0, 0, 0} // london
         };
-        NerResults result = (NerResults) processor.processResult(new PyTorchResult("1", scores, null));
+        NerResults result = (NerResults) processor.processResult(new PyTorchResult("1", scores, 1L, null));
 
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getWord(), equalTo("elasticsearch"));

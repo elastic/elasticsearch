@@ -15,6 +15,8 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentState;
+import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
@@ -223,6 +225,31 @@ public final class MlTasks {
         return state;
     }
 
+    public static TrainedModelDeploymentState getTrainedModelDeploymentState(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+        if (task == null) {
+            return TrainedModelDeploymentState.STOPPED;
+        }
+        TrainedModelDeploymentTaskState taskState = (TrainedModelDeploymentTaskState) task.getState();
+        if (taskState == null) {
+            return TrainedModelDeploymentState.STARTING;
+        }
+
+        TrainedModelDeploymentState state = taskState.getState();
+        if (taskState.isStatusStale(task)) {
+            if (state == TrainedModelDeploymentState.STOPPING) {
+                // previous executor node failed while the job was stopping - it won't
+                // be restarted on another node, so consider it STOPPED for reassignment purposes
+                return TrainedModelDeploymentState.STOPPED;
+            }
+            if (state != TrainedModelDeploymentState.FAILED) {
+                // we are relocating at the moment
+                // TODO Revisit this in the new allocation framework as there won't necessarily be a concept of relocation.
+                return TrainedModelDeploymentState.STARTING;
+            }
+        }
+        return state;
+    }
+
     /**
      * The job Ids of anomaly detector job tasks.
      * All anomaly detector jobs are returned regardless of the status of the
@@ -345,6 +372,8 @@ public final class MlTasks {
                 return taskState == null ? SnapshotUpgradeState.LOADING_OLD_STATE : taskState.getState();
             case DATA_FRAME_ANALYTICS_TASK_NAME:
                 return getDataFrameAnalyticsState(task);
+            case TRAINED_MODEL_DEPLOYMENT_TASK_NAME:
+                return getTrainedModelDeploymentState(task);
             default:
                 throw new IllegalStateException("unexpected task type [" + task.getTaskName() + "]");
         }

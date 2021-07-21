@@ -1,9 +1,9 @@
 # source the default env file
-if [ -f "${path.env}" ]; then
-    . "${path.env}"
+if [ -f "@path.env@" ]; then
+    . "@path.env@"
 fi
 
-export ES_PATH_CONF=${ES_PATH_CONF:-${path.conf}}
+export ES_PATH_CONF=${ES_PATH_CONF:-@path.conf@}
 
 if [ ! -f "${ES_PATH_CONF}"/elasticsearch.keystore ]; then
     /usr/share/elasticsearch/bin/elasticsearch-keystore create
@@ -19,4 +19,4 @@ else
     fi
 fi
 
-${scripts.footer}
+@scripts.footer@

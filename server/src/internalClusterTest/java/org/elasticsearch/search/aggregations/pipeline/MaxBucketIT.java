@@ -517,7 +517,7 @@ public class MaxBucketIT extends ESIntegTestCase {
             PipelineAggregatorBuilders.maxBucket("peak", "licenses_per_day>total_licenses");
         SumAggregationBuilder sumAggBuilder = AggregationBuilders.sum("total_licenses").field("license.count");
         DateHistogramAggregationBuilder licensePerDayBuilder =
-            AggregationBuilders.dateHistogram("licenses_per_day").field("@timestamp").dateHistogramInterval(DateHistogramInterval.DAY);
+            AggregationBuilders.dateHistogram("licenses_per_day").field("@timestamp").fixedInterval(DateHistogramInterval.DAY);
         licensePerDayBuilder.subAggregation(sumAggBuilder);
         groupByLicenseAgg.subAggregation(licensePerDayBuilder);
         groupByLicenseAgg.subAggregation(peakPipelineAggBuilder);

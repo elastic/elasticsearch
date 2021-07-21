@@ -118,6 +118,7 @@ public final class TransportSamlInvalidateSessionAction
 
     private Predicate<Map<String, Object>> containsMetadata(Map<String, Object> requiredMetadata) {
         return source -> {
+            @SuppressWarnings("unchecked")
             Map<String, Object> actualMetadata = (Map<String, Object>) source.get("metadata");
             return requiredMetadata.entrySet().stream().allMatch(e -> Objects.equals(actualMetadata.get(e.getKey()), e.getValue()));
         };

@@ -10,11 +10,11 @@
 #       $1=1         : indicates an upgrade
 
 # source the default env file
-if [ -f "${path.env}" ]; then
-    . "${path.env}"
+if [ -f "@path.env@" ]; then
+    . "@path.env@"
 fi
 
-export ES_PATH_CONF=${ES_PATH_CONF:-${path.conf}}
+export ES_PATH_CONF=${ES_PATH_CONF:-@path.conf@}
 
 REMOVE_DIRS=false
 REMOVE_JVM_OPTIONS_DIRECTORY=false
@@ -114,4 +114,4 @@ if [ "$REMOVE_USER_AND_GROUP" = "true" ]; then
     fi
 fi
 
-${scripts.footer}
+@scripts.footer@

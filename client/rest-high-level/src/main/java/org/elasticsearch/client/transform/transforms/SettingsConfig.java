@@ -207,8 +207,8 @@ public class SettingsConfig implements ToXContentObject {
          *
          * An explicit `null` resets to default.
          *
-         * @param interimResults true if dates should be written as epoch_millis.
-         * @return the {@link Builder} with datesAsEpochMilli set.
+         * @param interimResults true if interim results should be written.
+         * @return the {@link Builder} with interimResults set.
          */
         public Builder setInterimResults(Boolean interimResults) {
             this.interimResults = interimResults == null ? DEFAULT_INTERIM_RESULTS : interimResults ? 1 : 0;

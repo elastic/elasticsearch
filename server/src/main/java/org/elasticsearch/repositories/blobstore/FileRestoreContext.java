@@ -32,7 +32,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * This context will execute a file restore of the lucene files. It is primarily designed to be used to
@@ -81,8 +81,14 @@ public abstract class FileRestoreContext {
                 logger.trace("[{}] [{}] restoring from to an empty shard", shardId, snapshotId);
                 recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
             } catch (IOException e) {
-                logger.warn(new ParameterizedMessage("[{}] [{}] Can't read metadata from store, will not reuse local files during restore",
-                    shardId, snapshotId), e);
+                logger.warn(
+                    new ParameterizedMessage(
+                        "[{}] [{}] Can't read metadata from store, will not reuse local files during restore",
+                        shardId,
+                        snapshotId
+                    ),
+                    e
+                );
                 recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
             }
             final List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover = new ArrayList<>();
@@ -105,8 +111,13 @@ public abstract class FileRestoreContext {
                 BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
                 recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), true);
                 if (logger.isTraceEnabled()) {
-                    logger.trace("[{}] [{}] not_recovering file [{}] from [{}], exists in local store and is same", shardId, snapshotId,
-                        fileInfo.physicalName(), fileInfo.name());
+                    logger.trace(
+                        "[{}] [{}] not_recovering file [{}] from [{}], exists in local store and is same",
+                        shardId,
+                        snapshotId,
+                        fileInfo.physicalName(),
+                        fileInfo.name()
+                    );
                 }
             }
 
@@ -115,8 +126,7 @@ public abstract class FileRestoreContext {
                 filesToRecover.add(fileInfo);
                 recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), false);
                 if (logger.isTraceEnabled()) {
-                    logger.trace("[{}] [{}] recovering [{}] from [{}]", shardId, snapshotId,
-                        fileInfo.physicalName(), fileInfo.name());
+                    logger.trace("[{}] [{}] recovering [{}] from [{}]", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
                 }
             }
 
@@ -144,16 +154,15 @@ public abstract class FileRestoreContext {
                     }
                 }
 
-                restoreFiles(filesToRecover, store, ActionListener.wrap(
-                    v -> {
-                        store.incRef();
-                        try {
-                            afterRestore(snapshotFiles, store, restoredSegmentsFile);
-                            listener.onResponse(null);
-                        } finally {
-                            store.decRef();
-                        }
-                    }, listener::onFailure));
+                restoreFiles(filesToRecover, store, ActionListener.wrap(v -> {
+                    store.incRef();
+                    try {
+                        afterRestore(snapshotFiles, store, restoredSegmentsFile);
+                        listener.onResponse(null);
+                    } finally {
+                        store.decRef();
+                    }
+                }, listener::onFailure));
             } catch (IOException ex) {
                 throw new IndexShardRestoreFailedException(shardId, "Failed to recover index", ex);
             }
@@ -166,20 +175,22 @@ public abstract class FileRestoreContext {
 
     private void afterRestore(SnapshotFiles snapshotFiles, Store store, StoreFileMetadata restoredSegmentsFile) {
         try {
-            final String indexStoreType = INDEX_STORE_TYPE_SETTING.get(store.indexSettings().getSettings());
-            if ("snapshot".equals(indexStoreType) == false) {
+            if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
                 Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
             }
         } catch (IOException e) {
-            throw new IndexShardRestoreFailedException(shardId, "Failed to remove files not referenced in segment file ["
-                + restoredSegmentsFile.name() + "] after restore", e);
+            throw new IndexShardRestoreFailedException(
+                shardId,
+                "Failed to remove files not referenced in segment file [" + restoredSegmentsFile.name() + "] after restore",
+                e
+            );
         }
 
         /// now, go over and clean files that are in the store, but were not in the snapshot
         try {
             for (String storeFile : store.directory().listAll()) {
                 if (Store.isAutogenerated(storeFile) || snapshotFiles.containPhysicalIndexFile(storeFile)) {
-                    continue; //skip write.lock, checksum files and files that exist in the snapshot
+                    continue; // skip write.lock, checksum files and files that exist in the snapshot
                 }
                 try {
                     store.deleteQuiet("restore", storeFile);
@@ -203,8 +214,11 @@ public abstract class FileRestoreContext {
      * @param filesToRecover List of files to restore
      * @param store          Store to restore into
      */
-    protected abstract void restoreFiles(List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover, Store store,
-                                         ActionListener<Void> listener);
+    protected abstract void restoreFiles(
+        List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover,
+        Store store,
+        ActionListener<Void> listener
+    );
 
     @SuppressWarnings("unchecked")
     private static Iterable<StoreFileMetadata> concat(Store.RecoveryDiff diff) {

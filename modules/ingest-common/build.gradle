@@ -44,10 +44,6 @@ tasks.named("thirdPartyAudit").configure {
   )
 }
 
-tasks.named("yamlRestCompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
-    'ingest/80_foreach/Test foreach Processor',
-    'ingest/230_change_target_index/Test Change Target Index with Explicit Pipeline',
-    'ingest/230_change_target_index/Test Change Target Index with Default Pipeline'
-  ].join(',')
-}
+tasks.named("transformV7RestTests").configure({ task ->
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+})

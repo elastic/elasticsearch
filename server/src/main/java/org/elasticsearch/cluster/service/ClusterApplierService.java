@@ -22,15 +22,15 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
@@ -127,7 +127,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             nodeName + "/" + CLUSTER_UPDATE_THREAD_NAME,
             daemonThreadFactory(nodeName, CLUSTER_UPDATE_THREAD_NAME),
             threadPool.getThreadContext(),
-            threadPool.scheduler());
+            threadPool.scheduler(),
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
     }
 
     class UpdateTask extends SourcePrioritizedRunnable implements Function<ClusterState, ClusterState> {

@@ -14,10 +14,13 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.document.RestMultiTermVectorsAction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -32,6 +35,9 @@ import java.util.function.Consumer;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestIndicesStatsAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiTermVectorsAction.class);
+    private static final String TYPES_DEPRECATION_MESSAGE =
+        "[types removal] " + "Specifying types in indices stats requests is deprecated.";
 
     @Override
     public List<Route> routes() {
@@ -64,6 +70,11 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if(request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("types")){
+            deprecationLogger.compatibleApiWarning("indices_stats_types", TYPES_DEPRECATION_MESSAGE);
+            request.param("types");
+        }
+
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         boolean forbidClosedIndices = request.paramAsBoolean("forbid_closed_indices", true);
         IndicesOptions defaultIndicesOption = forbidClosedIndices ? indicesStatsRequest.indicesOptions()

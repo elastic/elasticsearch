@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -48,7 +48,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.ValueType;
  *     ]
  * }
  */
-public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
+public abstract class DateHistogramGroupConfig implements Writeable, ToXContentObject {
 
     static final String NAME = "date_histogram";
     public static final String INTERVAL = "interval";
@@ -184,19 +184,6 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
     }
 
     /**
-     * Create a new {@link DateHistogramGroupConfig} using the given field and interval parameters.
-     *
-     * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
-     * or {@link DateHistogramGroupConfig.FixedInterval} instead
-     *
-     * @since 7.2.0
-     */
-    @Deprecated
-    public DateHistogramGroupConfig(final String field, final DateHistogramInterval interval) {
-        this(field, interval, null, null);
-    }
-
-    /**
      * Create a new {@link DateHistogramGroupConfig} using the given configuration parameters.
      * <p>
      *     The {@code field} and {@code interval} are required to compute the date histogram for the rolled up documents.
@@ -209,13 +196,9 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      * @param delay the time delay (optional)
      * @param timeZone the id of time zone to use to calculate the date histogram (optional). When {@code null}, the UTC timezone is used.
      *
-     * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
-     * or {@link DateHistogramGroupConfig.FixedInterval} instead
-     *
      * @since 7.2.0
      */
-    @Deprecated
-    public DateHistogramGroupConfig(final String field,
+    protected DateHistogramGroupConfig(final String field,
                                     final DateHistogramInterval interval,
                                     final @Nullable DateHistogramInterval delay,
                                     final @Nullable String timeZone) {
@@ -239,14 +222,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         }
     }
 
-    /**
-     * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
-     * or {@link DateHistogramGroupConfig.FixedInterval} instead
-     *
-     * @since 7.2.0
-     */
-    @Deprecated
-    DateHistogramGroupConfig(final StreamInput in) throws IOException {
+    protected DateHistogramGroupConfig(final StreamInput in) throws IOException {
         interval = new DateHistogramInterval(in);
         field = in.readString();
         delay = in.readOptionalWriteable(DateHistogramInterval::new);

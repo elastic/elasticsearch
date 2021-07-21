@@ -17,7 +17,7 @@ import org.elasticsearch.client.rollup.StartRollupJobRequest;
 import org.elasticsearch.client.rollup.StopRollupJobRequest;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfigTests;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

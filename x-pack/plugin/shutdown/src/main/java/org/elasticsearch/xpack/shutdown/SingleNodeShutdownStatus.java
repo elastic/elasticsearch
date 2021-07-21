@@ -11,11 +11,11 @@ import org.elasticsearch.cluster.metadata.ShutdownPersistentTasksStatus;
 import org.elasticsearch.cluster.metadata.ShutdownPluginsStatus;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -62,8 +62,23 @@ public class SingleNodeShutdownStatus implements Writeable, ToXContentObject {
     }
 
     public SingleNodeShutdownMetadata.Status overallStatus() {
-        // TODO: make this value calculated based on the status of all other pieces
-        return SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        return SingleNodeShutdownMetadata.Status.combine(
+            migrationStatus().getStatus(),
+            pluginsStatus().getStatus(),
+            persistentTasksStatus().getStatus()
+        );
+    }
+
+    public ShutdownShardMigrationStatus migrationStatus() {
+        return this.shardMigrationStatus;
+    }
+
+    public ShutdownPersistentTasksStatus persistentTasksStatus() {
+        return this.persistentTasksStatus;
+    }
+
+    public ShutdownPluginsStatus pluginsStatus() {
+        return this.pluginsStatus;
     }
 
     @Override

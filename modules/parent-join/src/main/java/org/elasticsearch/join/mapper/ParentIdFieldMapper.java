@@ -16,8 +16,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -73,7 +74,9 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
+            // Although this is an internal field, we return it in the list of all field types. So we
+            // provide an empty value fetcher here instead of throwing an error.
+            return lookup -> List.of();
         }
 
         @Override
@@ -91,11 +94,11 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) {
+    protected void parseCreateField(DocumentParserContext context) {
         throw new UnsupportedOperationException("Cannot directly call parse() on a ParentIdFieldMapper");
     }
 
-    public void indexValue(ParseContext context, String refId) {
+    public void indexValue(DocumentParserContext context, String refId) {
         BytesRef binaryValue = new BytesRef(refId);
         Field field = new Field(fieldType().name(), binaryValue, Defaults.FIELD_TYPE);
         context.doc().add(field);

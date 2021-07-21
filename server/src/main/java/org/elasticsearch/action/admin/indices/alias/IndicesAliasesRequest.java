@@ -11,10 +11,11 @@ package org.elasticsearch.action.admin.indices.alias;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -48,7 +49,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 /**
  * A request to add/remove aliases for one or more indices.
  */
-public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements ToXContentObject {
+public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements IndicesRequest, ToXContentObject {
 
     private List<AliasActions> allAliasActions = new ArrayList<>();
     private String origin = "";
@@ -483,6 +484,11 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         }
 
         @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
+
+        @Override
         public IndicesOptions indicesOptions() {
             return INDICES_OPTIONS;
         }
@@ -613,6 +619,18 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
     public IndicesOptions indicesOptions() {
         return INDICES_OPTIONS;
+    }
+
+    @Override
+    public String[] indices() {
+        return allAliasActions.stream()
+            .flatMap(aliasActions -> Arrays.stream(aliasActions.indices()))
+            .toArray(String[]::new);
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     @Override

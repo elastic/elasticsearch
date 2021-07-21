@@ -19,7 +19,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -119,7 +119,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
-        aggBuilder.dateHistogramInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
+        aggBuilder.fixedInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
         aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "_count"));
 
         executeTestCase(query, aggBuilder, histogram -> {
@@ -132,7 +132,6 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
                 sum += 1.0;
             }
         });
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testDocCount() throws IOException {

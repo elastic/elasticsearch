@@ -32,13 +32,15 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -61,6 +63,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
@@ -130,9 +133,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+import static org.elasticsearch.core.TimeValue.timeValueHours;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
@@ -164,6 +167,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT =
         Setting.intSetting("search.max_open_scroll_context", 500, 0, Property.Dynamic, Property.NodeScope);
 
+    public static final Setting<Boolean> ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER = Setting.boolSetting(
+        "search.aggs.rewrite_to_filter_by_filter",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING = Setting.byteSizeSetting(
+        "search.max_async_search_response_size",
+        new ByteSizeValue(10, ByteSizeUnit.MB),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
 
@@ -176,6 +193,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final ScriptService scriptService;
 
     private final ResponseCollectorService responseCollectorService;
+
+    private final ExecutorSelector executorSelector;
 
     private final BigArrays bigArrays;
 
@@ -197,6 +216,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile int maxOpenScrollContext;
 
+    private volatile boolean enableRewriteAggsToFilterByFilter;
+
     private final Cancellable keepAliveReaper;
 
     private final AtomicLong idGenerator = new AtomicLong();
@@ -210,7 +231,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public SearchService(ClusterService clusterService, IndicesService indicesService,
                          ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
-                         ResponseCollectorService responseCollectorService, CircuitBreakerService circuitBreakerService) {
+                         ResponseCollectorService responseCollectorService, CircuitBreakerService circuitBreakerService,
+                         ExecutorSelector executorSelector) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -222,6 +244,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.fetchPhase = fetchPhase;
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings,
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
+        this.executorSelector = executorSelector;
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
@@ -243,6 +266,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
+
+        enableRewriteAggsToFilterByFilter = ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER, this::setEnableRewriteAggsToFilterByFilter);
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -277,6 +304,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
+    }
+
+    private void setEnableRewriteAggsToFilterByFilter(boolean enableRewriteAggsToFilterByFilter) {
+        this.enableRewriteAggsToFilterByFilter = enableRewriteAggsToFilterByFilter;
     }
 
     @Override
@@ -522,7 +553,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert indexShard != null;
         final String executorName;
         if (indexShard.isSystem()) {
-            executorName = Names.SYSTEM_READ;
+            executorName = executorSelector.executorForSearch(indexShard.shardId().getIndexName());
         } else if (indexShard.indexSettings().isSearchThrottled()) {
             executorName = Names.SEARCH_THROTTLED;
         } else {
@@ -968,7 +999,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context.indexShard().shardId().hashCode(),
                 context::getRelativeTimeInMillis,
                 context::isCancelled,
-                context::buildFilteredQuery
+                context::buildFilteredQuery,
+                enableRewriteAggsToFilterByFilter
             );
             context.addReleasable(aggContext);
             try {
@@ -1062,8 +1094,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         if (source.slice() != null) {
-            if (context.scrollContext() == null) {
-                throw new SearchException(shardTarget, "`slice` cannot be used outside of a scroll context");
+            if (source.pointInTimeBuilder() == null && context.scrollContext() == null) {
+                throw new SearchException(shardTarget, "[slice] can only be used with [scroll] or [point-in-time] requests");
             }
             context.sliceBuilder(source.slice());
         }

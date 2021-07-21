@@ -11,9 +11,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
 
@@ -56,7 +55,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) {
+    public void preParse(DocumentParserContext context) {
         final Field version = versionField();
         context.version(version);
         context.doc().add(version);
@@ -68,12 +67,12 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(ParseContext context) {
+    public void postParse(DocumentParserContext context) {
         // In the case of nested docs, let's fill nested docs with version=1 so that Lucene doesn't write a Bitset for documents
         // that don't have the field. This is consistent with the default value for efficiency.
         Field version = context.version();
         assert version != null;
-        for (Document doc : context.nonRootDocuments()) {
+        for (LuceneDocument doc : context.nonRootDocuments()) {
             doc.add(version);
         }
     }

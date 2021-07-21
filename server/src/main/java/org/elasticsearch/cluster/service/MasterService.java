@@ -28,14 +28,14 @@ import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -54,6 +54,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -62,9 +63,16 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 public class MasterService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(MasterService.class);
 
-    public static final Setting<TimeValue> MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING =
-        Setting.positiveTimeSetting("cluster.service.slow_master_task_logging_threshold", TimeValue.timeValueSeconds(10),
-            Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting(
+        "cluster.service.slow_master_task_logging_threshold",
+        TimeValue.timeValueSeconds(10),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope);
+
+    public static final Setting<TimeValue> MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting(
+        "cluster.service.master_service_starvation_logging_threshold",
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope);
 
     static final String MASTER_UPDATE_THREAD_NAME = "masterService#updateTask";
 
@@ -75,6 +83,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private java.util.function.Supplier<ClusterState> clusterStateSupplier;
 
     private volatile TimeValue slowTaskLoggingThreshold;
+    private final TimeValue starvationLoggingThreshold;
 
     protected final ThreadPool threadPool;
 
@@ -86,6 +95,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
         this.slowTaskLoggingThreshold = MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING, this::setSlowTaskLoggingThreshold);
+
+        this.starvationLoggingThreshold = MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING.get(settings);
 
         this.threadPool = threadPool;
     }
@@ -112,10 +123,14 @@ public class MasterService extends AbstractLifecycleComponent {
 
     protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
         return EsExecutors.newSinglePrioritizing(
-                nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
-                daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
-                threadPool.getThreadContext(),
-                threadPool.scheduler());
+            nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
+            daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
+            threadPool.getThreadContext(),
+            threadPool.scheduler(),
+            new MasterServiceStarvationWatcher(
+                starvationLoggingThreshold.getMillis(),
+                threadPool::relativeTimeInMillis,
+                () -> threadPoolExecutor));
     }
 
     @SuppressWarnings("unchecked")
@@ -786,6 +801,64 @@ public class MasterService extends AbstractLifecycleComponent {
             if (lifecycle.stoppedOrClosed() == false) {
                 throw e;
             }
+        }
+    }
+
+    private static class MasterServiceStarvationWatcher implements PrioritizedEsThreadPoolExecutor.StarvationWatcher {
+
+        private final long warnThreshold;
+        private final LongSupplier nowMillisSupplier;
+        private final Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorSupplier;
+
+        // accesses of these mutable fields are synchronized (on this)
+        private long lastLogMillis;
+        private long nonemptySinceMillis;
+        private boolean isEmpty = true;
+
+        MasterServiceStarvationWatcher(
+                long warnThreshold,
+                LongSupplier nowMillisSupplier,
+                Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorSupplier) {
+            this.nowMillisSupplier = nowMillisSupplier;
+            this.threadPoolExecutorSupplier = threadPoolExecutorSupplier;
+            this.warnThreshold = warnThreshold;
+        }
+
+        @Override
+        public synchronized void onEmptyQueue() {
+            isEmpty = true;
+        }
+
+        @Override
+        public void onNonemptyQueue() {
+            final long nowMillis = nowMillisSupplier.getAsLong();
+            final long nonemptyDurationMillis;
+            synchronized (this) {
+                if (isEmpty) {
+                    isEmpty = false;
+                    nonemptySinceMillis = nowMillis;
+                    lastLogMillis = nowMillis;
+                    return;
+                }
+
+                if (nowMillis - lastLogMillis < warnThreshold) {
+                    return;
+                }
+
+                lastLogMillis = nowMillis;
+                nonemptyDurationMillis = nowMillis - nonemptySinceMillis;
+            }
+
+            final PrioritizedEsThreadPoolExecutor threadPoolExecutor = threadPoolExecutorSupplier.get();
+            final TimeValue maxTaskWaitTime = threadPoolExecutor.getMaxTaskWaitTime();
+            logger.warn("pending task queue has been nonempty for [{}/{}ms] which is longer than the warn threshold of [{}ms];" +
+                    " there are currently [{}] pending tasks, the oldest of which has age [{}/{}ms]",
+                TimeValue.timeValueMillis(nonemptyDurationMillis),
+                nonemptyDurationMillis,
+                warnThreshold,
+                threadPoolExecutor.getNumberOfPendingTasks(),
+                maxTaskWaitTime,
+                maxTaskWaitTime.millis());
         }
     }
 

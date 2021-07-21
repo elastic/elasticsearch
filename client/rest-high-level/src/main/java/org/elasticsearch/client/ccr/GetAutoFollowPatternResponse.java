@@ -8,10 +8,10 @@
 
 package org.elasticsearch.client.ccr;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -82,11 +82,19 @@ public final class GetAutoFollowPatternResponse {
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Pattern, Void> PARSER = new ConstructingObjectParser<>(
-            "pattern", true, args -> new Pattern((String) args[0], (List<String>) args[1], (String) args[2]));
+            "pattern",
+            true,
+            args -> new Pattern((String) args[0],
+                                (List<String>) args[1],
+                                args[2] == null ? Collections.emptyList() : (List<String>) args[2],
+                                (String) args[3])
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.REMOTE_CLUSTER_FIELD);
             PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), PutAutoFollowPatternRequest.LEADER_PATTERNS_FIELD);
+            PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(),
+                                      PutAutoFollowPatternRequest.LEADER_EXCLUSION_PATTERNS_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PutAutoFollowPatternRequest.FOLLOW_PATTERN_FIELD);
             PARSER.declareObject(Pattern::setSettings, (p, c) -> Settings.fromXContent(p), PutAutoFollowPatternRequest.SETTINGS);
             PARSER.declareInt(Pattern::setMaxReadRequestOperationCount, FollowConfig.MAX_READ_REQUEST_OPERATION_COUNT);
@@ -123,11 +131,16 @@ public final class GetAutoFollowPatternResponse {
 
         private final String remoteCluster;
         private final List<String> leaderIndexPatterns;
+        private final List<String> leaderIndexExclusionPatterns;
         private final String followIndexNamePattern;
 
-        Pattern(String remoteCluster, List<String> leaderIndexPatterns, String followIndexNamePattern) {
+        Pattern(String remoteCluster,
+                List<String> leaderIndexPatterns,
+                List<String> leaderIndexExclusionPatterns,
+                String followIndexNamePattern) {
             this.remoteCluster = remoteCluster;
             this.leaderIndexPatterns = leaderIndexPatterns;
+            this.leaderIndexExclusionPatterns = leaderIndexExclusionPatterns;
             this.followIndexNamePattern = followIndexNamePattern;
         }
 
@@ -137,6 +150,10 @@ public final class GetAutoFollowPatternResponse {
 
         public List<String> getLeaderIndexPatterns() {
             return leaderIndexPatterns;
+        }
+
+        public List<String> getLeaderIndexExclusionPatterns() {
+            return leaderIndexExclusionPatterns;
         }
 
         public String getFollowIndexNamePattern() {
@@ -151,6 +168,7 @@ public final class GetAutoFollowPatternResponse {
             Pattern pattern = (Pattern) o;
             return Objects.equals(remoteCluster, pattern.remoteCluster) &&
                 Objects.equals(leaderIndexPatterns, pattern.leaderIndexPatterns) &&
+                Objects.equals(leaderIndexExclusionPatterns, pattern.leaderIndexExclusionPatterns) &&
                 Objects.equals(followIndexNamePattern, pattern.followIndexNamePattern);
         }
 
@@ -160,6 +178,7 @@ public final class GetAutoFollowPatternResponse {
                 super.hashCode(),
                 remoteCluster,
                 leaderIndexPatterns,
+                leaderIndexExclusionPatterns,
                 followIndexNamePattern
             );
         }

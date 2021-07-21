@@ -220,7 +220,7 @@ any new functionality is disabled or operates in a backward compatible mode
 until all nodes in the cluster are upgraded. New functionality becomes
 operational once the upgrade is complete and all nodes are running the new
 version. Once that has happened, there's no way to return to operating in a
-backward compatible mode. Nodes running the previous major version will not be
+backward compatible mode. Nodes running the previous version will not be
 allowed to join the fully-updated cluster.
 
 In the unlikely case of a network malfunction during the upgrade process that

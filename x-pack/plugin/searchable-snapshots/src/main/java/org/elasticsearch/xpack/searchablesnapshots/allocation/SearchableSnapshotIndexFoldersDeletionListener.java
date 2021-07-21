@@ -13,7 +13,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
@@ -21,6 +20,7 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 
@@ -46,7 +46,7 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
 
     @Override
     public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path indexPath) {
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())) {
+        if (isSearchableSnapshotStore(indexSettings.getSettings())) {
             for (int shard = 0; shard < indexSettings.getNumberOfShards(); shard++) {
                 markShardAsEvictedInCache(new ShardId(index, shard), indexSettings);
             }
@@ -55,7 +55,7 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
 
     @Override
     public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path shardPath) {
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())) {
+        if (isSearchableSnapshotStore(indexSettings.getSettings())) {
             markShardAsEvictedInCache(shardId, indexSettings);
         }
     }

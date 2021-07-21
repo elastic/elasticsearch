@@ -23,24 +23,24 @@ import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.NoopBlobStoreCacheService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.xpack.searchablesnapshots.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.NoopBlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes;
+import org.elasticsearch.xpack.searchablesnapshots.recovery.SearchableSnapshotRecoveryState;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -49,12 +49,12 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.assertCounter;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.singleBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.assertCounter;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.singleBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService.resolveSnapshotCache;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -638,7 +638,12 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
         final String blobName = randomUnicodeOfLength(10);
         final BlobContainer blobContainer = singleBlobContainer(blobName, fileContent);
-        final StoreFileMetadata metadata = new StoreFileMetadata(fileName, fileContent.length, fileChecksum, Version.CURRENT.luceneVersion);
+        final StoreFileMetadata metadata = new StoreFileMetadata(
+            fileName,
+            fileContent.length,
+            fileChecksum,
+            Version.CURRENT.luceneVersion.toString()
+        );
         final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, new ByteSizeValue(fileContent.length)));
         final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
         final Path shardDir = shardPath(shardId);

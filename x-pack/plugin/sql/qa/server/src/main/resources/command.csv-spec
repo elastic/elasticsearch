@@ -224,6 +224,7 @@ showTables
 SHOW TABLES;
 
        name    |  type |  kind
+empty_mapping  |TABLE  |INDEX
 logs           |TABLE  |INDEX
 logs_nanos     |TABLE  |INDEX
 test_alias     |VIEW   |ALIAS
@@ -383,4 +384,20 @@ languages           |TINYINT        |byte
 last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
 salary              |INTEGER        |integer
+;
+
+
+describeNoCols
+DESCRIBE "empty_mapping";
+
+        column:s      |     type:s    |    mapping:s
+----------------------+---------------+---------------
+;
+
+
+showColumnsInNoCols
+SHOW COLUMNS IN "empty_mapping";
+
+        column:s      |     type:s    |    mapping:s
+----------------------+---------------+---------------
 ;

@@ -18,7 +18,6 @@ import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.Streams;
@@ -33,7 +32,6 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.MyFilterTokenFilterFactory;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
@@ -118,6 +116,7 @@ public class AnalysisModuleTests extends ESTestCase {
     public void testSimpleConfigurationYaml() throws IOException {
         Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.yml");
         testSimpleConfiguration(settings);
+        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
     public void testVersionedAnalyzers() throws Exception {
@@ -131,22 +130,8 @@ public class AnalysisModuleTests extends ESTestCase {
         AnalysisRegistry newRegistry = getNewRegistry(settings2);
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings2);
 
-        // registry always has the current version
-        assertThat(newRegistry.getAnalyzer("default"), is(instanceOf(NamedAnalyzer.class)));
-        NamedAnalyzer defaultNamedAnalyzer = (NamedAnalyzer) newRegistry.getAnalyzer("default");
-        assertThat(defaultNamedAnalyzer.analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(Version.CURRENT.luceneVersion, defaultNamedAnalyzer.analyzer().getVersion());
-
-        // analysis service has the expected version
-        assertThat(indexAnalyzers.get("standard").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(version.luceneVersion,
-                indexAnalyzers.get("standard").analyzer().getVersion());
-        assertEquals(version.luceneVersion,
-                indexAnalyzers.get("stop").analyzer().getVersion());
-
         assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(org.apache.lucene.util.Version.fromBits(3,6,0),
-                indexAnalyzers.get("custom7").analyzer().getVersion());
+        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
     private void testSimpleConfiguration(Settings settings) throws IOException {
@@ -416,7 +401,7 @@ public class AnalysisModuleTests extends ESTestCase {
         InputStream aff = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.aff");
         InputStream dic = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.dic");
         Dictionary dictionary;
-        try (Directory tmp = new SimpleFSDirectory(environment.tmpFile())) {
+        try (Directory tmp = newFSDirectory(environment.tmpFile())) {
             dictionary = new Dictionary(tmp, "hunspell", aff, dic);
         }
         AnalysisModule module = new AnalysisModule(environment, singletonList(new AnalysisPlugin() {

@@ -11,15 +11,17 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * A specialized {@link PriorityQueue} implementation for composite buckets.
@@ -56,6 +58,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
 
     private LongArray docCounts;
     private boolean afterKeyIsSet = false;
+    private int leafReaderOrd = -1; // current LeafReaderContext ordinal
 
     /**
      * Constructs a composite queue with the specified size and sources.
@@ -230,14 +233,26 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
                                          LeafReaderContext context, LeafBucketCollector in) throws IOException {
         int last = arrays.length - 1;
         LeafBucketCollector collector = in;
+        boolean requiresRehashingWhenSwitchingLeafReaders = false;
         while (last > 0) {
-            collector = arrays[last--].getLeafCollector(context, collector);
+            SingleDimensionValuesSource<?> valuesSource = arrays[last--];
+            requiresRehashingWhenSwitchingLeafReaders |= valuesSource.requiresRehashingWhenSwitchingLeafReaders();
+            collector = valuesSource.getLeafCollector(context, collector);
         }
+        SingleDimensionValuesSource<?> valuesSource = arrays[last];
+        requiresRehashingWhenSwitchingLeafReaders |= valuesSource.requiresRehashingWhenSwitchingLeafReaders();
         if (forceLeadSourceValue != null) {
-            collector = arrays[last].getLeafCollector(forceLeadSourceValue, context, collector);
+            collector = valuesSource.getLeafCollector(forceLeadSourceValue, context, collector);
         } else {
-            collector = arrays[last].getLeafCollector(context, collector);
+            collector = valuesSource.getLeafCollector(context, collector);
         }
+        boolean switchedLeafReaders = context.ord != leafReaderOrd;
+        if (map.isEmpty() == false && requiresRehashingWhenSwitchingLeafReaders && switchedLeafReaders) {
+            List<Map.Entry<Slot, Integer>> entries = map.entrySet().stream().collect(Collectors.toList());
+            map.clear();
+            entries.forEach(e -> map.put(e.getKey(), e.getValue()));
+        }
+        leafReaderOrd = context.ord;
         return collector;
     }
 

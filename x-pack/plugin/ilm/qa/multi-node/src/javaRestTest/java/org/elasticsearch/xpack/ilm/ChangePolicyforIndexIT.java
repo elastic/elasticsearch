@@ -14,8 +14,8 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 
@@ -33,6 +34,9 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 
 public class ChangePolicyforIndexIT extends ESRestTestCase {
 
@@ -111,7 +115,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         XContentBuilder document = jsonBuilder().startObject();
         document.field("foo", "bar");
         document.endObject();
-        final Request request = new Request("POST", "/" + indexName + "/_doc/1");
+        final Request request = new Request("POST", "/" + indexName + "/_doc/1?refresh");
         request.setJsonEntity(Strings.toString(document));
         assertOK(client().performRequest(request));
 
@@ -122,6 +126,37 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         Map<String, Object> indexSettings = getIndexSettingsAsMap(indexName);
         String includesAllocation = (String) indexSettings.get("index.routing.allocation.include._name");
         assertEquals("javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3", includesAllocation);
+    }
+
+    public void testILMHonoursTheCachedPhaseAfterPolicyUpdate() throws Exception {
+        String indexName = "test-000001";
+        String policyName = "rolloverPolicy";
+        String alias = "thealias";
+        createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, null, 1L));
+
+        createIndexWithSettings(client(), indexName, alias, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policyName));
+
+        // Check the index is on the check-rollover-ready step
+        assertBusy(() -> assertStep(indexName, new StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME)), 30,
+            TimeUnit.SECONDS);
+
+        // update the policy to not contain rollover
+        createNewSingletonPolicy(client(), policyName, "hot", new SetPriorityAction(200));
+
+        // Check the index is on the check-rollover-ready step
+        assertBusy(() -> assertStep(indexName, new StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME)), 30,
+            TimeUnit.SECONDS);
+
+        indexDocument(client(), indexName, true);
+
+        String rolloverIndex = "test-000002";
+        // let's check the cached rollover action still executed and the rollover index exists
+        assertBusy(() -> indexExists(rolloverIndex), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertStep(indexName, PhaseCompleteStep.finalStep("hot").getKey()), 30, TimeUnit.SECONDS);
     }
 
     private void assertStep(String indexName, StepKey expectedStep) throws IOException {

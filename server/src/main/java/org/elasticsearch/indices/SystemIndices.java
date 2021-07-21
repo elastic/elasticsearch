@@ -20,12 +20,13 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
@@ -67,9 +68,11 @@ public class SystemIndices {
 
     private final CharacterRunAutomaton systemIndexAutomaton;
     private final CharacterRunAutomaton systemDataStreamIndicesAutomaton;
+    private final CharacterRunAutomaton netNewSystemIndexAutomaton;
     private final Predicate<String> systemDataStreamAutomaton;
     private final Map<String, Feature> featureDescriptors;
     private final Map<String, CharacterRunAutomaton> productToSystemIndicesMatcher;
+    private final ExecutorSelector executorSelector;
 
     /**
      * Initialize the SystemIndices object
@@ -81,9 +84,11 @@ public class SystemIndices {
         checkForOverlappingPatterns(featureDescriptors);
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
         this.systemIndexAutomaton = buildIndexCharacterRunAutomaton(featureDescriptors);
+        this.netNewSystemIndexAutomaton = buildNetNewIndexCharacterRunAutomaton(featureDescriptors);
         this.systemDataStreamIndicesAutomaton = buildDataStreamBackingIndicesAutomaton(featureDescriptors);
         this.systemDataStreamAutomaton = buildDataStreamNamePredicate(featureDescriptors);
         this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(featureDescriptors);
+        this.executorSelector = new ExecutorSelector(this);
     }
 
     private static void checkForDuplicateAliases(Collection<SystemIndexDescriptor> descriptors) {
@@ -180,6 +185,10 @@ public class SystemIndices {
      */
     public boolean isSystemIndexBackingDataStream(String name) {
         return systemDataStreamIndicesAutomaton.run(name);
+    }
+
+    public boolean isNetNewSystemIndex(String indexName) {
+        return netNewSystemIndexAutomaton.run(indexName);
     }
 
     /**
@@ -291,6 +300,15 @@ public class SystemIndices {
         return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE));
     }
 
+    private static CharacterRunAutomaton buildNetNewIndexCharacterRunAutomaton(Map<String, Feature> featureDescriptors) {
+        Optional<Automaton> automaton = featureDescriptors.values().stream()
+            .flatMap(feature -> feature.getIndexDescriptors().stream())
+            .filter(SystemIndexDescriptor::isNetNew)
+            .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
+            .reduce(Operations::union);
+        return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE));
+    }
+
     private static Automaton featureToIndexAutomaton(Feature feature) {
         Optional<Automaton> systemIndexAutomaton = feature.getIndexDescriptors().stream()
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
@@ -333,6 +351,7 @@ public class SystemIndices {
                 .orElseThrow(() -> new IllegalStateException("system data stream descriptor not found for [" + dataStreamName + "]"));
             if (dataStreamDescriptor.isExternal()) {
                 final SystemIndexAccessLevel accessLevel = getSystemIndexAccessLevel(threadContext);
+                assert accessLevel != SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY : "BACKWARDS_COMPATIBLE access level is leaking";
                 if (accessLevel == SystemIndexAccessLevel.NONE) {
                     throw dataStreamAccessException(null, dataStreamName);
                 } else if (accessLevel == SystemIndexAccessLevel.RESTRICTED) {
@@ -344,7 +363,7 @@ public class SystemIndices {
                         return dataStreamDescriptor;
                     }
                 } else {
-                    assert accessLevel == SystemIndexAccessLevel.ALL;
+                    assert accessLevel == SystemIndexAccessLevel.ALL || accessLevel == SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY;
                     return dataStreamDescriptor;
                 }
             } else {
@@ -360,6 +379,17 @@ public class SystemIndices {
             threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY),
             names.toArray(Strings.EMPTY_ARRAY)
         );
+    }
+
+    public IllegalArgumentException netNewSystemIndexAccessException(ThreadContext threadContext, Collection<String> names) {
+        final String product = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
+        if (product == null) {
+            return new IllegalArgumentException("Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) +
+                " use and access is reserved for system operations");
+        } else {
+            return new IllegalArgumentException("Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) +
+                " use and access is reserved for system operations");
+        }
     }
 
     IllegalArgumentException dataStreamAccessException(@Nullable String product, String... dataStreamNames) {
@@ -380,6 +410,8 @@ public class SystemIndices {
      * {@link SystemIndexAccessLevel#NONE} if no system index access should be allowed.
      */
     public SystemIndexAccessLevel getSystemIndexAccessLevel(ThreadContext threadContext) {
+        // This method intentionally cannot return BACKWARDS_COMPATIBLE_ONLY - that access level should only be used manually
+        // in known special cases.
         final String headerValue = threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
         final String productHeaderValue = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
 
@@ -398,7 +430,15 @@ public class SystemIndices {
     public enum SystemIndexAccessLevel {
         ALL,
         NONE,
-        RESTRICTED
+        RESTRICTED,
+        /**
+         * This value exists because there was a desire for "net-new" system indices to opt in to the post-8.0 behavior of having
+         * access blocked in most cases, but this caused problems with certain APIs
+         * (see https://github.com/elastic/elasticsearch/issues/74687), so this access level was added as a workaround. Once we no longer
+         * have to support accessing existing system indices, this can and should be removed, along with the net-new property of
+         * system indices in general.
+         */
+        BACKWARDS_COMPATIBLE_ONLY
     }
 
     /**
@@ -500,7 +540,7 @@ public class SystemIndices {
         private final String description;
         private final Collection<SystemIndexDescriptor> indexDescriptors;
         private final Collection<SystemDataStreamDescriptor> dataStreamDescriptors;
-        private final Collection<String> associatedIndexPatterns;
+        private final Collection<AssociatedIndexDescriptor> associatedIndexDescriptors;
         private final TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction;
 
         /**
@@ -508,19 +548,19 @@ public class SystemIndices {
          * @param description Description of the feature
          * @param indexDescriptors Collection of objects describing system indices for this feature
          * @param dataStreamDescriptors Collection of objects describing system data streams for this feature
-         * @param associatedIndexPatterns Patterns describing associated indices
+         * @param associatedIndexDescriptors Collection of objects describing associated indices for this feature
          * @param cleanUpFunction A function that will clean up the feature's state
          */
         public Feature(
             String description,
             Collection<SystemIndexDescriptor> indexDescriptors,
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors,
-            Collection<String> associatedIndexPatterns,
+            Collection<AssociatedIndexDescriptor> associatedIndexDescriptors,
             TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction) {
             this.description = description;
             this.indexDescriptors = indexDescriptors;
             this.dataStreamDescriptors = dataStreamDescriptors;
-            this.associatedIndexPatterns = associatedIndexPatterns;
+            this.associatedIndexDescriptors = associatedIndexDescriptors;
             this.cleanUpFunction = cleanUpFunction;
         }
 
@@ -563,8 +603,8 @@ public class SystemIndices {
             return dataStreamDescriptors;
         }
 
-        public Collection<String> getAssociatedIndexPatterns() {
-            return associatedIndexPatterns;
+        public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+            return associatedIndexDescriptors;
         }
 
         public TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> getCleanUpFunction() {
@@ -574,24 +614,24 @@ public class SystemIndices {
         /**
          * Clean up the state of a feature
          * @param indexDescriptors List of descriptors of a feature's system indices
-         * @param associatedIndexPatterns List of patterns of a feature's associated indices
+         * @param associatedIndexDescriptors List of descriptors of a feature's associated indices
          * @param name Name of the feature, used in logging
          * @param clusterService A clusterService, for retrieving cluster metadata
          * @param client A client, for issuing delete requests
          * @param listener A listener to return success or failure of cleanup
          */
         public static void cleanUpFeature(
-            Collection<SystemIndexDescriptor> indexDescriptors,
-            Collection<String> associatedIndexPatterns,
+            Collection<? extends IndexPatternMatcher> indexDescriptors,
+            Collection<? extends IndexPatternMatcher> associatedIndexDescriptors,
             String name,
             ClusterService clusterService,
             Client client,
             ActionListener<ResetFeatureStateStatus> listener) {
-            Stream<String> systemIndices = indexDescriptors.stream()
-                .map(sid -> sid.getMatchingIndices(clusterService.state().getMetadata()))
-                .flatMap(List::stream);
+            Metadata metadata = clusterService.state().getMetadata();
 
-            List<String> allIndices = Stream.concat(systemIndices, associatedIndexPatterns.stream())
+            List<String> allIndices = Stream.concat(indexDescriptors.stream(), associatedIndexDescriptors.stream())
+                .map(descriptor -> descriptor.getMatchingIndices(metadata))
+                .flatMap(List::stream)
                 .collect(Collectors.toList());
 
             if (allIndices.isEmpty()) {
@@ -620,7 +660,12 @@ public class SystemIndices {
         return new Feature(plugin.getFeatureDescription(),
             plugin.getSystemIndexDescriptors(settings),
             plugin.getSystemDataStreamDescriptors(),
-            plugin.getAssociatedIndexPatterns(),
+            plugin.getAssociatedIndexDescriptors(),
             plugin::cleanUpFeature);
     }
+
+    public ExecutorSelector getExecutorSelector() {
+        return executorSelector;
+    }
+
 }

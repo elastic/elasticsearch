@@ -173,16 +173,13 @@ tasks.named("thirdPartyAudit").configure {
     'com.ning.compress.lzf.util.ChunkDecoderFactory',
     'com.ning.compress.lzf.util.ChunkEncoderFactory',
     'lzma.sdk.lzma.Encoder',
-    'net.jpountz.lz4.LZ4Compressor',
-    'net.jpountz.lz4.LZ4Factory',
-    'net.jpountz.lz4.LZ4FastDecompressor',
-    'net.jpountz.xxhash.XXHash32',
-    'net.jpountz.xxhash.XXHashFactory',
     'io.netty.internal.tcnative.CertificateCallback',
     'io.netty.internal.tcnative.CertificateVerifier',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
     'io.netty.internal.tcnative.SSL',
+    'io.netty.internal.tcnative.SSLSession',
+    'io.netty.internal.tcnative.SSLSessionCache',
     'org.eclipse.jetty.alpn.ALPN$ClientProvider',
     'org.eclipse.jetty.alpn.ALPN$ServerProvider',
     'org.eclipse.jetty.alpn.ALPN',
@@ -215,4 +212,15 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
   )
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // transport is owned by server, these should be renamed to netty specific
+  ignoreClasses 'org.elasticsearch.transport.CopyBytesServerSocketChannel',
+    'org.elasticsearch.transport.CopyBytesSocketChannel',
+    'org.elasticsearch.transport.Netty4NioSocketChannel',
+    'org.elasticsearch.transport.Netty4Plugin',
+    'org.elasticsearch.transport.NettyAllocator',
+    'org.elasticsearch.transport.NettyByteBufSizer',
+    'org.elasticsearch.transport.SharedGroupFactory'
 }

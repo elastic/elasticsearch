@@ -1,13 +1,13 @@
 ---
 - job:
-    name: "elastic+elasticsearch+%BRANCH%+pull-request/elastic+elasticsearch+%BRANCH%+pull-request+part-1-fips"
-    display-name: "elastic / elasticsearch # %BRANCH% - pull request part-1 fips"
+    name: "elastic+elasticsearch+pull-request+part-1-fips"
+    display-name: "elastic / elasticsearch - pull request part-1 fips"
     description: "Testing of Elasticsearch pull requests - part-1 fips"
-    workspace: "/dev/shm/elastic+elasticsearch+%BRANCH%+pull-request+part-1-fips"
+    workspace: "/dev/shm/elastic+elasticsearch+pull-request+part-1-fips"
     scm:
       - git:
           refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
-          branches: 
+          branches:
             - "${ghprbActualCommit}"
     triggers:
       - github-pull-request:
@@ -18,12 +18,12 @@
           github-hooks: true
           status-context: elasticsearch-ci/part-1-fips
           cancel-builds-on-update: true
-          white-list-target-branches:
-            - %BRANCH%
+          black-list-target-branches:
+            - 6.8
           excluded-regions:
             - ^docs/.*
           white-list-labels:
-            - ':Security/FIPS'
+            - 'Team:Security'
           black-list-labels:
             - '>test-mute'
     builders:
@@ -32,6 +32,7 @@
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            JAVA15_HOME=$HOME/.java/openjdk15
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
-          $WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart1
+          $WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true checkPart1

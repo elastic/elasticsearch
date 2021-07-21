@@ -14,12 +14,13 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-high-level-client'
 
 // HLRC is published under the Elastic License
-ext.projectLicenses = ['Elastic License 2.0': ext.elasticLicenseUrl]
+ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl.get()])
 
 restResources {
   //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
@@ -67,8 +68,6 @@ tasks.named('forbiddenApisMain').configure {
 File nodeCert = file("./testnode.crt")
 File nodeTrustStore = file("./testnode.jks")
 File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security/delegate_pki/testRootCA.crt")
-File httpCaKeystore = file("./httpCa.p12");
-File transportKeystore = file("./transport.p12");
 
 tasks.named("integTest").configure {
   systemProperty 'tests.rest.async', 'false'
@@ -118,9 +117,12 @@ testClusters.all {
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile nodeTrustStore.name, nodeTrustStore
   extraConfigFile pkiTrustCert.name, pkiTrustCert
-  extraConfigFile httpCaKeystore.name, httpCaKeystore
-  extraConfigFile transportKeystore.name, transportKeystore
 
   setting 'xpack.searchable.snapshot.shared_cache.size', '1mb'
   setting 'xpack.searchable.snapshot.shared_cache.region_size', '16kb'
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // the client package should be owned by the client, but server has some classes there too
+  ignoreClasses 'org.elasticsearch.client.*'
 }

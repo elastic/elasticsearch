@@ -109,7 +109,8 @@ public class NodeLoadDetector {
     private static boolean isMemoryTrackedTask(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         return MlTasks.JOB_TASK_NAME.equals(task.getTaskName())
             || MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME.equals(task.getTaskName())
-            || MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(task.getTaskName());
+            || MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(task.getTaskName())
+            || MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME.equals(task.getTaskName());
     }
 
 }

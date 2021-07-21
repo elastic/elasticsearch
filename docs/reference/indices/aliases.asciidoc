@@ -94,7 +94,7 @@ parameter.
 // tag::alias-options[]
 `filter`::
 (Optional, <<query-dsl,Query DSL object>> Query used to limit documents the
-alias can access. Data stream aliases don't support this parameter.
+alias can access.
 // end::alias-options[]
 +
 Only the `add` action supports this parameter.
@@ -109,7 +109,7 @@ indices return an error.
 (Required*, array of strings) Data streams or indices for the action. Supports
 wildcards (`*`). If `index` is not specified, this parameter is required. For
 the `add` and `remove_index` actions, wildcard patterns that match both data
-streams and indices return an error. 
+streams and indices return an error.
 
 // tag::alias-options[]
 `index_routing`::
@@ -140,7 +140,7 @@ Only the `add` action supports this parameter.
 `must_exist`::
 (Optional, Boolean)
 If `true`, the alias must exist to perform the action. Defaults to `false`. Only
-the `remove` action supports this parameter. 
+the `remove` action supports this parameter.
 
 // tag::alias-options[]
 `routing`::

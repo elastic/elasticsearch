@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.time.Clock;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.Map;
 
@@ -55,14 +56,15 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
     @Override
     public void sourceHasChanged(TransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener) {
-        final long timestamp = alignTimestamp.apply(clock.millis());
+        final long timestamp = clock.millis();
+        final long timeUpperBound = alignTimestamp.apply(timestamp - timeSyncConfig.getDelay().millis());
 
         BoolQueryBuilder queryBuilder = new BoolQueryBuilder()
             .filter(transformConfig.getSource().getQueryConfig().getQuery())
             .filter(
                 new RangeQueryBuilder(timeSyncConfig.getField())
                     .gte(lastCheckpoint.getTimeUpperBound())
-                    .lt(timestamp - timeSyncConfig.getDelay().millis())
+                    .lt(timeUpperBound)
                     .format("epoch_millis")
             );
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
@@ -92,11 +94,11 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
     @Override
     public void createNextCheckpoint(final TransformCheckpoint lastCheckpoint, final ActionListener<TransformCheckpoint> listener) {
-        final long timestamp = alignTimestamp.apply(clock.millis());
+        final long timestamp = clock.millis();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
         // for time based synchronization
-        long timeUpperBound = timestamp - timeSyncConfig.getDelay().millis();
+        final long timeUpperBound = alignTimestamp.apply(timestamp - timeSyncConfig.getDelay().millis());
 
         getIndexCheckpoints(
             ActionListener.wrap(
@@ -130,11 +132,15 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         if (groups == null || groups.isEmpty()) {
             return identity();
         }
-        Map.Entry<String, SingleGroupSource> topLevelGroupEntry = groups.entrySet().iterator().next();
-        if ((topLevelGroupEntry.getValue() instanceof DateHistogramGroupSource) == false) {
+        Optional<DateHistogramGroupSource> dateHistogramGroupSource =
+            groups.values().stream()
+                .filter(DateHistogramGroupSource.class::isInstance)
+                .map(DateHistogramGroupSource.class::cast)
+                .filter(group -> group.getField().equals(transformConfig.getSyncConfig().getField()))
+                .findFirst();
+        if (dateHistogramGroupSource.isEmpty()) {
             return identity();
         }
-        DateHistogramGroupSource dateHistogramGroupSource = (DateHistogramGroupSource) topLevelGroupEntry.getValue();
-        return dateHistogramGroupSource.getRounding()::round;
+        return dateHistogramGroupSource.get().getRounding()::round;
     }
 }

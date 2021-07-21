@@ -18,7 +18,6 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
@@ -238,37 +237,11 @@ final class Bootstrap {
     }
 
     static SecureSettings loadSecureSettings(Environment initialEnv, InputStream stdin) throws BootstrapException {
-        final KeyStoreWrapper keystore;
         try {
-            keystore = KeyStoreWrapper.load(initialEnv.configFile());
-        } catch (IOException e) {
-            throw new BootstrapException(e);
-        }
-
-        SecureString password;
-        try {
-            if (keystore != null && keystore.hasPassword()) {
-                password = readPassphrase(stdin, KeyStoreAwareCommand.MAX_PASSPHRASE_LENGTH);
-            } else {
-                password = new SecureString(new char[0]);
-            }
-        } catch (IOException e) {
-            throw new BootstrapException(e);
-        }
-
-        try (password) {
-            if (keystore == null) {
-                final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
-                keyStoreWrapper.save(initialEnv.configFile(), new char[0]);
-                return keyStoreWrapper;
-            } else {
-                keystore.decrypt(password.getChars());
-                KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), password.getChars());
-            }
+            return KeyStoreWrapper.bootstrap(initialEnv.configFile(), () -> readPassphrase(stdin, KeyStoreWrapper.MAX_PASSPHRASE_LENGTH));
         } catch (Exception e) {
             throw new BootstrapException(e);
         }
-        return keystore;
     }
 
     // visible for tests

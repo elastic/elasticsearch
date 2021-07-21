@@ -31,6 +31,6 @@ include::configuration.asciidoc[]
 :doc-tests: {elasticsearch-root}/client/sniffer/src/test/java/org/elasticsearch/client/sniff/documentation
 include::sniffer.asciidoc[]
 
-include::../license.asciidoc[]
+include::../license-apache.asciidoc[]
 
 :doc-tests!:

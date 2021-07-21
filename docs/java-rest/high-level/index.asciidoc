@@ -30,7 +30,7 @@ include::getting-started.asciidoc[]
 include::supported-apis.asciidoc[]
 include::java-builders.asciidoc[]
 include::migration.asciidoc[]
-include::../license.asciidoc[]
+include::../license-elastic.asciidoc[]
 
 :doc-tests!:
 :mainid!:

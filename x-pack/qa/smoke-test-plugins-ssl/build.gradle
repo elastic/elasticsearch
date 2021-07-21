@@ -1,7 +1,5 @@
-import org.elasticsearch.gradle.internal.MavenFilteringHack
-import org.elasticsearch.gradle.testclusters.WaitForHttpResource
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
+
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -88,15 +86,11 @@ ext.expansions = [
   'expected.plugins.count': pluginPaths.size()
 ]
 
-ext.expansions = [
-  'expected.plugins.count': pluginPaths.size()
-]
-
 tasks.named("processTestResources").configure {
   from(sourceSets.test.resources.srcDirs) {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     include '**/*.yml'
     inputs.properties(expansions)
-    MavenFilteringHack.filter(it, expansions)
+    filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
   }
 }

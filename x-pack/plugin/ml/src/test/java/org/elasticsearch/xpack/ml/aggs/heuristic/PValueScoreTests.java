@@ -48,14 +48,14 @@ public class PValueScoreTests extends AbstractNXYSignificanceHeuristicTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(
-            new SearchModule(Settings.EMPTY, Arrays.asList(new MachineLearning(Settings.EMPTY, null))).getNamedXContents()
+            new SearchModule(Settings.EMPTY, false, Arrays.asList(new MachineLearning(Settings.EMPTY, null))).getNamedXContents()
         );
     }
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
         return new NamedWriteableRegistry(
-            new SearchModule(Settings.EMPTY, Arrays.asList(new MachineLearning(Settings.EMPTY, null))).getNamedWriteables()
+            new SearchModule(Settings.EMPTY, false, Arrays.asList(new MachineLearning(Settings.EMPTY, null))).getNamedWriteables()
         );
     }
 

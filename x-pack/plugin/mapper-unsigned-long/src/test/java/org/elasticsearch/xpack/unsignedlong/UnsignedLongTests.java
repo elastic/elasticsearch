@@ -69,7 +69,8 @@ public class UnsignedLongTests extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         Settings.Builder settings = Settings.builder().put(indexSettings()).put("number_of_shards", 1);
-        Settings.Builder sortSettings = Settings.builder().put(indexSettings())
+        Settings.Builder sortSettings = Settings.builder()
+            .put(indexSettings())
             .putList("sort.field", "ul_field")
             .put("number_of_shards", 1);
 
@@ -95,7 +96,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
     }
 
     public void testSort() {
-        for (String index : new String[] {"idx", "idx-sort"}) {
+        for (String index : new String[] { "idx", "idx-sort" }) {
             // asc sort
             {
                 SearchResponse response = client().prepareSearch(index)
@@ -132,7 +133,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
                     .setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
-                    .searchAfter(new Long[]{100L})
+                    .searchAfter(new Long[] { 100L })
                     .get();
                 assertSearchResponse(response);
                 SearchHit[] hits = response.getHits().getHits();
@@ -148,7 +149,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
                     .setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
-                    .searchAfter(new BigInteger[]{new BigInteger("18446744073709551614")})
+                    .searchAfter(new BigInteger[] { new BigInteger("18446744073709551614") })
                     .get();
                 assertSearchResponse(response);
                 SearchHit[] hits = response.getHits().getHits();
@@ -164,7 +165,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
                     .setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
-                    .searchAfter(new String[]{"18446744073709551614"})
+                    .searchAfter(new String[] { "18446744073709551614" })
                     .get();
                 assertSearchResponse(response);
                 SearchHit[] hits = response.getHits().getHits();
@@ -180,7 +181,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
                     .setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
-                    .searchAfter(new Long[]{-1L});
+                    .searchAfter(new Long[] { -1L });
                 ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> srb.get());
                 assertThat(exception.getCause().getMessage(), containsString("Failed to parse search_after value"));
             }
@@ -190,7 +191,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
                     .setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
-                    .searchAfter(new BigInteger[]{new BigInteger("18446744073709551616")});
+                    .searchAfter(new BigInteger[] { new BigInteger("18446744073709551616") });
                 ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> srb.get());
                 assertThat(exception.getCause().getMessage(), containsString("Failed to parse search_after value"));
             }
@@ -200,7 +201,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
                     .setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.DESC)
-                    .searchAfter(new BigInteger[]{new BigInteger("18446744073709551615")})
+                    .searchAfter(new BigInteger[] { new BigInteger("18446744073709551615") })
                     .get();
                 assertSearchResponse(response);
                 SearchHit[] hits = response.getHits().getHits();

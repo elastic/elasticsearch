@@ -37,10 +37,12 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
     public void testShardAllocationIsDelayedForRestartingNode() throws Exception {
         internalCluster().startNodes(3);
-        prepareCreate("test").setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)).get(); // Disable "normal" delayed allocation
+        prepareCreate("test").setSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
+        ).get(); // Disable "normal" delayed allocation
         ensureGreen("test");
         indexRandomData();
 
@@ -61,9 +63,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToRestartName));
 
         // Verify that the shard's allocation is delayed
-        assertBusy(() -> {
-            assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
-        });
+        assertBusy(() -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); });
 
         // Bring the node back
         internalCluster().startNode(nodeToRestartDataPathSettings); // this will use the same data location as the stopped node
@@ -73,9 +73,9 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     }
 
     // GWB-> Next tests to write:
-    //       - Timeout
-    //       - Change the timeout setting
-    //       - Delete the shutdown record
+    // - Timeout
+    // - Change the timeout setting
+    // - Delete the shutdown record
 
     private void indexRandomData() throws Exception {
         int numDocs = scaledRandomIntBetween(100, 1000);
@@ -89,7 +89,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     private String findIdOfNodeWithShard() {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> startedShards = state.routingTable().shardsWithState(ShardRoutingState.STARTED);
-        Collections.shuffle(startedShards,random());
+        Collections.shuffle(startedShards, random());
         return startedShards.get(0).currentNodeId();
     }
 

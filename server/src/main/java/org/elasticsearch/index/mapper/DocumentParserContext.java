@@ -92,6 +92,7 @@ public abstract class DocumentParserContext {
     private final Set<String> newFieldsSeen;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final List<RuntimeField> dynamicRuntimeFields;
+    private final Set<String> shadowedPaths;
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
 
@@ -107,6 +108,7 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = in.newFieldsSeen;
         this.dynamicObjectMappers = in.dynamicObjectMappers;
         this.dynamicRuntimeFields = in.dynamicRuntimeFields;
+        this.shadowedPaths = in.shadowedPaths;
         this.version = in.version;
         this.seqID = in.seqID;
     }
@@ -127,6 +129,17 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = new HashSet<>();
         this.dynamicObjectMappers = new HashMap<>();
         this.dynamicRuntimeFields = new ArrayList<>();
+        this.shadowedPaths = buildShadowedPaths(mappingLookup);
+    }
+
+    private static Set<String> buildShadowedPaths(MappingLookup lookup) {
+        Set<String> shadowedPaths = new HashSet<>();
+        for (RuntimeField runtimeField : lookup.getMapping().getRoot().runtimeFields()) {
+            for (MappedFieldType fieldtype : runtimeField.asMappedFieldTypes()) {
+                shadowedPaths.add(fieldtype.name());
+            }
+        }
+        return shadowedPaths;
     }
 
     public final IndexSettings indexSettings() {
@@ -231,6 +244,14 @@ public abstract class DocumentParserContext {
 
     public final ObjectMapper getObjectMapper(String name) {
         return dynamicObjectMappers.get(name);
+    }
+
+    /**
+     * Returns {@code true} if this path would be shadowed by a runtime field, and so should not
+     * be indexed
+     */
+    public final boolean isShadowedPath(String path) {
+        return shadowedPaths.contains(path);
     }
 
     /**

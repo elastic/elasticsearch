@@ -529,6 +529,7 @@ public class MetadataCreateIndexService {
             mappings,
             indexService -> resolveAndValidateAliases(
                 request.index(),
+                // data stream aliases are created separately in MetadataCreateDataStreamService::createDataStream
                 isDataStream ? Set.of() : request.aliases(),
                 isDataStream ? List.of() : MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName),
                 currentState.metadata(),

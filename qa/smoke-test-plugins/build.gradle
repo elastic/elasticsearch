@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -37,5 +37,5 @@ ext.expansions = [
 tasks.named("processTestResources").configure {
   assert pluginPaths.size() > 0
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }

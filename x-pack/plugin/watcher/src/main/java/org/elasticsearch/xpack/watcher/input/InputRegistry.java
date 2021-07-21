@@ -19,10 +19,10 @@ import java.util.Map;
 
 public class InputRegistry {
 
-    private final Map<String, InputFactory> factories;
+    private final Map<String, InputFactory<?, ?, ?>> factories;
 
-    public InputRegistry(Map<String, InputFactory> factories) {
-        Map<String, InputFactory> map = new HashMap<>(factories);
+    public InputRegistry(Map<String, InputFactory<?, ?, ?>> factories) {
+        Map<String, InputFactory<?, ?, ?>> map = new HashMap<>(factories);
         map.put(ChainInput.TYPE, new ChainInputFactory(this));
         this.factories = Collections.unmodifiableMap(map);
     }
@@ -69,7 +69,7 @@ public class InputRegistry {
         return input;
     }
 
-    public Map<String, InputFactory> factories() {
+    public Map<String, InputFactory<?, ?, ?>> factories() {
         return factories;
     }
 }

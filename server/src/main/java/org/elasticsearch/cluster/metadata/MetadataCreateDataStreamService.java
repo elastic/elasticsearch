@@ -224,7 +224,7 @@ public class MetadataCreateDataStreamService {
 
         if (template.template() != null && template.template().aliases() != null) {
             for (var alias : template.template().aliases().values()) {
-                builder.put(alias.getAlias(), dataStreamName, alias.writeIndex(), alias.filter().string());
+                builder.put(alias.getAlias(), dataStreamName, alias.writeIndex(), alias.filter() == null ? null : alias.filter().string());
             }
         }
 

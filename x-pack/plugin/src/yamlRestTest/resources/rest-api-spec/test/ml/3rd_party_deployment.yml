@@ -25,6 +25,6 @@
           }
 
   - do:
-      catch: /\[distilbert-finetuned-sst\] creating NLP task from configuration failed with error/
+      catch: /Could not find trained model definition \[distilbert-finetuned-sst\]/
       ml.start_trained_model_deployment:
         model_id: distilbert-finetuned-sst

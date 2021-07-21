@@ -15,9 +15,9 @@ import java.util.Map;
 import java.util.Set;
 
 public class ScheduleRegistry {
-    private final Map<String, Schedule.Parser> parsers = new HashMap<>();
+    private final Map<String, Schedule.Parser<? extends Schedule>> parsers = new HashMap<>();
 
-    public ScheduleRegistry(Set<Schedule.Parser> parsers) {
+    public ScheduleRegistry(Set<Schedule.Parser<? extends Schedule>> parsers) {
         parsers.stream().forEach(parser -> this.parsers.put(parser.type(), parser));
     }
 
@@ -46,7 +46,7 @@ public class ScheduleRegistry {
     }
 
     public Schedule parse(String context, String type, XContentParser parser) throws IOException {
-        Schedule.Parser scheduleParser = parsers.get(type);
+        Schedule.Parser<?> scheduleParser = parsers.get(type);
         if (scheduleParser == null) {
             throw new ElasticsearchParseException("could not parse schedule for [{}]. unknown schedule type [{}]", context, type);
         }

@@ -47,9 +47,23 @@ buildscript {
     mavenCentral()
     maven { url 'https://jitpack.io' }
   }
+
+  // We rely on a patched version of the redline library used to build rpm packages
+  // to support sha256header in our elasticsearch RPMs
+  // TODO: Update / remove this dependency once https://github.com/craigwblake/redline/pull/157 got merged
+  // Be aware that it seems the redline project hasnt been active for a while
+  configurations.all {
+    resolutionStrategy {
+        dependencySubstitution {
+          substitute module('org.redline-rpm:redline') using module('com.github.breskeby:redline:caa0ede')
+        }
+    }
+  }
+
   dependencies {
     classpath "com.github.breskeby:gradle-ospackage-plugin:98455c1"
   }
+
 }
 
 apply plugin: "nebula.ospackage-base"

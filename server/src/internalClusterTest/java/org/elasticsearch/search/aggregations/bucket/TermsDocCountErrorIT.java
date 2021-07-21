@@ -1030,7 +1030,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         assertThat(bucket.getDocCountError(), equalTo(29L));
     }
 
-    public void testIncrementalReductionBug() {
+    /**
+     * Tests the upper bounds are correct when performing incremental reductions
+     * See https://github.com/elastic/elasticsearch/issues/40005 for more details
+     */
+    public void testIncrementalReduction() {
         SearchResponse response = client().prepareSearch("idx_fixed_docs_3", "idx_fixed_docs_4", "idx_fixed_docs_5")
             .addAggregation(terms("terms")
                 .executionHint(randomExecutionHint())

@@ -1364,7 +1364,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testNestedAggregate() {
         Consumer<String> checkMsg = (String sql) -> {
             var actual = error(sql);
-            assertTrue(actual, actual.contains("Nested aggregations in sub-selects are not (yet) supported."));
+            assertTrue(actual, actual.contains("Nested aggregations in sub-selects are not supported."));
         };
 
         checkMsg.accept("SELECT SUM(c) FROM (SELECT COUNT(*) c FROM test)");

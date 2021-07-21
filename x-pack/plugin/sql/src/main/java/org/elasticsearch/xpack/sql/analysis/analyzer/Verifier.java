@@ -269,10 +269,12 @@ public final class Verifier {
     }
 
     private void checkNestedAggregation(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
-        if(p instanceof Aggregate){
-            ((Aggregate) p).child().forEachDown(Aggregate.class, a -> {
-                localFailures.add(fail(a, "Nested aggregations in sub-selects are not (yet) supported."));
-            });
+        if (p instanceof Aggregate) {
+            ((Aggregate) p).child()
+                .forEachDown(
+                    Aggregate.class,
+                    a -> { localFailures.add(fail(a, "Nested aggregations in sub-selects are not supported.")); }
+                );
         }
     }
 

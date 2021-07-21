@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -308,20 +309,33 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      */
     public void testRemainingDelayCalculation() throws Exception {
         final long baseTime = System.nanoTime();
-        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "test", null, 0, baseTime,
-            System.currentTimeMillis(), randomBoolean(), AllocationStatus.NO_ATTEMPT, Collections.emptySet(), null);
+        UnassignedInfo unassignedInfo = new UnassignedInfo(
+            UnassignedInfo.Reason.NODE_LEFT,
+            "test",
+            null,
+            0,
+            baseTime,
+            System.currentTimeMillis(),
+            randomBoolean(),
+            AllocationStatus.NO_ATTEMPT,
+            Collections.emptySet(),
+            randomFrom("bogusNodeId", null)
+        );
         final long totalDelayNanos = TimeValue.timeValueMillis(10).nanos();
         final Settings indexSettings = Settings.builder()
             .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueNanos(totalDelayNanos)).build();
-        Map<String, SingleNodeShutdownMetadata> nodeShutdowns = Collections.emptyMap();
-        long delay = unassignedInfo.getRemainingDelay(baseTime, indexSettings, nodeShutdowns);
+        Metadata metadata = Metadata.builder()
+            .persistentSettings(Settings.EMPTY)
+            .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Collections.emptyMap()))
+            .build();
+        long delay = unassignedInfo.getRemainingDelay(baseTime, indexSettings, metadata);
         assertThat(delay, equalTo(totalDelayNanos));
         long delta1 = randomIntBetween(1, (int) (totalDelayNanos - 1));
-        delay = unassignedInfo.getRemainingDelay(baseTime + delta1, indexSettings, nodeShutdowns);
+        delay = unassignedInfo.getRemainingDelay(baseTime + delta1, indexSettings, metadata);
         assertThat(delay, equalTo(totalDelayNanos - delta1));
-        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos, indexSettings, nodeShutdowns);
+        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos, indexSettings, metadata);
         assertThat(delay, equalTo(0L));
-        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos + randomIntBetween(1, 20), indexSettings, nodeShutdowns);
+        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos + randomIntBetween(1, 20), indexSettings, metadata);
         assertThat(delay, equalTo(0L));
     }
 

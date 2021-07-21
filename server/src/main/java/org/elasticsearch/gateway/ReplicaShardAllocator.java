@@ -216,7 +216,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 long remainingDelayNanos = unassignedInfo.getRemainingDelay(
                     System.nanoTime(),
                     indexMetadata.getSettings(),
-                    metadata.nodeShutdowns()
+                    metadata
                 );
                 remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
             }

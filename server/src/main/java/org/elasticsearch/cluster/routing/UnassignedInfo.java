@@ -395,8 +395,11 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     public long getRemainingDelay(
         final long nanoTimeNow,
         final Settings indexSettings,
-        final Map<String, SingleNodeShutdownMetadata> nodeShutdowns
+        final Metadata metadata
     ) {
+        Map<String, SingleNodeShutdownMetadata> nodeShutdowns = metadata.nodeShutdowns() != null
+            ? metadata.nodeShutdowns()
+            : Collections.emptyMap();
         long delayTimeoutNanos = Optional.ofNullable(lastAllocatedNodeId)
             .map(nodeShutdowns::get)
             .filter(shutdownMetadata -> SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownMetadata.getType()))
@@ -436,7 +439,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
                 final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(
                     currentNanoTime,
                     indexSettings,
-                    metadata.nodeShutdowns()
+                    metadata
                 );
                 if (newComputedLeftDelayNanos < nextDelayNanos) {
                     nextDelayNanos = newComputedLeftDelayNanos;

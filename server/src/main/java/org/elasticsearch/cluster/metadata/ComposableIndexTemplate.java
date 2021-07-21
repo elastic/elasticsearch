@@ -257,7 +257,6 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     public static class DataStreamTemplate implements Writeable, ToXContentObject {
 
         private static final ParseField HIDDEN = new ParseField("hidden");
-        private static final ParseField ALIASES = new ParseField("aliases");
 
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",

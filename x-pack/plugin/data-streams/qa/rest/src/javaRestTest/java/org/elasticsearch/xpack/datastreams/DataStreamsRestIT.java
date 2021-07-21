@@ -316,5 +316,4 @@ public class DataStreamsRestIT extends ESRestTestCase {
         );
     }
 
-
 }

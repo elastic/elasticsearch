@@ -73,10 +73,10 @@
   - length:   { hits.hits: 2  }
 
 ---
-"Create data stream alias with alias":
+"Create data stream alias with filter":
   - skip:
-      version: " - 7.99.99"
-      reason: "data stream alias filter not yet backported to the 7.x branch"
+      version: " - 7.14.99"
+      reason: "data stream alias filter supported was added in 7.15.0"
       features: allowed_warnings
 
   - do:
@@ -90,7 +90,6 @@
             settings:
               index.number_of_replicas: 0
           data_stream: { }
-
 
   - do:
       index:
@@ -156,8 +155,8 @@
 ---
 "Create data stream aliases using wildcard expression":
   - skip:
-      version: " - 7.99.99"
-      reason: "bugfix has not yet backported to the 7.x branch"
+      version: " - 7.14.0"
+      reason: "bugfix fixed from 7.14.1 and later"
       features: allowed_warnings
 
   - do:

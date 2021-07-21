@@ -50,6 +50,7 @@ public class UserPrivilegeResolverTests extends ESTestCase {
     private UserPrivilegeResolver resolver;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setupTest() {
         client = mock(Client.class);
         securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
@@ -167,7 +168,9 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         return new ServiceProviderPrivileges(appName, resource, roleMapping);
     }
 
-    private HasPrivilegesResponse setupHasPrivileges(String username, String appName,
+    @SafeVarargs
+    @SuppressWarnings("unchecked")
+    private final HasPrivilegesResponse setupHasPrivileges(String username, String appName,
                                                      Tuple<String, Tuple<String, Boolean>>... resourceActionAccess) {
         final boolean isCompleteMatch = randomBoolean();
         final Map<String, Map<String, Boolean>> resourcePrivilegeMap = new HashMap<>(resourceActionAccess.length);

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.latest.Latest;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,12 +39,12 @@ import static org.hamcrest.Matchers.is;
 public class TransformConfigLinterTests extends ESTestCase {
 
     public void testGetWarnings_Pivot_WithScriptBasedRuntimeFields() {
-        PivotConfig pivotConfig =
-            new PivotConfig(
-                GroupConfigTests.randomGroupConfig(() -> new TermsGroupSource(randomAlphaOfLengthBetween(1, 20), null, false)),
-                AggregationConfigTests.randomAggregationConfig(),
-                null);
-        Function function = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT);
+        PivotConfig pivotConfig = new PivotConfig(
+            GroupConfigTests.randomGroupConfig(() -> new TermsGroupSource(randomAlphaOfLengthBetween(1, 20), null, false)),
+            AggregationConfigTests.randomAggregationConfig(),
+            null
+        );
+        Function function = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT, Collections.emptySet());
         SourceConfig sourceConfig = SourceConfigTests.randomSourceConfig();
         assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, null), is(empty()));
 
@@ -51,19 +52,25 @@ public class TransformConfigLinterTests extends ESTestCase {
 
         assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig), is(empty()));
 
-        Map<String, Object> runtimeMappings = new HashMap<String, Object>() {{
-            put("rt-field-A", singletonMap("type", "keyword"));
-            put("rt-field-B", singletonMap("script", "some script"));
-            put("rt-field-C", singletonMap("script", "some other script"));
-        }};
-        sourceConfig =
-            new SourceConfig(generateRandomStringArray(10, 10, false, false), QueryConfigTests.randomQueryConfig(), runtimeMappings);
+        Map<String, Object> runtimeMappings = new HashMap<String, Object>() {
+            {
+                put("rt-field-A", singletonMap("type", "keyword"));
+                put("rt-field-B", singletonMap("script", "some script"));
+                put("rt-field-C", singletonMap("script", "some other script"));
+            }
+        };
+        sourceConfig = new SourceConfig(
+            generateRandomStringArray(10, 10, false, false),
+            QueryConfigTests.randomQueryConfig(),
+            runtimeMappings
+        );
         assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig), is(empty()));
 
         syncConfig = new TimeSyncConfig("rt-field-B", null);
         assertThat(
             TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig),
-            contains("sync time field is a script-based runtime field, this transform might run slowly, please check your configuration."));
+            contains("sync time field is a script-based runtime field, this transform might run slowly, please check your configuration.")
+        );
     }
 
     public void testGetWarnings_Latest_WithScriptBasedRuntimeFields() {
@@ -74,36 +81,52 @@ public class TransformConfigLinterTests extends ESTestCase {
 
         SyncConfig syncConfig = new TimeSyncConfig("rt-field-C", null);
 
-        Map<String, Object> runtimeMappings = new HashMap<String, Object>() {{
-            put("rt-field-A", singletonMap("type", "keyword"));
-            put("rt-field-B", singletonMap("script", "some script"));
-            put("rt-field-C", singletonMap("script", "some other script"));
-        }};
-        sourceConfig =
-            new SourceConfig(generateRandomStringArray(10, 10, false, false), QueryConfigTests.randomQueryConfig(), runtimeMappings);
+        Map<String, Object> runtimeMappings = new HashMap<String, Object>() {
+            {
+                put("rt-field-A", singletonMap("type", "keyword"));
+                put("rt-field-B", singletonMap("script", "some script"));
+                put("rt-field-C", singletonMap("script", "some other script"));
+            }
+        };
+        sourceConfig = new SourceConfig(
+            generateRandomStringArray(10, 10, false, false),
+            QueryConfigTests.randomQueryConfig(),
+            runtimeMappings
+        );
 
         assertThat(
             TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig),
             contains(
                 "all the group-by fields are script-based runtime fields, "
                     + "this transform might run slowly, please check your configuration.",
-                "sync time field is a script-based runtime field, this transform might run slowly, please check your configuration."));
+                "sync time field is a script-based runtime field, this transform might run slowly, please check your configuration."
+            )
+        );
     }
 
     public void testGetWarnings_Pivot_CouldNotFindAnyOptimization() {
-        PivotConfig pivotConfig =
-            new PivotConfig(
-                GroupConfigTests.randomGroupConfig(
-                    () -> new HistogramGroupSource(
-                        randomAlphaOfLengthBetween(1, 20), null, true, randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false))),
-                AggregationConfigTests.randomAggregationConfig(),
-                null);
-        Function function = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT);
+        PivotConfig pivotConfig = new PivotConfig(
+
+            GroupConfigTests.randomGroupConfig(
+                () -> new HistogramGroupSource(
+                    randomAlphaOfLengthBetween(1, 20),
+                    null,
+                    true,
+                    randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false)
+                )
+            ),
+            AggregationConfigTests.randomAggregationConfig(),
+            null
+        );
+        Function function = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT, Collections.emptySet());
         SourceConfig sourceConfig = SourceConfigTests.randomSourceConfig();
         SyncConfig syncConfig = TimeSyncConfigTests.randomTimeSyncConfig();
         assertThat(
             TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig),
-            contains("could not find any optimizations for continuous execution, "
-                + "this transform might run slowly, please check your configuration."));
+            contains(
+                "could not find any optimizations for continuous execution, "
+                    + "this transform might run slowly, please check your configuration."
+            )
+        );
     }
 }

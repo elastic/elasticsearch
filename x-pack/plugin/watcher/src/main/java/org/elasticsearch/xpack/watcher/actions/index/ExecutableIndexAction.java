@@ -55,13 +55,14 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         this.bulkDefaultTimeout = action.timeout != null ? action.timeout : bulkDefaultTimeout;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public Action.Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
         Map<String, Object> data = payload.data();
         if (data.containsKey("_doc")) {
             Object doc = data.get("_doc");
             if (doc instanceof Iterable) {
-                return indexBulk((Iterable) doc, actionId, ctx);
+                return indexBulk((Iterable<?>) doc, actionId, ctx);
             }
             if (doc.getClass().isArray()) {
                 return indexBulk(new ArrayObjectIterator.Iterable(doc), actionId, ctx);
@@ -110,7 +111,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         return new IndexAction.Result(Status.SUCCESS, new XContentSource(bytesReference, XContentType.JSON));
     }
 
-    Action.Result indexBulk(Iterable list, String actionId, WatchExecutionContext ctx) throws Exception {
+    Action.Result indexBulk(Iterable<?> list, String actionId, WatchExecutionContext ctx) throws Exception {
         if (action.docId != null) {
             throw illegalState("could not execute action [{}] of watch [{}]. [doc_id] cannot be used with bulk [_doc] indexing");
         }
@@ -126,6 +127,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                         "[_data] field must either hold a Map or an List/Array of Maps", actionId, ctx.watch().id());
             }
 
+            @SuppressWarnings("unchecked")
             Map<String, Object> doc = (Map<String, Object>) item;
             if (doc.containsKey(INDEX_FIELD) || doc.containsKey(TYPE_FIELD) || doc.containsKey(ID_FIELD)) {
                 doc = mutableMap(doc);

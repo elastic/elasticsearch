@@ -243,7 +243,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     protected final Settings settings;
     protected final boolean transportClient;
     protected final boolean enabled;
-    protected List<NotificationService> reloadableServices = new ArrayList<>();
+    protected List<NotificationService<?>> reloadableServices = new ArrayList<>();
 
     public Watcher(final Settings settings) {
         this.settings = settings;
@@ -298,7 +298,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         reloadableServices.add(pagerDutyService);
 
         TextTemplateEngine templateEngine = new TextTemplateEngine(scriptService);
-        Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
+        Map<String, EmailAttachmentParser<?>> emailAttachmentParsers = new HashMap<>();
         emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, templateEngine));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
         emailAttachmentParsers.put(ReportingAttachmentParser.TYPE,
@@ -333,7 +333,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             getLicenseState());
 
         // inputs
-        final Map<String, InputFactory> inputFactories = new HashMap<>();
+        final Map<String, InputFactory<?, ?, ?>> inputFactories = new HashMap<>();
         inputFactories.put(SearchInput.TYPE, new SearchInputFactory(settings, client, xContentRegistry, scriptService));
         inputFactories.put(SimpleInput.TYPE, new SimpleInputFactory());
         inputFactories.put(HttpInput.TYPE, new HttpInputFactory(settings, httpClient, templateEngine));
@@ -396,7 +396,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         HistoryStore historyStore = new HistoryStore(bulkProcessor, clusterService::state);
 
         // schedulers
-        final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
+        final Set<Schedule.Parser<?>> scheduleParsers = new HashSet<>();
         scheduleParsers.add(new CronSchedule.Parser());
         scheduleParsers.add(new DailySchedule.Parser());
         scheduleParsers.add(new HourlySchedule.Parser());
@@ -406,10 +406,10 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         scheduleParsers.add(new YearlySchedule.Parser());
         final ScheduleRegistry scheduleRegistry = new ScheduleRegistry(scheduleParsers);
 
-        TriggerEngine manualTriggerEngine = new ManualTriggerEngine();
-        final TriggerEngine configuredTriggerEngine = getTriggerEngine(getClock(), scheduleRegistry);
+        TriggerEngine<?, ?> manualTriggerEngine = new ManualTriggerEngine();
+        final TriggerEngine<?, ?> configuredTriggerEngine = getTriggerEngine(getClock(), scheduleRegistry);
 
-        final Set<TriggerEngine> triggerEngines = new HashSet<>();
+        final Set<TriggerEngine<?, ?>> triggerEngines = new HashSet<>();
         triggerEngines.add(manualTriggerEngine);
         triggerEngines.add(configuredTriggerEngine);
         final TriggerService triggerService = new TriggerService(triggerEngines);
@@ -442,7 +442,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService);
     }
 
-    protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
+    protected TriggerEngine<?, ?> getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
         return new TickerScheduleTriggerEngine(settings, scheduleRegistry, clock);
     }
 

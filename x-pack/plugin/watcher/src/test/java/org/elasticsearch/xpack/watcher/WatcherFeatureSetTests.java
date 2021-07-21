@@ -83,6 +83,7 @@ public class WatcherFeatureSetTests extends ESTestCase {
 
     public void testUsageStats() throws Exception {
         doAnswer(mock -> {
+            @SuppressWarnings("unchecked")
             ActionListener<WatcherStatsResponse> listener =
                     (ActionListener<WatcherStatsResponse>) mock.getArguments()[2];
 

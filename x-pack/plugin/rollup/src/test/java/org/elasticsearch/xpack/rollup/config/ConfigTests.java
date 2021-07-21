@@ -93,7 +93,12 @@ public class ConfigTests extends ESTestCase {
     }
 
     public void testObsoleteTimeZone() {
-        DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, "Canada/Mountain");
+        DateHistogramGroupConfig config = new DateHistogramGroupConfig.FixedInterval(
+            "foo",
+            DateHistogramInterval.HOUR,
+            null,
+            "Canada/Mountain"
+        );
         assertThat(config.getTimeZone(), equalTo("Canada/Mountain"));
     }
 

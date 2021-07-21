@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.test;
+package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -35,6 +35,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -67,11 +69,6 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
      */
     protected abstract SignificanceHeuristic getHeuristic();
 
-    /**
-     * @return test if the score is `0` with a subset frequency of `0`
-     */
-    protected abstract boolean testZeroScore();
-
     // test that stream output can actually be read - does not replace bwc test
     public void testStreamResponse() throws Exception {
         Version version = randomVersion(random());
@@ -86,8 +83,8 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
         // read
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         StreamInput in = new InputStreamStreamInput(inBuffer);
-        NamedWriteableRegistry registry = writableRegistry();
-        in = new NamedWriteableAwareStreamInput(in, registry);
+        // populates the registry through side effects
+        in = new NamedWriteableAwareStreamInput(in, writableRegistry());
         in.setVersion(version);
         InternalMappedSignificantTerms<?, ?> read = (InternalMappedSignificantTerms<?, ?>) in.readNamedWriteable(InternalAggregation.class);
 
@@ -129,11 +126,14 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
     }
 
     public void testBasicScoreProperties() {
-        SignificanceHeuristic heuristic = getHeuristic();
+        testBasicScoreProperties(getHeuristic(), true);
+    }
+
+    protected void testBasicScoreProperties(SignificanceHeuristic heuristic, boolean testZeroScore) {
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
         assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
         assertThat(heuristic.getScore(1, 1, 3, 4), lessThan(heuristic.getScore(1, 1, 2, 4)));
-        if (testZeroScore()) {
+        if (testZeroScore) {
             assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(0.0));
         }
 

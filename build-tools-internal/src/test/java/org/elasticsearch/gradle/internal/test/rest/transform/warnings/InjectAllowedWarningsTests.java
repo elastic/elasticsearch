@@ -49,8 +49,24 @@ public class InjectAllowedWarningsTests extends InjectFeatureTests {
         List<ObjectNode> transformedTests = transformTests(tests);
         printTest(testName, transformedTests);
         validateSetupAndTearDown(transformedTests);
+        validateBodyHasWarnings(ALLOWED_WARNINGS, transformedTests, List.of("a", "b", "added warning"));
+    }
+
+    @Test
+    public void testInjectAllowedWarningsWithPreExistingForSingleTest() throws Exception {
+        String testName = "/rest/transform/warnings/with_existing_allowed_warnings.yml";
+        List<ObjectNode> tests = getTests(testName);
+        validateSetupExist(tests);
         validateBodyHasWarnings(ALLOWED_WARNINGS, tests, Set.of("a", "b"));
-        validateBodyHasWarnings(ALLOWED_WARNINGS, tests, addWarnings);
+        List<ObjectNode> transformedTests = transformTests(tests, getTransformationsForTest("Test with existing allowed warnings"));
+        printTest(testName, transformedTests);
+        validateSetupAndTearDown(transformedTests);
+        validateBodyHasWarnings(ALLOWED_WARNINGS, "Test with existing allowed warnings", transformedTests, Set.of("a", "b", "added warning"));
+        validateBodyHasWarnings(ALLOWED_WARNINGS, "Test with existing allowed warnings not to change", transformedTests, Set.of("a", "b"));
+    }
+
+    private List<RestTestTransform<?>> getTransformationsForTest(String testName) {
+        return Collections.singletonList(new InjectAllowedWarnings(false, new ArrayList<>(addWarnings), testName));
     }
 
     @Override

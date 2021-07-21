@@ -8,17 +8,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
-import org.elasticsearch.test.AbstractSignificanceHeuristicTestCase;
+import org.elasticsearch.search.aggregations.bucket.AbstractSignificanceHeuristicTestCase;
 
 public class PercentageScoreTests extends AbstractSignificanceHeuristicTestCase {
     @Override
     protected SignificanceHeuristic getHeuristic() {
         return new PercentageScore();
-    }
-
-    @Override
-    protected boolean testZeroScore() {
-        return true;
     }
 
     @Override

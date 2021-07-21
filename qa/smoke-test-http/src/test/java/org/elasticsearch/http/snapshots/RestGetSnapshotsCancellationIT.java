@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 
@@ -30,10 +29,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class RestGetSnapshotsCancellationIT extends AbstractSnapshotRestTestCase {
 
     public void testGetSnapshotsCancellation() throws Exception {
-        // use single threaded metadata fetching to make sure that once the snapshot meta thread is stuck on the blocked repo below, no
-        // other snapshot meta thread can concurrently finish the request/task
-        internalCluster().startMasterOnlyNode(
-            Settings.builder().put("thread_pool.snapshot_meta.core", 1).put("thread_pool.snapshot_meta.max", 1).build());
+        internalCluster().startMasterOnlyNode(SINGLE_THREADED_SNAPSHOT_META_SETTINGS);
         internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 

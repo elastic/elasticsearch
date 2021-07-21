@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.bucket.AbstractNXYSignificanceHeuristicTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.elasticsearch.test.AbstractSignificanceHeuristicTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.Arrays;
@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class PValueScoreTests extends AbstractSignificanceHeuristicTestCase {
+public class PValueScoreTests extends AbstractNXYSignificanceHeuristicTestCase {
 
     private static final double eps = 1e-9;
 
@@ -36,8 +36,8 @@ public class PValueScoreTests extends AbstractSignificanceHeuristicTestCase {
     }
 
     @Override
-    protected boolean testZeroScore() {
-        return true;
+    protected SignificanceHeuristic getHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
+        return new PValueScore(backgroundIsSuperset);
     }
 
     @Override

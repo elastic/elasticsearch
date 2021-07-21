@@ -8,17 +8,16 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
+<<<<<<< HEAD
 import org.elasticsearch.test.AbstractSignificanceHeuristicTestCase;
+=======
+import org.elasticsearch.search.aggregations.bucket.AbstractSignificanceHeuristicTestCase;
+>>>>>>> master
 
 public class JLHScoreTests extends AbstractSignificanceHeuristicTestCase {
     @Override
     protected SignificanceHeuristic getHeuristic() {
         return new JLHScore();
-    }
-
-    @Override
-    protected boolean testZeroScore() {
-        return true;
     }
 
     @Override

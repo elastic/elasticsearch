@@ -8,21 +8,17 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
-import org.elasticsearch.test.AbstractSignificanceHeuristicTestCase;
+import org.elasticsearch.search.aggregations.bucket.AbstractNXYSignificanceHeuristicTestCase;
 
-public class ChiSquareTests extends AbstractSignificanceHeuristicTestCase {
-    @Override
-    protected SignificanceHeuristic getHeuristic() {
-        return new ChiSquare(randomBoolean(), randomBoolean());
-    }
-
-    @Override
-    protected boolean testZeroScore() {
-        return false;
-    }
+public class ChiSquareTests extends AbstractNXYSignificanceHeuristicTestCase {
 
     @Override
     public void testAssertions() {
         testBackgroundAssertions(new ChiSquare(true, true), new ChiSquare(true, false));
+    }
+
+    @Override
+    protected SignificanceHeuristic getHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
+        return new ChiSquare(includeNegatives, backgroundIsSuperset);
     }
 }

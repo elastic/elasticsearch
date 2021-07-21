@@ -45,6 +45,7 @@ public class MigrateToDataTiersRequest extends AcknowledgedRequest<MigrateToData
      */
     @Nullable
     private final String legacyTemplateToDelete;
+    private boolean dryRun = false;
 
     public static MigrateToDataTiersRequest parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
@@ -61,6 +62,7 @@ public class MigrateToDataTiersRequest extends AcknowledgedRequest<MigrateToData
 
     public MigrateToDataTiersRequest(StreamInput in) throws IOException {
         super(in);
+        dryRun = in.readBoolean();
         legacyTemplateToDelete = in.readOptionalString();
         nodeAttributeName = in.readOptionalString();
     }
@@ -73,8 +75,13 @@ public class MigrateToDataTiersRequest extends AcknowledgedRequest<MigrateToData
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeBoolean(dryRun);
         out.writeOptionalString(legacyTemplateToDelete);
         out.writeOptionalString(nodeAttributeName);
+    }
+
+    public void setDryRun(boolean dryRun) {
+        this.dryRun = dryRun;
     }
 
     public String getNodeAttributeName() {
@@ -83,6 +90,10 @@ public class MigrateToDataTiersRequest extends AcknowledgedRequest<MigrateToData
 
     public String getLegacyTemplateToDelete() {
         return legacyTemplateToDelete;
+    }
+
+    public boolean isDryRun() {
+        return dryRun;
     }
 
     @Override
@@ -94,20 +105,13 @@ public class MigrateToDataTiersRequest extends AcknowledgedRequest<MigrateToData
             return false;
         }
         MigrateToDataTiersRequest that = (MigrateToDataTiersRequest) o;
-        return Objects.equals(nodeAttributeName, that.nodeAttributeName) && Objects.equals(legacyTemplateToDelete,
-            that.legacyTemplateToDelete);
+        return dryRun == that.dryRun &&
+            Objects.equals(nodeAttributeName, that.nodeAttributeName) &&
+            Objects.equals(legacyTemplateToDelete, that.legacyTemplateToDelete);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeAttributeName, legacyTemplateToDelete);
-    }
-
-    @Override
-    public String toString() {
-        return "MigrateToDataTiersRequest{" +
-            "nodeAttributeName='" + nodeAttributeName + '\'' +
-            ", legacyTemplateToDelete='" + legacyTemplateToDelete + '\'' +
-            '}';
+        return Objects.hash(nodeAttributeName, legacyTemplateToDelete, dryRun);
     }
 }

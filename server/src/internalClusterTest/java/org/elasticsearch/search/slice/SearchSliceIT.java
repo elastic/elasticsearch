@@ -10,17 +10,24 @@ package org.elasticsearch.search.slice;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -159,6 +166,99 @@ public class SearchSliceIT extends ESIntegTestCase {
         }
     }
 
+    private void assertSearchSlicesWithScroll(SearchRequestBuilder request, String field, int numSlice, int numDocs) {
+        int totalResults = 0;
+        List<String> keys = new ArrayList<>();
+        for (int id = 0; id < numSlice; id++) {
+            SliceBuilder sliceBuilder = new SliceBuilder(field, id, numSlice);
+            SearchResponse searchResponse = request.slice(sliceBuilder).get();
+            totalResults += searchResponse.getHits().getHits().length;
+            int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value;
+            int numSliceResults = searchResponse.getHits().getHits().length;
+            String scrollId = searchResponse.getScrollId();
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                assertTrue(keys.add(hit.getId()));
+            }
+            while (searchResponse.getHits().getHits().length > 0) {
+                searchResponse = client().prepareSearchScroll("test")
+                    .setScrollId(scrollId)
+                    .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
+                    .get();
+                scrollId = searchResponse.getScrollId();
+                totalResults += searchResponse.getHits().getHits().length;
+                numSliceResults += searchResponse.getHits().getHits().length;
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    assertTrue(keys.add(hit.getId()));
+                }
+            }
+            assertThat(numSliceResults, equalTo(expectedSliceResults));
+            clearScroll(scrollId);
+        }
+        assertThat(totalResults, equalTo(numDocs));
+        assertThat(keys.size(), equalTo(numDocs));
+        assertThat(new HashSet<>(keys).size(), equalTo(numDocs));
+    }
+
+    public void testPointInTime() throws Exception {
+        int numShards = randomIntBetween(1, 7);
+        int numDocs = randomIntBetween(100, 1000);
+        setupIndex(numDocs, numShards);
+        int max = randomIntBetween(2, numShards * 3);
+
+        // Test the default slicing strategy (null), as well as numeric doc values
+        for (String field : new String[]{null, "random_int", "static_int"}) {
+            // Open point-in-time reader
+            OpenPointInTimeRequest request = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueSeconds(10));
+            OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
+            String pointInTimeId = response.getPointInTimeId();
+
+            // Test sort on document IDs
+            assertSearchSlicesWithPointInTime(field, ShardDocSortField.NAME, pointInTimeId, max, numDocs);
+            // Test numeric sort
+            assertSearchSlicesWithPointInTime(field, "random_int", pointInTimeId, max, numDocs);
+
+            // Close point-in-time reader
+            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pointInTimeId)).actionGet();
+        }
+    }
+
+    private void assertSearchSlicesWithPointInTime(String sliceField, String sortField, String pointInTimeId, int numSlice, int numDocs) {
+        int totalResults = 0;
+        List<String> keys = new ArrayList<>();
+        for (int id = 0; id < numSlice; id++) {
+            int numSliceResults = 0;
+
+            SearchRequestBuilder request = client().prepareSearch("test")
+                .slice(new SliceBuilder(sliceField, id, numSlice))
+                .setPointInTime(new PointInTimeBuilder(pointInTimeId))
+                .addSort(SortBuilders.fieldSort(sortField))
+                .setSize(randomIntBetween(10, 100));
+
+            SearchResponse searchResponse = request.get();
+            int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value;
+
+            while (true) {
+                int numHits = searchResponse.getHits().getHits().length;
+                if (numHits == 0) {
+                    break;
+                }
+
+                totalResults += numHits;
+                numSliceResults += numHits;
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    assertTrue(keys.add(hit.getId()));
+                }
+
+                Object[] sortValues = searchResponse.getHits().getHits()[numHits - 1].getSortValues();
+                searchResponse = request.searchAfter(sortValues).get();
+            }
+            assertThat(numSliceResults, equalTo(expectedSliceResults));
+        }
+        assertThat(totalResults, equalTo(numDocs));
+        assertThat(keys.size(), equalTo(numDocs));
+        assertThat(new HashSet<>(keys).size(), equalTo(numDocs));
+    }
+
     public void testInvalidFields() throws Exception {
         setupIndex(0, 1);
         SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
@@ -193,40 +293,7 @@ public class SearchSliceIT extends ESIntegTestCase {
         Throwable rootCause = findRootCause(exc);
         assertThat(rootCause.getClass(), equalTo(SearchException.class));
         assertThat(rootCause.getMessage(),
-            equalTo("`slice` cannot be used outside of a scroll context"));
-    }
-
-    private void assertSearchSlicesWithScroll(SearchRequestBuilder request, String field, int numSlice, int numDocs) {
-        int totalResults = 0;
-        List<String> keys = new ArrayList<>();
-        for (int id = 0; id < numSlice; id++) {
-            SliceBuilder sliceBuilder = new SliceBuilder(field, id, numSlice);
-            SearchResponse searchResponse = request.slice(sliceBuilder).get();
-            totalResults += searchResponse.getHits().getHits().length;
-            int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value;
-            int numSliceResults = searchResponse.getHits().getHits().length;
-            String scrollId = searchResponse.getScrollId();
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
-                assertTrue(keys.add(hit.getId()));
-            }
-            while (searchResponse.getHits().getHits().length > 0) {
-                searchResponse = client().prepareSearchScroll("test")
-                    .setScrollId(scrollId)
-                    .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
-                    .get();
-                scrollId = searchResponse.getScrollId();
-                totalResults += searchResponse.getHits().getHits().length;
-                numSliceResults += searchResponse.getHits().getHits().length;
-                for (SearchHit hit : searchResponse.getHits().getHits()) {
-                    assertTrue(keys.add(hit.getId()));
-                }
-            }
-            assertThat(numSliceResults, equalTo(expectedSliceResults));
-            clearScroll(scrollId);
-        }
-        assertThat(totalResults, equalTo(numDocs));
-        assertThat(keys.size(), equalTo(numDocs));
-        assertThat(new HashSet(keys).size(), equalTo(numDocs));
+            equalTo("[slice] can only be used with [scroll] or [point-in-time] requests"));
     }
 
     private Throwable findRootCause(Exception e) {

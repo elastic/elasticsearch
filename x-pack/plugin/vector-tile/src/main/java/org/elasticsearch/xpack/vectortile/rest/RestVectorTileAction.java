@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * Main class handling a call to the _mvt API.
@@ -81,7 +82,7 @@ public class RestVectorTileAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "{index}/_mvt/{field}/{z}/{x}/{y}"));
+        return List.of(new Route(GET, "{index}/_mvt/{field}/{z}/{x}/{y}"), new Route(POST, "{index}/_mvt/{field}/{z}/{x}/{y}"));
     }
 
     @Override
@@ -259,11 +260,11 @@ public class RestVectorTileAction extends BaseRestHandler {
             // Add geometry
             if (request.getGridType() == VectorTileRequest.GRID_TYPE.GRID) {
                 final Rectangle r = GeoTileUtils.toBoundingBox(bucket.getKeyAsString());
-                geomBuilder.box(featureBuilder, r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat());
+                featureBuilder.mergeFrom(geomBuilder.box(r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat()));
             } else {
                 // TODO: it should be the centroid of the data?
                 final GeoPoint point = (GeoPoint) bucket.getKey();
-                geomBuilder.point(featureBuilder, point.lon(), point.lat());
+                featureBuilder.mergeFrom(geomBuilder.point(point.lon(), point.lat()));
             }
             // Add count as key value pair
             VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, COUNT_TAG, bucket.getDocCount());
@@ -288,10 +289,10 @@ public class RestVectorTileAction extends BaseRestHandler {
         if (bounds != null && bounds.topLeft() != null) {
             final GeoPoint topLeft = bounds.topLeft();
             final GeoPoint bottomRight = bounds.bottomRight();
-            geomBuilder.box(featureBuilder, topLeft.lon(), bottomRight.lon(), bottomRight.lat(), topLeft.lat());
+            featureBuilder.mergeFrom(geomBuilder.box(topLeft.lon(), bottomRight.lon(), bottomRight.lat(), topLeft.lat()));
         } else {
             final Rectangle tile = request.getBoundingBox();
-            geomBuilder.box(featureBuilder, tile.getMinLon(), tile.getMaxLon(), tile.getMinLat(), tile.getMaxLat());
+            featureBuilder.mergeFrom(geomBuilder.box(tile.getMinLon(), tile.getMaxLon(), tile.getMinLat(), tile.getMaxLat()));
         }
         VectorTileUtils.addToXContentToFeature(featureBuilder, layerProps, response);
         metaLayerBuilder.addFeatures(featureBuilder);

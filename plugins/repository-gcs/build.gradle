@@ -1,7 +1,4 @@
-import java.nio.file.Files
-import java.security.KeyPair
-import java.security.KeyPairGenerator
-import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.internal.test.rest.YamlRestTestPlugin
@@ -29,33 +26,35 @@ esplugin {
 }
 
 dependencies {
-  api 'com.google.cloud:google-cloud-storage:1.113.1'
-  api 'com.google.cloud:google-cloud-core:1.93.3'
-  runtimeOnly 'com.google.guava:guava:26.0-jre'
-  api 'com.google.http-client:google-http-client:1.35.0'
+  api 'com.google.cloud:google-cloud-storage:1.117.1'
+  api 'com.google.cloud:google-cloud-core:1.95.4'
+  api 'com.google.cloud:google-cloud-core-http:1.95.4'
+  runtimeOnly 'com.google.guava:guava:30.1.1-jre'
+  api 'com.google.guava:failureaccess:1.0.1'
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'com.google.api:api-common:1.8.1'
-  api 'com.google.api:gax:1.54.0'
-  api 'org.threeten:threetenbp:1.4.4'
-  api 'com.google.protobuf:protobuf-java-util:3.11.3'
-  api 'com.google.protobuf:protobuf-java:3.11.3'
-  api 'com.google.code.gson:gson:2.7'
-  api 'com.google.api.grpc:proto-google-common-protos:1.16.0'
-  api 'com.google.api.grpc:proto-google-iam-v1:0.12.0'
-  api 'com.google.cloud:google-cloud-core-http:1.93.3'
-  api 'com.google.auth:google-auth-library-credentials:0.20.0'
-  api 'com.google.auth:google-auth-library-oauth2-http:0.20.0'
-  api 'com.google.oauth-client:google-oauth-client:1.28.0'
-  api 'com.google.api-client:google-api-client:1.30.10'
-  api 'com.google.http-client:google-http-client-appengine:1.35.0'
-  api 'com.google.http-client:google-http-client-jackson2:1.35.0'
-  api 'com.google.api:gax-httpjson:0.62.0'
-  api 'io.grpc:grpc-context:1.29.0'
-  api 'io.opencensus:opencensus-api:0.18.0'
-  api 'io.opencensus:opencensus-contrib-http-util:0.18.0'
-  api 'com.google.apis:google-api-services-storage:v1-rev20200814-1.30.10'
+  api 'com.google.api:api-common:1.10.4'
+  api 'com.google.api:gax:1.66.0'
+  api 'org.threeten:threetenbp:1.5.1'
+  api 'com.google.protobuf:protobuf-java-util:3.17.3'
+  api 'com.google.protobuf:protobuf-java:3.17.3'
+  api 'com.google.code.gson:gson:2.8.7'
+  api 'com.google.api.grpc:proto-google-common-protos:2.3.2'
+  api 'com.google.api.grpc:proto-google-iam-v1:1.0.14'
+  api 'com.google.auth:google-auth-library-credentials:0.26.0'
+  api 'com.google.auth:google-auth-library-oauth2-http:0.26.0'
+  api 'com.google.oauth-client:google-oauth-client:1.31.5'
+  api 'com.google.api-client:google-api-client:1.32.1'
+  api 'com.google.http-client:google-http-client:1.39.2'
+  api 'com.google.http-client:google-http-client-gson:1.39.2'
+  api 'com.google.http-client:google-http-client-appengine:1.39.2'
+  api 'com.google.http-client:google-http-client-jackson2:1.39.2'
+  api 'com.google.api:gax-httpjson:0.83.0'
+  api 'io.grpc:grpc-context:1.39.0'
+  api 'io.opencensus:opencensus-api:0.28.0'
+  api 'io.opencensus:opencensus-contrib-http-util:0.28.0'
+  api 'com.google.apis:google-api-services-storage:v1-rev20210127-1.31.5'
 
   testImplementation project(':test:fixtures:gcs-fixture')
 }
@@ -112,6 +111,7 @@ tasks.named("thirdPartyAudit").configure {
   )
 
   ignoreMissingClasses(
+    'com.google.api.client.http.apache.v2.ApacheHttpTransport',
     'com.google.appengine.api.datastore.Blob',
     'com.google.appengine.api.datastore.DatastoreService',
     'com.google.appengine.api.datastore.DatastoreServiceFactory',
@@ -161,6 +161,8 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.http.client.methods.HttpPut',
     'org.apache.http.client.methods.HttpRequestBase',
     'org.apache.http.client.methods.HttpTrace',
+    'org.apache.http.config.Registry',
+    'org.apache.http.config.RegistryBuilder',
     'org.apache.http.config.SocketConfig',
     'org.apache.http.config.SocketConfig$Builder',
     'org.apache.http.conn.ClientConnectionManager',
@@ -172,6 +174,7 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.http.conn.scheme.PlainSocketFactory',
     'org.apache.http.conn.scheme.Scheme',
     'org.apache.http.conn.scheme.SchemeRegistry',
+    'org.apache.http.conn.socket.PlainConnectionSocketFactory',
     'org.apache.http.conn.ssl.SSLConnectionSocketFactory',
     'org.apache.http.conn.ssl.SSLSocketFactory',
     'org.apache.http.conn.ssl.X509HostnameVerifier',
@@ -259,7 +262,7 @@ Map<String, Object> expansions = [
 
 tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 tasks.named("internalClusterTest").configure {

@@ -2580,8 +2580,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             final String localNodeId = currentState.nodes().getLocalNodeId();
             final String repoName = deleteEntry.repository();
-            // Computing the new assignments can be quite costly, only do it once below if actually needed
-            ImmutableOpenMap<ShardId, ShardSnapshotStatus> shardAssignments = null;
             InFlightShardSnapshotStates inFlightShardStates = null;
             for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
                 if (entry.repository().equals(repoName)) {
@@ -2640,17 +2638,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 // No shards can be updated in this snapshot so we just add it as is again
                                 snapshotEntries.add(entry);
                             } else {
-                                if (shardAssignments == null) {
-                                    shardAssignments = shards(
-                                        snapshotsInProgress,
-                                        updatedDeletions,
-                                        currentState,
-                                        entry.indices().values(),
-                                        entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
-                                        repositoryData,
-                                        repoName
-                                    );
-                                }
+                                final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shardAssignments = shards(
+                                    snapshotsInProgress,
+                                    updatedDeletions,
+                                    currentState,
+                                    entry.indices().values(),
+                                    entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
+                                    repositoryData,
+                                    repoName
+                                );
                                 final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedAssignmentsBuilder = ImmutableOpenMap
                                     .builder(entry.shards());
                                 for (RepositoryShardId shardId : canBeUpdated) {

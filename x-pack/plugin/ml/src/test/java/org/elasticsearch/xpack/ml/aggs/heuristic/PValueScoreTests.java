@@ -78,6 +78,7 @@ public class PValueScoreTests extends AbstractNXYSignificanceHeuristicTestCase {
         assertThat(pValueScore.getScore(subsetCount, subsetCount, subsetCount, supersetCount), greaterThanOrEqualTo(700.0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75601")
     public void testLowPValueScore() {
         boolean backgroundIsSuperset = randomBoolean();
         long supersetCount = randomLongBetween(0L, Long.MAX_VALUE/2);

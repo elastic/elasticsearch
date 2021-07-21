@@ -709,11 +709,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             .orElse(Collections.emptyMap());
     }
 
-    @SuppressWarnings("unchecked")
     public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
         return Optional.ofNullable((NodesShutdownMetadata) this.custom(NodesShutdownMetadata.TYPE))
             .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .orElse(Collections.EMPTY_MAP);
+            .orElse(Collections.emptyMap());
     }
 
     public ImmutableOpenMap<String, Custom> customs() {

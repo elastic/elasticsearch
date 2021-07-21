@@ -44,12 +44,13 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         ensureGreen("test");
         indexRandomData();
 
-        final String nodeToRestart = findNodeWithShard();
-        Settings nodeToRestartDataPathSettings = internalCluster().dataPathSettings(nodeToRestart);
+        final String nodeToRestartId = findIdOfNodeWithShard();
+        final String nodeToRestartName = findNodeNameFromId(nodeToRestartId);
+        Settings nodeToRestartDataPathSettings = internalCluster().dataPathSettings(nodeToRestartName);
 
         // Mark the node for shutdown
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            nodeToRestart,
+            nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName()
         );
@@ -57,10 +58,12 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         assertTrue(putShutdownResponse.isAcknowledged());
 
         // Actually stop the node
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToRestart));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToRestartName));
 
         // Verify that the shard's allocation is delayed
-        assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
+        assertBusy(() -> {
+            assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
+        });
 
         // Bring the node back
         internalCluster().startNode(nodeToRestartDataPathSettings); // this will use the same data location as the stopped node
@@ -83,10 +86,15 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         indexRandom(true, builders);
     }
 
-    private String findNodeWithShard() {
+    private String findIdOfNodeWithShard() {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> startedShards = state.routingTable().shardsWithState(ShardRoutingState.STARTED);
         Collections.shuffle(startedShards,random());
-        return state.nodes().get(startedShards.get(0).currentNodeId()).getName();
+        return startedShards.get(0).currentNodeId();
+    }
+
+    private String findNodeNameFromId(String id) {
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        return state.nodes().get(id).getName();
     }
 }

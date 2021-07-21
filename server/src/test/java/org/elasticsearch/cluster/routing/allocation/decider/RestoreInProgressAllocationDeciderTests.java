@@ -108,9 +108,18 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             shardState = RestoreInProgress.State.FAILURE;
 
             UnassignedInfo currentInfo = primary.unassignedInfo();
-            UnassignedInfo newInfo = new UnassignedInfo(currentInfo.getReason(), currentInfo.getMessage(), new IOException("i/o failure"),
-                currentInfo.getNumFailedAllocations(), currentInfo.getUnassignedTimeInNanos(), currentInfo.getUnassignedTimeInMillis(),
-                currentInfo.isDelayed(), currentInfo.getLastAllocationStatus(), currentInfo.getFailedNodeIds());
+            UnassignedInfo newInfo = new UnassignedInfo(
+                currentInfo.getReason(),
+                currentInfo.getMessage(),
+                new IOException("i/o failure"),
+                currentInfo.getNumFailedAllocations(),
+                currentInfo.getUnassignedTimeInNanos(),
+                currentInfo.getUnassignedTimeInMillis(),
+                currentInfo.isDelayed(),
+                currentInfo.getLastAllocationStatus(),
+                currentInfo.getFailedNodeIds(),
+                currentInfo.getLastAllocatedNodeId()
+            );
             primary = primary.updateUnassigned(newInfo, primary.recoverySource());
 
             IndexRoutingTable indexRoutingTable = routingTable.index("test");

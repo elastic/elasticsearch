@@ -103,7 +103,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                             "existing allocation of replica to [" + currentNode + "] cancelled, can perform a noop recovery on ["+
                                 nodeWithHighestMatch + "]",
                             null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false,
-                            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodeIds);
+                            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodeIds, null);
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
                         shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo,
                             metadata.getIndexSafe(shard.index()), allocation.changes()));
@@ -213,7 +213,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 Metadata metadata = allocation.metadata();
                 IndexMetadata indexMetadata = metadata.index(unassignedShard.index());
                 totalDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).getMillis();
-                long remainingDelayNanos = unassignedInfo.getRemainingDelay(System.nanoTime(), indexMetadata.getSettings());
+                long remainingDelayNanos = unassignedInfo.getRemainingDelay(System.nanoTime(), unassignedShard, metadata);
                 remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
             }
             return AllocateUnassignedDecision.delayed(remainingDelayMillis, totalDelayMillis, nodeDecisions);

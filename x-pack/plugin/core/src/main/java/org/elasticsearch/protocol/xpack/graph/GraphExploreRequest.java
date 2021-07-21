@@ -94,6 +94,11 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         return indicesOptions;
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
     public GraphExploreRequest indicesOptions(IndicesOptions indicesOptions) {
         if (indicesOptions == null) {
             throw new IllegalArgumentException("IndicesOptions must not be null");

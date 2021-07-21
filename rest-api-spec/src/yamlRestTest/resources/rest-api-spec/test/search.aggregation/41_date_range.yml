@@ -1,7 +1,7 @@
 setup:
   - do:
       indices.create:
-          index: test
+          index: old_test
           body:
             settings:
               number_of_replicas: 0
@@ -19,19 +19,19 @@ setup:
 "Date range":
   - do:
       index:
-        index: test
+        index: old_test
         id: 1
         body: { "date" : 1000 }
 
   - do:
       index:
-        index: test
+        index: old_test
         id: 2
         body: { "date" : 2000 }
 
   - do:
       index:
-        index: test
+        index: old_test
         id: 3
         body: { "date" : 3000 }
 
@@ -78,31 +78,31 @@ setup:
 "Date Range Missing":
   - do:
       index:
-        index: test
+        index: old_test
         id: 1
         body: { "date" : "28800000000" }
 
   - do:
       index:
-        index: test
+        index: old_test
         id: 2
         body: { "date" : "315561600000" }
 
   - do:
       index:
-        index: test
+        index: old_test
         id: 3
         body: { "date" : "631180800000" }
 
   - do:
       index:
-        index: test
+        index: old_test
         id: 4
         body: { "date" : "10000" }
 
   - do:
         index:
-          index: test
+          index: old_test
           id: 5
           body: { "ip" : "192.168.0.1" }
 

@@ -430,6 +430,7 @@ public abstract class Rounding implements Writeable {
                  * probably doing something wrong here....
                  */
                 assert values[i - 1] == round(rounded - 1);
+
                 values = ArrayUtil.grow(values, i + 1);
                 values[i++]= rounded;
             }
@@ -515,6 +516,7 @@ public abstract class Rounding implements Writeable {
         }
 
         private TimeUnitPreparedRounding prepareOffsetOrJavaTimeRounding(long minUtcMillis, long maxUtcMillis) {
+//            long minLookup = minUtcMillis - 2*unit.extraLocalOffsetLookup();
             long minLookup = minUtcMillis - unit.extraLocalOffsetLookup();
             long maxLookup = maxUtcMillis;
 
@@ -533,7 +535,8 @@ public abstract class Rounding implements Writeable {
                 // Range too long, just use java.time
                 return prepareJavaTime();
             }
-            LocalTimeOffset fixedOffset = lookup.fixedInRange(minLookup, maxLookup);
+            long updatedMinUtcMillis = lookup.getMin(minUtcMillis);
+            LocalTimeOffset fixedOffset = lookup.fixedInRange(updatedMinUtcMillis, maxLookup);
             if (fixedOffset != null) {
                 // The time zone is effectively fixed
                 if (unitRoundsToMidnight) {

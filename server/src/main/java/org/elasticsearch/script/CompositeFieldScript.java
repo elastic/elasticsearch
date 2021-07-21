@@ -18,7 +18,7 @@ import java.util.Map;
 
 //TODO expose this context to the painless execute API
 public abstract class CompositeFieldScript extends AbstractFieldScript {
-    public static final ScriptContext<CompositeFieldScript.Factory> CONTEXT = newContext("object_field", Factory.class);
+    public static final ScriptContext<CompositeFieldScript.Factory> CONTEXT = newContext("composite_field", Factory.class);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

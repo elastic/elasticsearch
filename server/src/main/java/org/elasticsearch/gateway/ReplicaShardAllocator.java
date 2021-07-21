@@ -213,7 +213,11 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 Metadata metadata = allocation.metadata();
                 IndexMetadata indexMetadata = metadata.index(unassignedShard.index());
                 totalDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).getMillis();
-                long remainingDelayNanos = unassignedInfo.getRemainingDelay(System.nanoTime(), unassignedShard, metadata);
+                long remainingDelayNanos = unassignedInfo.getRemainingDelay(
+                    System.nanoTime(),
+                    indexMetadata.getSettings(),
+                    metadata.nodeShutdowns()
+                );
                 remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
             }
             return AllocateUnassignedDecision.delayed(remainingDelayMillis, totalDelayMillis, nodeDecisions);

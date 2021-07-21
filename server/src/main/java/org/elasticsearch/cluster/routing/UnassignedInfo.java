@@ -26,6 +26,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -33,6 +34,7 @@ import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -390,12 +392,16 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      *
      * @return calculated delay in nanoseconds
      */
-    // GWB-> NOCOMMIT don't need the full ShardRouting here
-    public long getRemainingDelay(final long nanoTimeNow, final ShardRouting routing, final Metadata metadata) {
-        long delayTimeoutNanos = Optional.ofNullable(metadata.nodeShutdowns().get(lastAllocatedNodeId))
+    public long getRemainingDelay(
+        final long nanoTimeNow,
+        final Settings indexSettings,
+        final Map<String, SingleNodeShutdownMetadata> nodeShutdowns
+    ) {
+        long delayTimeoutNanos = Optional.ofNullable(lastAllocatedNodeId)
+            .map(nodeShutdowns::get)
             .filter(shutdownMetadata -> SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownMetadata.getType()))
             .map(shutdownMetadata -> new TimeValue(10, TimeUnit.MINUTES).getNanos()) // GWB-> NOCOMMIT plumb in a setting here
-            .orElse(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(metadata.getIndexSafe(routing.index()).getSettings()).nanos());
+            .orElse(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexSettings).nanos());
         assert nanoTimeNow >= unassignedTimeNanos;
         return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
     }
@@ -427,7 +433,11 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             if (unassignedInfo.isDelayed()) {
                 Settings indexSettings = metadata.index(shard.index()).getSettings();
                 // calculate next time to schedule
-                final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(currentNanoTime, shard, metadata);
+                final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(
+                    currentNanoTime,
+                    indexSettings,
+                    metadata.nodeShutdowns()
+                );
                 if (newComputedLeftDelayNanos < nextDelayNanos) {
                     nextDelayNanos = newComputedLeftDelayNanos;
                 }

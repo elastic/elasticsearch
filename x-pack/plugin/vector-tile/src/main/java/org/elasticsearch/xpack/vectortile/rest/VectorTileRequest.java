@@ -141,6 +141,23 @@ class VectorTileRequest {
                 PARSER.parse(contentParser, request, restRequest);
             }
         }
+        // Following the same strategy of the _search API, some parameters can be defined in the body or as URL parameters.
+        // URL parameters takes precedence so we check them here.
+        if (restRequest.hasParam(SearchSourceBuilder.SIZE_FIELD.getPreferredName())) {
+            request.setSize(restRequest.paramAsInt(SearchSourceBuilder.SIZE_FIELD.getPreferredName(), Defaults.SIZE));
+        }
+        if (restRequest.hasParam(GRID_PRECISION_FIELD.getPreferredName())) {
+            request.setGridPrecision(restRequest.paramAsInt(GRID_PRECISION_FIELD.getPreferredName(), Defaults.GRID_PRECISION));
+        }
+        if (restRequest.hasParam(EXTENT_FIELD.getPreferredName())) {
+            request.setExtent(restRequest.paramAsInt(EXTENT_FIELD.getPreferredName(), Defaults.EXTENT));
+        }
+        if (restRequest.hasParam(GRID_TYPE_FIELD.getPreferredName())) {
+            request.setGridType(restRequest.param(GRID_TYPE_FIELD.getPreferredName(), Defaults.GRID_TYPE.name()));
+        }
+        if (restRequest.hasParam(EXACT_BOUNDS_FIELD.getPreferredName())) {
+            request.setExactBounds(restRequest.paramAsBoolean(EXACT_BOUNDS_FIELD.getPreferredName(), Defaults.EXACT_BOUNDS));
+        }
         return request;
     }
 

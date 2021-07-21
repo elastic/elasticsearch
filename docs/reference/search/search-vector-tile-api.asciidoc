@@ -190,11 +190,11 @@ tile with `wrap_longitude` set to `false`. The resulting bounding box may be
 larger than the vector tile.
 // end::exact-bounds[]
 
-// tag::extent[]
+// tag::extent-param[]
 `extent`::
 (Optional, integer) Size, in pixels, of a side of the tile. Vector tiles are
 square with equal sides. Defaults to `4096`.
-// end::extent[]
+// end::extent-param[]
 
 // tag::grid-precision[]
 `grid_precision`::
@@ -248,7 +248,7 @@ aggregation types:
 
 include::search-vector-tile-api.asciidoc[tag=exact-bounds]
 
-include::search-vector-tile-api.asciidoc[tag=extent]
+include::search-vector-tile-api.asciidoc[tag=extent-param]
 
 `fields`::
 (Optional, array of strings and objects) Fields to return in the `hits` layer.

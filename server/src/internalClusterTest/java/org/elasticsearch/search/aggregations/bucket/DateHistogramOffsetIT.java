@@ -77,7 +77,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .field("date")
                         .offset("2h")
                         .format(DATE_FORMAT)
-                        .dateHistogramInterval(DateHistogramInterval.DAY))
+                        .fixedInterval(DateHistogramInterval.DAY))
                 .get();
 
         assertThat(response.getHits().getTotalHits().value, equalTo(5L));
@@ -99,7 +99,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .field("date")
                         .offset("-2h")
                         .format(DATE_FORMAT)
-                        .dateHistogramInterval(DateHistogramInterval.DAY))
+                        .fixedInterval(DateHistogramInterval.DAY))
                 .get();
 
         assertThat(response.getHits().getTotalHits().value, equalTo(5L));
@@ -126,7 +126,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .offset("6h")
                         .minDocCount(0)
                         .format(DATE_FORMAT)
-                        .dateHistogramInterval(DateHistogramInterval.DAY))
+                        .fixedInterval(DateHistogramInterval.DAY))
                 .get();
 
         assertThat(response.getHits().getTotalHits().value, equalTo(24L));

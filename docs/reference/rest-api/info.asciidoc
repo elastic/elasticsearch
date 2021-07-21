@@ -142,10 +142,6 @@ Example response:
          "available" : true,
          "enabled" : true
       },
-      "vectors" : {
-         "available" : true,
-         "enabled" : true
-      },
       "voting_only" : {
          "available" : true,
          "enabled" : true

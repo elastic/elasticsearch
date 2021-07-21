@@ -71,3 +71,84 @@
         index: events
         body: { query: { match_all: {} } }
   - length:   { hits.hits: 2  }
+
+---
+"Create data stream alias with alias":
+  - skip:
+      version: " - 7.99.99"
+      reason: "data stream alias filter not yet backported to the 7.x branch"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ log-* ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+          data_stream: { }
+
+
+  - do:
+      index:
+        index: log-app1
+        refresh: true
+        body:
+          '@timestamp': '2022-12-12'
+          zone: 'a'
+
+  - do:
+      index:
+        index: log-app1
+        refresh: true
+        body:
+          '@timestamp': '2022-12-12'
+          zone: 'b'
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: log-app1
+                alias: app1-zone-a
+                filter:
+                  term:
+                    zone: 'a'
+            - add:
+                index: log-app1
+                alias: app1-zone-b
+                filter:
+                  term:
+                    zone: 'b'
+            - add:
+                index: log-app1
+                alias: app1
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: log-app1 }
+
+  - do:
+      indices.get_alias: {}
+  - match: {log-app1.aliases.app1: {}}
+  - match: {log-app1.aliases.app1-zone-a.filter.term.zone: 'a'}
+  - match: {log-app1.aliases.app1-zone-b.filter.term.zone: 'b'}
+
+  - do:
+      search:
+        index: app1
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: app1-zone-a
+  - length:   { hits.hits: 1  }
+  - do:
+      search:
+        index: app1-zone-b
+  - length:   { hits.hits: 1  }

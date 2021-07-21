@@ -1372,6 +1372,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         checkMsg.accept("SELECT i FROM (SELECT int i FROM test GROUP BY i) GROUP BY i");
         checkMsg.accept("SELECT c FROM (SELECT SUM(int) c FROM test) GROUP BY c HAVING COUNT(*) > 10");
         checkMsg.accept("SELECT COUNT(*) FROM (SELECT int i FROM test GROUP BY i)");
+        checkMsg.accept("SELECT a.i, COUNT(a.c) FROM (SELECT int i, COUNT(int) c FROM test GROUP BY int) a GROUP BY c");
     }
 
     private String randomTopHitsFunction() {

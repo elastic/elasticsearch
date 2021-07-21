@@ -11,7 +11,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 
 /**
- * Abstract test case for testing significant term heuristics
+ * Abstract test case for testing NXY significant term heuristics
  */
 public abstract class AbstractNXYSignificanceHeuristicTestCase extends AbstractSignificanceHeuristicTestCase {
 
@@ -24,8 +24,9 @@ public abstract class AbstractNXYSignificanceHeuristicTestCase extends AbstractS
     }
 
     /**
-     * @param includeNegatives value for this test run
-     * @param backgroundIsSuperset value for this test run
+     * @param includeNegatives value for this test run, should the scores include negative values.
+     * @param backgroundIsSuperset value for this test run, indicates in NXY significant terms if the background is indeed
+     *                             a superset of the the subset, or is instead a disjoint set
      * @return  A random instance of an NXY heuristic to test
      */
     protected abstract SignificanceHeuristic getHeuristic(boolean includeNegatives, boolean backgroundIsSuperset);

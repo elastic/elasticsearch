@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.Scroll;
@@ -30,6 +31,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchRequestTests extends AbstractSearchTestCase {
@@ -194,6 +196,33 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             } else {
                 assertNull(validationErrors);
             }
+        }
+        // Rescore window
+        {
+            SearchRequest request = createSearchRequest();
+            request.scroll((Scroll) null);
+            request.source(new SearchSourceBuilder());
+
+            request.source().from(0);
+            request.source().size(randomIntBetween(100, 1000));
+            if (randomBoolean()) {
+                request.source().addRescorer(new QueryRescorerBuilder(new MatchQueryBuilder("f", "v")));
+            }
+            assertNull("it's ok as [from] is zero", request.validate());
+
+            request.source().clearRescorers();
+            request.source().addRescorer(new QueryRescorerBuilder(new MatchQueryBuilder("f", "v")));
+            request.source().from(randomIntBetween(1, 100));
+            ActionRequestValidationException error = request.validate();
+            assertThat(error.getMessage(), containsString("requesting documents exceeds the default rescore window: " +
+                "from=" + request.source().from() + ", size=" + request.source().size() + ", rescore window=10"));
+
+            request.source().clearRescorers();
+            int rescoreWindow = randomIntBetween(10, 70);
+            request.source().addRescorer(new QueryRescorerBuilder(new MatchQueryBuilder("f", "v")).windowSize(rescoreWindow));
+            error = request.validate();
+            assertThat(error.getMessage(), containsString("requesting documents exceeds the rescore window: " +
+                "from=" + request.source().from() + ", size=" + request.source().size() + ", rescore window=" + rescoreWindow));
         }
     }
 

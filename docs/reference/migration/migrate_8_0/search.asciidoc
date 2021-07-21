@@ -186,3 +186,17 @@ been removed in 8.0.0. This parameter is a no-op and has no effect on the query.
 Discontinue use of the `type` parameter. `geo_bounding_box` queries that include
 this parameter will return an error.
 ====
+
+
+.The sum of the parameters `from` and `size` can't exceed the window size of any rescorer.
+[%collapsible]
+====
+*Details* +
+A search request with a positive `from` and the sum of `from` and `size` that
+exceeds the window size of rescorers can return inconsistent results. We now reject
+such a request.
+
+*Impact* +
+Use `search_after` instead or increase the window size of rescorers, which, however,
+can slow down a search request.
+====

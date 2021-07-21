@@ -25,6 +25,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
@@ -300,6 +301,22 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (source != null) {
             if (source.aggregations() != null) {
                 validationException = source.aggregations().validate(validationException);
+            }
+            if (source.from() > 0 && source.rescores() != null) {
+                for (RescorerBuilder<?> rescore : source.rescores()) {
+                    final int requestingDocs = source.from() + source.size();
+                    if (rescore.windowSize() != null && requestingDocs > rescore.windowSize()) {
+                        validationException = addValidationError("requesting documents exceeds the rescore window: " +
+                                "from=" + source.from() + ", size=" + source.size() +
+                                ", rescore window=" + rescore.windowSize(),
+                            validationException);
+                    } else if (rescore.windowSize() == null && requestingDocs > RescorerBuilder.DEFAULT_WINDOW_SIZE) {
+                        validationException = addValidationError("requesting documents exceeds the default rescore window: " +
+                                "from=" + source.from() + ", size=" + source.size() +
+                                ", rescore window=" + RescorerBuilder.DEFAULT_WINDOW_SIZE,
+                            validationException);
+                    }
+                }
             }
         }
         if (pointInTimeBuilder() != null) {

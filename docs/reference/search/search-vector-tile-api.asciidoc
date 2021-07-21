@@ -173,9 +173,9 @@ The API returns errors as UTF-8 encoded JSON.
 [[search-vector-tile-api-query-params]]
 ==== {api-query-parms-title}
 
-IMPORTANT: You can specify several options for this API using a query parameter
-or request body parameter. If both parameters are specified, the query parameter
-takes precedence.
+IMPORTANT: You can specify several options for this API as either a query
+parameter or request body parameter. If you specify both parameters, the query
+parameter takes precedence.
 
 // tag::exact-bounds[]
 `exact_bounds`::
@@ -211,7 +211,7 @@ For example, a value of `8` divides the tile into a grid of 256 x 256 cells. The
 `aggs` layer only contains features for cells with matching data.
 // end::grid-precision[]
 
-// tag::grid-precision[]
+// tag::grid-type[]
 `grid_type`::
 (Optional, string) Determines feature geometry for the `aggs` layer. In the
 `aggs` layer, each feature represents a `geotile_grid` cell. Accepts:
@@ -221,7 +221,7 @@ Each feature is a `Polygon` of the cell's bounding box.
 
 `point`:::
 Each feature is a `Point` that's the centroid of the cell.
-// end::grid-precision[]
+// end::grid-type[]
 
 // tag::size[]
 `size`::

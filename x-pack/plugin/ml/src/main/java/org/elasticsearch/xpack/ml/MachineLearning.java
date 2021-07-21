@@ -230,6 +230,7 @@ import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
+import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
 import org.elasticsearch.xpack.ml.aggs.kstest.BucketCountKSTestAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
@@ -1128,6 +1129,13 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             InferencePipelineAggregationBuilder.buildSpec(modelLoadingService, getLicenseState()),
             BucketCorrelationAggregationBuilder.buildSpec(),
             BucketCountKSTestAggregationBuilder.buildSpec()
+        );
+    }
+
+    @Override
+    public List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
+        return Arrays.asList(
+            new SignificanceHeuristicSpec<>(PValueScore.NAME, PValueScore::new, PValueScore.PARSER)
         );
     }
 

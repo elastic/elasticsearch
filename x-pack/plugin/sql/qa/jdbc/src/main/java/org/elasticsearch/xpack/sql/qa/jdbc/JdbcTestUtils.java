@@ -26,7 +26,7 @@ import java.util.GregorianCalendar;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import static org.elasticsearch.Version.V_7_14_0;
+import static org.elasticsearch.Version.V_7_15_0;
 
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
@@ -154,7 +154,7 @@ final class JdbcTestUtils {
     }
 
     public static boolean isUnsignedLongSupported() {
-        // TODO: add equality only once actually ported to 7.14
-        return V_7_14_0.compareTo(JDBC_DRIVER_VERSION) < 0;
+        // TODO: add equality only once actually ported to 7.15
+        return V_7_15_0.compareTo(JDBC_DRIVER_VERSION) < 0;
     }
 }

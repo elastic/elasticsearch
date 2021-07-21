@@ -786,7 +786,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
 
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
-        long randomDate = randomNonNegativeLong();
+        long randomDate = randomMillisUpToYear9999();
 
         index("test", "1", builder -> {
             builder.field("test_keyword", randomString);

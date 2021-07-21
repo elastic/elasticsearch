@@ -19,7 +19,7 @@ import java.util.Objects;
  * An exception indicating that a failure occurred performing an operation on the shard.
  *
  */
-public abstract class ShardOperationFailedException implements Writeable, ToXContentObject {
+public abstract class ShardOperationFailedException extends Exception implements Writeable, ToXContentObject {
 
     protected String index;
     protected int shardId = -1;

@@ -84,7 +84,7 @@ fi
 
 export HOSTNAME=$HOSTNAME
 
-${source.path.env}
+@source.path.env@
 
 if [ -z "$ES_PATH_CONF" ]; then
   echo "ES_PATH_CONF must be set to the configuration path"
@@ -94,9 +94,9 @@ fi
 # now make ES_PATH_CONF absolute
 ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 
-ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
-ES_DISTRIBUTION_TYPE=${es.distribution.type}
-ES_BUNDLED_JDK=${es.bundled_jdk}
+ES_DISTRIBUTION_FLAVOR=@es.distribution.flavor@
+ES_DISTRIBUTION_TYPE=@es.distribution.type@
+ES_BUNDLED_JDK=@es.bundled_jdk@
 
 if [[ "$ES_BUNDLED_JDK" == "false" ]]; then
   echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
@@ -111,7 +111,7 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
 
   # Parse Docker env vars to customize Elasticsearch
   #
-  # e.g. Setting the env var cluster.name=testcluster
+  # e.g. Setting the env var cluster.name=testcluster or ES_CLUSTER_NAME=testcluster
   #
   # will cause Elasticsearch to be invoked with -Ecluster.name=testcluster
   #
@@ -122,11 +122,35 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
   while IFS='=' read -r envvar_key envvar_value
   do
     # Elasticsearch settings need to have at least two dot separated lowercase
-    # words, e.g. `cluster.name`
-    if [[ "$envvar_key" =~ ^[a-z0-9_]+\.[a-z0-9_]+ ]]; then
-      if [[ ! -z $envvar_value ]]; then
+    # words, e.g. `cluster.name`, or uppercased with underscore separators and
+    # prefixed with `ES_`, e.g. `ES_CLUSTER_NAME`. Underscores in setting names
+    # are escaped by writing them as a double-underscore e.g. "__"
+    if [[ ! -z "$envvar_value" ]]; then
+      if [[ "$envvar_key" =~ ^[a-z0-9_]+\.[a-z0-9_]+ ]]; then
         es_opt="-E${envvar_key}=${envvar_value}"
         es_arg_array+=("${es_opt}")
+      elif [[ "$envvar_key" =~ ^ES(_{1,2}[A-Z]+)+$ ]]; then
+        case "$envvar_key" in
+          # Do nothing for these. Not all of these are actually exported into the environment by our scripts,
+          # and so don't appear in the output of the `env` command, but it's better to be safe than sorry
+          # in case a user exported them in their own shell for some reason.
+          ES_DISTRIBUTION_FLAVOR) ;;
+          ES_DISTRIBUTION_TYPE) ;;
+          ES_HOME) ;;
+          ES_JAVA_HOME) ;;
+          ES_JAVA_OPTS) ;;
+          ES_KEYSTORE_PASSPHRASE_FILE) ;;
+          ES_LOG_STYLE) ;;
+          ES_PATH_CONF) ;;
+          ES_SD_NOTIFY) ;;
+          ES_TMPDIR) ;;
+          *)
+            # The long-hand sed `y` command works in any sed variant.
+            envvar_key="$(echo "$envvar_key" | sed -e 's/^ES_//; s/_/./g ; s/\.\./_/g; y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/' )"
+            es_opt="-E${envvar_key}=${envvar_value}"
+            es_arg_array+=("${es_opt}")
+            ;;
+        esac
       fi
     fi
   done <<< "$(env)"

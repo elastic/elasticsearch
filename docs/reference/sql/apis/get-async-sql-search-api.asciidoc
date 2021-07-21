@@ -1,0 +1,64 @@
+[role="xpack"]
+[testenv="basic"]
+[[get-async-sql-search-api]]
+=== Get async SQL search API
+++++
+<titleabbrev>Get async SQL search</titleabbrev>
+++++
+
+Returns results for an <<sql-async,async SQL search>> or a
+<<sql-store-searches,stored synchronous SQL search>>.
+
+[source,console]
+----
+GET _sql/async/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxOTI=?format=json
+----
+// TEST[skip: no access to search ID]
+
+[[get-async-sql-search-api-request]]
+==== {api-request-title}
+
+`GET _sql/async/<search_id>`
+
+[[get-async-sql-search-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, only the user who first submitted
+the SQL search can retrieve the search using this API.
+
+[[get-async-sql-search-api-limitations]]
+===== Limitations
+
+See <<sql-limitations>>.
+
+[[get-async-sql-search-api-path-params]]
+==== {api-path-parms-title}
+
+`<search_id>`::
+(Required, string) Identifier for the search.
+
+[[get-async-sql-search-api-query-params]]
+==== {api-query-parms-title}
+
+`delimiter`::
+(Optional, string) Separator for CSV results. Defaults to `,`. The API only
+supports this parameter for CSV responses.
+
+`format`::
+(Required, string) Format for the response. You must specify a format using this
+parameter or the `Accept` HTTP header. If you specify both, the API uses this
+parameter. For valid values, see <<sql-rest-format>>.
+
+`keep_alive`::
+(Optional, <<time-units,time value>>) Retention period for the search and its
+results. Defaults to the `keep_alive` period for the original SQL search.
+
+`wait_for_completion_timeout`::
+(Optional, <<time-units,time value>>) Period to wait for complete results.
+Defaults to no timeout, meaning the request waits for complete search results.
+
+[[get-async-sql-search-api-response-body]]
+==== {api-response-body-title}
+
+The get async SQL search API returns the same response body as the
+<<sql-search-api-response-body,SQL search API>>.

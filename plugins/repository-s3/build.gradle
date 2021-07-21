@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.internal.test.rest.YamlRestTestPlugin
@@ -153,10 +153,10 @@ tasks.named("processYamlRestTestResources").configure {
     'ec2_base_path'           : s3EC2BasePath,
     'ecs_bucket'              : s3ECSBucket,
     'ecs_base_path'           : s3ECSBasePath,
-    'disable_chunked_encoding': s3DisableChunkedEncoding,
+    'disable_chunked_encoding': s3DisableChunkedEncoding
   ]
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
 tasks.named("internalClusterTest").configure {

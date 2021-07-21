@@ -19,7 +19,8 @@
         {
           "path": "/{index}/_mvt/{field}/{zoom}/{x}/{y}",
           "methods": [
-            "GET"
+            "GET",
+            "POST"
           ],
           "parts": {
             "index": {
@@ -45,6 +46,41 @@
           }
         }
       ]
+    },
+    "params":{
+      "exact_bounds":{
+        "type":"boolean",
+        "description":"If `false`, the `meta` layer's feature is the bounding box of the tile. If `true`, the `meta` layer's feature is a bounding box resulting from a geo_bounds` aggregation. If `true`, the resulting bounding box may be larger than the vector tile.",
+        "default":false
+      },
+      "extent":{
+        "type":"number",
+        "description":"Size, in pixels, of a side of the tile. Vector tiles are square with equal sides.",
+        "default":4096
+      },
+      "grid_precision":{
+        "type":"number",
+        "description":"Additional zoom levels available through the `aggs` layer. Accepts `0`-`8`.",
+        "default":8
+      },
+      "grid_type":{
+        "type":"enum",
+        "options":[
+          "grid",
+          "point"
+        ],
+        "description":"Determines feature geometry for the `aggs` layer.",
+        "default":"grid"
+      },
+      "size":{
+        "type":"number",
+        "description":"Maximum number of features to return in the `hits` layer. Accepts `0`-`10000`.",
+        "default":10000
+      }
+    },
+    "body":{
+      "description":"Search request body.",
+      "required":false
     }
   }
 }

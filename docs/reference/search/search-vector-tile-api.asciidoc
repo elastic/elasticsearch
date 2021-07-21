@@ -41,6 +41,8 @@ GET my-index/_mvt/my-geo-field/15/5271/12710
 
 `GET <target>/_mvt/<field>/<zoom>/<x>/<y>`
 
+`POST <target>/_mvt/<field>/<zoom>/<x>/<y>`
+
 [[search-vector-tile-api-prereqs]]
 ==== {api-prereq-title}
 
@@ -168,6 +170,66 @@ if a polygon feature has no area at its zoom level, the API omits it.
 
 The API returns errors as UTF-8 encoded JSON.
 
+[[search-vector-tile-api-query-params]]
+==== {api-query-parms-title}
+
+IMPORTANT: You can specify several options for this API using a query parameter
+or request body parameter. If both parameters are specified, the query parameter
+takes precedence.
+
+// tag::exact-bounds[]
+`exact_bounds`::
+(Optional, Boolean)
+If `false`, the `meta` layer's feature is the bounding box of the tile. Defaults
+to `false`.
++
+If `true`, the `meta` layer's feature is a bounding box resulting from a
+<<search-aggregations-metrics-geobounds-aggregation,`geo_bounds`>> aggregation.
+The aggregation runs on `<field>` values that intersect the `<zoom>/<x>/<y>`
+tile with `wrap_longitude` set to `false`. The resulting bounding box may be
+larger than the vector tile.
+// end::exact-bounds[]
+
+// tag::extent[]
+`extent`::
+(Optional, integer) Size, in pixels, of a side of the tile. Vector tiles are
+square with equal sides. Defaults to `4096`.
+// end::extent[]
+
+// tag::grid-precision[]
+`grid_precision`::
+(Optional, integer) Additional zoom levels available through the `aggs` layer.
+For example, if `<zoom>` is `7` and `grid_precision` is `8`, you can zoom in up to
+level 15. Accepts `0`-`8`. Defaults to `8`. If `0`, results don't include the
+`aggs` layer.
++
+This value determines the grid size of the `geotile_grid` as follows:
++
+`(2^grid_precision) x (2^grid_precision)`
++
+For example, a value of `8` divides the tile into a grid of 256 x 256 cells. The
+`aggs` layer only contains features for cells with matching data.
+// end::grid-precision[]
+
+// tag::grid-precision[]
+`grid_type`::
+(Optional, string) Determines feature geometry for the `aggs` layer. In the
+`aggs` layer, each feature represents a `geotile_grid` cell. Accepts:
+
+`grid` (Default):::
+Each feature is a `Polygon` of the cell's bounding box.
+
+`point`:::
+Each feature is a `Point` that's the centroid of the cell.
+// end::grid-precision[]
+
+// tag::size[]
+`size`::
+(Optional, integer) Maximum number of features to return in the `hits` layer.
+Accepts `0`-`10000`. Defaults to `10000`. If `0`, results don't include the
+`hits` layer.
+// end::size[]
+
 [role="child_attributes"]
 [[search-vector-tile-api-request-body]]
 ==== {api-request-body-title}
@@ -183,20 +245,9 @@ aggregation types:
 * <<search-aggregations-metrics-min-aggregation,`min`>>
 * <<search-aggregations-metrics-sum-aggregation,`sum`>>
 
-`exact_bounds`::
-(Optional, Boolean)
-If `false`, the `meta` layer's feature is the bounding box of the tile. Defaults
-to `false`.
-+
-If `true`, the `meta` layer's feature is a bounding box resulting from a
-<<search-aggregations-metrics-geobounds-aggregation,`geo_bounds`>> aggregation.
-The aggregation runs on `<field>` values that intersect the `<zoom>/<x>/<y>`
-tile with `wrap_longitude` set to `false`. The resulting bounding box may be
-larger than the vector tile.
+include::search-vector-tile-api.asciidoc[tag=exact-bounds]
 
-`extent`::
-(Optional, integer) Size, in pixels, of a side of the tile. Vector tiles are
-square with equal sides. Defaults to `4096`.
+include::search-vector-tile-api.asciidoc[tag=extent]
 
 `fields`::
 (Optional, array of strings and objects) Fields to return in the `hits` layer.
@@ -223,28 +274,9 @@ http://www.geojson.org[GeoJSON] (the default) or `wkt` for
 Other field data types do not support this parameter.
 ====
 
-`grid_precision`::
-(Optional, integer) Additional zoom levels available through the `aggs` layer.
-For example, if `<zoom>` is `7` and `grid_precision` is `8`, you can zoom in up to
-level 15. Accepts `0`-`8`. Defaults to `8`. If `0`, results don't include the
-`aggs` layer.
-+
-This value determines the grid size of the `geotile_grid` as follows:
-+
-`(2^grid_precision) x (2^grid_precision)`
-+
-For example, a value of `8` divides the tile into a grid of 256 x 256 cells. The
-`aggs` layer only contains features for cells with matching data.
+include::search-vector-tile-api.asciidoc[tag=grid-precision]
 
-`grid_type`::
-(Optional, string) Determines feature geometry for the `aggs` layer. In the
-`aggs` layer, each feature represents a `geotile_grid` cell. Accepts:
-
-`grid` (Default):::
-Each feature is a `Polygon` of the cell's bounding box.
-
-`point`:::
-Each feature is a `Point` that's the centroid of the cell.
+include::search-vector-tile-api.asciidoc[tag=grid-type]
 
 `query`::
 (Optional, object) <<query-dsl,Query DSL>> used to filter documents for the
@@ -252,10 +284,7 @@ search.
 
 include::{es-repo-dir}/search/search.asciidoc[tag=runtime-mappings-def]
 
-`size`::
-(Optional, integer) Maximum number of features to return in the `hits` layer.
-Accepts `0`-`10000`. Defaults to `10000`. If `0`, results don't include the
-`hits` layer.
+include::search-vector-tile-api.asciidoc[tag=size]
 
 `sort`::
 (Optional, array of <<sort-search-results,sort objects>>) Sorts features in the

@@ -214,15 +214,26 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             request.source().addRescorer(new QueryRescorerBuilder(new MatchQueryBuilder("f", "v")));
             request.source().from(randomIntBetween(1, 100));
             ActionRequestValidationException error = request.validate();
-            assertThat(error.getMessage(), containsString("requesting documents exceeds the default rescore window: " +
+            assertThat(error.getMessage(), containsString("pagination exceeds the default rescore window: " +
                 "from=" + request.source().from() + ", size=" + request.source().size() + ", rescore window=10"));
 
             request.source().clearRescorers();
             int rescoreWindow = randomIntBetween(10, 70);
             request.source().addRescorer(new QueryRescorerBuilder(new MatchQueryBuilder("f", "v")).windowSize(rescoreWindow));
             error = request.validate();
-            assertThat(error.getMessage(), containsString("requesting documents exceeds the rescore window: " +
+            assertThat(error.getMessage(), containsString("pagination exceeds the rescore window: " +
                 "from=" + request.source().from() + ", size=" + request.source().size() + ", rescore window=" + rescoreWindow));
+        }
+
+        // Rescore with search after
+        {
+            SearchRequest request = createSearchRequest();
+            request.scroll((Scroll) null);
+            request.source(new SearchSourceBuilder());
+            request.source().searchAfter(new Integer[] {1, 2});
+            request.source().addRescorer(new QueryRescorerBuilder(new MatchQueryBuilder("f", "v")));
+            assertThat(request.validate().getMessage(), containsString("[rescore] can't be with [search_after]"));
+
         }
     }
 

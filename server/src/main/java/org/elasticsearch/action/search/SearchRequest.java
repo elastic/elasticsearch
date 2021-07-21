@@ -302,19 +302,24 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             if (source.aggregations() != null) {
                 validationException = source.aggregations().validate(validationException);
             }
-            if (source.from() > 0 && source.rescores() != null) {
-                for (RescorerBuilder<?> rescore : source.rescores()) {
-                    final int requestingDocs = source.from() + source.size();
-                    if (rescore.windowSize() != null && requestingDocs > rescore.windowSize()) {
-                        validationException = addValidationError("requesting documents exceeds the rescore window: " +
-                                "from=" + source.from() + ", size=" + source.size() +
-                                ", rescore window=" + rescore.windowSize(),
-                            validationException);
-                    } else if (rescore.windowSize() == null && requestingDocs > RescorerBuilder.DEFAULT_WINDOW_SIZE) {
-                        validationException = addValidationError("requesting documents exceeds the default rescore window: " +
-                                "from=" + source.from() + ", size=" + source.size() +
-                                ", rescore window=" + RescorerBuilder.DEFAULT_WINDOW_SIZE,
-                            validationException);
+            if (source.rescores() != null) {
+                if (source.searchAfter() != null) {
+                    validationException = addValidationError("[rescore] can't be with [search_after]", validationException);
+                }
+                if (source.from() > 0) {
+                    for (RescorerBuilder<?> rescore : source.rescores()) {
+                        final int requestingDocs = source.from() + source.size();
+                        if (rescore.windowSize() != null && requestingDocs > rescore.windowSize()) {
+                            validationException = addValidationError("pagination exceeds the rescore window: " +
+                                    "from=" + source.from() + ", size=" + source.size() +
+                                    ", rescore window=" + rescore.windowSize(),
+                                validationException);
+                        } else if (rescore.windowSize() == null && requestingDocs > RescorerBuilder.DEFAULT_WINDOW_SIZE) {
+                            validationException = addValidationError("pagination exceeds the default rescore window: " +
+                                    "from=" + source.from() + ", size=" + source.size() +
+                                    ", rescore window=" + RescorerBuilder.DEFAULT_WINDOW_SIZE,
+                                validationException);
+                        }
                     }
                 }
             }

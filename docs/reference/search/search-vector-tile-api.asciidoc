@@ -213,8 +213,9 @@ For example, a value of `8` divides the tile into a grid of 256 x 256 cells. The
 
 // tag::grid-type[]
 `grid_type`::
-(Optional, string) Determines feature geometry for the `aggs` layer. In the
-`aggs` layer, each feature represents a `geotile_grid` cell. Accepts:
+(Optional, string) Determines the geometry type for features in the `aggs`
+layer. In the `aggs` layer, each feature represents a `geotile_grid` cell.
+Accepts:
 
 `grid` (Default):::
 Each feature is a `Polygon` of the cell's bounding box.

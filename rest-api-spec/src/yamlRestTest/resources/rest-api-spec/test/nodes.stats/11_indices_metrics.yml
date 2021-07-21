@@ -300,7 +300,8 @@
       nodes.stats: { metric: http }
 
   - is_true:  nodes.$node_id
-  - gte: { nodes.$node_id.http.current_open: 1 }
+  # in rare test scenarios, the value of current_open can be zero
+  - gte: { nodes.$node_id.http.current_open: 0 }
   - gte: { nodes.$node_id.http.total_opened: 1 }
   - is_true:  nodes.$node_id.http.clients
   - gte: { nodes.$node_id.http.clients.0.id: 1 }

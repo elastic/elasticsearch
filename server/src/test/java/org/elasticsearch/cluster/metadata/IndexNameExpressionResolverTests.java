@@ -1796,24 +1796,21 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index(dataStreamName);
-            IndexNotFoundException iae = expectThrows(IndexNotFoundException.class,
-                () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
-            assertEquals("no such index [" + dataStreamName + "]", iae.getMessage());
+            assertThat(indexNameExpressionResolver.concreteIndexNames(state, aliasActions),
+                arrayContaining(backingIndexEqualTo(dataStreamName, 1)));
         }
 
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index("my-data-*").alias("my-data");
-            IndexNotFoundException iae = expectThrows(IndexNotFoundException.class,
-                () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
-            assertEquals("no such index [my-data-*]", iae.getMessage());
+            assertThat(indexNameExpressionResolver.concreteIndexNames(state, aliasActions),
+                arrayContaining(backingIndexEqualTo(dataStreamName, 1)));
         }
 
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index(dataStreamName)
                 .alias("my-data");
-            IndexNotFoundException iae = expectThrows(IndexNotFoundException.class,
-                () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
-            assertEquals("no such index [" + dataStreamName + "]", iae.getMessage());
+            assertThat(indexNameExpressionResolver.concreteIndexNames(state, aliasActions),
+                arrayContaining(backingIndexEqualTo(dataStreamName, 1)));
         }
     }
 

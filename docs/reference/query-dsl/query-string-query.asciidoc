@@ -77,9 +77,9 @@ documents.
 For mappings with a large number of fields, searching across all eligible fields
 could be expensive.
 
-There is a limit on the number of fields that can be queried at once.
+There is a limit on the number of fields times terms that can be queried at once.
 It is defined by the `indices.query.bool.max_clause_count`
-<<search-settings,search setting>>, which defaults to 1024.
+<<search-settings,search setting>>, which defaults to 4096.
 ====
 --
 

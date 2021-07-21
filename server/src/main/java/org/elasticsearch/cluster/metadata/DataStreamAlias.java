@@ -108,7 +108,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
         this.name = in.readString();
         this.dataStreams = in.readStringList();
         this.writeDataStream = in.readOptionalString();
-        this.filter = in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean() ? CompressedXContent.readCompressedString(in) : null;
+        this.filter = in.getVersion().onOrAfter(Version.V_7_15_0) && in.readBoolean() ? CompressedXContent.readCompressedString(in) : null;
     }
 
     /**
@@ -297,7 +297,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
         out.writeString(name);
         out.writeStringCollection(dataStreams);
         out.writeOptionalString(writeDataStream);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
             if (filter != null) {
                 out.writeBoolean(true);
                 filter.writeTo(out);

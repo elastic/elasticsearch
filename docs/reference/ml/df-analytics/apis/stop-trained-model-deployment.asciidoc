@@ -26,7 +26,7 @@
 == {api-path-parms-title}
 
 `<model_id>`::
-(Optional, string)
+(Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 ////

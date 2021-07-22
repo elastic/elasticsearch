@@ -177,7 +177,7 @@ public final class SSLConfiguration {
             return TrustAllConfig.INSTANCE;
         } else if (caPaths != null) {
             return new PEMTrustConfig(caPaths);
-        } else if (trustStorePath != null || trustStoreType.equalsIgnoreCase("pkcs11")) {
+        } else if (trustStorePath != null) {
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
             SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings);
             return new StoreTrustConfig(trustStorePath, trustStoreType, trustStorePassword, trustStoreAlgorithm);

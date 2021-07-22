@@ -76,7 +76,12 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         Map<String, AliasMetadata> aliases = new HashMap<>(aliasCount);
         for (int k = 0; k < aliasCount; k++) {
             final String aliasName = randomAlphaOfLength(6);
-            aliases.put(aliasName, AliasMetadata.newAliasMetadataBuilder(aliasName).build());
+            var builder = AliasMetadata.newAliasMetadataBuilder(aliasName);
+            if (randomBoolean()) {
+                builder.filter(Map.of("term", Map.of("user", Map.of("value", randomAlphaOfLength(5)))));
+            }
+            builder.writeIndex(randomBoolean());
+            aliases.put(aliasName, builder.build());
         }
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
             .indexPatterns(List.of(dataStreamName + "*"))
@@ -95,6 +100,15 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isHidden(), is(false));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isReplicated(), is(false));
         assertThat(newState.metadata().dataStreamAliases().size(), is(aliasCount));
+        for (String aliasName : aliases.keySet()) {
+            var expectedAlias = aliases.get(aliasName);
+            var actualAlias = newState.metadata().dataStreamAliases().get(aliasName);
+            assertThat(actualAlias, is(notNullValue()));
+            assertThat(actualAlias.getName(), equalTo(expectedAlias.alias()));
+            assertThat(actualAlias.getFilter(), equalTo(expectedAlias.filter()));
+            assertThat(actualAlias.getWriteDataStream(), equalTo(expectedAlias.writeIndex() ? dataStreamName : null));
+        }
+
         assertThat(newState.metadata().dataStreamAliases().values().stream().map(DataStreamAlias::getName).toArray(),
             arrayContainingInAnyOrder (new ArrayList<>(aliases.keySet()).toArray()));
         assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());

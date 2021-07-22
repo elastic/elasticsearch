@@ -35,6 +35,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -218,15 +219,22 @@ public class MetadataCreateDataStreamService {
         DataStream newDataStream = new DataStream(dataStreamName, timestampField, dsBackingIndices, 1L,
             template.metadata() != null ? Map.copyOf(template.metadata()) : null, hidden, false, isSystem);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
-        logger.info("adding data stream [{}] with write index [{}] and backing indices [{}]", dataStreamName,
-            writeIndex.getIndex().getName(),
-            Strings.arrayToCommaDelimitedString(backingIndices.stream().map(i -> i.getIndex().getName()).toArray()));
 
+        List<String> aliases = new ArrayList<>();
         if (template.template() != null && template.template().aliases() != null) {
             for (var alias : template.template().aliases().values()) {
+                aliases.add(alias.getAlias());
                 builder.put(alias.getAlias(), dataStreamName, alias.writeIndex(), alias.filter() == null ? null : alias.filter().string());
             }
         }
+
+        logger.info(
+            "adding data stream [{}] with write index [{}], backing indices [{}], and aliases [{}]",
+            dataStreamName,
+            writeIndex.getIndex().getName(),
+            Strings.arrayToCommaDelimitedString(backingIndices.stream().map(i -> i.getIndex().getName()).toArray()),
+            Strings.collectionToCommaDelimitedString(aliases)
+        );
 
         return ClusterState.builder(currentState).metadata(builder).build();
     }

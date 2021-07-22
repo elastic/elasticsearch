@@ -73,7 +73,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
  */
 public class Fleet extends Plugin implements SystemIndexPlugin {
 
-    private static final int CURRENT_INDEX_VERSION = 7;
+    private static final int CURRENT_INDEX_VERSION = 8;
     private static final String VERSION_KEY = "version";
     private static final String MAPPING_VERSION_VARIABLE = "fleet.version";
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet");

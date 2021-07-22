@@ -66,32 +66,39 @@ public class PValueScoreTests extends AbstractNXYSignificanceHeuristicTestCase {
         assertThat(pValueScore.getScore(subsetCount, subsetCount, supersetCount, supersetCount), equalTo(0.0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75601")
     public void testHighPValueScore() {
         boolean backgroundIsSuperset = randomBoolean();
+        // supersetFreqCount needs to at less than 20% ratio
         long supersetCount = randomLongBetween(0L, Long.MAX_VALUE/2);
-        long subsetCount = randomLongBetween(0L, supersetCount);
+        long supersetFreqCount = randomLongBetween(0L, (long)(supersetCount/5.0));
+        // subsetFreqCount needs to be at least 25% ratio
+        long subsetCount = randomLongBetween((long)(supersetCount/4.0), supersetCount);
+        long subsetFreqCount = randomLongBetween((long)(subsetCount/4.0), subsetCount);
         if (backgroundIsSuperset) {
             supersetCount += subsetCount;
+            supersetFreqCount += subsetFreqCount;
         }
 
         PValueScore pValueScore = new PValueScore(backgroundIsSuperset);
-        assertThat(pValueScore.getScore(subsetCount, subsetCount, subsetCount, supersetCount), greaterThanOrEqualTo(700.0));
+        assertThat(pValueScore.getScore(subsetFreqCount, subsetCount, supersetFreqCount, supersetCount), greaterThanOrEqualTo(700.0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75601")
     public void testLowPValueScore() {
         boolean backgroundIsSuperset = randomBoolean();
+        // supersetFreqCount needs to at least be 20% ratio
         long supersetCount = randomLongBetween(0L, Long.MAX_VALUE/2);
-        long subsetCount = randomLongBetween(0L, supersetCount);
-        long subsetFreqCount = randomLongBetween(0L, subsetCount/5);
+        long supersetFreqCount = randomLongBetween((long)(supersetCount/5.0), supersetCount);
+        // subsetFreqCount needs to be less than 16% ratio
+        long subsetCount = randomLongBetween((long)(supersetCount/5.0), supersetCount);
+        long subsetFreqCount = randomLongBetween(0L, (long)(subsetCount/6.0));
         if (backgroundIsSuperset) {
             supersetCount += subsetCount;
+            supersetFreqCount += subsetFreqCount;
         }
 
         PValueScore pValueScore = new PValueScore(backgroundIsSuperset);
         assertThat(
-            pValueScore.getScore(subsetFreqCount, subsetCount, subsetCount, supersetCount),
+            pValueScore.getScore(subsetFreqCount, subsetCount, supersetFreqCount, supersetCount),
             allOf(lessThanOrEqualTo(5.0), greaterThanOrEqualTo(0.0))
         );
     }

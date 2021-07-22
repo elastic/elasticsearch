@@ -257,7 +257,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         PinnedQueryBuilder pqb = new PinnedQueryBuilder(
             QueryBuilders.queryStringQuery("foo"),
             new Item("test2", "a"),
-            new Item(null, "a"),
+            new Item("test1", "a"),
             new Item("test1", "b")
         );
 

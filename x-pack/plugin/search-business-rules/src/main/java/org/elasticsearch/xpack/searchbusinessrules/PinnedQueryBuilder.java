@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -85,7 +84,10 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
          * @param index the index where the document is located
          * @param id and its id
          */
-        public Item(@Nullable String index, String id) {
+        public Item(String index, String id) {
+            if (index == null) {
+                throw new IllegalArgumentException("Item requires index to be non-null");
+            }
             if (id == null) {
                 throw new IllegalArgumentException("Item requires id to be non-null");
             }
@@ -93,38 +95,41 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
             this.id = id;
         }
 
+        private Item(String id) {
+            this.index = null;
+            this.id = id;
+        }
+
         /**
          * Read from a stream.
          */
         Item(StreamInput in) throws IOException {
-            index = in.readOptionalString();
+            index = in.readString();
             id = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(index);
+            out.writeString(index);
             out.writeString(id);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (this.index != null) {
-                builder.field(INDEX_FIELD.getPreferredName(), this.index);
-            }
+            builder.field(INDEX_FIELD.getPreferredName(), this.index);
             builder.field(ID_FIELD.getPreferredName(), this.id);
             return builder.endObject();
         }
 
         private static final ConstructingObjectParser<Item, Void> PARSER = new ConstructingObjectParser<>(
             NAME,
-            a -> new Item((String) a[1], (String) a[0])
+            a -> new Item((String) a[0], (String) a[1])
         );
 
         static {
+            PARSER.declareString(constructorArg(), INDEX_FIELD);
             PARSER.declareString(constructorArg(), ID_FIELD);
-            PARSER.declareString(optionalConstructorArg(), INDEX_FIELD);
         }
 
         @Override
@@ -344,7 +349,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         if (idField == null) {
             return new MatchNoDocsQuery("No mappings");
         }
-        List<Item> items = (docs != null) ? docs : ids.stream().map(id -> new Item(null, id)).collect(Collectors.toList());
+        List<Item> items = (docs != null) ? docs : ids.stream().map(id -> new Item(id)).collect(Collectors.toList());
         if (items.isEmpty()) {
             return new CappedScoreQuery(organicQuery.toQuery(context), MAX_ORGANIC_SCORE);
         } else {

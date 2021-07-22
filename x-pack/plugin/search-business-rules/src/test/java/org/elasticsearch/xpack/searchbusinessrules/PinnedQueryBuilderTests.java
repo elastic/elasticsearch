@@ -96,7 +96,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         }
 
     private Item[] generateRandomItems() {
-        return randomArray(1, 100, Item[]::new, () -> new Item(randomBoolean() ? randomAlphaOfLength(64) : null, randomAlphaOfLength(256)));
+        return randomArray(1, 100, Item[]::new, () -> new Item(randomAlphaOfLength(64), randomAlphaOfLength(256)));
     }
 
     @Override
@@ -127,17 +127,17 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new PinnedQueryBuilder(null, new Item(null, "1"))
+            () -> new PinnedQueryBuilder(null, new Item("test", "1"))
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), new Item(null, "1"), null, new Item(null, "2"))
+            () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), new Item("test", "1"), null, new Item("test", "2"))
         );
         String[] bigIdList = new String[PinnedQueryBuilder.MAX_NUM_PINNED_HITS + 1];
         Item[] bigItemList = new Item[PinnedQueryBuilder.MAX_NUM_PINNED_HITS + 1];
         for (int i = 0; i < bigIdList.length; i++) {
             bigIdList[i] = String.valueOf(i);
-            bigItemList[i] = new Item(null, String.valueOf(i));
+            bigItemList[i] = new Item("test", String.valueOf(i));
         }
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), bigIdList));
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), bigItemList));
@@ -188,7 +188,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                 "      }" +
                 "    }" +
                 "  }, "+
-                "  \"docs\" : [{ \"_id\": \"1\" }, { \"_index\": \"three\", \"_id\": \"2\" }]," +
+                "  \"docs\" : [{ \"_index\": \"test\", \"_id\": \"1\" }, { \"_index\": \"test\", \"_id\": \"2\" }]," +
                 "  \"boost\":1.0 "+
                 "}" +
               "}";
@@ -220,7 +220,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     public void testDocsRewrite() throws IOException {
-        PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("foo", 1), new Item(null, "1"));
+        PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("foo", 1), new Item("test", "1"));
         QueryBuilder rewritten = pinnedQueryBuilder.rewrite(createSearchExecutionContext());
         assertThat(rewritten, instanceOf(PinnedQueryBuilder.class));
     }

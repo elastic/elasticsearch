@@ -66,7 +66,6 @@ public class IndexMetadataTests extends ESTestCase {
         Integer numShard = randomFrom(1, 2, 4, 8, 16);
         int numberOfReplicas = randomIntBetween(0, 10);
         final boolean system = randomBoolean();
-        final boolean dataStreamIndex = randomBoolean();
         Map<String, String> customMap = new HashMap<>();
         customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
         customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
@@ -80,7 +79,6 @@ public class IndexMetadataTests extends ESTestCase {
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
             .system(system)
-            .dataStreamIndex(dataStreamIndex)
             .putCustom("my_custom", customMap)
             .putRolloverInfo(
                 new RolloverInfo(randomAlphaOfLength(5),
@@ -92,7 +90,6 @@ public class IndexMetadataTests extends ESTestCase {
                     ),
                     randomNonNegativeLong())).build();
         assertEquals(system, metadata.isSystem());
-        assertEquals(dataStreamIndex, metadata.isDataStreamIndex());
 
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -112,7 +109,6 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metadata.primaryTerm(0), fromXContentMeta.primaryTerm(0));
         assertEquals(metadata.isSystem(), fromXContentMeta.isSystem());
-        assertEquals(metadata.isDataStreamIndex(), fromXContentMeta.isDataStreamIndex());
         ImmutableOpenMap.Builder<String, DiffableStringMap> expectedCustomBuilder = ImmutableOpenMap.builder();
         expectedCustomBuilder.put("my_custom", new DiffableStringMap(customMap));
         ImmutableOpenMap<String, DiffableStringMap> expectedCustom = expectedCustomBuilder.build();
@@ -137,7 +133,6 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(deserialized.getCustomData(), expectedCustom);
             assertEquals(metadata.getCustomData(),  deserialized.getCustomData());
             assertEquals(metadata.isSystem(), deserialized.isSystem());
-            assertEquals(metadata.isDataStreamIndex(), deserialized.isDataStreamIndex());
         }
     }
 

@@ -57,7 +57,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
                 config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier(), null);
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
         }
 
         @Override

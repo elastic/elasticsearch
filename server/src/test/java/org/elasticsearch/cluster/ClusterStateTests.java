@@ -249,8 +249,7 @@ public class ClusterStateTests extends ESTestCase {
             "        \"system\" : false,\n" +
             "        \"timestamp_range\" : {\n" +
             "          \"shards\" : [ ]\n" +
-            "        },\n" +
-            "        \"datastream_index\" : false\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -449,8 +448,7 @@ public class ClusterStateTests extends ESTestCase {
             "        \"system\" : false,\n" +
             "        \"timestamp_range\" : {\n" +
             "          \"shards\" : [ ]\n" +
-            "        },\n" +
-            "        \"datastream_index\" : false\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -656,8 +654,7 @@ public class ClusterStateTests extends ESTestCase {
             "        \"system\" : false,\n" +
             "        \"timestamp_range\" : {\n" +
             "          \"shards\" : [ ]\n" +
-            "        },\n" +
-            "        \"datastream_index\" : false\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -787,8 +784,7 @@ public class ClusterStateTests extends ESTestCase {
             "        \"system\" : false,\n" +
             "        \"timestamp_range\" : {\n" +
             "          \"shards\" : [ ]\n" +
-            "        },\n" +
-            "        \"datastream_index\" : false\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +

@@ -339,13 +339,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_ROLLOVER_INFOS = "rollover_info";
     static final String KEY_SYSTEM = "system";
     static final String KEY_TIMESTAMP_RANGE = "timestamp_range";
-    static final String KEY_DATASTREAM_INDEX = "datastream_index";
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
     static final Version SYSTEM_INDEX_FLAG_ADDED = Version.V_7_10_0;
-    static final Version DATASTREAM_INDEX_FLAG_ADDED = Version.CURRENT; //TODO: correct to 7.15
 
     private final int routingNumShards;
     private final int routingFactor;
@@ -389,7 +387,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final ActiveShardCount waitForActiveShards;
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
-    private final boolean isDataStreamIndex;
 
     private final IndexLongFieldRange timestampRange;
 
@@ -418,8 +415,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final ActiveShardCount waitForActiveShards,
             final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
             final boolean isSystem,
-            final IndexLongFieldRange timestampRange,
-            final boolean isDataStreamIndex) {
+            final IndexLongFieldRange timestampRange) {
 
         this.index = index;
         this.version = version;
@@ -452,7 +448,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
         this.timestampRange = timestampRange;
-        this.isDataStreamIndex = isDataStreamIndex;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -679,9 +674,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (isSystem != that.isSystem) {
             return false;
         }
-        if (isDataStreamIndex != that.isDataStreamIndex) {
-            return false;
-        }
         return true;
     }
 
@@ -700,7 +692,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         result = 31 * result + inSyncAllocationIds.hashCode();
         result = 31 * result + rolloverInfos.hashCode();
         result = 31 * result + Boolean.hashCode(isSystem);
-        result = 31 * result + Boolean.hashCode(isDataStreamIndex);
         return result;
     }
 
@@ -742,7 +733,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Diff<ImmutableOpenMap<String, RolloverInfo>> rolloverInfos;
         private final boolean isSystem;
         private final IndexLongFieldRange timestampRange;
-        private final boolean isDataStreamIndex;
 
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
@@ -761,7 +751,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiffableUtils.getVIntKeySerializer(), DiffableUtils.StringSetValueSerializer.getInstance());
             rolloverInfos = DiffableUtils.diff(before.rolloverInfos, after.rolloverInfos, DiffableUtils.getStringKeySerializer());
             isSystem = after.isSystem;
-            isDataStreamIndex = after.isDataStreamIndex;
             timestampRange = after.timestampRange;
         }
 
@@ -801,11 +790,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 isSystem = false;
             }
             timestampRange = IndexLongFieldRange.readFrom(in);
-            if (in.getVersion().onOrAfter(DATASTREAM_INDEX_FLAG_ADDED)) {
-                isDataStreamIndex = in.readBoolean();
-            } else {
-                isDataStreamIndex = false;
-            }
         }
 
         @Override
@@ -830,9 +814,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 out.writeBoolean(isSystem);
             }
             timestampRange.writeTo(out);
-            if (out.getVersion().onOrAfter(DATASTREAM_INDEX_FLAG_ADDED)) {
-                out.writeBoolean(isDataStreamIndex);
-            }
         }
 
         @Override
@@ -852,7 +833,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
-            builder.dataStreamIndex(isDataStreamIndex);
             builder.timestampRange(timestampRange);
             return builder.build();
         }
@@ -900,9 +880,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.system(in.readBoolean());
         }
         builder.timestampRange(IndexLongFieldRange.readFrom(in));
-        if (in.getVersion().onOrAfter(DATASTREAM_INDEX_FLAG_ADDED)) {
-            builder.dataStreamIndex(in.readBoolean());
-        }
         return builder.build();
     }
 
@@ -945,17 +922,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeBoolean(isSystem);
         }
         timestampRange.writeTo(out);
-        if (out.getVersion().onOrAfter(DATASTREAM_INDEX_FLAG_ADDED)) {
-            out.writeBoolean(isDataStreamIndex);
-        }
     }
 
     public boolean isSystem() {
         return isSystem;
-    }
-
-    public boolean isDataStreamIndex() {
-        return isDataStreamIndex;
     }
 
     public static Builder builder(String index) {
@@ -984,7 +954,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private Integer routingNumShards;
         private boolean isSystem;
         private IndexLongFieldRange timestampRange = IndexLongFieldRange.NO_SHARDS;
-        private boolean isDataStreamIndex;
 
         public Builder(String index) {
             this.index = index;
@@ -994,7 +963,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.inSyncAllocationIds = ImmutableOpenIntMap.builder();
             this.rolloverInfos = ImmutableOpenMap.builder();
             this.isSystem = false;
-            this.isDataStreamIndex = false;
         }
 
         public Builder(IndexMetadata indexMetadata) {
@@ -1014,7 +982,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.rolloverInfos = ImmutableOpenMap.builder(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
             this.timestampRange = indexMetadata.timestampRange;
-            this.isDataStreamIndex = indexMetadata.isDataStreamIndex;
         }
 
         public Builder index(String index) {
@@ -1236,16 +1203,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return timestampRange;
         }
 
-        // Sets if this index is a part of a datastream
-        public Builder dataStreamIndex(boolean isDataStreamIndex) {
-            this.isDataStreamIndex = isDataStreamIndex;
-            return this;
-        }
-
-        public boolean isDataStreamIndex() {
-            return isDataStreamIndex;
-        }
-
         public IndexMetadata build() {
             ImmutableOpenMap.Builder<String, AliasMetadata> tmpAliases = aliases;
             Settings tmpSettings = settings;
@@ -1350,8 +1307,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     waitForActiveShards,
                     rolloverInfos.build(),
                     isSystem,
-                    timestampRange,
-                    isDataStreamIndex);
+                timestampRange);
         }
 
         public static void toXContent(IndexMetadata indexMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -1452,10 +1408,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             builder.endObject();
             builder.field(KEY_SYSTEM, indexMetadata.isSystem);
+
             builder.startObject(KEY_TIMESTAMP_RANGE);
             indexMetadata.timestampRange.toXContent(builder, params);
             builder.endObject();
-            builder.field(KEY_DATASTREAM_INDEX, indexMetadata.isDataStreamIndex);
+
             builder.endObject();
         }
 
@@ -1579,8 +1536,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         builder.setRoutingNumShards(parser.intValue());
                     } else if (KEY_SYSTEM.equals(currentFieldName)) {
                         builder.system(parser.booleanValue());
-                    } else if (KEY_DATASTREAM_INDEX.equals(currentFieldName)) {
-                        builder.dataStreamIndex(parser.booleanValue());
                     } else {
                         throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }

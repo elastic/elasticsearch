@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -29,6 +30,10 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class AggregationConfigTests extends AbstractSerializingTransformTestCase<AggregationConfig> {
 
@@ -94,7 +99,9 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             AggregationConfig aggregationConfig = AggregationConfig.fromXContent(parser, true);
-            assertFalse(aggregationConfig.isValid());
+            ValidationException validationException = aggregationConfig.validate(null);
+            assertThat(validationException, is(notNullValue()));
+            assertThat(validationException.getMessage(), containsString("pivot.aggregations must not be null"));
         }
 
         // strict throws
@@ -114,7 +121,9 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             AggregationConfig aggregationConfig = AggregationConfig.fromXContent(parser, true);
-            assertFalse(aggregationConfig.isValid());
+            ValidationException validationException = aggregationConfig.validate(null);
+            assertThat(validationException, is(notNullValue()));
+            assertThat(validationException.getMessage(), containsString("pivot.aggregations must not be null"));
         }
 
         // strict throws
@@ -127,7 +136,7 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
         String source = "{\"dep_agg\": {\"" + MockDeprecatedAggregationBuilder.NAME + "\" : {}}}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             AggregationConfig agg = AggregationConfig.fromXContent(parser, false);
-            assertTrue(agg.isValid());
+            assertNull(agg.validate(null));
             assertWarnings(MockDeprecatedAggregationBuilder.DEPRECATION_MESSAGE);
         }
     }

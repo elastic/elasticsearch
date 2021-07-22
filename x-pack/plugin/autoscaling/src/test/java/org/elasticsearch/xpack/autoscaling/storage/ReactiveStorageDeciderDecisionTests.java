@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderTests;
 import org.elasticsearch.xpack.core.DataTier;
 import org.junit.Before;
 
@@ -96,10 +95,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
     );
 
-    private static final DataTierAllocationDecider DATA_TIER_ALLOCATION_DECIDER = new DataTierAllocationDecider(
-        Settings.EMPTY,
-        new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS)
-    );
+    private static final DataTierAllocationDecider DATA_TIER_ALLOCATION_DECIDER = new DataTierAllocationDecider();
 
     private ClusterState state;
     private final int hotNodes = randomIntBetween(1, 8);
@@ -293,8 +289,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     private IndexMetadata moveToCold(IndexMetadata imd) {
         Settings.Builder builder = Settings.builder().put(imd.getSettings());
-        overrideSetting(imd, builder, DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING, DataTier.DATA_COLD);
-        overrideSetting(imd, builder, DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING, DataTier.DATA_COLD);
         overrideSetting(
             imd,
             builder,
@@ -391,7 +385,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     private static void verifyScale(ClusterState state, long expectedDifference, String reason, AllocationDecider... allocationDeciders) {
         ReactiveStorageDeciderService decider = new ReactiveStorageDeciderService(
             Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             createAllocationDeciders(allocationDeciders)
         );
         TestAutoscalingDeciderContext context = createContext(state, Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
@@ -430,16 +424,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static AllocationDeciders createAllocationDeciders(AllocationDecider... extraDeciders) {
-        Set<Setting<?>> allSettings = Stream.concat(
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
-            Stream.of(
-                DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING,
-                DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING,
-                DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING
-            )
-        ).collect(Collectors.toSet());
-
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, allSettings);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         Collection<AllocationDecider> systemAllocationDeciders = ClusterModule.createAllocationDeciders(
             Settings.builder()
                 .put(
@@ -451,11 +436,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             Collections.emptyList()
         );
         return new AllocationDeciders(
-            Stream.of(
-                Stream.of(extraDeciders),
-                Stream.of(new DataTierAllocationDecider(Settings.EMPTY, clusterSettings)),
-                systemAllocationDeciders.stream()
-            ).flatMap(s -> s).collect(Collectors.toList())
+            Stream.of(Stream.of(extraDeciders), Stream.of(new DataTierAllocationDecider()), systemAllocationDeciders.stream())
+                .flatMap(s -> s)
+                .collect(Collectors.toList())
         );
     }
 
@@ -610,10 +593,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static ClusterState addRandomIndices(int minShards, int maxShardCopies, ClusterState state) {
-        String[] tierSettingNames = new String[] {
-            DataTierAllocationDecider.INDEX_ROUTING_REQUIRE,
-            DataTierAllocationDecider.INDEX_ROUTING_INCLUDE,
-            DataTierAllocationDecider.INDEX_ROUTING_PREFER };
+        String[] tierSettingNames = new String[] { DataTierAllocationDecider.INDEX_ROUTING_PREFER };
         int shards = randomIntBetween(minShards, 20);
         Metadata.Builder builder = Metadata.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();

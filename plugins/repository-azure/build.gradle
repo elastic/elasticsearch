@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
@@ -210,15 +210,6 @@ tasks.named("thirdPartyAudit").configure {
     // from io.netty.handler.codec.compression.LzmaFrameEncoder (netty-codec)
     'lzma.sdk.lzma.Encoder',
 
-    // from io.netty.handler.codec.compression.Lz4FrameDecoder (netty-codec)
-    'net.jpountz.lz4.LZ4Compressor',
-    'net.jpountz.lz4.LZ4Factory',
-    'net.jpountz.lz4.LZ4FastDecompressor',
-
-    // from io.netty.handler.codec.compression.Lz4XXHash32 (netty-codec)
-    'net.jpountz.xxhash.XXHash32',
-    'net.jpountz.xxhash.XXHashFactory',
-
     // from io.netty.handler.ssl.JettyAlpnSslEngin (netty-handler optional dependency)
     'org.eclipse.jetty.alpn.ALPN$ClientProvider',
     'org.eclipse.jetty.alpn.ALPN$ServerProvider',
@@ -240,6 +231,8 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.internal.tcnative.CertificateVerifier',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
+    'io.netty.internal.tcnative.SSLSession',
+    'io.netty.internal.tcnative.SSLSessionCache',
 
     // from io.netty.util.internal.Hidden (netty-common optional dependency)
     'reactor.blockhound.BlockHound$Builder',
@@ -331,14 +324,14 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
   testFixtures.useFixture ':test:fixtures:azure-fixture', 'azure-fixture'
 }
 
-Map<String, Object> expansions = [
+Map<String, String> expansions = [
   'container': azureContainer,
   'base_path': azureBasePath + "_integration_tests"
 ]
 
 tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 tasks.named("internalClusterTest").configure {

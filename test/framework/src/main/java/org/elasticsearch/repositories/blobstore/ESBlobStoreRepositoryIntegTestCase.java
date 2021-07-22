@@ -25,7 +25,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -346,7 +346,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).get());
 
         expectThrows(SnapshotMissingException.class, () ->
-            client().admin().cluster().prepareGetSnapshots(repoName).setSnapshots(snapshotName).get().getSnapshots(repoName));
+            client().admin().cluster().prepareGetSnapshots(repoName).setSnapshots(snapshotName).execute().actionGet());
 
         expectThrows(SnapshotMissingException.class, () ->
             client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).get());

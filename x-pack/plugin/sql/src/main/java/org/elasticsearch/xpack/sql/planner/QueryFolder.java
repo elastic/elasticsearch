@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.execution.search.AggRef;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Alias;

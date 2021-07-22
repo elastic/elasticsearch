@@ -44,17 +44,6 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
     }
 
     @Override
-    public void testSelectFromEmptyIndex() throws Exception {
-        // Create an index without any types
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity("{}");
-        client().performRequest(request);
-
-        assertFoundOneProblem(command("SELECT * FROM test"));
-        assertEquals("line 1:8: Cannot determine columns for [*]" + END, readLine());
-    }
-
-    @Override
     public void testSelectColumnFromEmptyIndex() throws Exception {
         Request request = new Request("PUT", "/test");
         request.setJsonEntity("{}");

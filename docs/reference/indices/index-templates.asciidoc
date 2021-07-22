@@ -34,9 +34,6 @@ template with the highest priority is used.
 [[avoid-index-pattern-collisions]]
 .Avoid index pattern collisions
 ****
-// tag::built-in-index-templates[]
-[IMPORTANT]
-====
 {es} has built-in index templates, each with a priority of `100`, for the
 following index patterns:
 
@@ -65,8 +62,6 @@ For example, if you don't use {fleet} or {agent} and want to create a template
 for the `logs-*` index pattern, assign your template a priority of `500`. This
 ensures your template is applied instead of the built-in template for
 `logs-*-*`.
-====
-// end::built-in-index-templates[]
 ****
 
 [discrete]

@@ -36,15 +36,16 @@ public final class CompositeServiceAccountTokenStore implements ServiceAccountTo
     }
 
     @Override
-    public void authenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
+    public void authenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
         // TODO: optimize store order based on auth result?
-        final IteratingActionListener<Boolean, ServiceAccountTokenStore> authenticatingListener = new IteratingActionListener<>(
-            listener,
-            (store, successListener) -> store.authenticate(token, successListener),
-            stores,
-            threadContext,
-            Function.identity(),
-            success -> Boolean.FALSE == success);
+        final IteratingActionListener<StoreAuthenticationResult, ServiceAccountTokenStore> authenticatingListener =
+            new IteratingActionListener<>(
+                listener,
+                (store, successListener) -> store.authenticate(token, successListener),
+                stores,
+                threadContext,
+                Function.identity(),
+                storeAuthenticationResult -> false == storeAuthenticationResult.isSuccess());
         try {
             authenticatingListener.run();
         } catch (Exception e) {

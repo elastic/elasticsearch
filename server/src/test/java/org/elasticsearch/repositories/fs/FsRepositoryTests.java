@@ -47,8 +47,8 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -82,13 +82,19 @@ public class FsRepositoryTests extends ESTestCase {
                 .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .put("location", repo)
                 .put("compress", randomBoolean())
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES).build();
+                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                .build();
 
             int numDocs = indexDocs(directory);
             RepositoryMetadata metadata = new RepositoryMetadata("test", "fs", settings);
-            FsRepository repository = new FsRepository(metadata, new Environment(settings, null), NamedXContentRegistry.EMPTY,
-                BlobStoreTestUtil.mockClusterService(), MockBigArrays.NON_RECYCLING_INSTANCE, new RecoverySettings(settings,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+            FsRepository repository = new FsRepository(
+                metadata,
+                new Environment(settings, null),
+                NamedXContentRegistry.EMPTY,
+                BlobStoreTestUtil.mockClusterService(),
+                MockBigArrays.NON_RECYCLING_INSTANCE,
+                new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+            );
             repository.start();
             final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, "myindexUUID").build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("myindex", indexSettings);
@@ -101,9 +107,20 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<ShardSnapshotResult> future1 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-                repository.snapshotShard(new SnapshotShardContext(store, null, snapshotId, indexId,
-                    new Engine.IndexCommitRef(indexCommit, () -> {}), null, snapshotStatus, Version.CURRENT, Collections.emptyMap(),
-                    future1));
+                repository.snapshotShard(
+                    new SnapshotShardContext(
+                        store,
+                        null,
+                        snapshotId,
+                        indexId,
+                        new Engine.IndexCommitRef(indexCommit, () -> {}),
+                        null,
+                        snapshotStatus,
+                        Version.CURRENT,
+                        Collections.emptyMap(),
+                        future1
+                    )
+                );
                 future1.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
@@ -112,9 +129,12 @@ public class FsRepositoryTests extends ESTestCase {
             Lucene.cleanLuceneIndex(directory);
             expectThrows(org.apache.lucene.index.IndexNotFoundException.class, () -> Lucene.readSegmentInfos(directory));
             DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-            ShardRouting routing = ShardRouting.newUnassigned(shardId, true, new RecoverySource.SnapshotRecoverySource("test",
-                    new Snapshot("foo", snapshotId), Version.CURRENT, indexId),
-                new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, ""));
+            ShardRouting routing = ShardRouting.newUnassigned(
+                shardId,
+                true,
+                new RecoverySource.SnapshotRecoverySource("test", new Snapshot("foo", snapshotId), Version.CURRENT, indexId),
+                new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, "")
+            );
             routing = ShardRoutingHelper.initialize(routing, localNode.getId(), 0);
             RecoveryState state = new RecoveryState(routing, localNode, null);
             final PlainActionFuture<Void> futureA = PlainActionFuture.newFuture();
@@ -131,9 +151,20 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<ShardSnapshotResult> future2 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-                repository.snapshotShard(new SnapshotShardContext(store, null, incSnapshotId, indexId,
-                    new Engine.IndexCommitRef(incIndexCommit, () -> {}), null, snapshotStatus, Version.CURRENT,
-                    Collections.emptyMap(), future2));
+                repository.snapshotShard(
+                    new SnapshotShardContext(
+                        store,
+                        null,
+                        incSnapshotId,
+                        indexId,
+                        new Engine.IndexCommitRef(incIndexCommit, () -> {}),
+                        null,
+                        snapshotStatus,
+                        Version.CURRENT,
+                        Collections.emptyMap(),
+                        future2
+                    )
+                );
                 future2.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(2, copy.getIncrementalFileCount());
@@ -142,20 +173,26 @@ public class FsRepositoryTests extends ESTestCase {
 
             // roll back to the first snap and then incrementally restore
             RecoveryState firstState = new RecoveryState(routing, localNode, null);
-            final PlainActionFuture<Void> futureB =  PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> futureB = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> repository.restoreShard(store, snapshotId, indexId, shardId, firstState, futureB));
             futureB.actionGet();
-            assertEquals("should reuse everything except of .liv and .si",
-                commitFileNames.size()-2, firstState.getIndex().reusedFileCount());
+            assertEquals(
+                "should reuse everything except of .liv and .si",
+                commitFileNames.size() - 2,
+                firstState.getIndex().reusedFileCount()
+            );
 
             RecoveryState secondState = new RecoveryState(routing, localNode, null);
             final PlainActionFuture<Void> futureC = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> repository.restoreShard(store, incSnapshotId, indexId, shardId, secondState, futureC));
             futureC.actionGet();
-            assertEquals(secondState.getIndex().reusedFileCount(), commitFileNames.size()-2);
+            assertEquals(secondState.getIndex().reusedFileCount(), commitFileNames.size() - 2);
             assertEquals(secondState.getIndex().recoveredFileCount(), 2);
-            List<RecoveryState.FileDetail> recoveredFiles =
-                secondState.getIndex().fileDetails().stream().filter(f -> f.reused() == false).collect(Collectors.toList());
+            List<RecoveryState.FileDetail> recoveredFiles = secondState.getIndex()
+                .fileDetails()
+                .stream()
+                .filter(f -> f.reused() == false)
+                .collect(Collectors.toList());
             Collections.sort(recoveredFiles, Comparator.comparing(RecoveryState.FileDetail::name));
             assertTrue(recoveredFiles.get(0).name(), recoveredFiles.get(0).name().endsWith(".liv"));
             assertTrue(recoveredFiles.get(1).name(), recoveredFiles.get(1).name().endsWith("segments_" + incIndexCommit.getGeneration()));
@@ -177,30 +214,44 @@ public class FsRepositoryTests extends ESTestCase {
     }
 
     private void deleteRandomDoc(Directory directory) throws IOException {
-        try(IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig(random(),
-            new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec()).setMergePolicy(new FilterMergePolicy(NoMergePolicy.INSTANCE) {
-            @Override
-            public boolean keepFullyDeletedSegment(IOSupplier<CodecReader> readerIOSupplier) {
-                return true;
-            }
+        try (
+            IndexWriter writer = new IndexWriter(
+                directory,
+                newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec())
+                    .setMergePolicy(new FilterMergePolicy(NoMergePolicy.INSTANCE) {
+                        @Override
+                        public boolean keepFullyDeletedSegment(IOSupplier<CodecReader> readerIOSupplier) {
+                            return true;
+                        }
 
-        }))) {
+                    })
+            )
+        ) {
             final int numDocs = writer.getDocStats().numDocs;
-            writer.deleteDocuments(new Term("id", "" + randomIntBetween(0, writer.getDocStats().numDocs-1)));
+            writer.deleteDocuments(new Term("id", "" + randomIntBetween(0, writer.getDocStats().numDocs - 1)));
             writer.commit();
-            assertEquals(writer.getDocStats().numDocs, numDocs-1);
+            assertEquals(writer.getDocStats().numDocs, numDocs - 1);
         }
     }
 
     private int indexDocs(Directory directory) throws IOException {
-        try(IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig(random(),
-            new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec()))) {
+        try (
+            IndexWriter writer = new IndexWriter(
+                directory,
+                newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec())
+            )
+        ) {
             int docs = 1 + random().nextInt(100);
             for (int i = 0; i < docs; i++) {
                 Document doc = new Document();
                 doc.add(new StringField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-                doc.add(new TextField("body",
-                    TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+                doc.add(
+                    new TextField(
+                        "body",
+                        TestUtil.randomRealisticUnicodeString(random()),
+                        random().nextBoolean() ? Field.Store.YES : Field.Store.NO
+                    )
+                );
                 doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
                 writer.addDocument(doc);
             }

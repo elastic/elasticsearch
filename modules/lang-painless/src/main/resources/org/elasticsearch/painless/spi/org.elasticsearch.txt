@@ -53,6 +53,12 @@ class org.elasticsearch.common.geo.GeoPoint {
   double getLon()
 }
 
+class org.elasticsearch.common.geo.GeoBoundingBox {
+  org.elasticsearch.common.geo.GeoPoint topLeft()
+  org.elasticsearch.common.geo.GeoPoint bottomRight()
+}
+
+
 class org.elasticsearch.index.fielddata.ScriptDocValues$Strings {
   String get(int)
   String getValue()
@@ -146,6 +152,12 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Dates {
 class org.elasticsearch.index.fielddata.ScriptDocValues$Doubles {
   Double get(int)
   double getValue()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$Geometry {
+  int getDimensionalType()
+  org.elasticsearch.common.geo.GeoPoint getCentroid()
+  org.elasticsearch.common.geo.GeoBoundingBox getBoundingBox()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints {

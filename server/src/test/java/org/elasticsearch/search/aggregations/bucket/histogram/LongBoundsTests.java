@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -44,8 +45,8 @@ public class LongBoundsTests extends ESTestCase {
      * Construct a random {@link LongBounds} in pre-parsed form.
      */
     public static LongBounds randomParsedExtendedBounds() {
-        long maxDateValue = 253402300799999L; // end of year 9999
-        long minDateValue = -377705116800000L; // beginning of year -9999
+        long maxDateValue = DateUtils.MAX_MILLIS_BEFORE_9999;
+        long minDateValue = DateUtils.MAX_MILLIS_BEFORE_MINUS_9999; // beginning of year -9999
         if (randomBoolean()) {
             // Construct with one missing bound
             if (randomBoolean()) {

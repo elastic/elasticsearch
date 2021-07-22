@@ -1,9 +1,6 @@
 [role="xpack"]
 [[security-api-create-service-token]]
 === Create service account token API
-
-beta::[]
-
 ++++
 <titleabbrev>Create service account tokens</titleabbrev>
 ++++

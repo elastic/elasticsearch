@@ -792,7 +792,16 @@ For a list of supported pipes, see <<eql-pipe-ref>>.
 [[eql-syntax-limitations]]
 === Limitations
 
-EQL does not support the following features and syntax.
+EQL has the following limitations.
+
+[discrete]
+[[eql-uses-fields-parameter]]
+==== EQL uses the `fields` parameter
+
+EQL retrieves field values using the search API's <<search-fields-param,`fields`
+parameter>>. Any limitations on the `fields` parameter also apply to EQL
+queries. For example, if `_source` is disabled for any returned fields or at
+index level, the values cannot be retrieved.
 
 [discrete]
 [[eql-compare-fields]]
@@ -825,13 +834,6 @@ results.
 You cannot use EQL to search the values of a <<nested,`nested`>> field or the
 sub-fields of a `nested` field. However, data streams and indices containing
 `nested` field mappings are otherwise supported.
-
-[discrete]
-[[eql-ccs-support]]
-==== {ccs-cap} is not supported
-
-EQL search APIs do not support <<modules-cross-cluster-search,{ccs}
-({ccs-init})>>.
 
 [discrete]
 [[eql-unsupported-syntax]]

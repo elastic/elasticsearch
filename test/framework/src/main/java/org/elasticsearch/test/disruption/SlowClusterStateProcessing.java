@@ -10,7 +10,7 @@ package org.elasticsearch.test.disruption;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Random;

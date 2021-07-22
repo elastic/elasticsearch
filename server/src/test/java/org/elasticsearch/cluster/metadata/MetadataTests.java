@@ -50,6 +50,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBack
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.Metadata.Builder.validateDataStreams;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1235,12 +1236,12 @@ public class MetadataTests extends ESTestCase {
         Metadata.Builder mdBuilder = Metadata.builder();
 
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-eu"));
-        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-eu"), is(true));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-eu", null, null), is(true));
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-us"));
-        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-us"), is(true));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-us", null, null), is(true));
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-au"));
-        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-au"), is(true));
-        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-au"), is(false));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-au", null, null), is(true));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-au", null, null), is(false));
 
         Metadata metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
@@ -1251,11 +1252,11 @@ public class MetadataTests extends ESTestCase {
     public void testDataStreamReferToNonExistingDataStream() {
         Metadata.Builder mdBuilder = Metadata.builder();
 
-        Exception e = expectThrows(IllegalArgumentException.class, () -> mdBuilder.put("logs-postgres", "logs-postgres-eu"));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> mdBuilder.put("logs-postgres", "logs-postgres-eu", null, null));
         assertThat(e.getMessage(), equalTo("alias [logs-postgres] refers to a non existing data stream [logs-postgres-eu]"));
 
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-eu"));
-        mdBuilder.put("logs-postgres", "logs-postgres-eu");
+        mdBuilder.put("logs-postgres", "logs-postgres-eu", null, null);
         Metadata metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-eu"));
@@ -1264,11 +1265,11 @@ public class MetadataTests extends ESTestCase {
     public void testDeleteDataStreamShouldUpdateAlias() {
         Metadata.Builder mdBuilder = Metadata.builder();
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-eu"));
-        mdBuilder.put("logs-postgres", "logs-postgres-eu");
+        mdBuilder.put("logs-postgres", "logs-postgres-eu", null, null);
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-us"));
-        mdBuilder.put("logs-postgres", "logs-postgres-us");
+        mdBuilder.put("logs-postgres", "logs-postgres-us", null, null);
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-au"));
-        mdBuilder.put("logs-postgres", "logs-postgres-au");
+        mdBuilder.put("logs-postgres", "logs-postgres-au", null, null);
         Metadata metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
@@ -1296,11 +1297,11 @@ public class MetadataTests extends ESTestCase {
     public void testDeleteDataStreamAlias() {
         Metadata.Builder mdBuilder = Metadata.builder();
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-eu"));
-        mdBuilder.put("logs-postgres", "logs-postgres-eu");
+        mdBuilder.put("logs-postgres", "logs-postgres-eu", null, null);
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-us"));
-        mdBuilder.put("logs-postgres", "logs-postgres-us");
+        mdBuilder.put("logs-postgres", "logs-postgres-us", null, null);
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-au"));
-        mdBuilder.put("logs-postgres", "logs-postgres-au");
+        mdBuilder.put("logs-postgres", "logs-postgres-au", null, null);
         Metadata metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
@@ -1328,11 +1329,11 @@ public class MetadataTests extends ESTestCase {
     public void testDeleteDataStreamAliasMustExists() {
         Metadata.Builder mdBuilder = Metadata.builder();
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-eu"));
-        mdBuilder.put("logs-postgres", "logs-postgres-eu");
+        mdBuilder.put("logs-postgres", "logs-postgres-eu", null, null);
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-us"));
-        mdBuilder.put("logs-postgres", "logs-postgres-us");
+        mdBuilder.put("logs-postgres", "logs-postgres-us", null, null);
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-au"));
-        mdBuilder.put("logs-postgres", "logs-postgres-au");
+        mdBuilder.put("logs-postgres", "logs-postgres-au", null, null);
         Metadata metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
@@ -1341,6 +1342,126 @@ public class MetadataTests extends ESTestCase {
         Metadata.Builder mdBuilder2 = Metadata.builder(metadata);
         expectThrows(ResourceNotFoundException.class, () -> mdBuilder2.removeDataStreamAlias("logs-mysql", "logs-postgres-us", true));
         assertThat(mdBuilder2.removeDataStreamAlias("logs-mysql", "logs-postgres-us", false), is(false));
+    }
+
+    public void testDataStreamWriteAlias() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-replicated"));
+        mdBuilder.put("logs-postgres", "logs-postgres-replicated", null, null);
+
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+
+        mdBuilder = Metadata.builder(metadata);
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", true, null), is(true));
+
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-replicated"));
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+    }
+
+    public void testDataStreamMultipleWriteAlias() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-foobar"));
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-barbaz"));
+        mdBuilder.put("logs", "logs-foobar", true, null);
+        mdBuilder.put("logs", "logs-barbaz", true, null);
+
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs").getWriteDataStream(), equalTo("logs-barbaz"));
+        assertThat(metadata.dataStreamAliases().get("logs").getDataStreams(), containsInAnyOrder("logs-foobar", "logs-barbaz"));
+    }
+
+    public void testDataStreamWriteAliasUnset() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-replicated"));
+        mdBuilder.put("logs-postgres", "logs-postgres-replicated", true, null);
+
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-replicated"));
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+
+        mdBuilder = Metadata.builder(metadata);
+        // Side check: null value isn't changing anything:
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", null, null), is(false));
+        // Unset write flag
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", false, null), is(true));
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+    }
+
+    public void testDataStreamWriteAliasChange() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-primary"));
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-replicated"));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-primary", true, null), is(true));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", null, null), is(true));
+
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-primary"));
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated"));
+
+        // change write flag:
+        mdBuilder = Metadata.builder(metadata);
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-primary", false, null), is(true));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", true, null), is(true));
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-replicated"));
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated"));
+    }
+
+    public void testDataStreamWriteRemoveAlias() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-primary"));
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-replicated"));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-primary", true, null), is(true));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", null, null), is(true));
+
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-primary"));
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated"));
+
+        mdBuilder = Metadata.builder(metadata);
+        assertThat(mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-primary", randomBoolean()), is(true));
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+    }
+
+    public void testDataStreamWriteRemoveDataStream() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-primary"));
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-replicated"));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-primary", true, null), is(true));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", null, null), is(true));
+
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-primary"));
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated"));
+
+        mdBuilder = Metadata.builder(metadata);
+        mdBuilder.removeDataStream("logs-postgres-primary");
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreams().keySet(), contains("logs-postgres-replicated"));
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
     }
 
     public static Metadata randomMetadata() {

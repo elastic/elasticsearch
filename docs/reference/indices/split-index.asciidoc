@@ -192,7 +192,7 @@ the cluster state -- it doesn't wait for the split operation to start.
 
 Indices can only be split if they satisfy the following requirements:
 
-* the target index must not exist
+* The target index must not exist
 
 * The source index must have fewer primary shards than the target index.
 
@@ -273,10 +273,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-
+[role="child_attributes"]
 [[split-index-api-request-body]]
 ==== {api-request-body-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-aliases]
+`aliases`::
+(Optional, object of objects) Aliases for the resulting index.
++
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-settings]

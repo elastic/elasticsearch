@@ -12,7 +12,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
@@ -23,9 +23,8 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
-import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterByFilterAggregator;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
-import org.elasticsearch.search.aggregations.bucket.filter.QueryToFilterAdapter;
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator.OrdBucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -68,11 +67,34 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         if (false == valuesSourceConfig.alignesWithSearchIndex()) {
             return null;
         }
-        if (false == FiltersAggregator.canUseFilterByFilter(parent, null)) {
-            return null;
-        }
-        List<QueryToFilterAdapter<?>> filters = new ArrayList<>();
         TermsEnum terms = values.termsEnum();
+        FilterByFilterAggregator.AdapterBuilder<StringTermsAggregatorFromFilters> filterByFilterBuilder =
+            new FilterByFilterAggregator.AdapterBuilder<StringTermsAggregatorFromFilters>(
+                name,
+                false,
+                null,
+                context,
+                parent,
+                cardinality,
+                metadata
+            ) {
+                @Override
+                protected StringTermsAggregatorFromFilters adapt(
+                    CheckedFunction<AggregatorFactories, FilterByFilterAggregator, IOException> delegate
+                ) throws IOException {
+                    return new StringTermsAggregatorFromFilters(
+                        parent,
+                        factories,
+                        delegate,
+                        showTermDocCountError,
+                        valuesSourceConfig.format(),
+                        order,
+                        bucketCountThresholds,
+                        terms
+                    );
+                }
+            };
+        String field = valuesSourceConfig.fieldContext().field();
         for (long ord = 0; ord < values.getValueCount(); ord++) {
             if (acceptedOrds.test(ord) == false) {
                 continue;
@@ -86,42 +108,10 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
              * the segment ordinal to the global ordinal. You could
              * search the mapping to get it but, like I said, tricky.
              */
-            TermQueryBuilder b = new TermQueryBuilder(
-                valuesSourceConfig.fieldContext().field(),
-                valuesSourceConfig.format().format(terms.term())
-            );
-            filters.add(QueryToFilterAdapter.build(context.searcher(), Long.toString(ord), context.buildQuery(b)));
+            TermQueryBuilder builder = new TermQueryBuilder(field, valuesSourceConfig.format().format(terms.term()));
+            filterByFilterBuilder.add(Long.toString(ord), context.buildQuery(builder));
         }
-        StringTermsAggregatorFromFilters adapted = new StringTermsAggregatorFromFilters(
-            parent,
-            factories,
-            subAggs -> FiltersAggregator.buildFilterByFilter(
-                name,
-                subAggs,
-                filters,
-                false,
-                null,
-                context,
-                parent,
-                cardinality,
-                metadata
-            ),
-            showTermDocCountError,
-            valuesSourceConfig.format(),
-            order,
-            bucketCountThresholds,
-            terms
-        );
-        if (adapted.scoreMode().needsScores()) {                /*
-             * Filter by filter won't produce the correct results if the
-             * sub-aggregators need scores because we're not careful with how
-             * we merge filters. Right now we have to build the whole
-             * aggregation in order to know if it'll need scores or not.
-             */
-            // TODO make filter by filter produce the correct result or skip this in canUseFilterbyFilter
-            return null;
-        }
-        return adapted;
+        return filterByFilterBuilder.build();
     }
 
     private final boolean showTermDocCountError;
@@ -133,7 +123,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
     public StringTermsAggregatorFromFilters(
         Aggregator parent,
         AggregatorFactories subAggregators,
-        CheckedFunction<AggregatorFactories, Aggregator, IOException> delegate,
+        CheckedFunction<AggregatorFactories, FilterByFilterAggregator, IOException> delegate,
         boolean showTermDocCountError,
         DocValueFormat format,
         BucketOrder order,

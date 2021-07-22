@@ -13,10 +13,12 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -33,17 +35,24 @@ import java.util.Map;
 import java.util.Objects;
 
 public class SimulatePipelineRequest extends ActionRequest implements ToXContentObject {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);
     private String id;
     private boolean verbose;
     private BytesReference source;
     private XContentType xContentType;
+    private RestApiVersion restApiVersion;
 
     /**
      * Creates a new request with the given source and its content type
      */
     public SimulatePipelineRequest(BytesReference source, XContentType xContentType) {
+        this(source, xContentType, RestApiVersion.current());
+    }
+
+    public SimulatePipelineRequest(BytesReference source, XContentType xContentType, RestApiVersion restApiVersion) {
         this.source = Objects.requireNonNull(source);
         this.xContentType = Objects.requireNonNull(xContentType);
+        this.restApiVersion = restApiVersion;
     }
 
     SimulatePipelineRequest() {
@@ -133,7 +142,8 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
 
     static final String SIMULATED_PIPELINE_ID = "_simulate_pipeline";
 
-    static Parsed parseWithPipelineId(String pipelineId, Map<String, Object> config, boolean verbose, IngestService ingestService) {
+    static Parsed parseWithPipelineId(String pipelineId, Map<String, Object> config, boolean verbose, IngestService ingestService,
+                                      RestApiVersion restApiVersion) {
         if (pipelineId == null) {
             throw new IllegalArgumentException("param [pipeline] is null");
         }
@@ -141,20 +151,21 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         if (pipeline == null) {
             throw new IllegalArgumentException("pipeline [" + pipelineId + "] does not exist");
         }
-        List<IngestDocument> ingestDocumentList = parseDocs(config);
+        List<IngestDocument> ingestDocumentList = parseDocs(config, restApiVersion);
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
-    static Parsed parse(Map<String, Object> config, boolean verbose, IngestService ingestService) throws Exception {
+    static Parsed parse(Map<String, Object> config, boolean verbose, IngestService ingestService, RestApiVersion restApiVersion)
+        throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
         Pipeline pipeline = Pipeline.create(
             SIMULATED_PIPELINE_ID, pipelineConfig, ingestService.getProcessorFactories(), ingestService.getScriptService()
         );
-        List<IngestDocument> ingestDocumentList = parseDocs(config);
+        List<IngestDocument> ingestDocumentList = parseDocs(config, restApiVersion);
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
-    private static List<IngestDocument> parseDocs(Map<String, Object> config) {
+    private static List<IngestDocument> parseDocs(Map<String, Object> config, RestApiVersion restApiVersion) {
         List<Map<String, Object>> docs =
             ConfigurationUtils.readList(null, null, config, Fields.DOCS);
         if (docs.isEmpty()) {
@@ -174,6 +185,10 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                 dataMap, Metadata.ID.getFieldName(), "_id");
             String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
                 dataMap, Metadata.ROUTING.getFieldName());
+            if (restApiVersion == RestApiVersion.V_7 && dataMap.containsKey(Metadata.TYPE.getFieldName())) {
+                deprecationLogger.compatibleApiWarning("simulate_pipeline_with_types",
+                    "[types removal] specifying _type in pipeline simulation requests is deprecated");
+            }
             Long version = null;
             if (dataMap.containsKey(Metadata.VERSION.getFieldName())) {
                 String versionValue = ConfigurationUtils.readOptionalStringOrLongProperty(null, null,
@@ -223,5 +238,9 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             ingestDocumentList.add(ingestDocument);
         }
         return ingestDocumentList;
+    }
+
+    public RestApiVersion getRestApiVersion() {
+        return restApiVersion;
     }
 }

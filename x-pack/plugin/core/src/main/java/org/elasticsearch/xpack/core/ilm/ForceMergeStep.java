@@ -6,20 +6,30 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Invokes a force merge on a single index.
  */
 public class ForceMergeStep extends AsyncActionStep {
+
     public static final String NAME = "forcemerge";
+    private static final Logger logger = LogManager.getLogger(ForceMergeStep.class);
     private final int maxNumSegments;
 
     public ForceMergeStep(StepKey key, StepKey nextStepKey, Client client, int maxNumSegments) {
@@ -39,10 +49,29 @@ public class ForceMergeStep extends AsyncActionStep {
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
                               ClusterStateObserver observer, ActionListener<Boolean> listener) {
-        ForceMergeRequest request = new ForceMergeRequest(indexMetadata.getIndex().getName());
+        String indexName = indexMetadata.getIndex().getName();
+        ForceMergeRequest request = new ForceMergeRequest(indexName);
         request.maxNumSegments(maxNumSegments);
         getClient().admin().indices()
-            .forceMerge(request, ActionListener.wrap(response -> listener.onResponse(true),
+            .forceMerge(request, ActionListener.wrap(
+                response -> {
+                    if (response.getFailedShards() == 0) {
+                        listener.onResponse(true);
+                    } else {
+                        DefaultShardOperationFailedException[] failures = response.getShardFailures();
+                        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                        String errorMessage =
+                            String.format(Locale.ROOT, "index [%s] in policy [%s] encountered failures [%s] on step [%s]",
+                                indexName, policyName,
+                                failures == null ? "n/a" : Strings.collectionToDelimitedString(Arrays.stream(failures)
+                                    .map(Strings::toString)
+                                    .collect(Collectors.toList()), ","),
+                                NAME);
+                        logger.warn(errorMessage);
+                        // let's report it as a failure and retry
+                        listener.onFailure(new ElasticsearchException(errorMessage));
+                    }
+                },
                 listener::onFailure));
     }
 

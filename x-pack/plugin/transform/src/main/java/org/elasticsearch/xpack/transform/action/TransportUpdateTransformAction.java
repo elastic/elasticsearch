@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -31,7 +30,6 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,7 +37,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Response;
@@ -313,49 +310,27 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         );
 
         // <1> Create destination index if necessary
-        ActionListener<Boolean> functionValidationListener = ActionListener.wrap(validationResult -> {
-            String[] dest = indexNameExpressionResolver.concreteIndexNames(
-                clusterState,
-                IndicesOptions.lenientExpandOpen(),
-                config.getDestination().getIndex()
-            );
-            String[] src = indexNameExpressionResolver.concreteIndexNames(
-                clusterState,
-                IndicesOptions.lenientExpandOpen(),
-                true,
-                config.getSource().getIndex()
-            );
-            // If we are running, we should verify that the destination index exists and create it if it does not
-            if (PersistentTasksCustomMetadata.getTaskWithId(clusterState, request.getId()) != null && dest.length == 0
-            // Verify we have source indices. The user could defer_validations and if the task is already running
-            // we allow source indices to disappear. If the source and destination indices do not exist, don't do anything
-            // the transform will just have to dynamically create the destination index without special mapping.
-                && src.length > 0) {
-                createDestinationIndex(config, mappings, createDestinationListener);
-            } else {
-                createDestinationListener.onResponse(null);
-            }
-        }, validationException -> {
-            if (validationException instanceof ElasticsearchStatusException) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                        ((ElasticsearchStatusException) validationException).status(),
-                        validationException
-                    )
-                );
-            } else {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        validationException
-                    )
-                );
-            }
-        });
-
-        functionValidationListener.onResponse(true);
+        String[] dest = indexNameExpressionResolver.concreteIndexNames(
+            clusterState,
+            IndicesOptions.lenientExpandOpen(),
+            config.getDestination().getIndex()
+        );
+        String[] src = indexNameExpressionResolver.concreteIndexNames(
+            clusterState,
+            IndicesOptions.lenientExpandOpen(),
+            true,
+            config.getSource().getIndex()
+        );
+        // If we are running, we should verify that the destination index exists and create it if it does not
+        if (PersistentTasksCustomMetadata.getTaskWithId(clusterState, request.getId()) != null && dest.length == 0
+        // Verify we have source indices. The user could defer_validations and if the task is already running
+        // we allow source indices to disappear. If the source and destination indices do not exist, don't do anything
+        // the transform will just have to dynamically create the destination index without special mapping.
+            && src.length > 0) {
+            createDestinationIndex(config, mappings, createDestinationListener);
+        } else {
+            createDestinationListener.onResponse(null);
+        }
     }
 
     private void createDestinationIndex(TransformConfig config, Map<String, String> mappings, ActionListener<Boolean> listener) {

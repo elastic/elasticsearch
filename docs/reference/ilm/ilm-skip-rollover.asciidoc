@@ -25,7 +25,7 @@ previously-indexed data in accordance with your configured policy, you can:
 . Create a template for the new index pattern that uses the same policy. 
 . Bootstrap the initial index.
 . Change the write index for the alias to the bootstrapped index 
-using the <<indices-aliases, index aliases>> API.
+using the <<indices-aliases,aliases API>>.
 . Set `index.lifecycle.indexing_complete` to `true` on the old index to indicate 
 that it does not need to be rolled over.
 

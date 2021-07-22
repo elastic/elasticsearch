@@ -55,8 +55,8 @@ The following describes the structure of an indices permissions entry:
 -------
 // NOTCONSOLE
 
-<1> A list of data streams, indices, and index aliases to which the permissions
-    in this entry apply. Wildcard (`*`) expressions are supported.
+<1> A list of data streams, indices, and aliases to which the permissions
+    in this entry apply. Supports wildcards (`*`).
 <2> The index level privileges the owners of the role have on the associated
     data streams and indices specified in the `names` argument.
 <3> Specification for document fields the owners of the role have read access to.
@@ -76,7 +76,7 @@ The following describes the structure of an indices permissions entry:
 [TIP]
 ==============================================================================
 The `names` parameter accepts wildcard and regular expressions that may refer to
-multiple data streams, indices, and index aliases.
+multiple data streams, indices, and aliases.
 
 * Wildcard (default) - simple wildcard matching where `*` is a placeholder
   for zero or more characters, `?` is a placeholder for a single character

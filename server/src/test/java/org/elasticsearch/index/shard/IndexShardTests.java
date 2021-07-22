@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
@@ -44,20 +46,16 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -65,6 +63,11 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -85,9 +88,9 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -117,6 +120,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Assert;
@@ -3089,9 +3093,32 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetadata, null, null, indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(), indexShard.getRetentionLeaseSyncer(), EMPTY_EVENT_LISTENER);
 
-        final IndexShardRecoveryException indexShardRecoveryException =
-            expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
-        assertThat(indexShardRecoveryException.getMessage(), equalTo("failed recovery"));
+        final MockLogAppender appender = new MockLogAppender();
+        appender.start();
+        Loggers.addAppender(LogManager.getLogger(IndexShard.class), appender);
+        try {
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "expensive checks warning",
+                "org.elasticsearch.index.shard.IndexShard",
+                Level.WARN,
+                "performing expensive diagnostic checks during shard startup [index.shard.check_on_startup=*]; these checks should only " +
+                    "be enabled temporarily, you must remove this index setting as soon as possible"));
+
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "failure message",
+                "org.elasticsearch.index.shard.IndexShard",
+                Level.WARN,
+                "check index [failure]*"));
+
+            final IndexShardRecoveryException indexShardRecoveryException =
+                expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
+            assertThat(indexShardRecoveryException.getMessage(), equalTo("failed recovery"));
+
+            appender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(LogManager.getLogger(IndexShard.class), appender);
+            appender.stop();
+        }
 
         // check that corrupt marker is there
         Files.walkFileTree(indexPath, corruptedVisitor);
@@ -3681,7 +3708,7 @@ public class IndexShardTests extends IndexShardTestCase {
         String id = randomRealisticUnicodeOfLengthBetween(1, 10);
         ParsedDocument deleteTombstone = ParsedDocument.deleteTombstone(id);
         assertThat(deleteTombstone.docs(), hasSize(1));
-        ParseContext.Document deleteDoc = deleteTombstone.docs().get(0);
+        LuceneDocument deleteDoc = deleteTombstone.docs().get(0);
         assertThat(deleteDoc.getFields().stream().map(IndexableField::name).collect(Collectors.toList()),
             containsInAnyOrder(IdFieldMapper.NAME, VersionFieldMapper.NAME,
                 SeqNoFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME));
@@ -3691,7 +3718,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final String reason = randomUnicodeOfLength(200);
         ParsedDocument noopTombstone = ParsedDocument.noopTombstone(reason);
         assertThat(noopTombstone.docs(), hasSize(1));
-        ParseContext.Document noopDoc = noopTombstone.docs().get(0);
+        LuceneDocument noopDoc = noopTombstone.docs().get(0);
         assertThat(noopDoc.getFields().stream().map(IndexableField::name).collect(Collectors.toList()),
             containsInAnyOrder(VersionFieldMapper.NAME, SourceFieldMapper.NAME, SeqNoFieldMapper.TOMBSTONE_NAME,
                 SeqNoFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME));

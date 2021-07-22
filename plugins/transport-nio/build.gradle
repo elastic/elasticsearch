@@ -98,11 +98,6 @@ tasks.named("thirdPartyAudit").configure {
     'com.ning.compress.lzf.util.ChunkDecoderFactory',
     'com.ning.compress.lzf.util.ChunkEncoderFactory',
     'lzma.sdk.lzma.Encoder',
-    'net.jpountz.lz4.LZ4Compressor',
-    'net.jpountz.lz4.LZ4Factory',
-    'net.jpountz.lz4.LZ4FastDecompressor',
-    'net.jpountz.xxhash.XXHash32',
-    'net.jpountz.xxhash.XXHashFactory',
     'org.eclipse.jetty.alpn.ALPN$ClientProvider',
     'org.eclipse.jetty.alpn.ALPN$ServerProvider',
     'org.eclipse.jetty.alpn.ALPN',
@@ -122,6 +117,8 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.internal.tcnative.CertificateVerifier',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
+    'io.netty.internal.tcnative.SSLSession',
+	  'io.netty.internal.tcnative.SSLSessionCache',
 
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration'

@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.sql.qa.security;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.sql.qa.cli.ErrorsTestCase;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli.SecurityConfig;
+import org.elasticsearch.xpack.sql.qa.cli.ErrorsTestCase;
 
 public class CliErrorsIT extends ErrorsTestCase {
     @Override

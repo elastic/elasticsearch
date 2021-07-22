@@ -32,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -1409,6 +1410,20 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         //  type's checked upstream from function's checked
         assertEquals("1:14: Cannot use field [unsupported] with unsupported type [ip_range]",
             error("SELECT ARRAY(unsupported) FROM test"));
+    }
+
+    public void testNestedAggregate() {
+        Consumer<String> checkMsg = (String sql) -> {
+            var actual = error(sql);
+            assertTrue(actual, actual.contains("Nested aggregations in sub-selects are not supported."));
+        };
+
+        checkMsg.accept("SELECT SUM(c) FROM (SELECT COUNT(*) c FROM test)");
+        checkMsg.accept("SELECT COUNT(*) FROM (SELECT SUM(int) c FROM test)");
+        checkMsg.accept("SELECT i FROM (SELECT int i FROM test GROUP BY i) GROUP BY i");
+        checkMsg.accept("SELECT c FROM (SELECT SUM(int) c FROM test) GROUP BY c HAVING COUNT(*) > 10");
+        checkMsg.accept("SELECT COUNT(*) FROM (SELECT int i FROM test GROUP BY i)");
+        checkMsg.accept("SELECT a.i, COUNT(a.c) FROM (SELECT int i, COUNT(int) c FROM test GROUP BY int) a GROUP BY c");
     }
 
     private String randomTopHitsFunction() {

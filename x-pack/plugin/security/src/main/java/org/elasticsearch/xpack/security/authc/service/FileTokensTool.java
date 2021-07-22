@@ -169,7 +169,7 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
                 + Strings.collectionToDelimitedString(ServiceAccountService.getServiceAccountPrincipals(), ",") + "]");
         }
         if (false == Validation.isValidServiceAccountTokenName(tokenName)) {
-            throw new UserException(ExitCodes.CODE_ERROR, Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE);
+            throw new UserException(ExitCodes.CODE_ERROR, Validation.formatInvalidServiceTokenNameErrorMessage(tokenName));
         }
         return new ServiceAccountTokenId(ServiceAccountId.fromPrincipal(principal), tokenName);
     }

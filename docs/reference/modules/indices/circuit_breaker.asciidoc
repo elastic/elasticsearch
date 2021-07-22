@@ -8,6 +8,8 @@ Except where noted otherwise, these settings can be dynamically updated on a
 live cluster with the <<cluster-update-settings,cluster-update-settings>> API.
 // end::circuit-breaker-description-tag[]
 
+For information about circuit breaker errors, see <<circuit-breaker-errors>>.
+
 [[parent-circuit-breaker]]
 [discrete]
 ==== Parent circuit breaker

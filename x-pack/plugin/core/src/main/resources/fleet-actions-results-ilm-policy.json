@@ -17,5 +17,9 @@
         }
       }
     }
+  },
+  "_meta": {
+    "description": "default policy for fleet action results indices",
+    "managed": true
   }
 }

@@ -56,6 +56,7 @@ public class AutodetectBuilder {
     public static final String LENGTH_ENCODED_INPUT_ARG = "--lengthEncodedInput";
     public static final String MODEL_CONFIG_ARG = "--modelconfig=";
     public static final String QUANTILES_STATE_PATH_ARG = "--quantilesState=";
+    public static final String LICENSE_KEY_VALIDATED_ARG = "--validElasticLicenseKeyConfirmed=";
 
     private static final String JSON_EXTENSION = ".json";
     private static final String CONFIG_ARG = "--config=";
@@ -166,6 +167,9 @@ public class AutodetectBuilder {
             String modelConfigFile = XPackPlugin.resolveConfigFile(env, ProcessBuilderUtils.ML_MODEL_CONF).toString();
             command.add(MODEL_CONFIG_ARG + modelConfigFile);
         }
+
+        // License has been created by the open job action
+        command.add(LICENSE_KEY_VALIDATED_ARG + true);
 
         return command;
     }

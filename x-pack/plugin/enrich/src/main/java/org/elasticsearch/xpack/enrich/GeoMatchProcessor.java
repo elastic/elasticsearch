@@ -10,8 +10,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -36,7 +36,7 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         String matchField,
         int maxMatches,
         ShapeRelation shapeRelation,
-        ShapeBuilder.Orientation orientation
+        Orientation orientation
     ) {
         super(tag, description, client, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;
@@ -56,7 +56,7 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         String matchField,
         int maxMatches,
         ShapeRelation shapeRelation,
-        ShapeBuilder.Orientation orientation
+        Orientation orientation
     ) {
         super(tag, description, searchRunner, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;

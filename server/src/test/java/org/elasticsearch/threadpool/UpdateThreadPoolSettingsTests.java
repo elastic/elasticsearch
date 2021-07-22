@@ -9,7 +9,7 @@
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -76,7 +76,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
     }
 
     private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
-        if (name.equals(ThreadPool.Names.WRITE) || name.equals(Names.SYSTEM_WRITE)) {
+        if (name.equals(ThreadPool.Names.WRITE) || name.equals(Names.SYSTEM_WRITE) || name.equals(Names.SYSTEM_CRITICAL_WRITE)) {
             return Math.min(size, EsExecutors.allocatedProcessors(settings));
         } else {
             return size;

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
@@ -22,6 +23,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicyUtils;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.LifecyclePolicyResponseItem;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.Request;
@@ -34,11 +36,15 @@ import java.util.List;
 
 public class TransportGetLifecycleAction extends TransportMasterNodeAction<Request, Response> {
 
+    private final MetadataIndexTemplateService templateService;
+
     @Inject
     public TransportGetLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                       MetadataIndexTemplateService metadataIndexTemplateService) {
         super(GetLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
             indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
+        this.templateService = metadataIndexTemplateService;
     }
 
     @Override
@@ -58,7 +64,8 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                 requestedPolicies = new ArrayList<>(metadata.getPolicyMetadatas().size());
                 for (LifecyclePolicyMetadata policyMetadata : metadata.getPolicyMetadatas().values()) {
                     requestedPolicies.add(new LifecyclePolicyResponseItem(policyMetadata.getPolicy(),
-                        policyMetadata.getVersion(), policyMetadata.getModifiedDateString()));
+                        policyMetadata.getVersion(), policyMetadata.getModifiedDateString(),
+                        LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, state, policyMetadata.getName())));
                 }
             } else {
                 requestedPolicies = new ArrayList<>(request.getPolicyNames().length);
@@ -69,7 +76,8 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                         return;
                     }
                     requestedPolicies.add(new LifecyclePolicyResponseItem(policyMetadata.getPolicy(),
-                        policyMetadata.getVersion(), policyMetadata.getModifiedDateString()));
+                        policyMetadata.getVersion(), policyMetadata.getModifiedDateString(),
+                        LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, state, policyMetadata.getName())));
                 }
             }
             listener.onResponse(new Response(requestedPolicies));

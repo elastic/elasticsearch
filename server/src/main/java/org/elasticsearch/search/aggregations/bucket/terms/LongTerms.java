@@ -139,11 +139,6 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     }
 
     @Override
-    protected Bucket[] createBucketsArray(int size) {
-        return new Bucket[size];
-    }
-
-    @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         boolean unsignedLongFormat = false;
         boolean rawFormat = false;

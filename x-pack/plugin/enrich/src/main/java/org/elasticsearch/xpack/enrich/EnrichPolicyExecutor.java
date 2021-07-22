@@ -7,11 +7,6 @@
 
 package org.elasticsearch.xpack.enrich;
 
-import java.util.Map;
-import java.util.concurrent.Semaphore;
-import java.util.function.BiConsumer;
-import java.util.function.LongSupplier;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -27,6 +22,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
+
+import java.util.Map;
+import java.util.concurrent.Semaphore;
+import java.util.function.BiConsumer;
+import java.util.function.LongSupplier;
 
 public class EnrichPolicyExecutor {
 

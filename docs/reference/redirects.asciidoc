@@ -3,6 +3,11 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="grok-basics"]
+=== Grok basics
+
+See <<grok,Grokking grok>>.
+
 // [START] Security redirects
 
 [role="exclude",id="get-started-users"]
@@ -30,10 +35,38 @@ See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
 
 See <<secure-cluster,Secure the Elastic Stack>>.
 
+// [START] OpenID Connect authentication
+[role="exclude",id="oidc-guide-authentication"]
+=== Configure {es} for OpenID Connect authentication
+
+See <<oidc-elasticsearch-authentication,Configure {es} for OpenID Connect authentication>>.
+
+[role="exclude",id="oidc-claims-mapping"]
+==== Claims mapping
+
+See <<oidc-claims-mappings,Claims mapping for OpenID Connect>>.
+
+[role="exclude",id="oidc-kibana"]
+=== Configuring {kib}
+
+See <<oidc-configure-kibana,Configuring {kib} for OpenID Connect>>.
+
+[role="exclude",id="oidc-role-mapping"]
+=== Configuring role mappings
+
+See <<oidc-role-mappings,Configuring OpenID Connect role mappings>>.
+// [END] OpenID Connect authentication
+
+// [START] SAML authentication
 [role="exclude",id="saml-guide"]
 === Configure SAML single-sign on
 
 See <<saml-guide-stack,Configuring SAML single-sign-on on the {stack}>>.
+
+[role="exclude",id="saml-kibana"]
+=== Configuring {kib}
+
+See <<saml-configure-kibana,Configuring {kib} for SAML>>.
 
 [role="exclude",id="saml-guide-authentication"]
 === Configure {es} for SAML authentication
@@ -44,6 +77,12 @@ See <<saml-elasticsearch-authentication,Configure {es} for SAML authentication>>
 ==== Attribute mapping
 
 See <<saml-attributes-mapping,SAML attribute mapping>>.
+
+[role="exclude",id="saml-user-properties"]
+===== User properties
+
+See <<saml-es-user-properties,{es} user properties>>.
+// [END] SAML authentication
 
 [role="exclude",id="active-directory-ssl"]
 === Setting up SSL between {es} and Active Directory
@@ -181,19 +220,19 @@ See <<commands>>.
 === Calendar resources
 
 See <<ml-get-calendar>> and
-{ml-docs}/ml-calendars.html[Calendars and scheduled events].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
 
 [role="exclude",id="ml-filter-resource"]
 === Filter resources
 
 See <<ml-get-filter>> and
-{ml-docs}/ml-rules.html[Machine learning custom rules].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-rules[Machine learning custom rules].
 
 [role="exclude",id="ml-event-resource"]
 === Scheduled event resources
 
 See <<ml-get-calendar-event>> and
-{ml-docs}/ml-calendars.html[Calendars and scheduled events].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
 
 [role="exclude",id="index-apis"]
 === Index APIs
@@ -1554,3 +1593,49 @@ include::redirects.asciidoc[tag=frozen-index-redirect]
 === Monitoring frozen indices
 
 include::redirects.asciidoc[tag=frozen-index-redirect]
+
+[role="exclude",id="glossary"]
+=== Glossary
+
+See the {glossary}/terms.html[Elastic glossary].
+[role="exclude",id="multi-index"]
+=== Multi-target syntax
+
+See <<api-multi-index>>. 
+
+[float]
+[[hidden]]
+==== Hidden data streams and indices
+
+See <<multi-hidden>>. 
+
+[role="exclude",id="date-math-index-names"]
+=== Date math support in system and index alias names 
+
+See <<api-date-math-index-names>>.
+
+[role="exclude",id="cron-expressions"]
+=== Cron expressions
+
+See <<api-cron-expressions>>.
+
+[role="exclude",id="url-access-control"]
+=== URL-based access control
+
+See <<api-url-access-control>>.
+
+[role="exclude",id="indices-field-usage-stats"]
+=== Field usage stats API
+
+See <<field-usage-stats>>.
+
+[role="exclude",id="security-api-enroll-kibana"]
+=== Enroll {kib} API
+
+See <<security-api-kibana-enrollment>>.
+
+[role="exclude",id="sql-rest-fields"]
+=== Supported REST parameters for SQL search API
+
+See the <<sql-search-api-request-body,request body parameters>> for the
+<<sql-search-api,SQL search API>>.

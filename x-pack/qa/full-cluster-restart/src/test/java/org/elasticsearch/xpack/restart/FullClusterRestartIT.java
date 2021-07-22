@@ -47,7 +47,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.upgrades.FullClusterRestartIT.assertNumHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -681,14 +681,28 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             ensureGreen(index);
             final int totalHits = (int) XContentMapValues.extractValue("hits.total.value",
                 entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
-            assertOK(client().performRequest(new Request("POST", index + "/_freeze")));
+            Request freezeRequest = new Request("POST", index + "/_freeze");
+            freezeRequest.setOptions(
+                expectWarnings(
+                    "Frozen indices are deprecated because they provide no benefit given "
+                        + "improvements in heap memory utilization. They will be removed in a future release."
+                )
+            );
+            assertOK(client().performRequest(freezeRequest));
             ensureGreen(index);
             assertNoFileBasedRecovery(index, n -> true);
             final Request request = new Request("GET", "/" + index + "/_search");
             request.addParameter("ignore_throttled", "false");
             assertThat(XContentMapValues.extractValue("hits.total.value", entityAsMap(client().performRequest(request))),
                 equalTo(totalHits));
-            assertOK(client().performRequest(new Request("POST", index + "/_unfreeze")));
+            final Request unfreezeRequest = new Request("POST", index + "/_unfreeze");
+            unfreezeRequest.setOptions(
+                expectWarnings(
+                    "Frozen indices are deprecated because they provide no benefit given "
+                        + "improvements in heap memory utilization. They will be removed in a future release."
+                )
+            );
+            assertOK(client().performRequest(unfreezeRequest));
             ensureGreen(index);
             assertNoFileBasedRecovery(index, n -> true);
         }

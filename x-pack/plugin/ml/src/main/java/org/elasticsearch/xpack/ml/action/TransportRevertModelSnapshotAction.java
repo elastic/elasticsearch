@@ -10,6 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
@@ -22,6 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
@@ -29,6 +32,8 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -44,6 +49,9 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import java.util.Date;
 import java.util.Set;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportRevertModelSnapshotAction extends TransportMasterNodeAction<RevertModelSnapshotAction.Request,
         RevertModelSnapshotAction.Response> {
@@ -75,6 +83,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
     protected void masterOperation(Task task, RevertModelSnapshotAction.Request request, ClusterState state,
                                    ActionListener<RevertModelSnapshotAction.Response> listener) {
         final String jobId = request.getJobId();
+        final TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         if (migrationEligibilityCheck.jobIsEligibleForMigration(jobId, state)) {
             listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("revert model snapshot", jobId));
@@ -87,32 +96,44 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         // 5. Revert the state
         ActionListener<Boolean> annotationsIndexUpdateListener = ActionListener.wrap(
             r -> {
-                PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-                JobState jobState = MlTasks.getJobState(jobId, tasks);
+                ActionListener<Job> jobListener = ActionListener.wrap(
+                    job -> {
+                        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+                        JobState jobState = MlTasks.getJobState(job.getId(), tasks);
+                        if (request.isForce() == false && jobState.equals(JobState.CLOSED) == false) {
+                            listener.onFailure(ExceptionsHelper.conflictStatusException(
+                                Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT)));
+                            return;
+                        }
+                        if (MlTasks.getSnapshotUpgraderTask(jobId, request.getSnapshotId(), tasks) != null) {
+                            listener.onFailure(ExceptionsHelper.conflictStatusException(
+                                "Cannot revert job [{}] to snapshot [{}] as it is being upgraded",
+                                jobId,
+                                request.getSnapshotId()
+                            ));
+                            return;
+                        }
+                        isBlocked(job, ActionListener.wrap(
+                            isBlocked -> {
+                                if (isBlocked) {
+                                    listener.onFailure(ExceptionsHelper.conflictStatusException(
+                                        "cannot revert job [{}] to snapshot [{}] while it is blocked with [{}]",
+                                        jobId, request.getSnapshotId(), job.getBlocked().getReason())
+                                    );
+                                } else {
+                                    jobManager.updateJobBlockReason(jobId, new Blocked(Blocked.Reason.REVERT, taskId), ActionListener.wrap(
+                                        aBoolean -> revertSnapshot(jobId, request, listener),
+                                        listener::onFailure
+                                    ));
+                                }
+                            },
+                            listener::onFailure
+                        ));
+                    },
+                    listener::onFailure
+                );
 
-                if (request.isForce() == false && jobState.equals(JobState.CLOSED) == false) {
-                    listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT)));
-                    return;
-                }
-
-                if (MlTasks.getSnapshotUpgraderTask(jobId, request.getSnapshotId(), tasks) != null) {
-                    listener.onFailure(ExceptionsHelper.conflictStatusException(
-                        "Cannot revert job [{}] to snapshot [{}] as it is being upgraded",
-                        jobId,
-                        request.getSnapshotId()
-                    ));
-                    return;
-                }
-
-                getModelSnapshot(request, jobResultsProvider, modelSnapshot -> {
-                    ActionListener<RevertModelSnapshotAction.Response> wrappedListener = listener;
-                    if (request.getDeleteInterveningResults()) {
-                        wrappedListener = wrapDeleteOldAnnotationsListener(wrappedListener, modelSnapshot, jobId);
-                        wrappedListener = wrapDeleteOldDataListener(wrappedListener, modelSnapshot, jobId);
-                        wrappedListener = wrapRevertDataCountsListener(wrappedListener, modelSnapshot, jobId);
-                    }
-                    jobManager.revertSnapshot(request, wrappedListener, modelSnapshot);
-                }, listener::onFailure);
+                jobManager.getJob(jobId, jobListener);
             },
             listener::onFailure
         );
@@ -140,6 +161,58 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         // 1. Verify/Create the state index and its alias exists
         AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, indexNameExpressionResolver, request.masterNodeTimeout(),
             createStateIndexListener);
+    }
+
+    private void isBlocked(Job job, ActionListener<Boolean> listener) {
+        if (job.getBlocked().getReason() == Blocked.Reason.NONE) {
+            listener.onResponse(false);
+            return;
+        }
+        if (job.getBlocked().getReason() == Blocked.Reason.REVERT) {
+            // If another revert is called but there is a revert task running
+            // we do not allow it to run. However, if the job got stuck with
+            // a block on revert, it means the node that was running the previous
+            // revert failed. So, we allow a revert to run if the task has completed
+            // in order to complete and eventually unblock the job.
+            GetTaskRequest getTaskRequest = new GetTaskRequest();
+            getTaskRequest.setTaskId(job.getBlocked().getTaskId());
+            executeAsyncWithOrigin(client, ML_ORIGIN, GetTaskAction.INSTANCE, getTaskRequest, ActionListener.wrap(
+                r -> listener.onResponse(r.getTask().isCompleted() == false),
+                e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                        listener.onResponse(false);
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
+            ));
+        } else {
+            listener.onResponse(true);
+        }
+    }
+
+    private void revertSnapshot(String jobId, RevertModelSnapshotAction.Request request,
+                                ActionListener<RevertModelSnapshotAction.Response> listener) {
+        ActionListener<RevertModelSnapshotAction.Response> finalListener = ActionListener.wrap(
+            r -> jobManager.updateJobBlockReason(jobId, Blocked.none(), ActionListener.wrap(
+                    aBoolean -> listener.onResponse(r),
+                    listener::onFailure
+                ))
+            , e -> jobManager.updateJobBlockReason(jobId, Blocked.none(), ActionListener.wrap(
+                aBoolean -> listener.onFailure(e),
+                listener::onFailure
+            ))
+        );
+
+        getModelSnapshot(request, jobResultsProvider, modelSnapshot -> {
+            ActionListener<RevertModelSnapshotAction.Response> wrappedListener = finalListener;
+            if (request.getDeleteInterveningResults()) {
+                wrappedListener = wrapDeleteOldAnnotationsListener(wrappedListener, modelSnapshot, jobId);
+                wrappedListener = wrapDeleteOldDataListener(wrappedListener, modelSnapshot, jobId);
+                wrappedListener = wrapRevertDataCountsListener(wrappedListener, modelSnapshot, jobId);
+            }
+            jobManager.revertSnapshot(request, wrappedListener, modelSnapshot);
+        }, listener::onFailure);
     }
 
     private void getModelSnapshot(RevertModelSnapshotAction.Request request, JobResultsProvider provider, Consumer<ModelSnapshot> handler,

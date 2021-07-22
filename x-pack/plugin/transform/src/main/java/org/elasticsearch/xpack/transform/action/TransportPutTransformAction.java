@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -28,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -179,7 +177,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         // create the function for validation
         final Function function = FunctionFactory.create(config);
 
-        // <3> Return to the listener
+        // <2> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
             logger.debug("[{}] created transform", config.getId());
             auditor.info(config.getId(), "Created transform.");
@@ -191,30 +189,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             listener.onResponse(AcknowledgedResponse.TRUE);
         }, listener::onFailure);
 
-        // <2> Put our transform
-        ActionListener<Boolean> validationListener = ActionListener.wrap(
-            validationResult -> transformConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
-            validationException -> {
-                if (validationException instanceof ElasticsearchStatusException) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                            ((ElasticsearchStatusException) validationException).status(),
-                            validationException
-                        )
-                    );
-                } else {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            validationException
-                        )
-                    );
-                }
-            }
-        );
-
-        validationListener.onResponse(true);
+        // <1> Put our transform
+        transformConfigManager.putTransformConfiguration(config, putTransformConfigurationListener);
     }
 }

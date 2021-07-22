@@ -90,7 +90,7 @@ will not be reassigned until the upgrade is complete. After the upgrade is done,
 [[transform-aggresponse-limitations]]
 === Aggregation responses may be incompatible with destination index mappings
 
-When a {transform} is first started, it will deduce the mappings 
+When a pivot {transform} is first started, it will deduce the mappings 
 required for the destination index. This process is based on the field types of 
 the source index and the aggregations used. If the fields are derived from 
 <<search-aggregations-metrics-scripted-metric-aggregation,`scripted_metrics`>>
@@ -101,13 +101,13 @@ overflows might occur or dynamically mapped fields might contain both numbers
 and strings. Please check {es} logs if you think this may have occurred. 
 
 You can view the deduced mappings by using the 
-https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-transform.html[Preview transform API].
+<<preview-transform,preview transform API>>.
 See the `generated_dest_index` object in the API response.
 
 If it's required, you may define custom mappings prior to starting the 
 {transform} by creating a custom destination index using the 
-https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API].
-As deduced mappings cannot be overwritten by an index template, use the Create 
+<<indices-create-index,create index API>>.
+As deduced mappings cannot be overwritten by an index template, use the create 
 index API to define custom mappings. The index templates only apply to fields 
 derived from scripts that use dynamic mappings. 
 

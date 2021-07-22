@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -38,6 +39,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -492,6 +495,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(realms.iterator().hasNext(), is(false));
     }
 
+    @SuppressWarnings("unchecked")
     public void testUsageStats() throws Exception {
         // test realms with duplicate values
         Settings.Builder builder = Settings.builder()
@@ -581,6 +585,51 @@ public class RealmsTests extends ESTestCase {
                 () -> new Realms(settings, env, factories, licenseState, threadContext, reservedRealm));
         assertThat(iae.getMessage(), is(equalTo(
                 "multiple realms [realm_1, realm_2] configured of type [kerberos], [kerberos] can only have one such realm configured")));
+    }
+
+    public void testWarningsForReservedPrefixedRealmNames() throws Exception {
+        Settings.Builder builder = Settings.builder()
+            .put("path.home", createTempDir());
+        final boolean invalidFileRealmName = randomBoolean();
+        final boolean invalidNativeRealmName = randomBoolean();
+        // Ensure at least one realm has invalid name
+        final int upperBound = (invalidFileRealmName || invalidNativeRealmName) ? randomRealmTypesCount : randomRealmTypesCount - 1;
+        final int invalidOtherRealmNameIndex = randomIntBetween(0, upperBound);
+
+        final List<String> invalidRealmNames = new ArrayList<>();
+        if (invalidFileRealmName) {
+            builder.put("xpack.security.authc.realms.file._default_file.order", -20);
+            invalidRealmNames.add("xpack.security.authc.realms.file._default_file");
+        } else {
+            builder.put("xpack.security.authc.realms.file.default_file.order", -20);
+        }
+
+        if (invalidNativeRealmName) {
+            builder.put("xpack.security.authc.realms.native._default_native.order", -10);
+            invalidRealmNames.add("xpack.security.authc.realms.native._default_native");
+        } else {
+            builder.put("xpack.security.authc.realms.native.default_native.order", -10);
+        }
+
+        IntStream.range(0, randomRealmTypesCount).forEach(i -> {
+            if (i != invalidOtherRealmNameIndex) {
+                builder.put("xpack.security.authc.realms.type_" + i + ".realm_" + i + ".order", i)
+                    .put("xpack.security.authc.realms.type_" + i + ".realm_" + i + ".enabled", randomBoolean());
+            } else {
+                builder.put("xpack.security.authc.realms.type_" + i + "._realm_" + i + ".order", i)
+                    .put("xpack.security.authc.realms.type_" + i + "._realm_" + i + ".enabled", randomBoolean());
+                invalidRealmNames.add("xpack.security.authc.realms.type_" + i + "._realm_" + i);
+            }
+        });
+
+        Settings settings = builder.build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+
+        assertWarnings("Found realm " + (invalidRealmNames.size() == 1 ? "name" : "names")
+            + " with reserved prefix [_]: ["
+            + Strings.collectionToDelimitedString(invalidRealmNames.stream().sorted().collect(Collectors.toList()), "; ") + "]. "
+            + "In a future major release, node will fail to start if any realm names start with reserved prefix.");
     }
 
     private boolean randomDisableRealm(Settings.Builder builder, String type) {

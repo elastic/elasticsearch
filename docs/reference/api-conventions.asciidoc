@@ -2,82 +2,39 @@
 == API conventions
 
 The {es} REST APIs are exposed over HTTP.
+Except where noted, the following conventions apply across all APIs.
 
-The conventions listed in this chapter can be applied throughout the REST
-API, unless otherwise specified.
+[discrete]
+=== Content-type requirements
 
-* <<multi-index>>
-* <<date-math-index-names>>
-* <<cron-expressions>>
-* <<common-options>>
-* <<url-access-control>>
+The type of the content sent in a request body must be specified using
+the `Content-Type` header. The value of this header must map to one of
+the supported formats that the API supports. Most APIs support JSON,
+YAML, CBOR, and SMILE. The bulk and multi-search APIs support NDJSON,
+JSON, and SMILE; other types will result in an error response.
 
-[[multi-index]]
-=== Multi-target syntax
+When using the `source` query string parameter, the content type must be
+specified using the `source_content_type` query string parameter.
 
-Most APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path
-parameter also support _multi-target syntax_.
+{es} only supports UTF-8-encoded JSON. {es} ignores any other encoding headings
+sent with a request. Responses are also UTF-8 encoded.
 
-In multi-target syntax, you can use a comma-separated list to run a request on
-multiple resources, such as data streams, indices, or index aliases:
-`test1,test2,test3`. You can also use {wikipedia}/Glob_(programming)[glob-like]
-wildcard (`*`) expressions to target resources that match a pattern: `test*` or
-`*test` or `te*t` or `*test*`.
+[discrete]
+[[get-requests]]
+=== GET and POST requests
 
-You can exclude targets using the `-` character: `test*,-test3`.
+A number of {es} GET APIs--most notably the search API--support a request body. 
+While the GET action makes sense in the context of retrieving information, 
+GET requests with a body are not supported by all HTTP libraries.
+All {es} GET APIs that require a body can also be submitted as POST requests.
+Alternatively, you can pass the request body as the 
+<<api-request-body-query-string, `source` query string parameter>>
+when using GET.
 
-IMPORTANT: Index aliases are resolved after wildcard expressions. This can
-result in a request that targets an excluded alias. For example, if `test3` is
-an index alias, the pattern `test*,-test3` still targets the indices for
-`test3`. To avoid this, exclude the concrete indices for the alias instead.
+include::rest-api/cron-expressions.asciidoc[]
 
-Multi-target APIs that can target indices support the following query
-string parameters:
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
-
-The defaults settings for the above parameters depend on the API being used.
-
-Some multi-target APIs that can target indices also support the following query
-string parameter:
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
-
-NOTE: APIs with a single target, such as the <<docs-get,get document API>>, do
-not support multi-target syntax.
-
-[[hidden-indices]]
-==== Hidden data streams and indices
-
-For most APIs, wildcard expressions do not match hidden data streams and indices
-by default. To match hidden data streams and indices using a wildcard
-expression, you must specify the `expand_wildcards` query parameter.
-
-You can create hidden data streams by setting
-<<data-stream-hidden,`data_stream.hidden`>> to `true` in the stream's matching
-index template. You can hide indices using the <<index-hidden,`index.hidden`>>
-index setting.
-
-The backing indices for data streams are hidden automatically. Some features,
-such as {ml}, store information in hidden indices.
-
-Global index templates that match all indices are not applied to hidden indices.
-
-[[system-indices]]
-==== System indices
-
-{es} modules and plugins can store configuration and state information in internal _system indices_. 
-You should not directly access or modify system indices 
-as they contain data essential to the operation of the system.
-
-IMPORTANT: Direct access to system indices is deprecated and 
-will no longer be allowed in the next major version.
-
-[[date-math-index-names]]
+[discrete]
+[[api-date-math-index-names]]
 === Date math support in index and index alias names
 
 Date math name resolution lets you to search a range of time series indices or
@@ -173,345 +130,123 @@ GET /%3Clogstash-%7Bnow%2Fd-2d%7D%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogs
 // TEST[s/^/PUT logstash-2016.09.20\nPUT logstash-2016.09.19\nPUT logstash-2016.09.18\n/]
 // TEST[s/now/2016.09.20%7C%7C/]
 
-include::rest-api/cron-expressions.asciidoc[]
+[discrete]
+[[api-multi-index]]
+=== Multi-target syntax
 
-[[common-options]]
-=== Common options
+Most APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path
+parameter also support _multi-target syntax_.
 
-The following options can be applied to all of the REST APIs.
+In multi-target syntax, you can use a comma-separated list to run a request on
+multiple resources, such as data streams, indices, or aliases:
+`test1,test2,test3`. You can also use {wikipedia}/Glob_(programming)[glob-like]
+wildcard (`*`) expressions to target resources that match a pattern: `test*` or
+`*test` or `te*t` or `*test*`.
+
+You can exclude targets using the `-` character: `test*,-test3`.
+
+IMPORTANT: Aliases are resolved after wildcard expressions. This can result in a
+request that targets an excluded alias. For example, if `test3` is an index
+alias, the pattern `test*,-test3` still targets the indices for `test3`. To
+avoid this, exclude the concrete indices for the alias instead.
+
+Multi-target APIs that can target indices support the following query
+string parameters:
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+
+The defaults settings for the above parameters depend on the API being used.
+
+Some multi-target APIs that can target indices also support the following query
+string parameter:
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
+
+NOTE: APIs with a single target, such as the <<docs-get,get document API>>, do
+not support multi-target syntax.
 
 [discrete]
-==== Pretty Results
+[[multi-hidden]]
+==== Hidden data streams and indices
 
-When appending `?pretty=true` to any request made, the JSON returned
-will be pretty formatted (use it for debugging only!). Another option is
-to set `?format=yaml` which will cause the result to be returned in the
-(sometimes) more readable yaml format.
+For most APIs, wildcard expressions do not match hidden data streams and indices
+by default. To match hidden data streams and indices using a wildcard
+expression, you must specify the `expand_wildcards` query parameter.
 
+You can create hidden data streams by setting `data_stream.hidden` to `true` in
+the stream's matching <<indices-put-template,index template>>. You can hide
+indices using the <<index-hidden,`index.hidden`>> index setting.
 
-[discrete]
-==== Human readable output
+The backing indices for data streams are hidden automatically. Some features,
+such as {ml}, store information in hidden indices.
 
-Statistics are returned in a format suitable for humans
-(e.g. `"exists_time": "1h"` or `"size": "1kb"`) and for computers
-(e.g. `"exists_time_in_millis": 3600000` or `"size_in_bytes": 1024`).
-The human readable values can be turned off by adding `?human=false`
-to the query string. This makes sense when the stats results are
-being consumed by a monitoring tool, rather than intended for human
-consumption. The default for the `human` flag is
-`false`.
-
-[[date-math]]
-[discrete]
-==== Date Math
-
-Most parameters which accept a formatted date value -- such as `gt` and `lt`
-in <<query-dsl-range-query,`range` queries>>, or `from` and `to`
-in <<search-aggregations-bucket-daterange-aggregation,`daterange`
-aggregations>> -- understand date maths.
-
-The expression starts with an anchor date, which can either be `now`, or a
-date string ending with `||`. This anchor date can optionally be followed by
-one or more maths expressions:
-
-* `+1h`: Add one hour
-* `-1d`: Subtract one day
-* `/d`: Round down to the nearest day
-
-The supported time units differ from those supported by <<time-units, time units>> for durations.
-The supported units are:
-
-[horizontal]
-`y`:: Years
-`M`:: Months
-`w`:: Weeks
-`d`:: Days
-`h`:: Hours
-`H`:: Hours
-`m`:: Minutes
-`s`:: Seconds
-
-Assuming `now` is `2001-01-01 12:00:00`, some examples are:
-
-[horizontal]
-`now+1h`:: `now` in milliseconds plus one hour. Resolves to: `2001-01-01 13:00:00`
-`now-1h`:: `now` in milliseconds minus one hour. Resolves to: `2001-01-01 11:00:00`
-`now-1h/d`:: `now` in milliseconds minus one hour, rounded down to UTC 00:00. Resolves to: `2001-01-01 00:00:00`
- `2001.02.01\|\|+1M/d`:: `2001-02-01` in milliseconds plus one month. Resolves to: `2001-03-01 00:00:00`
+Global index templates that match all indices are not applied to hidden indices.
 
 [discrete]
-[[common-options-response-filtering]]
-==== Response Filtering
+[[system-indices]]
+==== System indices
 
-All REST APIs accept a `filter_path` parameter that can be used to reduce
-the response returned by Elasticsearch. This parameter takes a comma
-separated list of filters expressed with the dot notation:
+{es} modules and plugins can store configuration and state information in internal _system indices_. 
+You should not directly access or modify system indices 
+as they contain data essential to the operation of the system.
 
-[source,console]
---------------------------------------------------
-GET /_search?q=kimchy&filter_path=took,hits.hits._id,hits.hits._score
---------------------------------------------------
-// TEST[setup:my_index]
-
-Responds:
-
-[source,console-result]
---------------------------------------------------
-{
-  "took" : 3,
-  "hits" : {
-    "hits" : [
-      {
-        "_id" : "0",
-        "_score" : 1.6375021
-      }
-    ]
-  }
-}
---------------------------------------------------
-// TESTRESPONSE[s/"took" : 3/"took" : $body.took/]
-// TESTRESPONSE[s/1.6375021/$body.hits.hits.0._score/]
-
-It also supports the `*` wildcard character to match any field or part
-of a field's name:
-
-[source,console]
---------------------------------------------------
-GET /_cluster/state?filter_path=metadata.indices.*.stat*
---------------------------------------------------
-// TEST[s/^/PUT my-index-000001\n/]
-
-Responds:
-
-[source,console-result]
---------------------------------------------------
-{
-  "metadata" : {
-    "indices" : {
-      "my-index-000001": {"state": "open"}
-    }
-  }
-}
---------------------------------------------------
-
-And the `**` wildcard can be used to include fields without knowing the
-exact path of the field. For example, we can return the Lucene version
-of every segment with this request:
-
-[source,console]
---------------------------------------------------
-GET /_cluster/state?filter_path=routing_table.indices.**.state
---------------------------------------------------
-// TEST[s/^/PUT my-index-000001\n/]
-
-Responds:
-
-[source,console-result]
---------------------------------------------------
-{
-  "routing_table": {
-    "indices": {
-      "my-index-000001": {
-        "shards": {
-          "0": [{"state": "STARTED"}, {"state": "UNASSIGNED"}]
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-
-It is also possible to exclude one or more fields by prefixing the filter with the char `-`:
-
-[source,console]
---------------------------------------------------
-GET /_count?filter_path=-_shards
---------------------------------------------------
-// TEST[setup:my_index]
-
-Responds:
-
-[source,console-result]
---------------------------------------------------
-{
-  "count" : 5
-}
---------------------------------------------------
-
-And for more control, both inclusive and exclusive filters can be combined in the same expression. In
-this case, the exclusive filters will be applied first and the result will be filtered again using the
-inclusive filters:
-
-[source,console]
---------------------------------------------------
-GET /_cluster/state?filter_path=metadata.indices.*.state,-metadata.indices.logstash-*
---------------------------------------------------
-// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\nPUT my-index-000003\nPUT logstash-2016.01\n/]
-
-Responds:
-
-[source,console-result]
---------------------------------------------------
-{
-  "metadata" : {
-    "indices" : {
-      "my-index-000001" : {"state" : "open"},
-      "my-index-000002" : {"state" : "open"},
-      "my-index-000003" : {"state" : "open"}
-    }
-  }
-}
---------------------------------------------------
-
-Note that Elasticsearch sometimes returns directly the raw value of a field,
-like the `_source` field. If you want to filter `_source` fields, you should
-consider combining the already existing `_source` parameter (see
-<<get-source-filtering,Get API>> for more details) with the `filter_path`
-parameter like this:
-
-[source,console]
---------------------------------------------------
-POST /library/_doc?refresh
-{"title": "Book #1", "rating": 200.1}
-POST /library/_doc?refresh
-{"title": "Book #2", "rating": 1.7}
-POST /library/_doc?refresh
-{"title": "Book #3", "rating": 0.1}
-GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
---------------------------------------------------
-
-[source,console-result]
---------------------------------------------------
-{
-  "hits" : {
-    "hits" : [ {
-      "_source":{"title":"Book #1"}
-    }, {
-      "_source":{"title":"Book #2"}
-    }, {
-      "_source":{"title":"Book #3"}
-    } ]
-  }
-}
---------------------------------------------------
-
-
-[discrete]
-==== Flat Settings
-
-The `flat_settings` flag affects rendering of the lists of settings. When the
-`flat_settings` flag is `true`, settings are returned in a flat format:
-
-[source,console]
---------------------------------------------------
-GET my-index-000001/_settings?flat_settings=true
---------------------------------------------------
-// TEST[setup:my_index]
-
-Returns:
-
-[source,console-result]
---------------------------------------------------
-{
-  "my-index-000001" : {
-    "settings": {
-      "index.number_of_replicas": "1",
-      "index.number_of_shards": "1",
-      "index.creation_date": "1474389951325",
-      "index.uuid": "n6gzFZTgS664GUfx0Xrpjw",
-      "index.version.created": ...,
-      "index.routing.allocation.include._tier_preference" : "data_content",
-      "index.provided_name" : "my-index-000001"
-    }
-  }
-}
---------------------------------------------------
-// TESTRESPONSE[s/1474389951325/$body.my-index-000001.settings.index\\\\.creation_date/]
-// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.my-index-000001.settings.index\\\\.uuid/]
-// TESTRESPONSE[s/"index.version.created": \.\.\./"index.version.created": $body.my-index-000001.settings.index\\\\.version\\\\.created/]
-
-When the `flat_settings` flag is `false`, settings are returned in a more
-human readable structured format:
-
-[source,console]
---------------------------------------------------
-GET my-index-000001/_settings?flat_settings=false
---------------------------------------------------
-// TEST[setup:my_index]
-
-Returns:
-
-[source,console-result]
---------------------------------------------------
-{
-  "my-index-000001" : {
-    "settings" : {
-      "index" : {
-        "number_of_replicas": "1",
-        "number_of_shards": "1",
-        "creation_date": "1474389951325",
-        "uuid": "n6gzFZTgS664GUfx0Xrpjw",
-        "version": {
-          "created": ...
-        },
-        "routing": {
-          "allocation": {
-            "include": {
-              "_tier_preference": "data_content"
-            }
-          }
-        },
-        "provided_name" : "my-index-000001"
-      }
-    }
-  }
-}
---------------------------------------------------
-// TESTRESPONSE[s/1474389951325/$body.my-index-000001.settings.index.creation_date/]
-// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.my-index-000001.settings.index.uuid/]
-// TESTRESPONSE[s/"created": \.\.\./"created": $body.my-index-000001.settings.index.version.created/]
-
-By default `flat_settings` is set to `false`.
+IMPORTANT: Direct access to system indices is deprecated and 
+will no longer be allowed in the next major version.
 
 [discrete]
 [[api-conventions-parameters]]
-==== Parameters
+=== Parameters
 
 Rest parameters (when using HTTP, map to HTTP URL parameters) follow the
 convention of using underscore casing.
 
 [discrete]
-==== Boolean Values
+[[api-request-body-query-string]]
+=== Request body in query string
+
+For libraries that don't accept a request body for non-POST requests,
+you can pass the request body as the `source` query string parameter
+instead. When using this method, the `source_content_type` parameter
+should also be passed with a media type value that indicates the format
+of the source, such as `application/json`.
+
+[discrete]
+[[api-url-access-control]]
+=== URL-based access control
+
+Many users use a proxy with URL-based access control to secure access to
+{es} data streams and indices. For <<search-multi-search,multi-search>>,
+<<docs-multi-get,multi-get>>, and <<docs-bulk,bulk>> requests, the user has
+the choice of specifying a data stream or  index in the URL and on each individual request
+within the request body. This can make URL-based access control challenging.
+
+To prevent the user from overriding the data stream or index specified in the
+URL, set `rest.action.multi.allow_explicit_index` to `false` in `elasticsearch.yml`.
+
+
+This causes  {es} to
+reject requests that explicitly specify a data stream or index in the request body.
+
+[discrete]
+=== Boolean Values
 
 All REST API parameters (both request parameters and JSON body) support
 providing boolean "false" as the value `false` and boolean "true" as the
 value `true`. All other values will raise an error.
 
 [discrete]
-==== Number Values
+=== Number Values
 
 All REST APIs support providing numbered parameters as `string` on top
 of supporting the native JSON number types.
 
-[[time-units]]
-[discrete]
-==== Time units
-
-Whenever durations need to be specified, e.g. for a `timeout` parameter, the duration must specify
-the unit, like `2d` for 2 days. The supported units are:
-
-[horizontal]
-`d`::       Days
-`h`::       Hours
-`m`::       Minutes
-`s`::       Seconds
-`ms`::      Milliseconds
-`micros`::  Microseconds
-`nanos`::   Nanoseconds
-
 [[byte-units]]
 [discrete]
-==== Byte size units
+=== Byte size units
 
 Whenever the byte size of data needs to be specified, e.g. when setting a buffer size
 parameter, the value must specify the unit, like `10kb` for 10 kilobytes. Note that
@@ -525,25 +260,9 @@ these units use powers of 1024, so `1kb` means 1024 bytes. The supported units a
 `tb`::  Terabytes
 `pb`::  Petabytes
 
-[[size-units]]
-[discrete]
-==== Unit-less quantities
-
-Unit-less quantities means that they don't have a "unit" like "bytes" or "Hertz" or "meter" or "long tonne".
-
-If one of these quantities is large we'll print it out like 10m for 10,000,000 or 7k for 7,000. We'll still print 87
-when we mean 87 though. These are the supported multipliers:
-
-[horizontal]
-`k`::  Kilo
-`m`::  Mega
-`g`::  Giga
-`t`::  Tera
-`p`::  Peta
-
 [[distance-units]]
 [discrete]
-==== Distance Units
+=== Distance Units
 
 Wherever distances need to be specified, such as the `distance` parameter in
 the <<query-dsl-geo-distance-query>>), the default unit is meters if none is specified.
@@ -563,151 +282,37 @@ Centimeter::    `cm` or `centimeters`
 Millimeter::    `mm` or `millimeters`
 Nautical mile:: `NM`, `nmi`, or `nauticalmiles`
 
-[[fuzziness]]
 [discrete]
-==== Fuzziness
+[[time-units]]
+=== Time units
 
-Some queries and APIs support parameters to allow inexact _fuzzy_ matching,
-using the `fuzziness` parameter.
-
-When querying `text` or `keyword` fields, `fuzziness` is interpreted as a
-{wikipedia}/Levenshtein_distance[Levenshtein Edit Distance]
--- the number of one character changes that need to be made to one string to
-make it the same as another string.
-
-The `fuzziness` parameter can be specified as:
+Whenever durations need to be specified, e.g. for a `timeout` parameter, the duration must specify
+the unit, like `2d` for 2 days. The supported units are:
 
 [horizontal]
-`0`, `1`, `2`::
+`d`::       Days
+`h`::       Hours
+`m`::       Minutes
+`s`::       Seconds
+`ms`::      Milliseconds
+`micros`::  Microseconds
+`nanos`::   Nanoseconds
 
-The maximum allowed Levenshtein Edit Distance (or number of edits)
-
-`AUTO`::
-+
---
-Generates an edit distance based on the length of the term.
-Low and high distance arguments may be optionally provided `AUTO:[low],[high]`. If not specified,
-the default values are 3 and 6, equivalent to `AUTO:3,6` that make for lengths:
-
-`0..2`:: Must match exactly
-`3..5`:: One edit allowed
-`>5`:: Two edits allowed
-
-`AUTO` should generally be the preferred value for `fuzziness`.
---
-
+[[size-units]]
 [discrete]
-[[common-options-error-options]]
-==== Enabling stack traces
+=== Unit-less quantities
 
-By default when a request returns an error Elasticsearch doesn't include the
-stack trace of the error. You can enable that behavior by setting the
-`error_trace` url parameter to `true`. For example, by default when you send an
-invalid `size` parameter to the `_search` API:
+Unit-less quantities means that they don't have a "unit" like "bytes" or "Hertz" or "meter" or "long tonne".
 
-[source,console]
-----------------------------------------------------------------------
-POST /my-index-000001/_search?size=surprise_me
-----------------------------------------------------------------------
-// TEST[s/surprise_me/surprise_me&error_trace=false/ catch:bad_request]
-// Since the test system sends error_trace=true by default we have to override
+If one of these quantities is large we'll print it out like 10m for 10,000,000 or 7k for 7,000. We'll still print 87
+when we mean 87 though. These are the supported multipliers:
 
-The response looks like:
-
-[source,console-result]
-----------------------------------------------------------------------
-{
-  "error" : {
-    "root_cause" : [
-      {
-        "type" : "illegal_argument_exception",
-        "reason" : "Failed to parse int parameter [size] with value [surprise_me]"
-      }
-    ],
-    "type" : "illegal_argument_exception",
-    "reason" : "Failed to parse int parameter [size] with value [surprise_me]",
-    "caused_by" : {
-      "type" : "number_format_exception",
-      "reason" : "For input string: \"surprise_me\""
-    }
-  },
-  "status" : 400
-}
-----------------------------------------------------------------------
-
-But if you set `error_trace=true`:
-
-[source,console]
-----------------------------------------------------------------------
-POST /my-index-000001/_search?size=surprise_me&error_trace=true
-----------------------------------------------------------------------
-// TEST[catch:bad_request]
-
-The response looks like:
-
-[source,console-result]
-----------------------------------------------------------------------
-{
-  "error": {
-    "root_cause": [
-      {
-        "type": "illegal_argument_exception",
-        "reason": "Failed to parse int parameter [size] with value [surprise_me]",
-        "stack_trace": "Failed to parse int parameter [size] with value [surprise_me]]; nested: IllegalArgumentException..."
-      }
-    ],
-    "type": "illegal_argument_exception",
-    "reason": "Failed to parse int parameter [size] with value [surprise_me]",
-    "stack_trace": "java.lang.IllegalArgumentException: Failed to parse int parameter [size] with value [surprise_me]\n    at org.elasticsearch.rest.RestRequest.paramAsInt(RestRequest.java:175)...",
-    "caused_by": {
-      "type": "number_format_exception",
-      "reason": "For input string: \"surprise_me\"",
-      "stack_trace": "java.lang.NumberFormatException: For input string: \"surprise_me\"\n    at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)..."
-    }
-  },
-  "status": 400
-}
-----------------------------------------------------------------------
-// TESTRESPONSE[s/"stack_trace": "Failed to parse int parameter.+\.\.\."/"stack_trace": $body.error.root_cause.0.stack_trace/]
-// TESTRESPONSE[s/"stack_trace": "java.lang.IllegalArgum.+\.\.\."/"stack_trace": $body.error.stack_trace/]
-// TESTRESPONSE[s/"stack_trace": "java.lang.Number.+\.\.\."/"stack_trace": $body.error.caused_by.stack_trace/]
-
-[discrete]
-==== Request body in query string
-
-For libraries that don't accept a request body for non-POST requests,
-you can pass the request body as the `source` query string parameter
-instead. When using this method, the `source_content_type` parameter
-should also be passed with a media type value that indicates the format
-of the source, such as `application/json`.
-
-[discrete]
-==== Content-type requirements
-
-The type of the content sent in a request body must be specified using
-the `Content-Type` header. The value of this header must map to one of
-the supported formats that the API supports. Most APIs support JSON,
-YAML, CBOR, and SMILE. The bulk and multi-search APIs support NDJSON,
-JSON, and SMILE; other types will result in an error response.
-
-When using the `source` query string parameter, the content type must be
-specified using the `source_content_type` query string parameter.
-
-{es} only supports UTF-8-encoded JSON. {es} ignores any other encoding headings
-sent with a request. Responses are also UTF-8 encoded.
-
-[[url-access-control]]
-=== URL-based access control
-
-Many users use a proxy with URL-based access control to secure access to
-{es} data streams and indices. For <<search-multi-search,multi-search>>,
-<<docs-multi-get,multi-get>>, and <<docs-bulk,bulk>> requests, the user has
-the choice of specifying a data stream or  index in the URL and on each individual request
-within the request body. This can make URL-based access control challenging.
-
-To prevent the user from overriding the data stream or index specified in the
-URL, set `rest.action.multi.allow_explicit_index` to `false` in `elasticsearch.yml`.
+[horizontal]
+`k`::  Kilo
+`m`::  Mega
+`g`::  Giga
+`t`::  Tera
+`p`::  Peta
 
 
-This causes  {es} to
-reject requests that explicitly specify a data stream or index in the request body.
+

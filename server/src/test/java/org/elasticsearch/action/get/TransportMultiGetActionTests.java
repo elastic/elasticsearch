@@ -137,7 +137,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
         when(clusterService.operationRouting()).thenReturn(operationRouting);
 
         shardAction = new TransportShardMultiGetAction(clusterService, transportService, mock(IndicesService.class), threadPool,
-            new ActionFilters(emptySet()), new Resolver()) {
+            new ActionFilters(emptySet()), new Resolver(), EmptySystemIndices.INSTANCE.getExecutorSelector()) {
             @Override
             protected void doExecute(Task task, MultiGetShardRequest request, ActionListener<MultiGetShardResponse> listener) {
             }

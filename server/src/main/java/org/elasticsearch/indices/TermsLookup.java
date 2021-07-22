@@ -9,7 +9,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 
@@ -24,6 +25,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.core.RestApiVersion.equalTo;
 
 /**
  * Encapsulates the parameters needed to fetch terms.
@@ -107,6 +109,8 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         PARSER.declareString(constructorArg(), new ParseField("id"));
         PARSER.declareString(constructorArg(), new ParseField("path"));
         PARSER.declareString(TermsLookup::routing, new ParseField("routing"));
+        PARSER.declareString((termLookup,type)-> {}, new ParseField("type")
+            .forRestApiVersion(equalTo(RestApiVersion.V_7)));
     }
 
     public static TermsLookup parseTermsLookup(XContentParser parser) throws IOException {

@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.ml.job.task;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class JobTaskTests extends ESTestCase {
 
@@ -32,4 +34,14 @@ public class JobTaskTests extends ESTestCase {
         assertThat(OpenJobAction.JobTaskMatcher.match(jobTask2, "ml-2"), is(true));
     }
 
+    public void testKillJob() {
+        JobTask jobTask = new JobTask("job-to-kill", 0, "persistent", "", null, null);
+        AutodetectProcessManager processManager = mock(AutodetectProcessManager.class);
+        jobTask.setAutodetectProcessManager(processManager);
+
+        jobTask.killJob("test");
+
+        assertThat(jobTask.isClosing(), is(true));
+        verify(processManager).killProcess(jobTask, true, "test");
+    }
 }

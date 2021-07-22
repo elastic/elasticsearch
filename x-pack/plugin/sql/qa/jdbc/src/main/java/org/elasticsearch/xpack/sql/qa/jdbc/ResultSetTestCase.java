@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
@@ -298,7 +298,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         double doubleNotByte = randomDoubleBetween(Byte.MAX_VALUE + 1, Double.MAX_VALUE, true);
         float floatNotByte = randomFloatBetween(Byte.MAX_VALUE + 1, Float.MAX_VALUE);
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
-        long randomDate = randomNonNegativeLong();
+        long randomDate = randomMillisUpToYear9999();
 
         String doubleErrorMessage = (doubleNotByte > Long.MAX_VALUE || doubleNotByte < Long.MIN_VALUE)
             ? Double.toString(doubleNotByte)
@@ -428,7 +428,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         double doubleNotShort = randomDoubleBetween(Short.MAX_VALUE + 1, Double.MAX_VALUE, true);
         float floatNotShort = randomFloatBetween(Short.MAX_VALUE + 1, Float.MAX_VALUE);
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
-        long randomDate = randomNonNegativeLong();
+        long randomDate = randomMillisUpToYear9999();
 
         String doubleErrorMessage = (doubleNotShort > Long.MAX_VALUE || doubleNotShort < Long.MIN_VALUE)
             ? Double.toString(doubleNotShort)
@@ -551,7 +551,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         double doubleNotInt = randomDoubleBetween(getMaxIntPlusOne().doubleValue(), Double.MAX_VALUE, true);
         float floatNotInt = randomFloatBetween(getMaxIntPlusOne().floatValue(), Float.MAX_VALUE);
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
-        long randomDate = randomNonNegativeLong();
+        long randomDate = randomMillisUpToYear9999();
 
         String doubleErrorMessage = (doubleNotInt > Long.MAX_VALUE || doubleNotInt < Long.MIN_VALUE)
             ? Double.toString(doubleNotInt)
@@ -664,7 +664,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         double doubleNotLong = randomDoubleBetween(getMaxLongPlusOne(), Double.MAX_VALUE, true);
         float floatNotLong = randomFloatBetween(getMaxLongPlusOne().floatValue(), Float.MAX_VALUE);
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
-        long randomDate = randomNonNegativeLong();
+        long randomDate = randomMillisUpToYear9999();
 
         index("test", "1", builder -> {
             builder.field("test_double", doubleNotLong);
@@ -768,7 +768,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
 
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
-        long randomDate = randomNonNegativeLong();
+        long randomDate = randomMillisUpToYear9999();
 
         index("test", "1", builder -> {
             builder.field("test_keyword", randomString);
@@ -851,7 +851,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
 
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
-        long randomDate = randomNonNegativeLong();
+        long randomDate = randomMillisUpToYear9999();
 
         index("test", "1", builder -> {
             builder.field("test_keyword", randomString);
@@ -1059,7 +1059,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
 
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
-        long randomDate = randomNonNegativeLong();
+        long randomDate = randomMillisUpToYear9999();
 
         index("test", "1", builder -> {
             builder.field("test_keyword", randomString);
@@ -1095,9 +1095,9 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.startObject("test_date").field("type", "date").endObject();
             builder.startObject("test_date_nanos").field("type", "date_nanos").endObject();
         });
-        long randomDate1 = randomNonNegativeLong();
+        long randomDate1 = randomMillisUpToYear9999();
         long randomDateNanos1 = randomTimeInNanos();
-        long randomDate2 = randomNonNegativeLong();
+        long randomDate2 = randomMillisUpToYear9999();
         long randomDateNanos2 = randomTimeInNanos();
 
         // true values
@@ -1206,7 +1206,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGettingDateWithoutCalendar() throws Exception {
-        long randomLongDate = randomNonNegativeLong();
+        long randomLongDate = randomMillisUpToYear9999();
         setupDataForDateTimeTests(randomLongDate);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
@@ -1231,7 +1231,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     public void testGettingDateWithoutCalendarWithNanos() throws Exception {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
-        long randomLongDate = randomNonNegativeLong();
+        long randomLongDate = randomMillisUpToYear9999();
         long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
@@ -1255,7 +1255,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGettingDateWithCalendar() throws Exception {
-        long randomLongDate = randomNonNegativeLong();
+        long randomLongDate = randomMillisUpToYear9999();
         setupDataForDateTimeTests(randomLongDate);
 
         String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
@@ -1286,7 +1286,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     public void testGettingDateWithCalendarWithNanos() throws Exception {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
-        long randomLongDate = randomNonNegativeLong();
+        long randomLongDate = randomMillisUpToYear9999();
         long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
@@ -1315,7 +1315,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGettingTimeWithoutCalendar() throws Exception {
-        long randomLongDate = randomNonNegativeLong();
+        long randomLongDate = randomMillisUpToYear9999();
         setupDataForDateTimeTests(randomLongDate);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
@@ -1339,7 +1339,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     public void testGettingTimeWithoutCalendarWithNanos() throws Exception {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
-        long randomLongDate = randomNonNegativeLong();
+        long randomLongDate = randomMillisUpToYear9999();
         long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
@@ -1362,7 +1362,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGettingTimeWithCalendar() throws Exception {
-        long randomLongDate = randomNonNegativeLong();
+        long randomLongDate = randomMillisUpToYear9999();
         setupDataForDateTimeTests(randomLongDate);
 
         String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
@@ -1392,7 +1392,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     public void testGettingTimeWithCalendarWithNanos() throws Exception {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
-        long randomLongDate = randomNonNegativeLong();
+        long randomLongDate = randomMillisUpToYear9999();
         long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
@@ -1420,7 +1420,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGettingTimestampWithoutCalendar() throws Exception {
-        long randomLongDate = randomNonNegativeLong();
+        long randomLongDate = randomMillisUpToYear9999();
         long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
@@ -1443,7 +1443,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     public void testGettingTimestampWithoutCalendarWithNanos() throws Exception {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
-        long randomLongDate = randomNonNegativeLong();
+        long randomLongDate = randomMillisUpToYear9999();
         long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
@@ -1465,7 +1465,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     public void testGettingTimestampWithoutCalendarWithNanosAgainstDriverWithoutSupport() throws Exception {
         assumeFalse("Driver version [" + JDBC_DRIVER_VERSION + "] supports DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
-        long randomLongDate = randomNonNegativeLong();
+        long randomLongDate = randomMillisUpToYear9999();
         long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
@@ -1480,7 +1480,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGettingTimestampWithCalendar() throws IOException, SQLException {
-        long randomLongDate = randomNonNegativeLong();
+        long randomLongDate = randomMillisUpToYear9999();
         long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
@@ -1503,7 +1503,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     public void testGettingTimestampWithCalendar_DateNanos() throws IOException, SQLException {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
-        long randomLongDate = randomNonNegativeLong();
+        long randomLongDate = randomMillisUpToYear9999();
         long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
@@ -1753,7 +1753,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         double d = randomDouble();
         float f = randomFloat();
         boolean randomBool = randomBoolean();
-        long randomLongDate = randomNonNegativeLong();
+        long randomLongDate = randomMillisUpToYear9999();
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
 
         index("test", "1", builder -> {

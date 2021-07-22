@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ArrayValuesSourceParser.NumericValuesSourceParser;

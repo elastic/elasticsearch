@@ -53,7 +53,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.ReplicaShardAllocatorIT;
@@ -641,7 +641,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         assertThat(client().admin().cluster().prepareGetSnapshots(REPO_NAME).setSnapshots(SNAP_NAME).get()
-                .getSnapshots(REPO_NAME).get(0).state(), equalTo(SnapshotState.SUCCESS));
+                .getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
 
         client().admin().indices().prepareClose(INDEX_NAME).execute().actionGet();
 

@@ -25,7 +25,6 @@ public class UkrainianAnalyzerProvider extends AbstractIndexAnalyzerProvider<XUk
             Analysis.parseStopWords(env, settings, UkrainianMorfologikAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
-        analyzer.setVersion(version);
     }
 
     @Override

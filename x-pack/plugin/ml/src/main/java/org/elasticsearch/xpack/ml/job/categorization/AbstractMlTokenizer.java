@@ -20,10 +20,14 @@ public abstract class AbstractMlTokenizer extends Tokenizer {
     protected final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
     protected final PositionIncrementAttribute posIncrAtt = addAttribute(PositionIncrementAttribute.class);
 
+    /**
+     * The internal offset stores the offset in the potentially filtered input to the tokenizer.
+     * This must be corrected before setting the offset attribute for user-visible output.
+     */
     protected int nextOffset;
     protected int skippedPositions;
 
-    AbstractMlTokenizer() {
+    protected AbstractMlTokenizer() {
     }
 
     @Override
@@ -31,7 +35,8 @@ public abstract class AbstractMlTokenizer extends Tokenizer {
         super.end();
         // Set final offset
         int finalOffset = nextOffset + (int) input.skip(Integer.MAX_VALUE);
-        offsetAtt.setOffset(finalOffset, finalOffset);
+        int correctedFinalOffset = correctOffset(finalOffset);
+        offsetAtt.setOffset(correctedFinalOffset, correctedFinalOffset);
         // Adjust any skipped tokens
         posIncrAtt.setPositionIncrement(posIncrAtt.getPositionIncrement() + skippedPositions);
     }

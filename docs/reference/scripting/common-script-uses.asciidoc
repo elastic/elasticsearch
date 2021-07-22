@@ -1,28 +1,25 @@
 [[common-script-uses]]
-=== Common scripting use cases
+== Common scripting use cases
 You can write a script to do almost anything, and sometimes, that's
 the trouble. It's challenging to know what's possible with scripts,
 so the following examples address common uses cases where scripts are
 really helpful.
 
+* <<scripting-field-extraction,Field extraction>>
+
 [[scripting-field-extraction]]
-==== Field extraction
+=== Field extraction
 The goal of field extraction is simple; you have fields in your data with a bunch of
 information, but you only want to extract pieces and parts.
 
 There are two options at your disposal:
 
-* <<grok-basics,Grok>> is a regular expression dialect that supports aliased
+* <<grok,Grok>> is a regular expression dialect that supports aliased
 expressions that you can reuse. Because Grok sits on top of regular expressions
 (regex), any regular expressions are valid in grok as well.
-* <<dissect-processor,Dissect>> extracts structured fields out of text, using
+* <<dissect,Dissect>> extracts structured fields out of text, using
 delimiters to define the matching pattern. Unlike grok, dissect doesn't use regular
 expressions.
-
-Regex is incredibly powerful but can be complicated. If you don't need the
-power of regular expressions, use dissect patterns, which are simple and
-often faster than grok patterns. Paying special attention to the parts of the string
-you want to discard will help build successful dissect patterns.
 
 Let's start with a simple example by adding the `@timestamp` and `message`
 fields to the `my-index` mapping as indexed fields. To remain flexible, use
@@ -73,7 +70,7 @@ POST /my-index/_bulk?refresh
 
 [discrete]
 [[field-extraction-ip]]
-===== Extract an IP address from a log message (Grok)
+==== Extract an IP address from a log message (Grok)
 If you want to retrieve results that include `clientip`, you can add that
 field as a runtime field in the mapping. The following runtime script defines a
 grok pattern that extracts structured fields out of the `message` field. 

@@ -14,11 +14,12 @@ import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
@@ -221,7 +222,7 @@ public abstract class PackagingTestCase extends Assert {
             case DOCKER_UBI:
             case DOCKER_IRON_BANK:
                 installation = Docker.runContainer(distribution);
-                Docker.verifyContainerInstallation(installation, distribution);
+                Docker.verifyContainerInstallation(installation);
                 break;
             default:
                 throw new IllegalStateException("Unknown Elasticsearch packaging type.");

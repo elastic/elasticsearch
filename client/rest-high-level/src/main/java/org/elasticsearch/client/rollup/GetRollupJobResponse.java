@@ -11,7 +11,7 @@ package org.elasticsearch.client.rollup;
 import org.elasticsearch.client.core.IndexerJobStats;
 import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;

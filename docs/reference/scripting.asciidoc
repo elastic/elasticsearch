@@ -53,6 +53,8 @@ include::scripting/painless.asciidoc[]
 
 include::scripting/using.asciidoc[]
 
+include::scripting/common-script-uses.asciidoc[]
+
 include::scripting/fields.asciidoc[]
 
 include::scripting/security.asciidoc[]

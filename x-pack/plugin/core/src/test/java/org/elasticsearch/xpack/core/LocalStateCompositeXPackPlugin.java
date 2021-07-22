@@ -23,7 +23,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -66,6 +68,7 @@ import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -74,6 +77,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -105,7 +109,7 @@ import static java.util.stream.Collectors.toList;
 
 public class LocalStateCompositeXPackPlugin extends XPackPlugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin,
         ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin, IndexStorePlugin,
-        SystemIndexPlugin {
+        SystemIndexPlugin, SearchPlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -565,5 +569,23 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     @Override
     public String getFeatureDescription() {
         return this.getClass().getCanonicalName();
+    }
+
+    @Override
+    public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
+        final List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> differentiators =
+            filterPlugins(SearchPlugin.class).stream()
+                .map(SearchPlugin::getRequestCacheKeyDifferentiator)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toUnmodifiableList());
+
+        if (differentiators.size() > 1) {
+            throw new UnsupportedOperationException("Only the security SearchPlugin should provide the request cache key differentiator");
+        } else if (differentiators.size() == 1) {
+            return differentiators.get(0);
+        } else {
+            return null;
+        }
+
     }
 }

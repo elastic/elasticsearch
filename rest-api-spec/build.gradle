@@ -14,7 +14,7 @@ restResources {
 }
 
 // REST API specifications are published under the Apache 2.0 License
-ext.projectLicenses = ['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0']
+ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
 ext.licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
 
 artifacts {
@@ -28,200 +28,76 @@ testClusters.all {
 
 tasks.named("test").configure { enabled = false }
 tasks.named("jarHell").configure { enabled = false }
+def v7compatibilityNotSupportedTests = {
+  return [
+          // Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API
+          'cat*/*/*',
+          // type information about the type is removed and not passed down. The logic to check for this is also removed.
+          'delete/70_mix_typeless_typeful/DELETE with typeless API on an index that has types',
+          // WILL NOT BE FIXED - failing due to not recognising missing type (the type path param is ignored)
+          'get/100_mix_typeless_typeful/GET with typeless API on an index that has types',
+          // type information about the type is removed and not passed down. The logic to check for this is also removed.
+          'indices.create/20_mix_typeless_typeful/Implicitly create a typed index while there is a typeless template',
+          'indices.create/20_mix_typeless_typeful/Implicitly create a typeless index while there is a typed template',
+          //
+          // This test returns test_index.mappings:{} when {} was expected. difference between 20_missing_field and 21_missing_field_with_types?
+          'indices.get_field_mapping/21_missing_field_with_types/Return empty object if field doesn\'t exist, but type and index do',
+          // The information about the type is not present in the index. hence it cannot know if the type exist or not.
+          'indices.get_field_mapping/30_missing_type/Raise 404 when type doesn\'t exist',
+          // The information about the type is not present in the index. hence it cannot know if the type exist or not.
+          'indices.get_mapping/20_missing_type/Existent and non-existent type returns 404 and the existing type',
+          'indices.get_mapping/20_missing_type/Existent and non-existent types returns 404 and the existing type',
+          'indices.get_mapping/20_missing_type/No type matching pattern returns 404',
+          'indices.get_mapping/20_missing_type/Non-existent type returns 404',
+          'indices.get_mapping/20_missing_type/Type missing when no types exist',
+          //
+          // The information about the type is not present in the index. hence it cannot know if the type was already used or not
+          'indices.put_mapping/20_mix_typeless_typeful/PUT mapping with _doc on an index that has types',
+          'indices.put_mapping/20_mix_typeless_typeful/PUT mapping with typeless API on an index that has types',
+          // there is a small distinction between empty mappings and no mappings at all. The code to implement this test was refactored #54003
+          // field search on _type field- not implementing. The data for _type is considered incorrect in this search
+          'search/160_exists_query/Test exists query on _type field',
+          //type information is not stored, hence the the index will be found
+          'termvectors/50_mix_typeless_typeful/Term vectors with typeless API on an index that has types',
+          // mget - these use cases are no longer valid, because we always default to _doc.
+          // This mean test cases where there is assertion on not finging by type won't work
+          'mget/11_default_index_type/Default index/type',
+          'mget/16_basic_with_types/Basic multi-get',
+          // asserting about type not found won't work as we ignore the type information
+          'explain/40_mix_typeless_typeful/Explain with typeless API on an index that has types',
+          // translog settings removal is not supported under compatible api
+          'indices.stats/20_translog/Translog retention settings are deprecated',
+          'indices.stats/20_translog/Translog retention without soft_deletes',
+          'indices.stats/20_translog/Translog stats on closed indices without soft-deletes',
 
+          // upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex
+          'indices.upgrade/*/*',
+
+          'search.aggregation/20_terms/*profiler*', // The profiler results aren't backwards compatible.
+          'search.aggregation/370_doc_count_field/Test filters agg with doc_count', // Uses profiler for assertions which is not backwards compatible
+
+          'indices.create/10_basic/Create index without soft deletes', //Make soft-deletes mandatory in 8.0 #51122 - settings changes are note supported in Rest Api compatibility
+
+          'field_caps/30_filter/Field caps with index filter', //behaviour change after #63692 4digits dates are parsed as epoch and in quotes as year
+
+          'indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set', //#44761 bug fix
+  ]
+}
 tasks.named("yamlRestCompatTest").configure {
   onlyIf {
     // Skip these tests on Windows since the blacklist exceeds Windows CLI limits
     OS.current() != OS.WINDOWS
   }
-
-  systemProperty 'tests.rest.blacklist', [
-    'cat.aliases/10_basic/Alias against closed index',
-    'cat.aliases/10_basic/Alias name',
-    'cat.aliases/10_basic/Alias sorting',
-    'cat.aliases/10_basic/Column headers',
-    'cat.aliases/10_basic/Complex alias',
-    'cat.aliases/10_basic/Empty cluster',
-    'cat.aliases/10_basic/Multiple alias names',
-    'cat.aliases/10_basic/Select columns',
-    'cat.aliases/10_basic/Simple alias',
-    'cat.aliases/40_hidden/Test cat aliases output with a hidden index with a hidden alias',
-    'cat.aliases/40_hidden/Test cat aliases output with a hidden index with a visible alias',
-    'cat.aliases/40_hidden/Test cat aliases output with a visible index with a hidden alias',
-    'cat.allocation/10_basic/All Nodes',
-    'cat.allocation/10_basic/Bytes',
-    'cat.allocation/10_basic/Column headers',
-    'cat.allocation/10_basic/Empty cluster',
-    'cat.allocation/10_basic/Node ID',
-    'cat.allocation/10_basic/One index',
-    'cat.allocation/10_basic/Select columns',
-    'cat.count/10_basic/Test cat count output',
-    'cat.fielddata/10_basic/Test cat fielddata output',
-    'cat.health/10_basic/Empty cluster',
-    'cat.health/10_basic/With ts parameter',
-    'cat.indices/10_basic/Test cat indices output',
-    'cat.indices/10_basic/Test cat indices output (no indices)',
-    'cat.indices/10_basic/Test cat indices output for closed index',
-    'cat.indices/10_basic/Test cat indices sort',
-    'cat.indices/10_basic/Test cat indices using health status',
-    'cat.indices/10_basic/Test cat indices using wildcards',
-    'cat.indices/20_hidden/Test cat indices output for dot-hidden index and dot-prefixed pattern',
-    'cat.indices/20_hidden/Test cat indices output for hidden index',
-    'cat.indices/20_hidden/Test cat indices output with a hidden index with a hidden alias',
-    'cat.indices/20_hidden/Test cat indices output with a hidden index with a visible alias',
-    'cat.indices/20_hidden/Test cat indices output with a hidden index, dot-hidden alias and dot pattern',
-    'cat.nodeattrs/10_basic/Test cat nodes attrs output',
-    'cat.nodes/10_basic/Additional disk information',
-    'cat.nodes/10_basic/Test cat nodes output',
-    'cat.nodes/10_basic/Test cat nodes output with full_id set',
-    'cat.recovery/10_basic/Test cat recovery output',
-    'cat.recovery/10_basic/Test cat recovery output for closed index',
-    'cat.repositories/10_basic/Test cat repositories output',
-    'cat.repositories/10_basic/Test cat repositories sort',
-    'cat.segments/10_basic/Test cat segments output',
-    'cat.segments/10_basic/Test cat segments using wildcards',
-    'cat.shards/10_basic/Help',
-    'cat.shards/10_basic/Test cat shards output',
-    'cat.shards/10_basic/Test cat shards sort',
-    'cat.shards/10_basic/Test cat shards using wildcards',
-    'cat.snapshots/10_basic/Help',
-    'cat.snapshots/10_basic/Test cat snapshots output',
-    'cat.tasks/10_basic/Test cat tasks output',
-    'cat.tasks/10_basic/Test cat tasks output with X-Opaque-Id',
-    'cat.templates/10_basic/Column headers',
-    'cat.templates/10_basic/Filtered templates',
-    'cat.templates/10_basic/Mixture of legacy and composable templates',
-    'cat.templates/10_basic/Normal templates',
-    'cat.templates/10_basic/Select columns',
-    'cat.thread_pool/10_basic/Test cat thread_pool output',
-    // type information about the type is removed and not passed down. The logic to check for this is also removed.
-    'delete/70_mix_typeless_typeful/DELETE with typeless API on an index that has types',
-    // WILL NOT BE FIXED - failing due to not recognising missing type (the type path param is ignored)
-    'get/100_mix_typeless_typeful/GET with typeless API on an index that has types',
-    // type information about the type is removed and not passed down. The logic to check for this is also removed.
-    'indices.create/20_mix_typeless_typeful/Implicitly create a typed index while there is a typeless template',
-    'indices.create/20_mix_typeless_typeful/Implicitly create a typeless index while there is a typed template',
-    //
-    // This test returns test_index.mappings:{} when {} was expected. difference between 20_missing_field and 21_missing_field_with_types?
-    'indices.get_field_mapping/21_missing_field_with_types/Return empty object if field doesn\'t exist, but type and index do',
-    // The information about the type is not present in the index. hence it cannot know if the type exist or not.
-    'indices.get_field_mapping/30_missing_type/Raise 404 when type doesn\'t exist',
-    // The information about the type is not present in the index. hence it cannot know if the type exist or not.
-    'indices.get_mapping/20_missing_type/Existent and non-existent type returns 404 and the existing type',
-    'indices.get_mapping/20_missing_type/Existent and non-existent types returns 404 and the existing type',
-    'indices.get_mapping/20_missing_type/No type matching pattern returns 404',
-    'indices.get_mapping/20_missing_type/Non-existent type returns 404',
-    'indices.get_mapping/20_missing_type/Type missing when no types exist',
-    //
-    // The information about the type is not present in the index. hence it cannot know if the type was already used or not
-    'indices.put_mapping/20_mix_typeless_typeful/PUT mapping with _doc on an index that has types',
-    'indices.put_mapping/20_mix_typeless_typeful/PUT mapping with typeless API on an index that has types',
-    // there is a small distinction between empty mappings and no mappings at all. The code to implement this test was refactored #54003
-    // field search on _type field- not implementing. The data for _type is considered incorrect in this search
-    'search/160_exists_query/Test exists query on _type field',
-    //type information is not stored, hence the the index will be found
-    'termvectors/50_mix_typeless_typeful/Term vectors with typeless API on an index that has types',
-    // 85 - 13 = 72 tests won't be fixed
-    'bulk/11_basic_with_types/Array of objects',
-    'bulk/11_basic_with_types/Empty _id',
-    'bulk/11_basic_with_types/Empty _id with op_type create',
-    'bulk/11_basic_with_types/empty action',
-    'bulk/21_list_of_strings_with_types/List of strings',
-    'bulk/31_big_string_with_types/One big string',
-    'bulk/41_source_with_types/Source filtering',
-    'bulk/51_refresh_with_types/refresh=empty string immediately makes changes are visible in search',
-    'bulk/51_refresh_with_types/refresh=true immediately makes changes are visible in search',
-    'bulk/51_refresh_with_types/refresh=wait_for waits until changes are visible in search',
-    'bulk/81_cas_with_types/Compare And Swap Sequence Numbers',
+  systemProperty 'tests.rest.blacklist', ([
     'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion and specifying both node_ids and node_names',
     'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion without specifying nodes',
-    'count/11_basic_with_types/count body without query element',
-    'count/11_basic_with_types/count with body',
-    'count/11_basic_with_types/count with empty body',
-    'explain/10_basic/Basic explain',
-    'explain/10_basic/Basic explain with alias',
-    'explain/11_basic_with_types/Basic explain',
-    'explain/11_basic_with_types/Basic explain with alias',
-    'explain/20_source_filtering/Source filtering',
-    'explain/21_source_filtering_with_types/Source filtering',
-    'explain/31_query_string_with_types/explain with query_string parameters',
-    'explain/40_mix_typeless_typeful/Explain with typeless API on an index that has types',
-    'field_caps/30_filter/Field caps with index filter',
-    'get_source/11_basic_with_types/Basic with types',
-    'get_source/16_default_values_with_types/Default values',
-    'get_source/41_routing_with_types/Routing',
-    'get_source/61_realtime_refresh_with_types/Realtime',
-    'get_source/71_source_filtering_with_types/Source filtering',
-    'get_source/81_missing_with_types/Missing document with catch',
-    'get_source/81_missing_with_types/Missing document with ignore',
-    'get_source/86_source_missing_with_types/Missing document source with catch',
-    'get_source/86_source_missing_with_types/Missing document source with ignore',
-    'indices.create/10_basic/Create index without soft deletes',
     'indices.flush/10_basic/Index synced flush rest test',
-    'indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set',
-    'indices.open/10_basic/?wait_for_active_shards default is deprecated',
-    'indices.open/10_basic/?wait_for_active_shards=index-setting',
-    // not fixing this in #70966
-    'indices.put_template/11_basic_with_types/Put template with empty mappings',
-    'indices.shrink/30_copy_settings/Copy settings during shrink index',
-    'indices.split/30_copy_settings/Copy settings during split index',
-    'indices.stats/15_types/Types - _all metric',
-    'indices.stats/15_types/Types - indexing metric',
-    'indices.stats/15_types/Types - multi',
-    'indices.stats/15_types/Types - multi metric',
-    'indices.stats/15_types/Types - one',
-    'indices.stats/15_types/Types - pattern',
-    'indices.stats/15_types/Types - star',
-    'indices.stats/20_translog/Translog retention settings are deprecated',
-    'indices.stats/20_translog/Translog retention without soft_deletes',
-    'indices.stats/20_translog/Translog stats on closed indices without soft-deletes',
-    'indices.upgrade/10_basic/Basic test for upgrade indices',
-    'indices.upgrade/10_basic/Upgrade indices allow no indices',
-    'indices.upgrade/10_basic/Upgrade indices disallow no indices',
-    'indices.upgrade/10_basic/Upgrade indices disallow unavailable',
-    'indices.upgrade/10_basic/Upgrade indices ignore unavailable',
-    'mget/10_basic/Basic multi-get',
-    'mget/11_default_index_type/Default index/type',
-    'mget/14_alias_to_multiple_indices/Multi Get with alias that resolves to multiple indices',
-    'mget/16_basic_with_types/Basic multi-get',
-    'mget/17_default_index/Default index/type',
-    'mget/18_non_existent_index_with_types/Non-existent index',
-    'mget/19_missing_metadata_with_types/Missing metadata',
-    'mget/21_alias_to_multiple_indices_with_types/Multi Get with alias that resolves to multiple indices',
-    'mget/22_ids_with_types/IDs',
-    'mget/23_stored_fields_with_types/Stored fields',
-    'mget/41_routing_with_types/Routing',
-    'mget/61_realtime_refresh_with_types/Realtime Refresh',
-    'mget/71_source_filtering_with_types/Source filtering -  exclude field',
-    'mget/71_source_filtering_with_types/Source filtering -  include field',
-    'mget/71_source_filtering_with_types/Source filtering -  include nested field',
-    'mget/71_source_filtering_with_types/Source filtering -  true/false',
-    'mlt/20_docs/Basic mlt query with docs',
-    'mlt/30_unlike/Basic mlt query with unlike',
-    'search.aggregation/10_histogram/Deprecated _time order',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
-    'search.aggregation/20_terms/Deprecated _term order',
-    'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
-    'mtermvectors/11_basic_with_types/Basic tests for multi termvector get',
-    'mtermvectors/21_deprecated_with_types/Deprecated camel case and _ parameters should fail in Term Vectors query',
-    'mtermvectors/30_mix_typeless_typeful/mtermvectors without types on an index that has types',
-    'search/10_source_filtering/docvalue_fields with default format', //use_field_mapping change
-    'search/40_indices_boost/Indices boost using object', //indices_boost
-    'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', //terms_lookup
-    'search/171_terms_query_with_types/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', //bulk
-    'search/260_parameter_validation/test size=-1 is deprecated', //size=-1 change
     'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
     'search/340_type_query/type query', // type_query - probably should behave like match_all
-    'search_shards/10_basic/Search shards aliases with and without filters',
-    'snapshot.get/10_basic/Get missing snapshot info succeeds when ignore_unavailable is true',
-    'snapshot.get/10_basic/Get missing snapshot info throws an exception',
-    'snapshot.get/10_basic/Get snapshot info',
-    'snapshot.get/10_basic/Get snapshot info contains include_global_state',
-    'snapshot.get/10_basic/Get snapshot info when verbose is false',
-    'snapshot.get/10_basic/Get snapshot info with metadata',
-    'snapshot.get/10_basic/Get snapshot info with index details',
-    'suggest/20_completion/Suggestions with source should work'
-   ].join(',')
+  ] + v7compatibilityNotSupportedTests())
+    .join(',')
+
 }
 
 tasks.named("transformV7RestTests").configure({ task ->
@@ -319,6 +195,33 @@ tasks.named("transformV7RestTests").configure({ task ->
   // overrides for indices.get_mapping
   task.replaceIsTrue("test_1.mappings.doc", "test_1.mappings._doc")
   task.replaceIsTrue("test_2.mappings.doc", "test_2.mappings._doc")
+  // overrides for mget
+  task.replaceValueInMatch("docs.0._type", "_doc" , "Basic multi-get") // index found, but no doc
+  task.replaceValueInMatch("docs.0._type", "_doc", "Default index/type")
+  task.replaceValueInMatch("docs.0._type", "_doc", "Non-existent index")
+  task.replaceValueInMatch("docs.0._type", "_doc", "Missing metadata")
+  task.replaceValueInMatch("docs.0._type", "_doc", "Multi Get with alias that resolves to multiple indices")
+  task.replaceValueInMatch("docs.1._type", "_doc", "Multi Get with alias that resolves to multiple indices")
+  task.replaceValueInMatch("docs.2._type", "_doc", "Multi Get with alias that resolves to multiple indices")
+  task.replaceValueInMatch("docs.0._type", "_doc", "IDs")
+  task.replaceValueInMatch("docs.1._type", "_doc", "IDs")
+  task.replaceValueInMatch("docs.2._type", "_doc", "Routing")
+
+  //overrides for indices.stats
+  //TODO fix to remove the below match
+  task.replaceKeyInMatch("_all.primaries.indexing.types.baz.index_total",
+    "_all.primaries.indexing.types._doc.index_total"
+  )
+  task.replaceKeyInMatch("_all.primaries.indexing.types.bar.index_total",
+    "_all.primaries.indexing.types._doc.index_total"
+  )
+  task.replaceValueInMatch("_all.primaries.indexing.types._doc.index_total", 2)
+
+  //override for "indices.open/10_basic/?wait_for_active_shards default is deprecated" and "indices.open/10_basic/?wait_for_active_shards=index-setting"
+  task.addAllowedWarningRegexForTest("\\?wait_for_active_shards=index-setting is now the default behaviour.*", "?wait_for_active_shards=index-setting")
+  task.removeWarningForTest("the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; " +
+    "specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+    , "?wait_for_active_shards default is deprecated")
 })
 
 tasks.register('enforceYamlTestConvention').configure {

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -353,6 +354,17 @@ public class FieldAttributeTests extends ESTestCase {
         VerificationException ex = expectThrows(VerificationException.class, () ->
             plan("SELECT LENGTH(CONCAT(missing, 'x')) + 1 AS missing FROM test WHERE missing = 0"));
         assertEquals("Found 1 problem\nline 1:22: Unknown column [missing]", ex.getMessage());
+    }
+
+    public void testExpandStarOnIndexWithoutColumns() {
+        EsIndex test = new EsIndex("test", Collections.emptyMap());
+        getIndexResult = IndexResolution.valid(test);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
+
+        LogicalPlan plan = plan("SELECT * FROM test");
+
+        assertThat(plan, instanceOf(Project.class));
+        assertTrue(((Project) plan).projections().isEmpty());
     }
 
 }

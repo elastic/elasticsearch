@@ -49,7 +49,10 @@ This is a possible response:
   "defaults" : {
     "anomaly_detectors" : {
       "categorization_analyzer" : {
-        "tokenizer" : "ml_classic",
+        "char_filter" : [
+          "first_non_blank_line"
+        ],
+        "tokenizer" : "ml_standard",
         "filter" : [
           {
             "type" : "stop",

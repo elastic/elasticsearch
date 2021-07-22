@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
 
@@ -56,7 +57,7 @@ public class UpdateRollupIndexPolicyStep extends AsyncActionStep {
         }
         Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, rollupPolicy).build();
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(rollupIndexName)
-            .masterNodeTimeout(getMasterTimeout(currentState))
+            .masterNodeTimeout(TimeValue.MAX_VALUE)
             .settings(settings);
         getClient().admin().indices().updateSettings(updateSettingsRequest, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {

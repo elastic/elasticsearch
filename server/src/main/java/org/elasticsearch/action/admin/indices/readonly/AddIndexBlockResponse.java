@@ -10,14 +10,15 @@ package org.elasticsearch.action.admin.indices.readonly;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
@@ -66,7 +67,7 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
         return Strings.toString(this);
     }
 
-    public static class AddBlockResult implements Writeable, ToXContentFragment {
+    public static class AddBlockResult implements Writeable, ToXContentObject {
 
         private final Index index;
         private final @Nullable Exception exception;

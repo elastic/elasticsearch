@@ -8,10 +8,12 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
+import java.io.FilterOutputStream;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,6 +23,7 @@ import java.math.BigInteger;
 import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
@@ -1047,6 +1050,32 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
+    /**
+     * Write the content that is written to the output stream by the {@code writer} as a string encoded in Base64 format.
+     * This API can be used to generate XContent directly without the intermediate results to reduce memory usage.
+     * Note that this method supports only JSON.
+     */
+    public XContentBuilder directFieldAsBase64(String name, CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        if (contentType() != XContentType.JSON) {
+            assert false : "directFieldAsBase64 supports only JSON format";
+            throw new UnsupportedOperationException("directFieldAsBase64 supports only JSON format");
+        }
+        generator.writeDirectField(name, os -> {
+            os.write('\"');
+            final FilterOutputStream noClose = new FilterOutputStream(os) {
+                @Override
+                public void close() {
+                    // We need to close the output stream that is wrapped by a Base64 encoder to flush the outstanding buffer
+                    // of the encoder, but we must not close the underlying output stream of the XContentBuilder.
+                }
+            };
+            final OutputStream encodedOutput = Base64.getEncoder().wrap(noClose);
+            writer.accept(encodedOutput);
+            encodedOutput.close(); // close to flush the outstanding buffer used in the Base64 Encoder
+            os.write('\"');
+        });
+        return this;
+    }
 
     /**
      * Returns a version used for serialising a response.

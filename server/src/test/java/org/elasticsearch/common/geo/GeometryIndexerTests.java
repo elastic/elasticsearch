@@ -24,6 +24,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
@@ -46,7 +47,7 @@ public class GeometryIndexerTests extends ESTestCase {
     public void testCircle() {
         UnsupportedOperationException ex =
             expectThrows(UnsupportedOperationException.class, () -> indexer.prepareForIndexing(new Circle(2, 1, 3)));
-        assertEquals(GeoShapeType.CIRCLE + " geometry is not supported", ex.getMessage());
+        assertEquals(ShapeType.CIRCLE + " geometry is not supported", ex.getMessage());
     }
 
     public void testCollection() {

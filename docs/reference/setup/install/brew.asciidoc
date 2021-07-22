@@ -13,14 +13,12 @@ brew tap elastic/tap
 -------------------------
 
 Once you've tapped the Elastic Homebrew repo, you can use `brew install` to
-install {es}:
+install the **latest version** of {es}:
 
 [source,sh]
 -------------------------
 brew install elastic/tap/elasticsearch-full
 -------------------------
-
-This installs the most recently released distribution of {es}.
 
 [[brew-layout]]
 ==== Directory layout for Homebrew installs

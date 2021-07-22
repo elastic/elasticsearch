@@ -343,7 +343,6 @@ list of indices.
 | `metricbeat_setup` | Set up {metricbeat}.
 | `kibana_admin`     | Load dependencies, such as example dashboards, if available, into {kib}
 | `ingest_admin`     | Set up index templates and, if available, ingest pipelines
-| `beats_admin`      | Enroll and manage configurations in {beats} central management
 |===
 
 **Next**: <<beats-monitoring-role,Create a monitoring role>>
@@ -596,7 +595,7 @@ See {metricbeat-ref}/configuration-ssl.html[Configure SSL for {metricbeat}].
 +
 [source,shell]
 ----
-/.metricbeat -e
+./metricbeat -e
 ----
 +
 `-e` is optional and sends output to standard error instead of the configured

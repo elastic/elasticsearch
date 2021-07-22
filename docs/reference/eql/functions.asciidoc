@@ -579,7 +579,7 @@ modulo(process.args_count, -6)                      // returns 4
 modulo(process.args_count, 0.5)                     // returns 0
 
 // process.parent.args_count = 6
-add(process.args_count, process.parent.args_count)  // returns 4
+modulo(process.args_count, process.parent.args_count)  // returns 4
 
 // null handling
 modulo(null, 5)                                     // returns null

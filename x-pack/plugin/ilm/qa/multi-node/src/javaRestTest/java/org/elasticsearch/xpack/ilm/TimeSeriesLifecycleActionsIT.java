@@ -16,11 +16,11 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
-import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
@@ -884,18 +883,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
                     snapshotsResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                 }
-                ArrayList<Object> responses = (ArrayList<Object>) snapshotsResponseMap.get("responses");
-                for (Object response : responses) {
-                    Map<String, Object> responseAsMap = (Map<String, Object>) response;
-                    if (responseAsMap.get("snapshots") != null) {
-                        ArrayList<Object> snapshots = (ArrayList<Object>) responseAsMap.get("snapshots");
-                        for (Object snapshot : snapshots) {
-                            Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
-                            if (snapshotInfoMap.get("snapshot").equals(snapshotName[0]) &&
+                if (snapshotsResponseMap.get("snapshots") != null) {
+                    ArrayList<Object> snapshots = (ArrayList<Object>) snapshotsResponseMap.get("snapshots");
+                    for (Object snapshot : snapshots) {
+                        Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
+                        if (snapshotInfoMap.get("snapshot").equals(snapshotName[0]) &&
                                 // wait for the snapshot to be completed (successfully or not) otherwise the teardown might fail
                                 SnapshotState.valueOf((String) snapshotInfoMap.get("state")).completed()) {
-                                return true;
-                            }
+                            return true;
                         }
                     }
                 }

@@ -96,7 +96,7 @@ A core concept in {es} is that of an `analyzed` field, that is a full-text value
 to be effectively indexed. These fields are of type <<text, `text`>> and are not used for sorting or aggregations as their actual value depends on the <<analyzer, `analyzer`>> used hence why {es} also offers the <<keyword, `keyword`>> type for storing the _exact_
 value.
 
-In most case, and the default actually, is to use both types for strings which {es} supports through <<multi-fields, multi fields>>, that is the ability to index the same string in multiple ways; for example index it both as `text` for search but also as `keyword` for sorting and aggregations.
+In most case, and the default actually, is to use both types for strings which {es} supports through <<multi-fields, multi-fields>>, that is the ability to index the same string in multiple ways; for example index it both as `text` for search but also as `keyword` for sorting and aggregations.
 
 As SQL requires exact values, when encountering a `text` field {es-sql} will search for an exact multi-field that it can use for comparisons, sorting and aggregations.
 To do that, it will search for the first `keyword` that it can find that is _not_ normalized and use that as the original field _exact_ value.

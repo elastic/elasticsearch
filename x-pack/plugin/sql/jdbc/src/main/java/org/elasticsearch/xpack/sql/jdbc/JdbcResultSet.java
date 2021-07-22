@@ -33,7 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.DATE;

@@ -201,8 +201,7 @@ policies. To retrieve the lifecycle policy for individual backing indices,
 use the <<indices-get-settings,get index settings API>>.
 
 `hidden`::
-(Boolean)
-If `true`, the data stream is <<hidden-indices,hidden>>.
+(Boolean) If `true`, the data stream is <<hidden,hidden>>.
 
 `system`::
 (Boolean)

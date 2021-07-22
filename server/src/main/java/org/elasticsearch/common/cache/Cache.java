@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.cache;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
 import java.util.Arrays;

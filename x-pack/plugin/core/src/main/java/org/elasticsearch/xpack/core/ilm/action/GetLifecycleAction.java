@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.core.ilm.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.cluster.metadata.ItemUsage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,6 +23,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -57,6 +60,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
                 builder.field("version", item.getVersion());
                 builder.field("modified_date", item.getModifiedDate());
                 builder.field("policy", item.getLifecyclePolicy());
+                builder.field("in_use_by", item.getUsage());
                 builder.endObject();
             }
             builder.endObject();
@@ -149,17 +153,24 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
         private final LifecyclePolicy lifecyclePolicy;
         private final long version;
         private final String modifiedDate;
+        private final ItemUsage usage;
 
-        public LifecyclePolicyResponseItem(LifecyclePolicy lifecyclePolicy, long version, String modifiedDate) {
+        public LifecyclePolicyResponseItem(LifecyclePolicy lifecyclePolicy, long version, String modifiedDate, ItemUsage usage) {
             this.lifecyclePolicy = lifecyclePolicy;
             this.version = version;
             this.modifiedDate = modifiedDate;
+            this.usage = usage;
         }
 
         LifecyclePolicyResponseItem(StreamInput in) throws IOException {
             this.lifecyclePolicy = new LifecyclePolicy(in);
             this.version = in.readVLong();
             this.modifiedDate = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+                this.usage = new ItemUsage(in);
+            } else {
+                this.usage = new ItemUsage(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+            }
         }
 
         @Override
@@ -167,6 +178,9 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
             lifecyclePolicy.writeTo(out);
             out.writeVLong(version);
             out.writeString(modifiedDate);
+            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
+                this.usage.writeTo(out);
+            }
         }
 
         public LifecyclePolicy getLifecyclePolicy() {
@@ -181,9 +195,13 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
             return modifiedDate;
         }
 
+        public ItemUsage getUsage() {
+            return usage;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(lifecyclePolicy, version, modifiedDate);
+            return Objects.hash(lifecyclePolicy, version, modifiedDate, usage);
         }
 
         @Override
@@ -197,9 +215,9 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
             LifecyclePolicyResponseItem other = (LifecyclePolicyResponseItem) obj;
             return Objects.equals(lifecyclePolicy, other.lifecyclePolicy) &&
                 Objects.equals(version, other.version) &&
-                Objects.equals(modifiedDate, other.modifiedDate);
+                Objects.equals(modifiedDate, other.modifiedDate) &&
+                Objects.equals(usage, other.usage);
         }
-
     }
 
 }

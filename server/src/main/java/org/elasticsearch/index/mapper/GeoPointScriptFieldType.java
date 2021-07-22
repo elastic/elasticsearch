@@ -18,7 +18,6 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -39,8 +38,11 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
         new Builder<>(name, GeoPointFieldScript.CONTEXT, GeoPointFieldScript.PARSE_FROM_SOURCE) {
             @Override
-            RuntimeField newRuntimeField(GeoPointFieldScript.Factory scriptFactory) {
-                return new GeoPointScriptFieldType(name, scriptFactory, getScript(), meta(), this);
+            AbstractScriptFieldType<?> createFieldType(String name,
+                                                       GeoPointFieldScript.Factory factory,
+                                                       Script script,
+                                                       Map<String, String> meta) {
+                return new GeoPointScriptFieldType(name, factory, getScript(), meta());
             }
         });
 
@@ -48,10 +50,9 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         String name,
         GeoPointFieldScript.Factory scriptFactory,
         Script script,
-        Map<String, String> meta,
-        ToXContent toXContent
+        Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta, toXContent);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
     }
 
     @Override

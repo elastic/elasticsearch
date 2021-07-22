@@ -12,11 +12,11 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.network.InetAddressHelper;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.mocksocket.MockServerSocket;
@@ -323,11 +323,11 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             try {
                 final boolean allSocketsOpened = waitUntil(() -> {
                     try {
-                        InetAddress[] allAddresses = InetAddressHelper.getAllAddresses();
+                        final InetAddress[] allAddresses;
                         if (serverAddress instanceof Inet4Address) {
-                            allAddresses = InetAddressHelper.filterIPV4(allAddresses);
+                            allAddresses = NetworkUtils.getAllIPV4Addresses();
                         } else {
-                            allAddresses = InetAddressHelper.filterIPV6(allAddresses);
+                            allAddresses = NetworkUtils.getAllIPV6Addresses();
                         }
                         final List<InetAddress> inetAddressesToBind = Arrays.stream(allAddresses)
                             .filter(addr -> openedSockets.stream().noneMatch(s -> addr.equals(s.getLocalAddress())))

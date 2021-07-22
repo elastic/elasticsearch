@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import javax.crypto.SecretKeyFactory;

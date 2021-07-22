@@ -29,7 +29,7 @@ POST /_snapshot/my_backup/snapshot_1/_restore
 
 By default, all data streams and indices in the snapshot are restored, but the cluster state is
 *not* restored. Use the `indices` parameter to restore only specific data streams or indices. This parameter
-supports <<multi-index,multi-target syntax>>. To include the global cluster state, set
+supports <<api-multi-index,multi-target syntax>>. To include the global cluster state, set
 `include_global_state` to `true` in the restore request body.
 
 Because all indices in the snapshot are restored by default, all system indices will be restored
@@ -73,8 +73,8 @@ name. If no index template matches the stream, it cannot
 ====
 // end::rename-restored-data-stream-tag[]
 
-Set `include_aliases` to `false` to prevent aliases from being restored together
-with associated indices.
+To prevent aliases from being restored with their associated data streams and
+indices, set `include_aliases` to `false`.
 
 [source,console]
 -----------------------------------

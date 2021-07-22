@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,7 +38,7 @@ public class ShrinkAction implements LifecycleAction {
 
     public static final String NAME = "shrink";
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
-    private static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
+    public static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
     public static final String CONDITIONAL_SKIP_SHRINK_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
 
@@ -89,11 +89,11 @@ public class ShrinkAction implements LifecycleAction {
         }
     }
 
-    Integer getNumberOfShards() {
+    public Integer getNumberOfShards() {
         return numberOfShards;
     }
 
-    ByteSizeValue getMaxPrimaryShardSize() {
+    public ByteSizeValue getMaxPrimaryShardSize() {
         return maxPrimaryShardSize;
     }
 

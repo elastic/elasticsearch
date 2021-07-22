@@ -8,7 +8,7 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;

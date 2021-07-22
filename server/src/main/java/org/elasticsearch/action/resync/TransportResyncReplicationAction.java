@@ -27,30 +27,22 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 public class TransportResyncReplicationAction extends TransportWriteAction<ResyncReplicationRequest,
     ResyncReplicationRequest, ResyncReplicationResponse> implements PrimaryReplicaSyncer.SyncAction {
 
     private static final String ACTION_NAME = "internal:index/seq_no/resync";
-    private static final Function<IndexShard, String> EXECUTOR_NAME_FUNCTION = shard -> {
-        if (shard.indexSettings().getIndexMetadata().isSystem()) {
-            return Names.SYSTEM_WRITE;
-        } else {
-            return Names.WRITE;
-        }
-    };
 
     @Inject
     public TransportResyncReplicationAction(Settings settings, TransportService transportService,
@@ -58,7 +50,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
                                             ShardStateAction shardStateAction, ActionFilters actionFilters,
                                             IndexingPressure indexingPressure, SystemIndices systemIndices) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-            ResyncReplicationRequest::new, ResyncReplicationRequest::new, EXECUTOR_NAME_FUNCTION,
+            ResyncReplicationRequest::new, ResyncReplicationRequest::new, ExecutorSelector::getWriteExecutorForShard,
             true, /* we should never reject resync because of thread pool capacity on primary */
             indexingPressure, systemIndices);
     }

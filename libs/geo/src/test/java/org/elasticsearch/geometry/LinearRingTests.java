@@ -18,13 +18,12 @@ public class LinearRingTests extends ESTestCase {
 
     public void testBasicSerialization() {
         UnsupportedOperationException ex = expectThrows(UnsupportedOperationException.class,
-            () -> new WellKnownText(true, new GeographyValidator(true))
-                .toWKT(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1})));
+            () -> WellKnownText.toWKT(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1})));
         assertEquals("line ring cannot be serialized using WKT", ex.getMessage());
     }
 
     public void testInitValidation() {
-        GeometryValidator validator = new GeographyValidator(true);
+        GeometryValidator validator = GeographyValidator.instance(true);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> validator.validate(new LinearRing(new double[]{3, 4, 5}, new double[]{1, 2, 3})));
         assertEquals("first and last points of the linear ring must be the same (it must close itself): x[0]=3.0 x[2]=5.0 y[0]=1.0 " +
@@ -49,11 +48,12 @@ public class LinearRingTests extends ESTestCase {
             () -> validator.validate(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 100, 3, 1})));
         assertEquals("invalid latitude 100.0; must be between -90.0 and 90.0", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+        ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.instance(false).validate(
             new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}, new double[]{1, 1, 1, 1})));
         assertEquals("found Z value [1.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
-        new StandardValidator(true).validate(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}, new double[]{1, 1, 1, 1}));
+        StandardValidator.instance(true).validate(
+            new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}, new double[]{1, 1, 1, 1}));
     }
 
     public void testVisitor() {

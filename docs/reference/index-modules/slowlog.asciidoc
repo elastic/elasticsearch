@@ -121,7 +121,7 @@ PUT /my-index-000001/_settings
 
 By default Elasticsearch will log the first 1000 characters of the _source in
 the slowlog. You can change that with `index.indexing.slowlog.source`. Setting
-it to `false` or `0` will skip logging the source entirely an setting it to
+it to `false` or `0` will skip logging the source entirely, while setting it to
 `true` will log the entire source regardless of size. The original `_source` is
 reformatted by default to make sure that it fits on a single log line. If preserving
 the original document format is important, you can turn off reformatting by setting

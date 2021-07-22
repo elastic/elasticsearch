@@ -94,6 +94,5 @@ public class AnalysisTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.bar");
         assertEquals(Arrays.asList("hello", "world"), wordList);
-
     }
 }

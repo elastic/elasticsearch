@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndices;
 
 import java.util.ArrayList;
@@ -68,6 +69,11 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         }
     }
 
+    // visible for testing
+    SystemIndexMetadataUpdateTask getTask() {
+        return new SystemIndexMetadataUpdateTask();
+    }
+
     public class SystemIndexMetadataUpdateTask extends ClusterStateUpdateTask {
 
         @Override
@@ -78,8 +84,20 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                 if (cursor.value != lastIndexMetadataMap.get(cursor.key)) {
                     final boolean isSystem = systemIndices.isSystemIndex(cursor.value.getIndex()) ||
                         systemIndices.isSystemIndexBackingDataStream(cursor.value.getIndex().getName());
+                    IndexMetadata.Builder builder = IndexMetadata.builder(cursor.value);
+                    boolean updated = false;
                     if (isSystem != cursor.value.isSystem()) {
-                        updatedMetadata.add(IndexMetadata.builder(cursor.value).system(cursor.value.isSystem() == false).build());
+                        builder.system(cursor.value.isSystem() == false);
+                        updated = true;
+                    }
+                    if (isSystem && cursor.value.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
+                        builder.settings(Settings.builder()
+                            .put(cursor.value.getSettings())
+                            .put(IndexMetadata.SETTING_INDEX_HIDDEN, false));
+                        updated = true;
+                    }
+                    if (updated) {
+                        updatedMetadata.add(builder.build());
                     }
                 }
             }

@@ -17,8 +17,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
 import org.junit.After;
 import org.junit.Before;
 
@@ -62,17 +64,23 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
         final ServiceAccountToken token2Valid = new ServiceAccountToken(accountId, "token2", validSecret);
         final ServiceAccountToken token2Invalid = new ServiceAccountToken(accountId, "token2", invalidSecret);
         final AtomicBoolean doAuthenticateInvoked = new AtomicBoolean(false);
+        final TokenSource tokenSource = randomFrom(TokenSource.values());
 
         final CachingServiceAccountTokenStore store = new CachingServiceAccountTokenStore(globalSettings, threadPool) {
             @Override
-            void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
+            void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
                 doAuthenticateInvoked.set(true);
-                listener.onResponse(validSecret.equals(token.getSecret()));
+                listener.onResponse(new StoreAuthenticationResult(validSecret.equals(token.getSecret()), getTokenSource()));
             }
 
             @Override
             public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
                 listener.onFailure(new UnsupportedOperationException());
+            }
+
+            @Override
+            TokenSource getTokenSource() {
+                return tokenSource;
             }
         };
 
@@ -80,45 +88,51 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
         assertThat(cache.count(), equalTo(0));
 
         // 1st auth with the right token1
-        final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
+        final PlainActionFuture<StoreAuthenticationResult> future1 = new PlainActionFuture<>();
         store.authenticate(token1Valid, future1);
-        assertThat(future1.get(), is(true));
+        assertThat(future1.get().isSuccess(), is(true));
+        assertThat(future1.get().getTokenSource(), is(tokenSource));
         assertThat(doAuthenticateInvoked.get(), is(true));
         assertThat(cache.count(), equalTo(1));
         doAuthenticateInvoked.set(false); // reset
 
         // 2nd auth with the right token1 should use cache
-        final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
+        final PlainActionFuture<StoreAuthenticationResult> future2 = new PlainActionFuture<>();
         store.authenticate(token1Valid, future2);
-        assertThat(future2.get(), is(true));
+        assertThat(future2.get().isSuccess(), is(true));
+        assertThat(future2.get().getTokenSource(), is(tokenSource));
         assertThat(doAuthenticateInvoked.get(), is(false));
 
         // 3rd auth with the wrong token1 that has the same qualified name should use cache
-        final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
+        final PlainActionFuture<StoreAuthenticationResult> future3 = new PlainActionFuture<>();
         store.authenticate(token1Invalid, future3);
-        assertThat(future3.get(), is(false));
+        assertThat(future3.get().isSuccess(), is(false));
+        assertThat(future3.get().getTokenSource(), is(tokenSource));
         assertThat(doAuthenticateInvoked.get(), is(false));
 
         // 4th auth with the wrong token2
-        final PlainActionFuture<Boolean> future4 = new PlainActionFuture<>();
+        final PlainActionFuture<StoreAuthenticationResult> future4 = new PlainActionFuture<>();
         store.authenticate(token2Invalid, future4);
-        assertThat(future4.get(), is(false));
+        assertThat(future4.get().isSuccess(), is(false));
+        assertThat(future4.get().getTokenSource(), is(tokenSource));
         assertThat(doAuthenticateInvoked.get(), is(true));
         assertThat(cache.count(), equalTo(1));  // invalid token not cached
         doAuthenticateInvoked.set(false); // reset
 
         // 5th auth with the wrong token2 again does not use cache
-        final PlainActionFuture<Boolean> future5 = new PlainActionFuture<>();
+        final PlainActionFuture<StoreAuthenticationResult> future5 = new PlainActionFuture<>();
         store.authenticate(token2Invalid, future5);
-        assertThat(future5.get(), is(false));
+        assertThat(future5.get().isSuccess(), is(false));
+        assertThat(future5.get().getTokenSource(), is(tokenSource));
         assertThat(doAuthenticateInvoked.get(), is(true));
         assertThat(cache.count(), equalTo(1));  // invalid token not cached
         doAuthenticateInvoked.set(false); // reset
 
         // 6th auth with the right token2
-        final PlainActionFuture<Boolean> future6 = new PlainActionFuture<>();
+        final PlainActionFuture<StoreAuthenticationResult> future6 = new PlainActionFuture<>();
         store.authenticate(token2Valid, future6);
-        assertThat(future6.get(), is(true));
+        assertThat(future6.get().isSuccess(), is(true));
+        assertThat(future6.get().getTokenSource(), is(tokenSource));
         assertThat(doAuthenticateInvoked.get(), is(true));
         assertThat(cache.count(), equalTo(2));
         doAuthenticateInvoked.set(false); // reset
@@ -128,9 +142,10 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
         assertThat(cache.count(), equalTo(1));
 
         // 7th auth with the right token1
-        final PlainActionFuture<Boolean> future7 = new PlainActionFuture<>();
+        final PlainActionFuture<StoreAuthenticationResult> future7 = new PlainActionFuture<>();
         store.authenticate(token1Valid, future7);
-        assertThat(future7.get(), is(true));
+        assertThat(future7.get().isSuccess(), is(true));
+        assertThat(future7.get().getTokenSource(), is(tokenSource));
         assertThat(doAuthenticateInvoked.get(), is(true));
         assertThat(cache.count(), equalTo(2));
         doAuthenticateInvoked.set(false); // reset
@@ -147,36 +162,48 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
             .build();
 
         final boolean success = randomBoolean();
+        final TokenSource tokenSource = randomFrom(TokenSource.values());
 
         final CachingServiceAccountTokenStore store = new CachingServiceAccountTokenStore(settings, threadPool) {
             @Override
-            void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
-                listener.onResponse(success);
+            void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
+                listener.onResponse(new StoreAuthenticationResult(success, getTokenSource()));
             }
 
             @Override
             public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
                 listener.onFailure(new UnsupportedOperationException());
             }
+
+            @Override
+            TokenSource getTokenSource() {
+                return tokenSource;
+            }
         };
         assertThat(store.getCache(), nullValue());
         // authenticate should still work
-        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        final PlainActionFuture<StoreAuthenticationResult> future = new PlainActionFuture<>();
         store.authenticate(mock(ServiceAccountToken.class), future);
-        assertThat(future.get(), is(success));
+        assertThat(future.get().isSuccess(), is(success));
+        assertThat(future.get().getTokenSource(), is(tokenSource));
     }
 
     @SuppressWarnings("unchecked")
     public void testCacheInvalidateByKeys() {
         final CachingServiceAccountTokenStore store = new CachingServiceAccountTokenStore(globalSettings, threadPool) {
             @Override
-            void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
-                listener.onResponse(true);
+            void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
+                listener.onResponse(new StoreAuthenticationResult(true, getTokenSource()));
             }
 
             @Override
             public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
                 listener.onFailure(new UnsupportedOperationException());
+            }
+
+            @Override
+            TokenSource getTokenSource() {
+                return randomFrom(TokenSource.values());
             }
         };
 

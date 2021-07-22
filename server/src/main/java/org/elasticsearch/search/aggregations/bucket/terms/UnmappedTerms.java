@@ -128,9 +128,4 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     public Bucket getBucketByKey(String term) {
         return null;
     }
-
-    @Override
-    protected Bucket[] createBucketsArray(int size) {
-        return new Bucket[size];
-    }
 }

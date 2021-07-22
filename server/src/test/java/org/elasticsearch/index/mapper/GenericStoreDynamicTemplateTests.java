@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
@@ -22,7 +21,7 @@ public class GenericStoreDynamicTemplateTests extends MapperServiceTestCase {
         String json = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/genericstore/test-data.json");
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(json));
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
-        Document doc = parsedDoc.rootDoc();
+        LuceneDocument doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 
 import java.io.IOException;
 import java.sql.Array;

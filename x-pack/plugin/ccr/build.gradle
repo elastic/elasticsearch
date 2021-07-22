@@ -42,3 +42,8 @@ tasks.named("testingConventions").configure {
     }
   }
 }
+
+tasks.named('splitPackagesAudit').configure {
+  // xpack core has xpackinfo classes for ccr under this package
+  ignoreClasses 'org.elasticsearch.xpack.ccr.*'
+}

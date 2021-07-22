@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -72,13 +73,15 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ShutdownEnabledPlugin.class, TaskPlugin.class);
+        return Arrays.asList(ShutdownPlugin.class, TaskPlugin.class);
     }
 
     public void testTasksAreNotAssignedToShuttingDownNode() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         // Start two nodes, one will be marked as shutting down
-        final String node1 = internalCluster().startNode(Settings.EMPTY);
-        final String node2 = internalCluster().startNode(Settings.EMPTY);
+        Settings enabledSettings = Settings.builder().put(ShutdownPlugin.SHUTDOWN_FEATURE_ENABLED_FLAG, true).build();
+        final String node1 = internalCluster().startNode(enabledSettings);
+        final String node2 = internalCluster().startNode(enabledSettings);
 
         final String shutdownNode;
         final String candidateNode;
@@ -122,13 +125,6 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         // Check that the node that is not shut down is the only candidate
         assertThat(candidates.get().stream().map(DiscoveryNode::getId).collect(Collectors.toSet()), contains(candidateNode));
         assertThat(candidates.get().stream().map(DiscoveryNode::getId).collect(Collectors.toSet()), not(contains(shutdownNode)));
-    }
-
-    public static class ShutdownEnabledPlugin extends ShutdownPlugin {
-        @Override
-        public boolean isEnabled() {
-            return true;
-        }
     }
 
     public static class TaskPlugin extends Plugin implements PersistentTaskPlugin {

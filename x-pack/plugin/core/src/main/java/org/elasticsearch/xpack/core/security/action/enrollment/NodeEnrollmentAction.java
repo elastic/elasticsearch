@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionType;
 
 public final class NodeEnrollmentAction extends ActionType<NodeEnrollmentResponse> {
 
-    public static final String NAME = "cluster:admin/xpack/security/enrollment/enroll/node";
+    public static final String NAME = "cluster:admin/xpack/security/enroll/node";
     public static final NodeEnrollmentAction INSTANCE = new NodeEnrollmentAction();
 
     private NodeEnrollmentAction() {

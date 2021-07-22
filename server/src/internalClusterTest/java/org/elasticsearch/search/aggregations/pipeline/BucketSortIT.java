@@ -11,9 +11,10 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Avg;
@@ -111,7 +112,7 @@ public class BucketSortIT extends ESIntegTestCase {
     public void testEmptyBucketSort() {
         SearchResponse response = client().prepareSearch(INDEX)
                 .setSize(0)
-                .addAggregation(dateHistogram("time_buckets").field(TIME_FIELD).interval(TimeValue.timeValueHours(1).millis()))
+                .addAggregation(dateHistogram("time_buckets").field(TIME_FIELD).fixedInterval(DateHistogramInterval.HOUR))
                 .get();
 
         assertSearchResponse(response);
@@ -129,7 +130,7 @@ public class BucketSortIT extends ESIntegTestCase {
         // Now let's test using size
         response = client().prepareSearch(INDEX)
                 .setSize(0)
-                .addAggregation(dateHistogram("time_buckets").field(TIME_FIELD).interval(TimeValue.timeValueHours(1).millis())
+                .addAggregation(dateHistogram("time_buckets").field(TIME_FIELD).fixedInterval(DateHistogramInterval.HOUR)
                         .subAggregation(bucketSort("bucketSort", Collections.emptyList()).size(3)))
                 .get();
 
@@ -146,7 +147,7 @@ public class BucketSortIT extends ESIntegTestCase {
         // Finally, let's test using size + from
         response = client().prepareSearch(INDEX)
                 .setSize(0)
-                .addAggregation(dateHistogram("time_buckets").field(TIME_FIELD).interval(TimeValue.timeValueHours(1).millis())
+                .addAggregation(dateHistogram("time_buckets").field(TIME_FIELD).fixedInterval(DateHistogramInterval.HOUR)
                         .subAggregation(bucketSort("bucketSort", Collections.emptyList()).size(3).from(2)))
                 .get();
 
@@ -294,7 +295,7 @@ public class BucketSortIT extends ESIntegTestCase {
 
     public void testSortDateHistogramDescending() {
         SearchResponse response = client().prepareSearch(INDEX)
-                .addAggregation(dateHistogram("time_buckets").field(TIME_FIELD).interval(TimeValue.timeValueHours(1).millis()))
+                .addAggregation(dateHistogram("time_buckets").field(TIME_FIELD).fixedInterval(DateHistogramInterval.HOUR))
                 .get();
 
         assertSearchResponse(response);
@@ -305,7 +306,7 @@ public class BucketSortIT extends ESIntegTestCase {
         List<? extends Histogram.Bucket> ascendingTimeBuckets = histo.getBuckets();
 
         response = client().prepareSearch(INDEX)
-                .addAggregation(dateHistogram("time_buckets").field(TIME_FIELD).interval(TimeValue.timeValueHours(1).millis())
+                .addAggregation(dateHistogram("time_buckets").field(TIME_FIELD).fixedInterval(DateHistogramInterval.HOUR)
                         .subAggregation(bucketSort("bucketSort", Arrays.asList(
                                 new FieldSortBuilder("_key").order(SortOrder.DESC)))))
                 .get();

@@ -53,50 +53,52 @@ public class ShardSnapshotStatusWireSerializationTests extends AbstractWireSeria
                 assert instance.shardSnapshotResult() != null;
                 if (randomBoolean()) {
                     return SnapshotsInProgress.ShardSnapshotStatus.success(
-                            randomAlphaOfLength(11 - instance.nodeId().length()),
-                            instance.shardSnapshotResult());
+                        randomAlphaOfLength(11 - instance.nodeId().length()),
+                        instance.shardSnapshotResult()
+                    );
                 } else {
                     return SnapshotsInProgress.ShardSnapshotStatus.success(
-                            instance.nodeId(),
-                            ShardSnapshotResultWireSerializationTests.mutateShardSnapshotResult(instance.shardSnapshotResult()));
+                        instance.nodeId(),
+                        ShardSnapshotResultWireSerializationTests.mutateShardSnapshotResult(instance.shardSnapshotResult())
+                    );
                 }
             } else {
                 return SnapshotsInProgress.ShardSnapshotStatus.success(instance.nodeId(), randomShardSnapshotResult());
             }
         } else if (newState.failed() && instance.state().failed() && randomBoolean()) {
             return new SnapshotsInProgress.ShardSnapshotStatus(
-                    instance.nodeId(),
-                    newState,
-                    randomAlphaOfLength(15 - instance.reason().length()),
-                    instance.generation());
+                instance.nodeId(),
+                newState,
+                randomAlphaOfLength(15 - instance.reason().length()),
+                instance.generation()
+            );
         } else {
             final String reason = newState.failed() ? randomAlphaOfLength(10) : null;
             if (newState != instance.state() && randomBoolean()) {
-                return new SnapshotsInProgress.ShardSnapshotStatus(
-                        instance.nodeId(),
-                        newState,
-                        reason,
-                        instance.generation());
+                return new SnapshotsInProgress.ShardSnapshotStatus(instance.nodeId(), newState, reason, instance.generation());
             } else if (randomBoolean()) {
                 return new SnapshotsInProgress.ShardSnapshotStatus(
-                        randomAlphaOfLength(11 - instance.nodeId().length()),
-                        newState,
-                        reason,
-                        instance.generation());
+                    randomAlphaOfLength(11 - instance.nodeId().length()),
+                    newState,
+                    reason,
+                    instance.generation()
+                );
             } else {
                 return new SnapshotsInProgress.ShardSnapshotStatus(
-                        instance.nodeId(),
-                        newState,
-                        reason,
-                        randomAlphaOfLength(11 - instance.generation().length()));
+                    instance.nodeId(),
+                    newState,
+                    reason,
+                    randomAlphaOfLength(11 - instance.generation().length())
+                );
             }
         }
     }
 
     @Override
     protected void assertEqualInstances(
-            SnapshotsInProgress.ShardSnapshotStatus expectedInstance,
-            SnapshotsInProgress.ShardSnapshotStatus newInstance) {
+        SnapshotsInProgress.ShardSnapshotStatus expectedInstance,
+        SnapshotsInProgress.ShardSnapshotStatus newInstance
+    ) {
         if (newInstance.state() == SnapshotsInProgress.ShardState.QUEUED) {
             assertSame(newInstance, expectedInstance);
         } else {

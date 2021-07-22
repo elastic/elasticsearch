@@ -199,7 +199,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
         ActionListener<Boolean> annotationsIndexUpdateHandler = ActionListener.wrap(
             ack -> ElasticsearchMappings.addDocMappingIfMissing(
                 AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
-                AnomalyDetectorsIndex::resultsMapping,
+                AnomalyDetectorsIndex::wrappedResultsMapping,
                 client,
                 clusterState,
                 MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
@@ -210,7 +210,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 logger.warn(new ParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
                 ElasticsearchMappings.addDocMappingIfMissing(
                     AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
-                    AnomalyDetectorsIndex::resultsMapping,
+                    AnomalyDetectorsIndex::wrappedResultsMapping,
                     client,
                     clusterState,
                     MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,

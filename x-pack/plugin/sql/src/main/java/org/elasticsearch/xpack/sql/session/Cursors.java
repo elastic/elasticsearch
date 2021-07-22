@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.ql.util.StringUtils;

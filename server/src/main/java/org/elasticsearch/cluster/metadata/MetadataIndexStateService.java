@@ -49,7 +49,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -643,7 +643,9 @@ public class MetadataIndexStateService {
 
                     private void processIfFinished() {
                         if (countDown.countDown()) {
-                            onResponse.accept(new AddBlockResult(index, results.toArray(new AddBlockShardResult[results.length()])));
+                            AddBlockResult result = new AddBlockResult(index, results.toArray(new AddBlockShardResult[results.length()]));
+                            logger.debug("result of applying block to index {}: {}", index, result);
+                            onResponse.accept(result);
                         }
                     }
                 });
@@ -875,7 +877,6 @@ public class MetadataIndexStateService {
                     logger.debug("verification of shards before blocking {} failed [{}]", index, result);
                     continue;
                 }
-                final IndexMetadata indexMetadata = metadata.getSafe(index);
                 final ClusterBlock tempBlock = blockedIndices.get(index);
                 assert tempBlock != null;
                 assert tempBlock.uuid() != null;

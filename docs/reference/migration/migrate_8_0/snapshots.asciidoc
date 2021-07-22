@@ -9,64 +9,6 @@
 
 // end::notable-breaking-changes[]
 
-.The get snapshot API's response format has changed.
-[%collapsible]
-====
-*Details* +
-It's possible to get snapshots from multiple repositories in one go. The response format has changed
-and now contains separate response for each repository.
-
-For example, requesting one snapshot from particular repository
-
-[source,console]
------------------------------------
-GET _snapshot/repo1/snap1
------------------------------------
-// TEST[skip:no repo and snapshots are created]
-
-produces the following response
-
-[source,console-result]
------------------------------------
-{
-  "responses": [
-    {
-      "repository": "repo1",
-      "snapshots": [
-        {
-          "snapshot": "snap1",
-          "uuid": "cEzdqUKxQ5G6MyrJAcYwmA",
-          "version_id": 8000099,
-          "version": "8.0.0",
-          "indices": [],
-          "include_global_state": true,
-          "state": "SUCCESS",
-          "start_time": "2019-05-10T17:01:57.868Z",
-          "start_time_in_millis": 1557507717868,
-          "end_time": "2019-05-10T17:01:57.909Z",
-          "end_time_in_millis": 1557507717909,
-          "duration_in_millis": 41,
-          "failures": [],
-          "shards": {
-            "total": 0,
-            "failed": 0,
-            "successful": 0
-          }
-        }
-      ]
-    }
-  ]
-}
------------------------------------
-// TESTRESPONSE[skip:no repo and snapshots are created]
-
-See <<modules-snapshots>> for more information.
-
-*Impact* +
-Update your workflow and applications to use the get snapshot API's new response
-format.
-====
-
 .The `repositories.fs.compress` node-level setting has been removed.
 [%collapsible]
 ====

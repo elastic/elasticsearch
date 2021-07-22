@@ -20,10 +20,9 @@ import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCase<CloseFollowerIndexStep> {
+public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollowerIndexStep> {
 
-    @Override
-    protected IndexMetadata getIndexMetadata() {
+    private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())

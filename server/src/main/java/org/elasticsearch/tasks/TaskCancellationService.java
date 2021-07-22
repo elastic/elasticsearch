@@ -10,6 +10,7 @@ package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -21,6 +22,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -145,8 +148,30 @@ public class TaskCancellationService {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        assert ExceptionsHelper.unwrapCause(exp) instanceof ElasticsearchSecurityException == false;
-                        logger.warn("Cannot send ban for tasks with the parent [{}] for connection [{}]", taskId, connection);
+                        final Throwable cause = ExceptionsHelper.unwrapCause(exp);
+                        assert cause instanceof ElasticsearchSecurityException == false;
+                        if (isUnimportantBanFailure(cause)) {
+                            logger.debug(
+                                new ParameterizedMessage(
+                                    "cannot send ban for tasks with the parent [{}] on connection [{}]",
+                                    taskId,
+                                    connection),
+                                exp);
+                        } else if (logger.isDebugEnabled()) {
+                            logger.warn(
+                                new ParameterizedMessage(
+                                    "cannot send ban for tasks with the parent [{}] on connection [{}]",
+                                    taskId,
+                                    connection),
+                                exp);
+                        } else {
+                            logger.warn(
+                                "cannot send ban for tasks with the parent [{}] on connection [{}]: {}",
+                                taskId,
+                                connection,
+                                exp.getMessage());
+                        }
+
                         groupedListener.onFailure(exp);
                     }
                 });
@@ -163,11 +188,36 @@ public class TaskCancellationService {
                 new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleException(TransportException exp) {
-                        assert ExceptionsHelper.unwrapCause(exp) instanceof ElasticsearchSecurityException == false;
-                        logger.info("failed to remove the parent ban for task {} for connection {}", request.parentTaskId, connection);
+                        final Throwable cause = ExceptionsHelper.unwrapCause(exp);
+                        assert cause instanceof ElasticsearchSecurityException == false;
+                        if (isUnimportantBanFailure(cause)) {
+                            logger.debug(
+                                new ParameterizedMessage(
+                                    "failed to remove ban for tasks with the parent [{}] on connection [{}]",
+                                    request.parentTaskId,
+                                    connection),
+                                exp);
+                        } else if (logger.isDebugEnabled()) {
+                            logger.warn(
+                                new ParameterizedMessage(
+                                    "failed to remove ban for tasks with the parent [{}] on connection [{}]",
+                                    request.parentTaskId,
+                                    connection),
+                                exp);
+                        } else {
+                            logger.warn(
+                                "failed to remove ban for tasks with the parent [{}] on connection [{}]: {}",
+                                request.parentTaskId,
+                                connection,
+                                exp.getMessage());
+                        }
                     }
                 });
         }
+    }
+
+    private static boolean isUnimportantBanFailure(Throwable cause) {
+        return cause instanceof NodeDisconnectedException || cause instanceof NodeNotConnectedException;
     }
 
     private static class BanParentTaskRequest extends TransportRequest {

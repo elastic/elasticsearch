@@ -12,6 +12,8 @@ import org.apache.lucene.index.IndexableField;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+
 public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests {
 
     protected void testDecimalCoerce() throws IOException {
@@ -20,6 +22,64 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         IndexableField[] fields = doc.rootDoc().getFields("field");
         IndexableField pointField = fields[0];
         assertEquals(7, pointField.numericValue().doubleValue(), 0d);
+    }
+
+    @Override
+    public void testDimension() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
+        assertFalse(ft.isDimension());
+
+        assertDimension(true, NumberFieldMapper.NumberFieldType::isDimension);
+        assertDimension(false, NumberFieldMapper.NumberFieldType::isDimension);
+    }
+
+    public void testDimensionIndexedAndDocvalues() {
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true).field("index", false).field("doc_values", false);
+            })));
+            assertThat(e.getCause().getMessage(),
+                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true).field("index", true).field("doc_values", false);
+            })));
+            assertThat(e.getCause().getMessage(),
+                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true).field("index", false).field("doc_values", true);
+            })));
+            assertThat(e.getCause().getMessage(),
+                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+        }
+    }
+
+    public void testDimensionMultiValuedField() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true);
+        }));
+
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber()))));
+        assertThat(e.getCause().getMessage(),
+            containsString("Dimension field [field] cannot be a multi-valued field"));
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        super.registerParameters(checker);
+
+        // dimension cannot be updated
+        registerDimensionChecks(checker);
     }
 
 }

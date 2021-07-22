@@ -24,7 +24,6 @@ import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderTests;
 import org.elasticsearch.xpack.core.DataTier;
 import org.hamcrest.Matchers;
 
@@ -158,18 +157,32 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         putAutoscalingPolicy("warm", DataTier.DATA_WARM);
         putAutoscalingPolicy("cold", DataTier.DATA_COLD);
 
+        // add an index using `_id` allocation to check that it does not trigger spinning up the tier.
+        assertAcked(
+            prepareCreate(randomAlphaOfLength(10).toLowerCase(Locale.ROOT)).setSettings(
+                Settings.builder()
+                    // more than 0 replica provokes the same shard decider to say no.
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
+                    .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
+                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_id", randomAlphaOfLength(5))
+                    .build()
+            ).setWaitForActiveShards(ActiveShardCount.NONE)
+        );
+
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         assertAcked(
             prepareCreate(indexName).setSettings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    // more than 0 replica provokes the same shard decider to say no.
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
                     .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "data_tier", "hot")
                     .build()
             )
         );
-        refresh();
+        refresh(indexName);
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), Matchers.equalTo(0L));
         assertThat(capacity().results().get("cold").requiredCapacity().total().storage().getBytes(), Matchers.equalTo(0L));
 
@@ -197,7 +210,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         internalCluster().startMasterOnlyNode();
         ReactiveStorageDeciderService service = new ReactiveStorageDeciderService(
             Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
         assertThat(

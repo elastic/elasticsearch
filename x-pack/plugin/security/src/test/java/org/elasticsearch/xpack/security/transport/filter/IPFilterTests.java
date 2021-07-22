@@ -63,8 +63,8 @@ public class IPFilterTests extends ESTestCase {
     public void init() {
         licenseState = TestUtils.newMockLicenceState();
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.checkFeature(Security.IP_FILTERING_FEATURE)).thenReturn(true);
-        when(licenseState.checkFeature(Security.AUDITING_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         auditTrail = mock(AuditTrail.class);
         auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(
@@ -254,7 +254,7 @@ public class IPFilterTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("xpack.security.transport.filter.deny", "_all")
                 .build();
-        when(licenseState.checkFeature(Security.IP_FILTERING_FEATURE)).thenReturn(false);
+        when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(false);
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
 
@@ -265,7 +265,7 @@ public class IPFilterTests extends ESTestCase {
         verifyZeroInteractions(auditTrail);
 
         // for sanity enable license and check that it is denied
-        when(licenseState.checkFeature(Security.IP_FILTERING_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(true);
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
 

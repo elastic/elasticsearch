@@ -46,7 +46,9 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TestUtils {
 
@@ -405,6 +407,12 @@ public class TestUtils {
     }
 
     public static MockLicenseState newMockLicenceState() {
-        return mock(MockLicenseState.class);
+        MockLicenseState mock = mock(MockLicenseState.class);
+        // These are deprecated methods, but we haven't replaced all usage of them yet
+        // By calling the real methods, we force everything through a small number of mockable methods like
+        //  XPackLicenseState.isAllowed(LicensedFeature)
+        when(mock.isAllowed(any(XPackLicenseState.Feature.class))).thenCallRealMethod();
+        when(mock.checkFeature(any(XPackLicenseState.Feature.class))).thenCallRealMethod();
+        return mock;
     }
 }

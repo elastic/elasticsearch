@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -27,8 +29,11 @@ import static org.elasticsearch.license.License.OperationMode.MISSING;
 import static org.elasticsearch.license.License.OperationMode.PLATINUM;
 import static org.elasticsearch.license.License.OperationMode.STANDARD;
 import static org.elasticsearch.license.License.OperationMode.TRIAL;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.collection.IsMapContaining.hasEntry;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.hamcrest.core.IsNot.not;
 
@@ -513,16 +518,29 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testLastUsed() {
-        Feature goldFeature = Feature.SECURITY_DLS_FLS;
+        LicensedFeature.Momentary goldFeature = Feature.SECURITY_DLS_FLS.feature;
         AtomicInteger currentTime = new AtomicInteger(100); // non zero start time
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, currentTime::get);
-        assertThat("initial epoch time", licenseState.getLastUsed(), not(hasKey(goldFeature)));
+        Map<XPackLicenseState.FeatureUsage, Long> lastUsed = licenseState.getLastUsed();
+        assertThat("initial epoch time", lastUsed, not(hasKey(goldFeature)));
+
         licenseState.isAllowed(goldFeature);
-        assertThat("isAllowed does not track", licenseState.getLastUsed(), not(hasKey(goldFeature)));
-        licenseState.checkFeature(goldFeature);
-        assertThat("checkFeature tracks used time", licenseState.getLastUsed(), hasEntry(goldFeature, 100L));
+        lastUsed = licenseState.getLastUsed();
+        assertThat("isAllowed does not track", lastUsed, not(hasKey(goldFeature)));
+
+        goldFeature.check(licenseState);
+        lastUsed = licenseState.getLastUsed();
+        assertThat("feature.check tracks usage", lastUsed, aMapWithSize(1));
+
+        XPackLicenseState.FeatureUsage usage = Iterables.get(licenseState.getLastUsed().keySet(), 0);
+        assertThat(usage.featureName(), equalTo(Feature.SECURITY_DLS_FLS.feature.name));
+        assertThat(usage.contextName(), nullValue());
+        assertThat(lastUsed.get(usage), equalTo(100L));
+
         currentTime.set(200);
-        licenseState.checkFeature(goldFeature);
-        assertThat("checkFeature updates tracked time", licenseState.getLastUsed(), hasEntry(goldFeature, 200L));
+        goldFeature.check(licenseState);
+        lastUsed = licenseState.getLastUsed();
+        assertThat("feature.check updates usage", lastUsed.keySet(), containsInAnyOrder(usage));
+        assertThat(lastUsed.get(usage), equalTo(200L));
     }
 }

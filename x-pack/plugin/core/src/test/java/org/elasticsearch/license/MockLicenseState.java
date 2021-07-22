@@ -19,7 +19,7 @@ public class MockLicenseState extends XPackLicenseState {
     }
 
     @Override
-    public boolean checkFeature(LicensedFeature feature) {
-        return super.checkFeature(feature);
+    public boolean isAllowed(LicensedFeature feature) {
+        return super.isAllowed(feature);
     }
 }

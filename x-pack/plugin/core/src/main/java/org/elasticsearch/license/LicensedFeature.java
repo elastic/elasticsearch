@@ -9,17 +9,13 @@ package org.elasticsearch.license;
 
 import java.util.Objects;
 
-import static org.elasticsearch.license.License.OperationMode.ENTERPRISE;
-import static org.elasticsearch.license.License.OperationMode.GOLD;
-import static org.elasticsearch.license.License.OperationMode.PLATINUM;
-import static org.elasticsearch.license.License.OperationMode.STANDARD;
-
 /**
  * A base class for checking licensed features against the license.
  */
 public abstract class LicensedFeature {
 
     public static class Momentary extends LicensedFeature {
+
         private Momentary(String name, License.OperationMode minimumOperationMode, boolean needsActive) {
             super(name, minimumOperationMode, needsActive);
         }
@@ -29,7 +25,12 @@ public abstract class LicensedFeature {
          * updates the last time the feature was used.
          */
         public boolean check(XPackLicenseState state) {
-            return true; // TODO implement
+            if (state.isAllowed(this)) {
+                state.featureUsed(this);
+                return true;
+            } else {
+                return false;
+            }
         }
     }
 
@@ -38,12 +39,27 @@ public abstract class LicensedFeature {
             super(name, minimumOperationMode, needsActive);
         }
 
-        public boolean checkAndStartTracking(XPackLicenseState state, String useId) {
-            return true; // TODO implement
+        public boolean checkAndStartTracking(XPackLicenseState state, String contextName) {
+            if (state.isAllowed(this)) {
+                state.enableUsageTracking(this, contextName);
+                return true;
+            } else {
+                return false;
+            }
         }
 
-        public void stopTracking(XPackLicenseState state, String useId) {
-            // TODO implement
+        public void stopTracking(XPackLicenseState state, String contextName) {
+            state.disableUsageTracking(this, contextName);
+        }
+    }
+
+    public static class Untracked extends LicensedFeature {
+        private Untracked(String name, License.OperationMode minimumOperationMode, boolean needsActive) {
+            super(name, minimumOperationMode, needsActive);
+        }
+
+        public boolean check(XPackLicenseState state) {
+            return state.isAllowed(this);
         }
     }
 
@@ -90,7 +106,7 @@ public abstract class LicensedFeature {
      * without affecting feature tracking.
      */
     public final boolean checkWithoutTracking(XPackLicenseState state) {
-        return state.isAllowedByLicense(minimumOperationMode, needsActive);
+        return state.isAllowed(this);
     }
 
     @Override

@@ -4,7 +4,7 @@
 === Pinned Query
 Promotes selected documents to rank higher than those matching a given query.
 This feature is typically used to guide searchers to curated documents that are
-promoted over and above any "organic" matches for a search.  
+promoted over and above any "organic" matches for a search.
 The promoted or "pinned" documents are identified using the document IDs stored in
 the <<mapping-id-field,`_id`>> field.
 
@@ -31,6 +31,51 @@ GET /_search
 ==== Top-level parameters for `pinned`
 
 `ids`::
-An array of <<mapping-id-field, document IDs>> listed in the order they are to appear in results.
+(Optional, array) <<mapping-id-field, Document IDs>> listed in the order they are to appear in results.
+Required if `docs` is not specified.
+`docs`::
+(Optional, array) Documents listed in the order they are to appear in results.
+Required if `ids` is not specified.
+You can specify the following attributes for each document:
++
+--
+`_id`::
+(Required, string) The unique <<mapping-id-field, document ID>>.
+
+`_index`::
+(Required, string) The <<mapping-index-field, index>> that contains the document.
+--
 `organic`::
-Any choice of query used to rank documents which will be ranked below the "pinned" document ids.
+Any choice of query used to rank documents which will be ranked below the "pinned" documents.
+
+==== Pin documents in a specific index
+
+If you're searching over multiple indices, you can pin a document within a specific index using `docs`:
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "query": {
+    "pinned": {
+      "docs": [
+        {
+          "_index": "my-index-000001",
+          "_id": "1"
+        },
+        {
+          "_index": "my-index-000001",
+          "_id": "4"
+        },
+        {
+          "_index": "my-index-000002",
+          "_id": "100"
+        }
+      ],
+      "organic": {
+        "match_all": {}
+      }
+    }
+  }
+}
+--------------------------------------------------

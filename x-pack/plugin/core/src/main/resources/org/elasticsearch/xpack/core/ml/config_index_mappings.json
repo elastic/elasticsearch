@@ -288,6 +288,9 @@
         "type" : "object",
         "enabled" : false
       },
+      "annotations_retention_days" : {
+        "type" : "long"
+      },
       "background_persist_interval" : {
         "type" : "keyword"
       },

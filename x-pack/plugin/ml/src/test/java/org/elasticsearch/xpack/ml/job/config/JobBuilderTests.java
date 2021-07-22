@@ -65,6 +65,9 @@ public class JobBuilderTests extends AbstractWireSerializingTestCase<Job.Builder
             builder.setResultsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
+            builder.setAnnotationsRetentionDays(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
             builder.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10),
                     randomAlphaOfLength(10)));
         }

@@ -66,6 +66,9 @@ public class JobUpdateTests extends AbstractXContentTestCase<JobUpdate> {
             update.setResultsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
+            update.setAnnotationsRetentionDays(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
             update.setCategorizationFilters(Arrays.asList(generateRandomStringArray(10, 10, false)));
         }
         if (randomBoolean()) {

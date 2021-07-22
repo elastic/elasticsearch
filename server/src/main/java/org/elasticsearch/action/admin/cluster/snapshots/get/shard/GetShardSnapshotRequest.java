@@ -30,8 +30,7 @@ public class GetShardSnapshotRequest extends MasterNodeRequest<GetShardSnapshotR
     GetShardSnapshotRequest(List<String> repositories, ShardId shardId) {
         assert repositories.isEmpty() == false;
         assert repositories.stream().noneMatch(Objects::isNull);
-        assert repositories.size() == 1 && repositories.get(0).equals(ALL_REPOSITORIES)
-            || repositories.stream().noneMatch(repo -> repo.equals(ALL_REPOSITORIES));
+        assert repositories.size() == 1 || repositories.stream().noneMatch(repo -> repo.equals(ALL_REPOSITORIES));
         this.repositories = Objects.requireNonNull(repositories);
         this.shardId = Objects.requireNonNull(shardId);
     }

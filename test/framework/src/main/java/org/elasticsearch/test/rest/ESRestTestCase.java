@@ -818,7 +818,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 return true;
             }
             final String warning = warnings.get(0);
-            final boolean isSystemIndexWarning = warning.contains("this request accesses system indices [.watches], " +
+            final boolean isSystemIndexWarning = warning.contains("this request accesses system indices: [.watches], " +
                 "but in a future major version, direct access to system indices will be prevented by default");
             return isSystemIndexWarning == false;
         };

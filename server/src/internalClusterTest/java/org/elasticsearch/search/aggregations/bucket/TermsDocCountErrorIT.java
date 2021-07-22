@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -89,8 +90,6 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                     .field(DOUBLE_FIELD_NAME, 1.0 * randomInt(numUniqueTerms))
                     .endObject()));
         }
-        assertAcked(prepareCreate("idx_fixed_docs_0").addMapping("type", STRING_FIELD_NAME, "type=keyword")
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)));
         Map<String, Integer> shard0DocsPerTerm = new HashMap<>();
         shard0DocsPerTerm.put("A", 25);
         shard0DocsPerTerm.put("B", 18);
@@ -102,16 +101,8 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         shard0DocsPerTerm.put("H", 2);
         shard0DocsPerTerm.put("I", 1);
         shard0DocsPerTerm.put("J", 1);
-        for (Map.Entry<String, Integer> entry : shard0DocsPerTerm.entrySet()) {
-            for (int i = 0; i < entry.getValue(); i++) {
-                String term = entry.getKey();
-                builders.add(client().prepareIndex("idx_fixed_docs_0", "type", term + "-" + i)
-                        .setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, term).endObject()));
-            }
-        }
+        buildIndex(shard0DocsPerTerm, "idx_fixed_docs_0", 0, builders);
 
-        assertAcked(prepareCreate("idx_fixed_docs_1").addMapping("type", STRING_FIELD_NAME, "type=keyword")
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)));
         Map<String, Integer> shard1DocsPerTerm = new HashMap<>();
         shard1DocsPerTerm.put("A", 30);
         shard1DocsPerTerm.put("B", 25);
@@ -123,17 +114,8 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         shard1DocsPerTerm.put("Q", 6);
         shard1DocsPerTerm.put("J", 8);
         shard1DocsPerTerm.put("C", 4);
-        for (Map.Entry<String, Integer> entry : shard1DocsPerTerm.entrySet()) {
-            for (int i = 0; i < entry.getValue(); i++) {
-                String term = entry.getKey();
-                builders.add(client().prepareIndex("idx_fixed_docs_1", "type", term + "-" + i)
-                        .setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, term).field("shard", 1).endObject()));
-            }
-        }
+        buildIndex(shard1DocsPerTerm, "idx_fixed_docs_1", 1, builders);
 
-        assertAcked(prepareCreate("idx_fixed_docs_2")
-                .addMapping("type", STRING_FIELD_NAME, "type=keyword")
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)));
         Map<String, Integer> shard2DocsPerTerm = new HashMap<>();
         shard2DocsPerTerm.put("A", 45);
         shard2DocsPerTerm.put("C", 44);
@@ -143,16 +125,46 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         shard2DocsPerTerm.put("H", 28);
         shard2DocsPerTerm.put("Q", 2);
         shard2DocsPerTerm.put("D", 1);
-        for (Map.Entry<String, Integer> entry : shard2DocsPerTerm.entrySet()) {
-            for (int i = 0; i < entry.getValue(); i++) {
-                String term = entry.getKey();
-                builders.add(client().prepareIndex("idx_fixed_docs_2", "type", term + "-" + i)
-                        .setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, term).field("shard", 2).endObject()));
-            }
-        }
+        buildIndex(shard2DocsPerTerm, "idx_fixed_docs_2", 2, builders);
+
+        Map<String, Integer> shard3DocsPerTerm = new HashMap<>();
+        shard3DocsPerTerm.put("A", 1);
+        shard3DocsPerTerm.put("B", 1);
+        shard3DocsPerTerm.put("C", 1);
+        buildIndex(shard3DocsPerTerm, "idx_fixed_docs_3", 3, builders);
+
+        Map<String, Integer> shard4DocsPerTerm = new HashMap<>();
+        shard4DocsPerTerm.put("K", 1);
+        shard4DocsPerTerm.put("L", 1);
+        shard4DocsPerTerm.put("M", 1);
+        buildIndex(shard4DocsPerTerm, "idx_fixed_docs_4", 4, builders);
+
+        Map<String, Integer> shard5DocsPerTerm = new HashMap<>();
+        shard5DocsPerTerm.put("X", 1);
+        shard5DocsPerTerm.put("Y", 1);
+        shard5DocsPerTerm.put("Z", 1);
+        buildIndex(shard5DocsPerTerm, "idx_fixed_docs_5", 5, builders);
 
         indexRandom(true, builders);
         ensureSearchable();
+    }
+
+    private void buildIndex(Map<String, Integer> docsPerTerm, String index, int shard, List<IndexRequestBuilder> builders)
+        throws IOException {
+        assertAcked(
+            prepareCreate(index).addMapping("type", STRING_FIELD_NAME, "type=keyword")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+        );
+        for (Map.Entry<String, Integer> entry : docsPerTerm.entrySet()) {
+            for (int i = 0; i < entry.getValue(); i++) {
+                String term = entry.getKey();
+                builders.add(
+                    client().prepareIndex(index, "type")
+                        .setId(term + "-" + i)
+                        .setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, term).field("shard", shard).endObject())
+                );
+            }
+        }
     }
 
     private void assertDocCountErrorWithinBounds(int size, SearchResponse accurateResponse, SearchResponse testResponse) {
@@ -1015,4 +1027,21 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         assertThat(bucket.getDocCountError(), equalTo(29L));
     }
 
+    /**
+     * Tests the upper bounds are correct when performing incremental reductions
+     * See https://github.com/elastic/elasticsearch/issues/40005 for more details
+     */
+    public void testIncrementalReduction() {
+        SearchResponse response = client().prepareSearch("idx_fixed_docs_3", "idx_fixed_docs_4", "idx_fixed_docs_5")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .field(STRING_FIELD_NAME)
+                .showTermDocCountError(true)
+                .size(5).shardSize(5)
+                .collectMode(randomFrom(SubAggCollectionMode.values())))
+            .get();
+        assertSearchResponse(response);
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms.getDocCountError(), equalTo(0L));
+    }
 }

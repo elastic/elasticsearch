@@ -76,7 +76,7 @@ public abstract class AbstractInternalTerms<
 
     protected abstract long getSumOfOtherDocCounts();
 
-    protected abstract long getDocCountError();
+    protected abstract Long getDocCountError();
 
     protected abstract void setDocCountError(long docCountError);
 
@@ -133,7 +133,7 @@ public abstract class AbstractInternalTerms<
         if (size == 0 || size < terms.getShardSize() || isKeyOrder(terms.getOrder())) {
             return 0;
         } else if (InternalOrder.isCountDesc(terms.getOrder())) {
-            if (terms.getDocCountError() > 0) {
+            if (terms.getDocCountError() != null && terms.getDocCountError() > 0) {
                 // If there is an existing docCountError for this agg then
                 // use this as the error for this aggregation
                 return terms.getDocCountError();

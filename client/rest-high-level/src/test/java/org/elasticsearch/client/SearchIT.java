@@ -577,7 +577,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         assertEquals(1, searchResponse.getAggregations().asList().size());
         Terms terms = searchResponse.getAggregations().get("top-tags");
-        assertEquals(0, terms.getDocCountError());
+        assertEquals(0, terms.getDocCountError().longValue());
         assertEquals(0, terms.getSumOfOtherDocCounts());
         assertEquals(3, terms.getBuckets().size());
         for (Terms.Bucket bucket : terms.getBuckets()) {
@@ -589,7 +589,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertEquals(2, children.getDocCount());
             assertEquals(1, children.getAggregations().asList().size());
             Terms leafTerms = children.getAggregations().get("top-names");
-            assertEquals(0, leafTerms.getDocCountError());
+            assertEquals(0, leafTerms.getDocCountError().longValue());
             assertEquals(0, leafTerms.getSumOfOtherDocCounts());
             assertEquals(2, leafTerms.getBuckets().size());
             assertEquals(2, leafTerms.getBuckets().size());

@@ -67,7 +67,7 @@ public class MoveToStepAction extends ActionType<AcknowledgedResponse> {
             super(in);
             this.index = in.readString();
             this.currentStepKey = new StepKey(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
                 this.nextStepKey = new PartialStepKey(in);
             } else {
                 StepKey spec = new StepKey(in);
@@ -104,7 +104,7 @@ public class MoveToStepAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(index);
             currentStepKey.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
                 nextStepKey.writeTo(out);
             } else {
                 String action = nextStepKey.getAction();

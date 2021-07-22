@@ -14,6 +14,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,6 +25,10 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 
 public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder> {
+    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(TypeQueryV7Builder.class);
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Type queries are deprecated, " +
+        "prefer to filter on a field instead.";
+
     private static final String NAME = "type";
     public static final ParseField NAME_V7 = new ParseField(NAME).forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
     private static final ParseField VALUE_FIELD = new ParseField("value");
@@ -82,6 +87,7 @@ public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder>
     }
 
     public static TypeQueryV7Builder fromXContent(XContentParser parser) throws IOException {
+        deprecationLogger.compatibleApiWarning("type_query", TYPES_DEPRECATION_MESSAGE);
         try {
             return PARSER.apply(parser, null);
         } catch (IllegalArgumentException e) {

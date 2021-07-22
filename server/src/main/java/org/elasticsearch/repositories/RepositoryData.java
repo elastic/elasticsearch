@@ -596,6 +596,13 @@ public final class RepositoryData {
     }
 
     /**
+     * Checks if any snapshot in this repository contains the specified index in {@code indexName}
+     */
+    public boolean hasIndex(String indexName) {
+        return indices.containsKey(indexName);
+    }
+
+    /**
      * Resolve the given index names to index ids, creating new index ids for
      * new indices in the repository.
      *

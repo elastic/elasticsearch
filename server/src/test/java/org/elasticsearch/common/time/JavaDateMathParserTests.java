@@ -30,6 +30,54 @@ public class JavaDateMathParserTests extends ESTestCase {
     private final DateFormatter formatter = DateFormatter.forPattern("date_optional_time||epoch_millis");
     private final DateMathParser parser = formatter.toDateMathParser();
 
+    public void testEpochNoComplications() {
+        DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis");
+        long millis = 1604210400000L;
+        long actual = epochMillis.toDateMathParser()
+            .parse("" + millis, () -> { throw new UnsupportedOperationException(); }, false, ZoneOffset.UTC)
+            .toEpochMilli();
+        assertEquals(millis, actual);
+    }
+
+    public void testEpochTimezone() {
+        DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis");
+        ZonedDateTime oneAm = ZonedDateTime.of(2020, 7, 11, 1, 0, 0, 0, ZoneOffset.UTC);
+        assertEquals(1594429200000L, oneAm.toInstant().toEpochMilli());
+        Instant actual = epochMillis.toDateMathParser()
+            .parse(
+                "" + oneAm.toInstant().toEpochMilli(),
+                () -> { throw new UnsupportedOperationException(); },
+                false,
+                ZoneId.of("America/New_York")
+            );
+
+        /*
+        expected:<2020-07-11T01:00:00Z> but was:<2020-07-11T05:00:00Z>
+        Expected :2020-07-11T01:00:00Z
+        Actual   :2020-07-11T05:00:00Z
+         */
+        assertEquals(oneAm.toInstant(), actual);
+    }
+
+    public void testEpochTimezoneDst() {
+        DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis");
+        ZonedDateTime sixAm = ZonedDateTime.of(2020, 11, 1, 6, 0, 0, 0, ZoneOffset.UTC);
+        assertEquals(1604210400000L, sixAm.toInstant().toEpochMilli());
+        Instant actual = epochMillis.toDateMathParser()
+            .parse(
+                "" + sixAm.toInstant().toEpochMilli(),
+                () -> { throw new UnsupportedOperationException(); },
+                false,
+                ZoneId.of("America/New_York")
+            );
+
+        /*
+        expected:<2020-11-01T06:00:00Z> but was:<2020-11-01T11:00:00Z>
+        Expected :2020-11-01T06:00:00Z
+        Actual   :2020-11-01T11:00:00Z
+         */
+        assertEquals(sixAm.toInstant(), actual);
+    }
 
     public void testRoundUpParserBasedOnList() {
         DateFormatter formatter = new JavaDateFormatter("test", new DateTimeFormatterBuilder()

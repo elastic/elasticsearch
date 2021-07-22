@@ -24,6 +24,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
 import static org.hamcrest.Matchers.containsString;
@@ -262,36 +263,66 @@ public class DocValueFormatTests extends ESTestCase {
      */
     public void testParseEpochSecondsTimezone() {
         ZoneId zone = randomZone();
+        long millis = randomNonNegativeLong();
+        checkEpochSeconds(zone, millis);
+        checkEpochMillis(zone, millis);
+    }
+
+    private void checkEpochSeconds(ZoneId zone, long millis) {
+        // Convert to seconds
+        millis -= (millis % 1000);
         DocValueFormat.DateTime formatter = new DocValueFormat.DateTime(
             DateFormatter.forPattern("epoch_second"),
             zone,
             Resolution.MILLISECONDS
         );
-        long millis = randomNonNegativeLong();
-        // Convert to seconds
-        millis -= (millis % 1000);
         assertEquals(
-            "failed formatting for tz " + zone,
+            "failed formatting for tz " + zone + "; formatted value: [" + formatter.format(millis) + "]",
             millis,
             formatter.parseLong(formatter.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
         );
     }
 
-    public void testParseEpochMillisTimezone() {
-        ZoneId zone = randomZone();
+    private void checkEpochMillis(ZoneId zone, long millis) {
         DocValueFormat.DateTime formatter = new DocValueFormat.DateTime(
             DateFormatter.forPattern("epoch_millis"),
             zone,
             Resolution.MILLISECONDS
         );
-        long millis = randomNonNegativeLong();
         assertEquals(
-            "failed formatting for tz " + zone,
+            "failed formatting for tz " + zone + "; formatted value: [" + formatter.format(millis) + "]",
             millis,
             formatter.parseLong(formatter.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
         );
     }
 
+    /**
+     * Test the epoch seconds and millis format-parse operation on dates we know to be problematic.
+     */
+    public void testEpochParsingKnownBadDates() {
+        long hourInMillis = 60 * 60 * 1000;
+        List<Map.Entry<Long, ZoneId>> cases = List.of(
+            //Map.entry(0L, ZoneOffset.UTC),
+
+            // March 8th 2020, transitioning into DST
+            //Map.entry(1583650800000L - hourInMillis, ZoneId.of("America/New_York")),
+            //Map.entry(1583650800000L, ZoneId.of("America/New_York")),
+            //Map.entry(1583650800000L + (hourInMillis / 2), ZoneId.of("America/New_York")),
+            //Map.entry(1583650800000L + hourInMillis, ZoneId.of("America/New_York")),
+
+            // November 1st 2020, transitioning out of DST
+            Map.entry(1604214000000L - hourInMillis, ZoneId.of("America/New_York"))
+            //Map.entry(1604214000000L, ZoneId.of("America/New_York")),
+            //Map.entry(1604214000000L + (hourInMillis / 2), ZoneId.of("America/New_York")),
+            //Map.entry(1604214000000L + hourInMillis, ZoneId.of("America/New_York")),
+
+            //Map.entry(1617466480000L, ZoneId.of("Antarctica/Macquarie"))
+        );
+        for (Map.Entry<Long, ZoneId> problem : cases) {
+            checkEpochMillis(problem.getValue(), problem.getKey());
+            checkEpochSeconds(problem.getValue(), problem.getKey());
+        }
+    }
 
     public void testDateHMSTimezone() {
         DocValueFormat.DateTime tokyo = new DocValueFormat.DateTime(

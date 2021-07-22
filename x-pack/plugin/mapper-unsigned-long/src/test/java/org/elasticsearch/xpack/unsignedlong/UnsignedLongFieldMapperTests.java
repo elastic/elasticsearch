@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
@@ -203,6 +204,28 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             assertEquals(0, fields2.length);
             assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc2.rootDoc().getFields("_ignored")));
         }
+    }
+
+    public void testDecimalParts() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> b.field("type", "unsigned_long"));
+        DocumentMapper mapper = createDocumentMapper(mapping);
+        {
+            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", "100.5")));
+            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            assertThat(e.getCause().getMessage(), containsString("Value \"100.5\" has a decimal part"));
+        }
+        {
+            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", ".9")));
+            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            assertThat(e.getCause().getMessage(), containsString("Value \".9\" has a decimal part"));
+        }
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomFrom("100.", "100.0", "100.00"))));
+        assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
+        assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
+
+        doc = mapper.parse(source(b -> b.field("field", randomFrom("0.", "0.0", ".00"))));
+        assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE));
+        assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE));
     }
 
     public void testIndexingOutOfRangeValues() throws Exception {

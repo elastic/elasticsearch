@@ -527,9 +527,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     final BigDecimal bigDecimal = new BigDecimal(stringValue);
                     bigInteger = bigDecimal.toBigIntegerExact();
                 } catch (ArithmeticException e) {
-                    throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
+                    throw new IllegalArgumentException("Value \"" + stringValue + "\" has a decimal part");
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("For input string: [" + stringValue + "].");
+                    throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
                 }
                 return parseUnsignedLong(bigInteger);
             }

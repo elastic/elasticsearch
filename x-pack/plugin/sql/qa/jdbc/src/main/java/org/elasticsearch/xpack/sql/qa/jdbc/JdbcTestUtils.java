@@ -125,8 +125,7 @@ final class JdbcTestUtils {
     }
 
     static boolean versionSupportsArrayTypes() {
-        // TODO: add equality (onOrAfter) only once actually ported to 7.12
-        return JDBC_DRIVER_VERSION.after(Version.V_7_13_0);
-
+        // TODO: add equality (onOrAfter) only once actually ported to 7.15
+        return JDBC_DRIVER_VERSION.after(Version.V_7_15_0);
     }
 }

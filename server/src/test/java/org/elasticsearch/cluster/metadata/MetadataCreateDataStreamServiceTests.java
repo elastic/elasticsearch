@@ -23,12 +23,15 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -61,6 +64,61 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isHidden(), is(false));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isReplicated(), is(false));
         assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
+        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
+            equalTo("true"));
+        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(), is(false));
+    }
+
+    public void testCreateDataStreamWithAliasFromTemplate() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = "my-data-stream";
+        final int aliasCount = randomIntBetween(0, 3);
+        Map<String, AliasMetadata> aliases = new HashMap<>(aliasCount);
+        for (int k = 0; k < aliasCount; k++) {
+            final String aliasName = randomAlphaOfLength(6);
+            AliasMetadata.Builder builder = AliasMetadata.newAliasMetadataBuilder(aliasName);
+            if (randomBoolean()) {
+                builder.filter(org.elasticsearch.core.Map.of(
+                    "term",
+                    org.elasticsearch.core.Map.of(
+                        "user",
+                        org.elasticsearch.core.Map.of("value", randomAlphaOfLength(5)))
+                    )
+                );
+            }
+            builder.writeIndex(randomBoolean());
+            aliases.put(aliasName, builder.build());
+        }
+        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+            .indexPatterns(org.elasticsearch.core.List.of(dataStreamName + "*"))
+            .dataStreamTemplate(new DataStreamTemplate())
+            .template(new Template(null, null, aliases))
+            .build();
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().put("template", template).build())
+            .build();
+        CreateDataStreamClusterStateUpdateRequest req =
+            new CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
+        ClusterState newState = MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
+        assertThat(newState.metadata().dataStreams().size(), equalTo(1));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).isSystem(), is(false));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).isHidden(), is(false));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).isReplicated(), is(false));
+        assertThat(newState.metadata().dataStreamAliases().size(), is(aliasCount));
+        for (String aliasName : aliases.keySet()) {
+            AliasMetadata expectedAlias = aliases.get(aliasName);
+            DataStreamAlias actualAlias = newState.metadata().dataStreamAliases().get(aliasName);
+            assertThat(actualAlias, is(notNullValue()));
+            assertThat(actualAlias.getName(), equalTo(expectedAlias.alias()));
+            assertThat(actualAlias.getFilter(), equalTo(expectedAlias.filter()));
+            assertThat(actualAlias.getWriteDataStream(), equalTo(expectedAlias.writeIndex() ? dataStreamName : null));
+        }
+
+        assertThat(newState.metadata().dataStreamAliases().values().stream().map(DataStreamAlias::getName).toArray(),
+            arrayContainingInAnyOrder (new ArrayList<>(aliases.keySet()).toArray()));
+        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
+        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getAliases().size(), is(0));
         assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
             equalTo("true"));
         assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(), is(false));

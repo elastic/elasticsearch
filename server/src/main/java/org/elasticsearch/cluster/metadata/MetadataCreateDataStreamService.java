@@ -36,6 +36,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -160,12 +161,11 @@ public class MetadataCreateDataStreamService {
     }
 
     static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
-                                                 ClusterState currentState,
-                                                 String dataStreamName,
-                                                 List<IndexMetadata> backingIndices,
-                                                 IndexMetadata writeIndex,
-                                                 SystemDataStreamDescriptor systemDataStreamDescriptor) throws Exception
-    {
+                                         ClusterState currentState,
+                                         String dataStreamName,
+                                         List<IndexMetadata> backingIndices,
+                                         IndexMetadata writeIndex,
+                                         SystemDataStreamDescriptor systemDataStreamDescriptor) throws Exception {
         if (currentState.nodes().getMinNodeVersion().before(Version.V_7_9_0)) {
             throw new IllegalStateException("data streams require minimum node version of " + Version.V_7_9_0);
         }
@@ -183,8 +183,8 @@ public class MetadataCreateDataStreamService {
             throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must be lowercase");
         }
         if (dataStreamName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
-            throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must not start with '"
-                + DataStream.BACKING_INDEX_PREFIX + "'");
+            throw new IllegalArgumentException(
+                "data_stream [" + dataStreamName + "] must not start with '" + DataStream.BACKING_INDEX_PREFIX + "'");
         }
 
         final boolean isSystem = systemDataStreamDescriptor != null;
@@ -226,9 +226,23 @@ public class MetadataCreateDataStreamService {
         DataStream newDataStream = new DataStream(dataStreamName, timestampField, dsBackingIndices, 1L,
             template.metadata() != null ? org.elasticsearch.core.Map.copyOf(template.metadata()) : null, hidden, false, isSystem);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
-        logger.info("adding data stream [{}] with write index [{}] and backing indices [{}]", dataStreamName,
+
+        List<String> aliases = new ArrayList<>();
+        if (template.template() != null && template.template().aliases() != null) {
+            for (AliasMetadata alias : template.template().aliases().values()) {
+                aliases.add(alias.getAlias());
+                builder.put(alias.getAlias(), dataStreamName, alias.writeIndex(), alias.filter() == null ? null : alias.filter().string());
+            }
+        }
+
+        logger.info(
+            "adding data stream [{}] with write index [{}], backing indices [{}], and aliases [{}]",
+            dataStreamName,
             writeIndex.getIndex().getName(),
-            Strings.arrayToCommaDelimitedString(backingIndices.stream().map(i -> i.getIndex().getName()).toArray()));
+            Strings.arrayToCommaDelimitedString(backingIndices.stream().map(i -> i.getIndex().getName()).toArray()),
+            Strings.collectionToCommaDelimitedString(aliases)
+        );
+
         return ClusterState.builder(currentState).metadata(builder).build();
     }
 

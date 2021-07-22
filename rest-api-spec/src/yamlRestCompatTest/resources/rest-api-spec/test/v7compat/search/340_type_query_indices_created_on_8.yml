@@ -1,0 +1,139 @@
+---
+setup:
+  - skip:
+      features:
+        - "headers"
+        - "allowed_warnings_regex"
+---
+type query:
+  - do:
+      index:
+        index: "test1"
+        id: 1
+        type: "cat"
+        refresh: true
+        body:
+          foo: "bar"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+  - do:
+      index:
+        index: "test2"
+        id: 1
+        type: "_doc"
+        refresh: true
+        body:
+          foo: "bar"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: "test1"
+        body:
+          query:
+            type:
+              value: "cat"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+  - match:
+      hits.total: 1
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: "test1"
+        body:
+          query:
+            type:
+              value: "dog"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+  - match:
+      hits.total: 10
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: "test1"
+        body:
+          query:
+            type:
+              value: "_doc"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+  - match:
+      hits.total: 1
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: "test1"
+        body:
+          query:
+            type:
+              value: "_default_"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+  - match:
+      hits.total: 0
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: "test2"
+        body:
+          query:
+            type:
+              value: "_doc"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+  - match:
+      hits.total: 1
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: "test2"
+        body:
+          query:
+            type:
+              value: "dog"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+  - match:
+      hits.total: 2
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: "test2"
+        body:
+          query:
+            type:
+              value: "_default_"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+  - match:
+      hits.total: 2

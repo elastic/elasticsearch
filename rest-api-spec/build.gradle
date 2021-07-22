@@ -94,6 +94,7 @@ tasks.named("yamlRestCompatTest").configure {
     'indices.flush/10_basic/Index synced flush rest test',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',//#42809 nested path and nested filter
     'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
+    'search/340_type_query/type query' // type_query - probably should behave like match_all
   ] + v7compatibilityNotSupportedTests())
     .join(',')
 

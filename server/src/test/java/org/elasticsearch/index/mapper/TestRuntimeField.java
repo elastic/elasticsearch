@@ -17,6 +17,9 @@ import java.util.Collection;
 import java.util.Collections;
 
 public final class TestRuntimeField implements RuntimeField {
+
+    public static final String CONTENT_TYPE = "test-composite";
+
     private final String name;
     private final Collection<MappedFieldType> subfields;
 
@@ -41,7 +44,10 @@ public final class TestRuntimeField implements RuntimeField {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        throw new UnsupportedOperationException();
+        builder.startObject(name);
+        builder.field("type", CONTENT_TYPE);
+        builder.endObject();
+        return builder;
     }
 
     public static class TestRuntimeFieldType extends MappedFieldType {

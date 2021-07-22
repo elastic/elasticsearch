@@ -98,6 +98,7 @@ public abstract class DocumentParserContext {
     private final Set<String> newFieldsSeen;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final List<RuntimeField> dynamicRuntimeFields;
+    private final Set<String> shadowedFields;
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
 
@@ -113,6 +114,7 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = in.newFieldsSeen;
         this.dynamicObjectMappers = in.dynamicObjectMappers;
         this.dynamicRuntimeFields = in.dynamicRuntimeFields;
+        this.shadowedFields = in.shadowedFields;
         this.version = in.version;
         this.seqID = in.seqID;
     }
@@ -133,6 +135,17 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = new HashSet<>();
         this.dynamicObjectMappers = new HashMap<>();
         this.dynamicRuntimeFields = new ArrayList<>();
+        this.shadowedFields = buildShadowedFields(mappingLookup);
+    }
+
+    private static Set<String> buildShadowedFields(MappingLookup lookup) {
+        Set<String> shadowedFields = new HashSet<>();
+        for (RuntimeField runtimeField : lookup.getMapping().getRoot().runtimeFields()) {
+            for (MappedFieldType mft : runtimeField.asMappedFieldTypes()) {
+                shadowedFields.add(mft.name());
+            }
+        }
+        return shadowedFields;
     }
 
     public final IndexSettings indexSettings() {
@@ -234,6 +247,10 @@ public abstract class DocumentParserContext {
      */
     public final List<Mapper> getDynamicMappers() {
         return dynamicMappers;
+    }
+
+    public final boolean isShadowed(String field) {
+        return shadowedFields.contains(field);
     }
 
     public final ObjectMapper getObjectMapper(String name) {

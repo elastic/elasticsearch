@@ -33,7 +33,7 @@ public class TestDocumentParserContext extends DocumentParserContext {
      * besides {@link IndexSettings}. Use with caution as it can cause {@link NullPointerException}s down the line.
      */
     public TestDocumentParserContext(IndexSettings indexSettings) {
-        super(null, indexSettings, null, null, null);
+        super(MappingLookup.EMPTY, indexSettings, null, null, null);
     }
 
     /**

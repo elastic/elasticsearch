@@ -509,7 +509,7 @@ status, various statistics, and maybe even details of recent failures.
 #### Log levels
 
 Each log message is written at a particular _level_. By default Elasticsearch
-will suppress messages at the most verbose levels, `TRACE` and `DEBUG`, and
+will suppress messages at the two most verbose levels, `TRACE` and `DEBUG`, and
 will output messages at all other levels. Users can configure which levels of
 message are written by each logger at runtime, but you should expect everyone
 to run with the default configuration almost all of the time and choose your
@@ -542,13 +542,16 @@ expect to be useful in diagnosing problems in production.
 This is the next least verbose level and is also disabled by default. The
 target audience of this level typically comprises users or developers who are
 trying to diagnose an unexpected problem in a production system, perhaps to
-help determine whether a fault lies within Elasticsearch or elsewhere. These
-logs may be used in production so it is important to limit the volume of
-messages logged at this level to avoid the log volume overwhelming the system.
-On the other hand, these messages must still provide enough detail to diagnose
-the sorts of problems that a component might encounter. In some cases you might
-need to collect information over a period of time and then log a summary when
-it's appropriate to do so.
+help determine whether a fault lies within Elasticsearch or elsewhere.
+
+Users should expect to be able to enable `DEBUG` logging on their production
+systems for a whole subsystem for an extended period of time without
+overwhelming the system or filling up their disks with logs, so it is important
+to limit the volume of messages logged at this level. On the other hand, these
+messages must still provide enough detail to diagnose the sorts of problems
+that Elasticsearch might encounter. In some cases it works well to collect
+information over a period of time and then log a complete summary, rather than
+recording every step of a process in its own message.
 
 It's possible that the reader of `DEBUG` logs is also reading the code, but
 that is less likely than for `TRACE` logs. You should strive to avoid
@@ -591,9 +594,9 @@ actionable too since you should be logging at this level when the user should
 take some investigative action. Unlike at the `INFO` level, it is often
 appropriate to log an exception, complete with stack trace, at `WARN` level.
 Although the stack trace may not be useful to the user, it may contain
-information that is vital to fully understand the problem. In other cases it
-may be appropriate to log the exception message at `WARN` and only log the full
-exception if the user has enabled `DEBUG` logging:
+information that is vital for a developer to fully understand the problem. In
+other cases it may be appropriate to log the exception message at `WARN` and
+only log the full exception if the user has enabled `DEBUG` logging:
 
     if (logger.isDebugEnabled()) {
         logger.warn("investigate me", exception);
@@ -608,7 +611,7 @@ corresponding `WARN` log. For example, it may be helpful to log every tenth
 consecutive failure at `WARN` level, or log at `WARN` if an operation has not
 completed within a certain time limit. This is much more user-friendly than
 failing persistently and silently by default and requiring the user to enable
-`DEBUG` logging to diagnose any problems.
+`DEBUG` logging to investigate the problem.
 
 If an exception occurs as a direct result of a request received from a client
 then you should include the exception in the response back to the client rather
@@ -616,10 +619,24 @@ than recording it in the logs at `WARN` level. The person reading the logs is
 usually unable to address any problems caused by faulty client requests, and
 the person running the client is often forbidden from seeing the server logs.
 
-##### `ERROR` and `FATAL`
+##### `ERROR`
 
-These are the least verbose levels, but they are not meaningfully different
-from `WARN` within Elasticsearch and you should almost never use them.
+This is the next least verbose level after `WARN`. In theory it is possible for
+users to suppress messages at `WARN` and below, believing this to help them
+focus on the most important `ERROR` messages, but in practice in Elasticsearch
+this will hide so much useful information that the resulting logs will be
+useless, so we do not expect users to do this kind of filtering.
+
+On the other hand, users may be familiar with the `ERROR` level from elsewhere.
+Log4J for instance documents this level as meaning "an error in the
+application, possibly recoverable". The implication here is that the error is
+possibly _not_ recoverable too, and we do encounter users that get very worried
+by logs at `ERROR` level for this reason.
+
+Therefore you should try and avoid logging at `ERROR` level unless the error
+really does indicate that Elasticsearch is now running in a permanently
+degraded state from which it will not recover. Errors like this should be very
+rare. When in doubt, prefer `WARN`.
 
 ### Creating A Distribution
 

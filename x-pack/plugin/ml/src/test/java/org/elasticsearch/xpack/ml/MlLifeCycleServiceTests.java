@@ -14,7 +14,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -26,11 +28,12 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
-import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.ml.process.MlController;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
@@ -39,6 +42,8 @@ import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -47,18 +52,24 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class MlLifeCycleServiceTests extends ESTestCase {
 
+    private static final Set<DiscoveryNodeRole> ROLES = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, MachineLearning.ML_ROLE)));
+
+    private Settings commonSettings;
     private ClusterService clusterService;
     private DatafeedRunner datafeedRunner;
-    private MlController mlController;
     private AutodetectProcessManager autodetectProcessManager;
     private DataFrameAnalyticsManager analyticsManager;
     private MlMemoryTracker memoryTracker;
 
     @Before
     public void setupMocks() {
+        commonSettings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
+                .build();
         clusterService = mock(ClusterService.class);
         datafeedRunner = mock(DatafeedRunner.class);
-        mlController = mock(MlController.class);
         autodetectProcessManager = mock(AutodetectProcessManager.class);
         analyticsManager = mock(DataFrameAnalyticsManager.class);
         memoryTracker = mock(MlMemoryTracker.class);
@@ -116,16 +127,16 @@ public class MlLifeCycleServiceTests extends ESTestCase {
 
     public void testSignalGracefulShutdownIncludingLocalNode() {
 
-        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(clusterService, datafeedRunner, mlController,
-            autodetectProcessManager, analyticsManager, memoryTracker);
+        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(TestEnvironment.newEnvironment(commonSettings), clusterService,
+            datafeedRunner, autodetectProcessManager, analyticsManager, memoryTracker);
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder()
             .add(new DiscoveryNode("node-1-name", "node-1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                Collections.emptyMap(), DiscoveryNodeRole.roles(), Version.CURRENT))
+                Collections.emptyMap(), ROLES, Version.CURRENT))
             .add(new DiscoveryNode("node-2-name", "node-2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                Collections.emptyMap(), DiscoveryNodeRole.roles(), Version.CURRENT))
+                Collections.emptyMap(), ROLES, Version.CURRENT))
             .add(new DiscoveryNode("node-3-name", "node-3", new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
-                Collections.emptyMap(), DiscoveryNodeRole.roles(), Version.CURRENT))
+                Collections.emptyMap(), ROLES, Version.CURRENT))
             .masterNodeId("node-1")
             .localNodeId("node-2");
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(nodesBuilder).build();
@@ -137,20 +148,20 @@ public class MlLifeCycleServiceTests extends ESTestCase {
 
         verify(datafeedRunner).vacateAllDatafeedsOnThisNode("previously assigned node [node-2-name] is shutting down");
         verify(autodetectProcessManager).vacateOpenJobsOnThisNode();
-        verifyNoMoreInteractions(datafeedRunner, mlController, autodetectProcessManager, analyticsManager, memoryTracker);
+        verifyNoMoreInteractions(datafeedRunner, autodetectProcessManager, analyticsManager, memoryTracker);
     }
 
     public void testSignalGracefulShutdownExcludingLocalNode() {
 
-        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(clusterService, datafeedRunner, mlController,
-            autodetectProcessManager, analyticsManager, memoryTracker);
+        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(TestEnvironment.newEnvironment(commonSettings), clusterService,
+            datafeedRunner, autodetectProcessManager, analyticsManager, memoryTracker);
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder()
             .add(new DiscoveryNode("node-1-name", "node-1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                Collections.emptyMap(), DiscoveryNodeRole.roles(), Version.CURRENT))
+                Collections.emptyMap(), ROLES, Version.CURRENT))
             .add(new DiscoveryNode("node-2-name", "node-2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                Collections.emptyMap(), DiscoveryNodeRole.roles(), Version.CURRENT))
+                Collections.emptyMap(), ROLES, Version.CURRENT))
             .add(new DiscoveryNode("node-3-name", "node-3", new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
-                Collections.emptyMap(), DiscoveryNodeRole.roles(), Version.CURRENT))
+                Collections.emptyMap(), ROLES, Version.CURRENT))
             .masterNodeId("node-1")
             .localNodeId("node-2");
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(nodesBuilder).build();
@@ -160,6 +171,6 @@ public class MlLifeCycleServiceTests extends ESTestCase {
 
         mlLifeCycleService.signalGracefulShutdown(clusterState, shutdownNodeIds);
 
-        verifyNoMoreInteractions(datafeedRunner, mlController, autodetectProcessManager, analyticsManager, memoryTracker);
+        verifyNoMoreInteractions(datafeedRunner, autodetectProcessManager, analyticsManager, memoryTracker);
     }
 }

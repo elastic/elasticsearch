@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.Before;
 
 import java.net.InetAddress;
@@ -47,7 +48,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
@@ -59,6 +62,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DatafeedNodeSelectorTests extends ESTestCase {
+
+    private static final Set<DiscoveryNodeRole> ROLES = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, MachineLearning.ML_ROLE)));
 
     private IndexNameExpressionResolver resolver;
     private DiscoveryNodes nodes;
@@ -627,7 +633,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         int port = 9300;
         for (String nodeId : nodeIds) {
             candidateNodes.add(new DiscoveryNode(nodeId + "-name", nodeId, new TransportAddress(InetAddress.getLoopbackAddress(), port++),
-                Collections.emptyMap(), DiscoveryNodeRole.roles(), Version.CURRENT));
+                Collections.emptyMap(), ROLES, Version.CURRENT));
         }
         return candidateNodes;
     }

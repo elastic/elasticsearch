@@ -14,6 +14,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction.Request;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigBuilderTests;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
@@ -27,12 +28,25 @@ public class PreviewDatafeedActionRequestTests extends AbstractWireSerializingTe
     @Override
     protected Request createTestInstance() {
         String jobId = randomAlphaOfLength(10);
-        return randomBoolean() ?
-            new Request(randomAlphaOfLength(10)) :
-            new Request(
-                DatafeedConfigTests.createRandomizedDatafeedConfig(jobId),
-                randomBoolean() ? JobTests.buildJobBuilder(jobId) : null
-            );
+        switch (randomInt(2)) {
+            case 0:
+                return new Request(randomAlphaOfLength(10));
+            case 1:
+                return new Request(
+                    DatafeedConfigTests.createRandomizedDatafeedConfig(jobId),
+                    randomBoolean() ? JobTests.buildJobBuilder(jobId) : null
+                );
+            case 2:
+                return new Request.Builder()
+                    .setJobBuilder(
+                        JobTests.buildJobBuilder(jobId).setDatafeed(DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder(
+                            null,
+                            null,
+                            3600000
+                ))).build();
+            default:
+                throw new IllegalArgumentException("Unexpected test state");
+        }
     }
 
     @Override
@@ -62,6 +76,25 @@ public class PreviewDatafeedActionRequestTests extends AbstractWireSerializingTe
         ex = expectThrows(IllegalArgumentException.class, requestBuilder::build);
         assertThat(ex.getMessage(),
             containsString("[datafeed_config.job_id] must be set or a [job_config] must be provided"));
+
+        requestBuilder
+            .setJobBuilder(
+                JobTests.buildJobBuilder(jobId)
+                    .setDatafeed(new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig(jobId)))
+            )
+            .setDatafeedId(null)
+            .setDatafeedBuilder(new DatafeedConfig.Builder());
+        ex = expectThrows(IllegalArgumentException.class, requestBuilder::build);
+        assertThat(ex.getMessage(),
+            containsString("[datafeed_config] must not be present when a [job_config.datafeed_config] is provided"));
+
+        requestBuilder
+            .setJobBuilder(JobTests.buildJobBuilder(jobId))
+            .setDatafeedId(null)
+            .setDatafeedBuilder(null);
+        ex = expectThrows(IllegalArgumentException.class, requestBuilder::build);
+        assertThat(ex.getMessage(),
+            containsString("[datafeed_config] must be present when a [job_config.datafeed_config] is not present"));
     }
 
     @Override

@@ -37,9 +37,9 @@ model perfectly.)
 [WARNING]
 .Field number limit
 ===================================================
-There is a limit on the number of fields that can be queried at once. It is
-defined by the `indices.query.bool.max_clause_count` <<search-settings>>
-which defaults to 1024.
+There is a limit on the number of fields times terms that can be queried at
+once. It is defined by the `indices.query.bool.max_clause_count`
+<<search-settings>> which defaults to 4096.
 ===================================================
 
 ==== Per-field boosting

@@ -239,11 +239,6 @@ public final class Verifier {
                 checkArrayFunctionUsedInWhereOrOrderByOrAggregate(p, localFailures);
                 checkArrayFunctionArguments(p, localFailures);
 
-                // restricted array usage
-                checkForRestrictedFunctionInsideFunction(p, Array.class, localFailures);
-                checkArrayFunctionUsedInWhereOrOrderByOrAggregate(p, localFailures);
-                checkArrayFunctionArguments(p, localFailures);
-
                 // everything checks out
                 // mark the plan as analyzed
                 if (localFailures.isEmpty()) {

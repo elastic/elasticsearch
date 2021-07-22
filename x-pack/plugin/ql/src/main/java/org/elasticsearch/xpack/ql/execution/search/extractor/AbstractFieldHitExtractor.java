@@ -32,7 +32,7 @@ import static java.util.Collections.singletonList;
  */
 public abstract class AbstractFieldHitExtractor implements HitExtractor {
 
-    private static final Version INTRODUCED_MULTI_VALUE_EXTRACTION = Version.V_7_12_0; // TODO: update if merging in 7.13.0
+    private static final Version INTRODUCED_MULTI_VALUE_EXTRACTION = Version.V_7_15_0; // TODO: update if merging in 7.16.0
 
     public enum MultiValueHandling {
         FAIL_IF_MULTIVALUE {

@@ -14,13 +14,13 @@ import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.Version.V_7_13_0;
+import static org.elasticsearch.Version.V_7_15_0;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isArray;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.types;
 
 public final class VersionCompatibilityChecks {
 
-    public static final SqlVersion INTRODUCING_ARRAY_TYPES = SqlVersion.fromId(V_7_13_0.id);
+    public static final SqlVersion INTRODUCING_ARRAY_TYPES = SqlVersion.fromId(V_7_15_0.id); // TODO: update if merging in 7.16.0
 
     private static final Map<DataType, SqlVersion> TYPE_TO_VERSION_MAP = new HashMap<>();
 

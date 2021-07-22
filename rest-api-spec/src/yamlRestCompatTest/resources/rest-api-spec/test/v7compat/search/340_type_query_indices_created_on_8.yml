@@ -46,7 +46,7 @@ type query:
       allowed_warnings_regex:
         - "\\[types removal\\].*"
   - match:
-      hits.total: 1
+      hits.total: 0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -61,7 +61,7 @@ type query:
       allowed_warnings_regex:
         - "\\[types removal\\].*"
   - match:
-      hits.total: 10
+      hits.total: 0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -121,7 +121,7 @@ type query:
       allowed_warnings_regex:
         - "\\[types removal\\].*"
   - match:
-      hits.total: 2
+      hits.total: 0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -136,4 +136,4 @@ type query:
       allowed_warnings_regex:
         - "\\[types removal\\].*"
   - match:
-      hits.total: 2
+      hits.total: 0

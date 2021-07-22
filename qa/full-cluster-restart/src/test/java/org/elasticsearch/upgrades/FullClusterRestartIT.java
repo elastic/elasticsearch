@@ -1625,6 +1625,40 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+
+    public void testTypeQuery() throws IOException {
+        if (isRunningAgainstOldCluster()) {
+            String doc = "{\"foo\": \"bar\"}";
+            Request createDoc = new Request("PUT", "/test_type_query_1/cat/1");
+            createDoc.addParameter("refresh", "true");
+            createDoc.setJsonEntity(doc);
+            client().performRequest(createDoc);
+
+            createDoc = new Request("PUT", "/test_type_query_2/_doc/1");
+            createDoc.addParameter("refresh", "true");
+            createDoc.setJsonEntity(doc);
+            client().performRequest(createDoc);
+        } else {
+            assertTypeQueryHits("test_type_query_1", "cat", 1);
+            assertTypeQueryHits("test_type_query_1", "dog", 0);
+            assertTypeQueryHits("test_type_query_1", "_doc", 0);
+            assertTypeQueryHits("test_type_query_1", "_default_", 0);
+
+            assertTypeQueryHits("test_type_query_2", "_doc", 1);
+            assertTypeQueryHits("test_type_query_2", "dog", 0);
+            assertTypeQueryHits("test_type_query_2", "_default_", 0);
+
+        }
+    }
+
+    private void assertTypeQueryHits(String index, String type, int numHits) throws IOException {
+        Request searchRequest = new Request("GET", "/" + index + "/_search?rest_total_hits_as_int=true");
+        searchRequest.setJsonEntity("{ \"query\": { \"type\" : {\"value\": \"" + type + "\"} }}");
+        Map<String, Object> response = entityAsMap(client().performRequest(searchRequest));
+        assertNoFailures(response);
+        assertThat(extractTotalHits(response), equalTo(numHits));
+    }
+
     public static void assertNumHits(String index, int numHits, int totalShards) throws IOException {
         Map<String, Object> resp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
         assertNoFailures(resp);

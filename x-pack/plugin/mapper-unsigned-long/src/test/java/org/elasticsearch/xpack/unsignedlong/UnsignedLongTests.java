@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -322,5 +324,33 @@ public class UnsignedLongTests extends ESIntegTestCase {
         assertThat(response.getHits().getTotalHits().value, equalTo(3L));
         response = client().prepareSearch("idx").setSize(0).setQuery(new RangeQueryBuilder("ul_field").from("1.8E19")).get();
         assertThat(response.getHits().getTotalHits().value, equalTo(4L));
+    }
+
+    public void testDecimalParts() {
+        String index = "test_decimal";
+        prepareCreate(index).setMapping("ul_field", "type=unsigned_long").get();
+        {
+            Exception error = expectThrows(
+                MapperParsingException.class,
+                () -> client().prepareIndex(index).setSource("ul_field", "100.5").get()
+            );
+            Throwable parseError = ExceptionsHelper.unwrap(error, IllegalArgumentException.class);
+            assertNotNull(parseError);
+            assertThat(parseError.getMessage(), equalTo("Value [100.5] has a decimal part"));
+        }
+        {
+            Exception error = expectThrows(
+                MapperParsingException.class,
+                () -> client().prepareIndex(index).setSource("ul_field", ".9").get()
+            );
+            Throwable parseError = ExceptionsHelper.unwrap(error, IllegalArgumentException.class);
+            assertNotNull(parseError);
+            assertThat(parseError.getMessage(), equalTo("Value [.9] has a decimal part"));
+        }
+        // valid values
+        client().prepareIndex(index).setId("1").setSource("ul_field", ".0").get();
+        client().prepareIndex(index).setId("2").setSource("ul_field", "9.").get();
+        client().prepareIndex(index).setId("3").setSource("ul_field", "20.0000").get();
+        client().prepareIndex(index).setId("4").setSource("ul_field", "100.0").get();
     }
 }

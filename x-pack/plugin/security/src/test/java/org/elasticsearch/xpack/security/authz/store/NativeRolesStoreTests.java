@@ -92,6 +92,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         assertNull(indicesPrivileges.getDeniedFields());
     }
 
+    @SuppressWarnings("unchecked")
     public void testRoleDescriptorWithFlsDlsLicensing() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);

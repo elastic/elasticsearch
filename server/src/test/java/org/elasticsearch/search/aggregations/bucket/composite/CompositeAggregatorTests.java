@@ -1695,7 +1695,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             () -> {
                 DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
                     .field("date")
-                    .dateHistogramInterval(DateHistogramInterval.days(1))
+                    .fixedInterval(DateHistogramInterval.days(1))
                     .format("yyyy-MM-dd");
                 return new CompositeAggregationBuilder("name", Collections.singletonList(histo));
             },
@@ -1715,7 +1715,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             () -> {
                 DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
                     .field("date")
-                    .dateHistogramInterval(DateHistogramInterval.days(1))
+                    .fixedInterval(DateHistogramInterval.days(1))
                     .format("yyyy-MM-dd");
                 return new CompositeAggregationBuilder("name", Collections.singletonList(histo))
                     .aggregateAfter(createAfterKey("date", "2016-09-20"));
@@ -1729,8 +1729,6 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 assertEquals(2L, result.getBuckets().get(1).getDocCount());
             }
         );
-
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testThatDateHistogramFailsFormatAfter() throws IOException {
@@ -1739,7 +1737,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 () -> {
                     DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
                         .field("date")
-                        .dateHistogramInterval(DateHistogramInterval.days(1))
+                        .fixedInterval(DateHistogramInterval.days(1))
                         .format("yyyy-MM-dd");
                     return new CompositeAggregationBuilder("name", Collections.singletonList(histo))
                         .aggregateAfter(createAfterKey("date", "now"));
@@ -1755,7 +1753,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 () -> {
                     DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
                         .field("date")
-                        .dateHistogramInterval(DateHistogramInterval.days(1))
+                        .fixedInterval(DateHistogramInterval.days(1))
                         .format("yyyy-MM-dd");
                     return new CompositeAggregationBuilder("name", Collections.singletonList(histo))
                         .aggregateAfter(createAfterKey("date", "1474329600000"));
@@ -1764,7 +1762,6 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 }
             ));
         assertThat(exc.getMessage(), containsString("failed to parse date field [1474329600000]"));
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testWithDateHistogramAndKeyword() throws IOException {
@@ -1790,7 +1787,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                     Arrays.asList(
                         new DateHistogramValuesSourceBuilder("date")
                             .field("date")
-                            .dateHistogramInterval(DateHistogramInterval.days(1)),
+                            .fixedInterval(DateHistogramInterval.days(1)),
                         new TermsValuesSourceBuilder("keyword")
                             .field("keyword")
                     )
@@ -1826,7 +1823,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                     Arrays.asList(
                         new DateHistogramValuesSourceBuilder("date")
                             .field("date")
-                            .dateHistogramInterval(DateHistogramInterval.days(1)),
+                            .fixedInterval(DateHistogramInterval.days(1)),
                         new TermsValuesSourceBuilder("keyword")
                             .field("keyword")
                     )
@@ -1842,8 +1839,6 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(2).getDocCount());
             }
         );
-
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testWithKeywordAndHistogram() throws IOException {
@@ -1995,7 +1990,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                     Arrays.asList(
                         new TermsValuesSourceBuilder("keyword").field("keyword"),
                         new DateHistogramValuesSourceBuilder("date_histo").field("date")
-                            .dateHistogramInterval(DateHistogramInterval.days(1))
+                            .fixedInterval(DateHistogramInterval.days(1))
                     )
                 )
             , (result) -> {
@@ -2024,7 +2019,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                     Arrays.asList(
                         new TermsValuesSourceBuilder("keyword").field("keyword"),
                         new DateHistogramValuesSourceBuilder("date_histo").field("date")
-                            .dateHistogramInterval(DateHistogramInterval.days(1))
+                            .fixedInterval(DateHistogramInterval.days(1))
                     )
                 ).aggregateAfter(createAfterKey("keyword", "c", "date_histo", 1474329600000L))
             , (result) -> {
@@ -2040,8 +2035,6 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(3).getDocCount());
             }
         );
-
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testWithKeywordAndTopHits() throws Exception {

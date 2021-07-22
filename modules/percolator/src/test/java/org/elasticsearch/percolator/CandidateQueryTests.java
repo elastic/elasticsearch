@@ -807,6 +807,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         assertEquals(2, topDocs.scoreDocs[1].doc);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75592")
     public void testPercolateSmallAndLargeDocument() throws Exception {
         List<LuceneDocument> docs = new ArrayList<>();
         BooleanQuery.Builder builder = new BooleanQuery.Builder();

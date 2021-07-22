@@ -341,7 +341,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         MemoryIndex memoryIndex = new MemoryIndex(false);
         StringBuilder text = new StringBuilder();
-        for (int i = 0; i < 1022; i++) {
+        for (int i = 0; i < 4094; i++) {
             text.append(i).append(' ');
         }
         memoryIndex.addField("field1", text.toString(), new WhitespaceAnalyzer());
@@ -361,7 +361,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertFalse(t.v2());
         assertEquals(3, t.v1().clauses().size());
         TermInSetQuery terms = (TermInSetQuery) t.v1().clauses().get(0).getQuery();
-        assertEquals(1023, terms.getTermData().size());
+        assertEquals(4095, terms.getTermData().size());
         assertThat(t.v1().clauses().get(1).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:"));
         assertThat(t.v1().clauses().get(2).getQuery().toString(), containsString(fieldName + ".extraction_result:failed"));
     }

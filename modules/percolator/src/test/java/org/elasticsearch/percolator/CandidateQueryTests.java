@@ -807,7 +807,6 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         assertEquals(2, topDocs.scoreDocs[1].doc);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75592")
     public void testPercolateSmallAndLargeDocument() throws Exception {
         List<LuceneDocument> docs = new ArrayList<>();
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -872,7 +871,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         try (Directory directory = new ByteBuffersDirectory()) {
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
                 Document document = new Document();
-                for (int i = 0; i < 1024; i++) {
+                for (int i = 0; i < 4096; i++) {
                     int fieldNumber = 2 + i;
                     document.add(new StringField("field", "value" + fieldNumber, Field.Store.NO));
                 }

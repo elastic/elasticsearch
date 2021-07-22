@@ -25,7 +25,7 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 == {api-description-title}
 
 You can get a single filter or all filters. For more information, see 
-{ml-docs}/ml-rules.html[Machine learning custom rules].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-rules[Custom rules].
 
 [[ml-get-filter-path-parms]]
 == {api-path-parms-title}

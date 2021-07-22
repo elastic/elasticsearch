@@ -38,7 +38,6 @@ public class RareTermsIT extends ESRestTestCase {
         return id;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74985")
     public void testSingleValuedString() throws Exception {
         final Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)

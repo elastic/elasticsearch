@@ -211,6 +211,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               task.replaceKeyInDo("do_.some.key_to_replace", "do_.some.key_that_was_replaced")
               task.replaceKeyInMatch("match_.some.key_to_replace", "match_.some.key_that_was_replaced")
               task.replaceKeyInLength("key.in_length_to_replace", "key.in_length_that_was_replaced")
+              task.replaceValueTextByKeyValue("keyvalue", "toreplace", "replacedkeyvalue")
+              task.replaceValueTextByKeyValue("index", "test", "test2", "two")
             })
             // can't actually spin up test cluster from this test
            tasks.withType(Test).configureEach{ enabled = false }
@@ -224,6 +226,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               do_.some.key_to_replace:
                 index: test
                 id: 1
+                keyvalue : toreplace
               warnings:
                 - "warning to remove"
           - match: { _source.values: ["foo"] }
@@ -284,6 +287,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
             do_.some.key_that_was_replaced:
               index: "test"
               id: 1
+              keyvalue : replacedkeyvalue
             warnings:
             - "warning1"
             - "warning2"
@@ -320,7 +324,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         two:
         - do:
             get:
-              index: "test"
+              index: "test2"
               id: 1
             headers:
               Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"

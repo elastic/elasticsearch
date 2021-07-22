@@ -117,6 +117,7 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         assertThat(response.getSamlResponse(), containsString("InResponseTo=\"" + requestId + "\""));
     }
 
+    @SuppressWarnings("unchecked")
     private TransportSamlInitiateSingleSignOnAction setupTransportAction(boolean withSecondaryAuth) throws Exception {
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())

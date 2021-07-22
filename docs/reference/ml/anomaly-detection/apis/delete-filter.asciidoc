@@ -22,9 +22,10 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 [[ml-delete-filter-desc]]
 == {api-description-title}
 
-This API deletes a {ml-docs}/ml-rules.html[filter]. 
-If a {ml} job references the filter, you cannot delete the filter. You must 
-update or delete the job before you can delete the filter.
+This API deletes a filter. If an {anomaly-job} references the filter, you cannot
+delete the filter. You must update or delete the job before you can delete the
+filter. For more information, see
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-rules[Custom rules].
 
 [[ml-delete-filter-path-parms]]
 == {api-path-parms-title}

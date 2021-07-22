@@ -250,8 +250,14 @@ public class DataStreamsRestIT extends ESRestTestCase {
         Request getAliasesRequest = new Request("GET", "/_aliases");
         Map<String, Object> getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
         assertThat(getAliasesResponse.size(), is(2));
-        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
-        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse));
+        assertEquals(org.elasticsearch.core.Map.of(
+            "logs",
+            org.elasticsearch.core.Map.of()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse)
+        );
+        assertEquals(org.elasticsearch.core.Map.of(
+            "logs",
+            org.elasticsearch.core.Map.of()), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse)
+        );
 
         Request searchRequest = new Request("GET", "/logs/_search");
         Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));

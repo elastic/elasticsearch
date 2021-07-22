@@ -155,3 +155,12 @@ logger.index_indexing_slowlog.level = trace
 logger.index_indexing_slowlog.appenderRef.index_indexing_slowlog_rolling.ref = index_indexing_slowlog_rolling
 logger.index_indexing_slowlog.additivity = false
 --------------------------------------------------
+
+[discrete]
+=== Slow log levels
+
+You can mimic the search or indexing slow log level by setting appropriate
+threshold making "more verbose" loggers to be switched off.
+If for instance we want to simulate index.indexing.slowlog.level = INFO
+then all we need to do is to set
+index.indexing.slowlog.threshold.index.debug and index.indexing.slowlog.threshold.index.trace to -1

@@ -19,7 +19,7 @@ experimental[]
 [[rollup-get-rollup-index-caps-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have the `read`,
+* If the {es} {security-features} are enabled, you must have any of the `read`,
 `view_index_metadata`, or `manage` <<privileges-list-indices,index privilege>>
 on the index that stores the rollup results. For more information, see
 <<security-privileges>>.
@@ -165,4 +165,3 @@ instead of explicit indices:
 GET /*_rollup/_rollup/data
 --------------------------------------------------
 // TEST[continued]
-

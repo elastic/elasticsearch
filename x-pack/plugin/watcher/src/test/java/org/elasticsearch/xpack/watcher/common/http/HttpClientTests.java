@@ -521,7 +521,7 @@ public class HttpClientTests extends ESTestCase {
 
     public void testThatHttpClientFailsOnNonHttpResponse() throws Exception {
         ExecutorService executor = Executors.newSingleThreadExecutor();
-        AtomicReference<Exception> hasExceptionHappened = new AtomicReference();
+        AtomicReference<Exception> hasExceptionHappened = new AtomicReference<>();
         try (ServerSocket serverSocket = new MockServerSocket(0, 50, InetAddress.getByName("localhost"))) {
             executor.execute(() -> {
                 try (Socket socket = serverSocket.accept()) {

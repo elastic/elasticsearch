@@ -129,6 +129,7 @@ public class MockRepository extends FsRepository {
 
     /** Allows blocking on writing the snapshot file at the end of snapshot creation to simulate a died master node */
     private volatile boolean blockAndFailOnWriteSnapFile;
+    private volatile String blockedIndexId;
 
     private volatile boolean blockOnWriteShardLevelMeta;
 
@@ -213,6 +214,7 @@ public class MockRepository extends FsRepository {
         blockAndFailOnWriteIndexFile = false;
         blockOnWriteIndexFile = false;
         blockAndFailOnWriteSnapFile = false;
+        blockedIndexId = null;
         blockOnDeleteIndexN = false;
         blockOnWriteShardLevelMeta = false;
         blockOnReadIndexMeta = false;
@@ -230,6 +232,10 @@ public class MockRepository extends FsRepository {
 
     public void setBlockAndFailOnWriteSnapFiles() {
         blockAndFailOnWriteSnapFile = true;
+    }
+
+    public void setBlockAndOnWriteShardLevelSnapFiles(String indexId) {
+        blockedIndexId = indexId;
     }
 
     public void setBlockAndFailOnWriteIndexFile() {
@@ -281,7 +287,8 @@ public class MockRepository extends FsRepository {
         boolean wasBlocked = false;
         try {
             while (blockOnDataFiles || blockOnAnyFiles || blockAndFailOnWriteIndexFile || blockOnWriteIndexFile ||
-                blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta || blockOnReadIndexMeta) {
+                blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta || blockOnReadIndexMeta ||
+                blockedIndexId != null) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -370,6 +377,8 @@ public class MockRepository extends FsRepository {
                         blockExecutionAndMaybeWait(blobName);
                     } else if (blobName.startsWith("snap-") && blockAndFailOnWriteSnapFile) {
                         blockExecutionAndFail(blobName);
+                    } else if (blockedIndexId != null && path().parts().contains(blockedIndexId) && blobName.startsWith("snap-")) {
+                        blockExecutionAndMaybeWait(blobName);
                     }
                 }
             }

@@ -51,10 +51,6 @@ dependencies {
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
-tasks.withType(JavaCompile).configureEach {
-  options.compilerArgs << "-Xlint:-unchecked"
-}
-
 tasks.named("dependencyLicenses").configure {
   mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
   mapping from: /http.*/, to: 'httpclient'

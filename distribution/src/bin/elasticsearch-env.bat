@@ -25,9 +25,9 @@ if not defined ES_PATH_CONF (
 rem now make ES_PATH_CONF absolute
 for %%I in ("%ES_PATH_CONF%..") do set ES_PATH_CONF=%%~dpfI
 
-set ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
-set ES_DISTRIBUTION_TYPE=${es.distribution.type}
-set ES_BUNDLED_JDK=${es.bundled_jdk}
+set ES_DISTRIBUTION_FLAVOR=@es.distribution.flavor@
+set ES_DISTRIBUTION_TYPE=@es.distribution.type@
+set ES_BUNDLED_JDK=@es.bundled_jdk@
 
 if "%ES_BUNDLED_JDK%" == "false" (
   echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2

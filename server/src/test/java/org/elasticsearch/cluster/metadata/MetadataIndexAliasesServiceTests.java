@@ -509,8 +509,8 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             new Tuple<>("logs-foobar", 1), new Tuple<>("metrics-foobar", 1)), emptyList());
 
         ClusterState result = service.applyAliasActions(state, org.elasticsearch.core.List.of(
-            new AliasAction.AddDataStreamAlias("foobar", "logs-foobar", null),
-            new AliasAction.AddDataStreamAlias("foobar", "metrics-foobar", null)
+            new AliasAction.AddDataStreamAlias("foobar", "logs-foobar", null, null),
+            new AliasAction.AddDataStreamAlias("foobar", "metrics-foobar", null, null)
         ));
         assertThat(result.metadata().dataStreamAliases().get("foobar"), notNullValue());
         assertThat(result.metadata().dataStreamAliases().get("foobar").getDataStreams(),
@@ -533,8 +533,8 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             new Tuple<>("logs-http-emea", 1), new Tuple<>("logs-http-nasa", 1)), emptyList());
 
         ClusterState result = service.applyAliasActions(state, Arrays.asList(
-            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-emea", true),
-            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-nasa", null)
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-emea", true, null),
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-nasa", null, null)
         ));
         assertThat(result.metadata().dataStreamAliases().get("logs-http"), notNullValue());
         assertThat(result.metadata().dataStreamAliases().get("logs-http").getDataStreams(),
@@ -542,8 +542,8 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         assertThat(result.metadata().dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-emea"));
 
         result = service.applyAliasActions(state, Arrays.asList(
-            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-emea", false),
-            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-nasa", true)
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-emea", false, null),
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-nasa", true, null)
         ));
         assertThat(result.metadata().dataStreamAliases().get("logs-http"), notNullValue());
         assertThat(result.metadata().dataStreamAliases().get("logs-http").getDataStreams(),

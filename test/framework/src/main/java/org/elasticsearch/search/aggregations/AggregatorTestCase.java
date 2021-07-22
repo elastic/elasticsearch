@@ -82,6 +82,7 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MockFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -167,7 +168,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         List<String> blacklist = new ArrayList<>();
         blacklist.add(ObjectMapper.CONTENT_TYPE); // Cannot aggregate objects
         blacklist.add(GeoShapeFieldMapper.CONTENT_TYPE); // Cannot aggregate geoshapes (yet)
-        blacklist.add(ObjectMapper.NESTED_CONTENT_TYPE); // TODO support for nested
+        blacklist.add(NestedObjectMapper.CONTENT_TYPE); // TODO support for nested
         blacklist.add(CompletionFieldMapper.CONTENT_TYPE); // TODO support completion
         blacklist.add(FieldAliasMapper.CONTENT_TYPE); // TODO support alias
         TYPE_TEST_BLACKLIST = blacklist;
@@ -440,6 +441,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      *          for each leaf as though it were a separate index. If false this aggregates
      *          all leaves together, like we do in production.
      */
+    @SuppressWarnings("unchecked")
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSettings indexSettings,
                                                                                       IndexSearcher searcher,
                                                                                       Query query,

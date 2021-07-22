@@ -101,6 +101,7 @@ public class HistoryStoreTests extends ESTestCase {
 
         doAnswer(invocation -> {
             BulkRequest request = (BulkRequest) invocation.getArguments()[1];
+            @SuppressWarnings("unchecked")
             ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
 
             IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
@@ -168,6 +169,7 @@ public class HistoryStoreTests extends ESTestCase {
 
         ArgumentCaptor<BulkRequest> requestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
         doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
 
             IndexResponse indexResponse = mock(IndexResponse.class);

@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -19,8 +18,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.RemoteClusterMinimumVersionValidation;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
@@ -36,19 +34,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.TestMatchers.matchesPattern;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomInvalidSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.contains;
 
 public class TransformConfigTests extends AbstractSerializingTransformTestCase<TransformConfig> {
 
@@ -598,7 +594,9 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     public void testGroupByStayInOrder() throws IOException {
         String json = "{"
-            + " \"id\" : \"" + transformId +"\","
+            + " \"id\" : \""
+            + transformId
+            + "\","
             + " \"source\" : {"
             + "   \"index\":\"src\""
             + "},"
@@ -625,20 +623,12 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             + "} } } } }";
         TransformConfig transformConfig = createTransformConfigFromString(json, transformId, true);
         List<String> originalGroups = new ArrayList<>(transformConfig.getPivotConfig().getGroupConfig().getGroups().keySet());
-        assertThat(
-            originalGroups,
-            contains("time", "alert", "id")
-        );
+        assertThat(originalGroups, contains("time", "alert", "id"));
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             // Wire serialization order guarantees
             TransformConfig serialized = this.copyInstance(transformConfig);
             List<String> serializedGroups = new ArrayList<>(serialized.getPivotConfig().getGroupConfig().getGroups().keySet());
             assertThat(serializedGroups, equalTo(originalGroups));
-            CompositeAggregationBuilder compositeAggregationBuilder = createCompositeAggregationSources(serialized.getPivotConfig());
-            assertThat(
-                compositeAggregationBuilder.sources().stream().map(CompositeValuesSourceBuilder::name).collect(Collectors.toList()),
-                equalTo(originalGroups)
-            );
 
             // Now test xcontent serialization and parsing on wire serialized object
             XContentType xContentType = randomFrom(XContentType.values());
@@ -647,11 +637,6 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             TransformConfig parsed = doParseInstance(parser);
             List<String> parsedGroups = new ArrayList<>(parsed.getPivotConfig().getGroupConfig().getGroups().keySet());
             assertThat(parsedGroups, equalTo(originalGroups));
-            compositeAggregationBuilder = createCompositeAggregationSources(parsed.getPivotConfig());
-            assertThat(
-                compositeAggregationBuilder.sources().stream().map(CompositeValuesSourceBuilder::name).collect(Collectors.toList()),
-                equalTo(originalGroups)
-            );
         }
     }
 
@@ -665,21 +650,4 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         return TransformConfig.fromXContent(parser, id, lenient);
     }
 
-    private CompositeAggregationBuilder createCompositeAggregationSources(PivotConfig config) throws IOException {
-        CompositeAggregationBuilder compositeAggregation;
-
-        try (XContentBuilder builder = jsonBuilder()) {
-            config.toCompositeAggXContent(builder);
-            XContentParser parser = builder.generator()
-                .contentType()
-                .xContent()
-                .createParser(
-                    xContentRegistry(),
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    BytesReference.bytes(builder).streamInput()
-                );
-            compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, "composite_agg");
-        }
-        return compositeAggregation;
-    }
 }

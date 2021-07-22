@@ -303,6 +303,13 @@
   - length: {vertices: 3}
 
   - do:
+      graph.explore:
+        index: simple*
+        body: { "query": { "match": { "keys": 1 } },"controls": { "use_significance": false },"vertices": [ { "field": "keys","min_doc_count": 1 } ] }
+  - length: { failures: 0 }
+  - length: { vertices: 3 }
+
+  - do:
       indices.delete_data_stream:
         name: simple-data-stream1
   - is_true: acknowledged

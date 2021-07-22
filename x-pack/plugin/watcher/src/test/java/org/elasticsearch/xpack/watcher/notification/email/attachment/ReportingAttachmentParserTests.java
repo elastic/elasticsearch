@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser.EmailAttachment;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -73,7 +74,7 @@ import static org.mockito.Mockito.when;
 public class ReportingAttachmentParserTests extends ESTestCase {
 
     private HttpClient httpClient;
-    private Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
+    private Map<String, EmailAttachmentParser<? extends EmailAttachment>> attachmentParsers = new HashMap<>();
     private EmailAttachmentsParser emailAttachmentsParser;
     private ReportingAttachmentParser reportingAttachmentParser;
     private MockTextTemplateEngine templateEngine = new MockTextTemplateEngine();
@@ -143,7 +144,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         assertThat(emailAttachments.getAttachments(), hasSize(1));
 
         XContentBuilder toXcontentBuilder = jsonBuilder().startObject();
-        List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>(emailAttachments.getAttachments());
+        List<EmailAttachment> attachments = new ArrayList<>(emailAttachments.getAttachments());
         WatcherParams watcherParams = WatcherParams.builder().hideSecrets(isPasswordEncrypted).build();
         attachments.get(0).toXContent(toXcontentBuilder, watcherParams);
         toXcontentBuilder.endObject();

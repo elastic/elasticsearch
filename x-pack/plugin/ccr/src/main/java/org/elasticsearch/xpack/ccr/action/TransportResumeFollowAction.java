@@ -42,6 +42,7 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -51,7 +52,6 @@ import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -209,7 +209,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
                 "] does not have soft deletes enabled");
         }
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(leaderIndex.getSettings())) {
+        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndex.getSettings())) {
             throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
                 "] is a searchable snapshot index and cannot be used for cross-cluster replication purpose");
         }
@@ -217,7 +217,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() +
                 "] does not have soft deletes enabled");
         }
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(followIndex.getSettings())) {
+        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(followIndex.getSettings())) {
             throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() +
                 "] is a searchable snapshot index and cannot be used for cross-cluster replication purpose");
         }

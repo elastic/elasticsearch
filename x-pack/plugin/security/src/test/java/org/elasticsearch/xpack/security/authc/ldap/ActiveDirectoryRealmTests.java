@@ -70,6 +70,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -239,7 +240,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         }
 
         // verify one and only one session as further attempts should be returned from cache
-        verify(sessionFactory, times(1)).session(eq("CN=ironman"), any(SecureString.class), any(ActionListener.class));
+        verify(sessionFactory, times(1)).session(eq("CN=ironman"), any(SecureString.class), anyActionListener());
     }
 
     public void testAuthenticateCachingCanBeDisabled() throws Exception {
@@ -261,7 +262,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         }
 
         // verify one and only one session as second attempt should be returned from cache
-        verify(sessionFactory, times(count)).session(eq("CN=ironman"), any(SecureString.class), any(ActionListener.class));
+        verify(sessionFactory, times(count)).session(eq("CN=ironman"), any(SecureString.class), anyActionListener());
     }
 
     public void testAuthenticateCachingClearsCacheOnRoleMapperRefresh() throws Exception {
@@ -281,7 +282,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         }
 
         // verify one and only one session as further attempts should be returned from cache
-        verify(sessionFactory, times(1)).session(eq("CN=ironman"), any(SecureString.class), any(ActionListener.class));
+        verify(sessionFactory, times(1)).session(eq("CN=ironman"), any(SecureString.class), anyActionListener());
 
         // Refresh the role mappings
         roleMapper.notifyRefresh();
@@ -292,7 +293,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
             future.actionGet();
         }
 
-        verify(sessionFactory, times(2)).session(eq("CN=ironman"), any(SecureString.class), any(ActionListener.class));
+        verify(sessionFactory, times(2)).session(eq("CN=ironman"), any(SecureString.class), anyActionListener());
     }
 
     public void testUnauthenticatedLookupWithConnectionPool() throws Exception {

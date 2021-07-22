@@ -483,6 +483,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public Iterator<IndexShard> iterator() {
             return Iterators.concat(replicas.iterator(), Collections.singleton(primary).iterator());
         }

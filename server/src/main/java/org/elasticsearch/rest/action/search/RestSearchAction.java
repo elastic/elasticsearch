@@ -217,7 +217,7 @@ public class RestSearchAction extends BaseRestHandler {
                     DeprecationCategory.API,
                     "search-api-size-1",
                     "Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` parameter "
-                        + "if you don't want to set it explicitely."
+                        + "if you don't want to set it explicitly."
                 );
             }
         }
@@ -315,7 +315,7 @@ public class RestSearchAction extends BaseRestHandler {
         assert request.pointInTimeBuilder() != null;
         ActionRequestValidationException validationException = null;
         if (request.indices().length > 0) {
-            validationException = addValidationError("[indices] cannot be used with point in time. Do " + 
+            validationException = addValidationError("[indices] cannot be used with point in time. Do " +
                 "not specify any index with point in time.", validationException);
         }
         if (request.indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {

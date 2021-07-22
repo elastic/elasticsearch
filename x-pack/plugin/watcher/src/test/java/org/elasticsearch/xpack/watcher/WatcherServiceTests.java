@@ -115,6 +115,7 @@ public class WatcherServiceTests extends ESTestCase {
         assertThat(service.validate(csBuilder.build()), is(false));
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testLoadOnlyActiveWatches() throws Exception {
         TriggerService triggerService = mock(TriggerService.class);
         TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
@@ -161,7 +162,7 @@ public class WatcherServiceTests extends ESTestCase {
             ActionListener<RefreshResponse> listener = (ActionListener<RefreshResponse>) invocation.getArguments()[2];
             listener.onResponse(refreshResponse);
             return null;
-        }).when(client).execute(eq(RefreshAction.INSTANCE), any(RefreshRequest.class), any(ActionListener.class));
+        }).when(client).execute(eq(RefreshAction.INSTANCE), any(RefreshRequest.class), anyActionListener());
 
         // empty scroll response, no further scrolling needed
         SearchResponseSections scrollSearchSections = new SearchResponseSections(SearchHits.empty(), null, null, false, false, null, 1);
@@ -171,7 +172,7 @@ public class WatcherServiceTests extends ESTestCase {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             listener.onResponse(scrollSearchResponse);
             return null;
-        }).when(client).execute(eq(SearchScrollAction.INSTANCE), any(SearchScrollRequest.class), any(ActionListener.class));
+        }).when(client).execute(eq(SearchScrollAction.INSTANCE), any(SearchScrollRequest.class), anyActionListener());
 
         // one search response containing active and inactive watches
         int count = randomIntBetween(2, 200);
@@ -203,13 +204,13 @@ public class WatcherServiceTests extends ESTestCase {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             listener.onResponse(searchResponse);
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(SearchRequest.class), any(ActionListener.class));
+        }).when(client).execute(eq(SearchAction.INSTANCE), any(SearchRequest.class), anyActionListener());
 
         doAnswer(invocation -> {
             ActionListener<ClearScrollResponse> listener = (ActionListener<ClearScrollResponse>) invocation.getArguments()[2];
             listener.onResponse(new ClearScrollResponse(true, 1));
             return null;
-        }).when(client).execute(eq(ClearScrollAction.INSTANCE), any(ClearScrollRequest.class), any(ActionListener.class));
+        }).when(client).execute(eq(ClearScrollAction.INSTANCE), any(ClearScrollRequest.class), anyActionListener());
 
         service.start(clusterState, () -> {});
 
@@ -220,9 +221,10 @@ public class WatcherServiceTests extends ESTestCase {
         assertThat(watches, hasSize(activeWatchCount));
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testPausingWatcherServiceAlsoPausesTriggerService() {
         String engineType = "foo";
-        TriggerEngine triggerEngine = mock(TriggerEngine.class);
+        TriggerEngine<?, ?> triggerEngine = mock(TriggerEngine.class);
         when(triggerEngine.type()).thenReturn(engineType);
         TriggerService triggerService = new TriggerService(Collections.singleton(triggerEngine));
 
@@ -276,5 +278,11 @@ public class WatcherServiceTests extends ESTestCase {
     private static DiscoveryNode newNode() {
         return new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
                 DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+    }
+
+
+    @SuppressWarnings("unchecked")
+    private static <T> ActionListener<T> anyActionListener() {
+        return any(ActionListener.class);
     }
 }

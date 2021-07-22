@@ -19,8 +19,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -112,8 +113,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     private volatile Integer initialConfiguredPageSize;
     private volatile int pageSize = 0;
-    private long logEvery = 1;
-    private long logCount = 0;
+    private volatile long logEvery = 1;
+    private volatile long logCount = 0;
     private volatile TransformCheckpoint lastCheckpoint;
     private volatile TransformCheckpoint nextCheckpoint;
 
@@ -128,9 +129,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     public TransformIndexer(
         ThreadPool threadPool,
-        TransformConfigManager transformsConfigManager,
+        TransformServices transformServices,
         CheckpointProvider checkpointProvider,
-        TransformAuditor auditor,
         TransformConfig transformConfig,
         Map<String, String> fieldMappings,
         AtomicReference<IndexerState> initialState,
@@ -142,16 +142,16 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformContext context
     ) {
         super(threadPool, initialState, initialPosition, jobStats);
-        this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
+        ExceptionsHelper.requireNonNull(transformServices, "transformServices");
+        this.transformsConfigManager = transformServices.getConfigManager();
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
-        this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
+        this.auditor = transformServices.getAuditor();
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
         this.fieldMappings = ExceptionsHelper.requireNonNull(fieldMappings, "fieldMappings");
         this.progress = transformProgress;
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
         this.nextCheckpoint = ExceptionsHelper.requireNonNull(nextCheckpoint, "nextCheckpoint");
         this.context = ExceptionsHelper.requireNonNull(context, "context");
-
         // give runState a default
         this.runState = RunState.APPLY_RESULTS;
 
@@ -227,7 +227,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                         logger.warn(new ParameterizedMessage("[{}] failed to create checkpoint.", getJobId()), createCheckpointException);
                         listener.onFailure(
                             new RuntimeException(
-                                "Failed to create checkpoint due to " + createCheckpointException.getMessage(),
+                                "Failed to create checkpoint due to: " + createCheckpointException.getMessage(),
                                 createCheckpointException
                             )
                         );
@@ -237,7 +237,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     logger.warn(new ParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()), getCheckPointException);
                     listener.onFailure(
                         new RuntimeException(
-                            "Failed to retrieve checkpoint due to " + getCheckPointException.getMessage(),
+                            "Failed to retrieve checkpoint due to: " + getCheckPointException.getMessage(),
                             getCheckPointException
                         )
                     );

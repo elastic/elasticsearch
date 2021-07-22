@@ -441,9 +441,8 @@ public final class DocumentParser {
                 + "] as object, but found a concrete value");
         }
 
-        ObjectMapper.Nested nested = mapper.nested();
-        if (nested.isNested()) {
-            context = nestedContext(context, mapper);
+        if (mapper.isNested()) {
+            context = nestedContext(context, (NestedObjectMapper) mapper);
         }
 
         // if we are at the end of the previous object, advance
@@ -457,8 +456,8 @@ public final class DocumentParser {
 
         innerParseObject(context, mapper, parser, currentFieldName, token);
         // restore the enable path flag
-        if (nested.isNested()) {
-            nested(context, nested);
+        if (mapper.isNested()) {
+            nested(context, (NestedObjectMapper) mapper);
         }
     }
 
@@ -490,7 +489,7 @@ public final class DocumentParser {
         }
     }
 
-    private static void nested(DocumentParserContext context, ObjectMapper.Nested nested) {
+    private static void nested(DocumentParserContext context, NestedObjectMapper nested) {
         LuceneDocument nestedDoc = context.doc();
         LuceneDocument parentDoc = nestedDoc.getParent();
         if (nested.isIncludeInParent()) {
@@ -513,7 +512,7 @@ public final class DocumentParser {
         }
     }
 
-    private static DocumentParserContext nestedContext(DocumentParserContext context, ObjectMapper mapper) {
+    private static DocumentParserContext nestedContext(DocumentParserContext context, NestedObjectMapper mapper) {
         context = context.createNestedContext(mapper.fullPath());
         LuceneDocument nestedDoc = context.doc();
         LuceneDocument parentDoc = nestedDoc.getParent();
@@ -536,7 +535,7 @@ public final class DocumentParser {
         // the type of the nested doc starts with __, so we can identify that its a nested one in filters
         // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
         // across types (for example, with similar nested objects)
-        nestedDoc.add(new Field(TypeFieldMapper.NAME, mapper.nestedTypePathAsString(), TypeFieldMapper.Defaults.NESTED_FIELD_TYPE));
+        nestedDoc.add(new Field(TypeFieldMapper.NAME, mapper.nestedTypePath(), TypeFieldMapper.Defaults.NESTED_FIELD_TYPE));
         return context;
     }
 
@@ -806,7 +805,7 @@ public final class DocumentParser {
                             context.sourceToParse().dynamicTemplates().get(currentPath) + "]");
                     }
                     mapper = (ObjectMapper) fieldMapper;
-                    if (mapper.nested() != ObjectMapper.Nested.NO) {
+                    if (mapper.isNested()) {
                         throw new MapperParsingException("It is forbidden to create dynamic nested objects (["
                             + currentPath + "]) through `copy_to` or dots in field names");
                     }
@@ -868,7 +867,7 @@ public final class DocumentParser {
                 return null;
             }
             objectMapper = (ObjectMapper)mapper;
-            if (objectMapper.nested().isNested()) {
+            if (objectMapper.isNested()) {
                 throw new MapperParsingException("Cannot add a value for field ["
                         + fieldName + "] since one of the intermediate objects is mapped as a nested object: ["
                         + mapper.name() + "]");
@@ -895,9 +894,11 @@ public final class DocumentParser {
         String fieldPath = context.path().pathAsText(fieldName);
         MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldPath);
         if (fieldType != null) {
-            //we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
-            assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
-            return new NoOpFieldMapper(subfields[subfields.length - 1], fieldType.name());
+            RuntimeField runtimeField = context.root().getRuntimeField(fieldPath);
+            if (runtimeField != null) {
+                assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
+                return new NoOpFieldMapper(subfields[subfields.length - 1], fieldType.name());
+            }
         }
         return null;
     }
@@ -980,7 +981,7 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(name, fullPath, new Explicit<>(true, false), Nested.NO, Dynamic.RUNTIME, Collections.emptyMap(), Version.CURRENT);
+            super(name, fullPath, new Explicit<>(true, false), Dynamic.RUNTIME, Collections.emptyMap());
         }
     }
 

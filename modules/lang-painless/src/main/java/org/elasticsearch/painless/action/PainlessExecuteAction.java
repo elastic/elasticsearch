@@ -35,9 +35,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,7 +52,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -602,12 +601,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     List<GeoPoint> points = new ArrayList<>();
                     geoPointFieldScript.runGeoPointForDoc(0, gp -> points.add(new GeoPoint(gp)));
                     // convert geo points to the standard format of the fields api
-                    Function<Geometry, Object> format = GeoFormatterFactory.getFormatter(GeoFormatterFactory.GEOJSON);
-                    List<Object> objects = new ArrayList<>();
-                    for (GeoPoint gp : points) {
-                        objects.add(format.apply(new Point(gp.getLon(), gp.getLat())));
-                    }
-                    return new Response(objects);
+                    Function<List<GeoPoint>, List<Object>> format =
+                        GeometryFormatterFactory.getFormatter(GeometryFormatterFactory.GEOJSON, p -> new Point(p.lon(), p.lat()));
+                    return new Response(format.apply(points));
                 }, indexService);
             } else if (scriptContext == IpFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {

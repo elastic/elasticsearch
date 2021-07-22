@@ -40,9 +40,9 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
         return createRandomBuilder().build();
     }
 
-    public static DatafeedConfig.Builder createRandomBuilder() {
+    public static DatafeedConfig.Builder createRandomBuilder(String datafeedId, String jobId) {
         long bucketSpanMillis = 3600000;
-        DatafeedConfig.Builder builder = constructBuilder();
+        DatafeedConfig.Builder builder = constructBuilder(datafeedId, jobId);
         builder.setIndices(randomStringList(1, 10));
         if (randomBoolean()) {
             try {
@@ -119,6 +119,10 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
         return builder;
     }
 
+    public static DatafeedConfig.Builder createRandomBuilder() {
+        return createRandomBuilder(randomValidDatafeedId(), randomAlphaOfLength(10));
+    }
+
     public static List<String> randomStringList(int min, int max) {
         int size = scaledRandomIntBetween(min, max);
         List<String> list = new ArrayList<>();
@@ -175,8 +179,8 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
         return generator.ofCodePointsLength(random(), 10, 10);
     }
 
-    private static DatafeedConfig.Builder constructBuilder() {
-        return new DatafeedConfig.Builder(randomValidDatafeedId(), randomAlphaOfLength(10));
+    private static DatafeedConfig.Builder constructBuilder(String datafeedId, String jobId) {
+        return new DatafeedConfig.Builder(datafeedId, jobId);
     }
 
 }

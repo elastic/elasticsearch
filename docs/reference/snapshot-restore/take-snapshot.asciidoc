@@ -140,7 +140,7 @@ templates required for a data stream.
 
 By default, the entire snapshot will fail if one or more indices participating in the snapshot do not have
 all primary shards available. You can change this behaviour by setting `partial` to `true`. The `expand_wildcards`
-option can be used to control whether hidden and closed indices will be included in the snapshot, and defaults to `all`.
+option can be used to control whether hidden and closed indices will be included in the snapshot, and defaults to `open,hidden`.
 
 Use the `metadata` field to attach arbitrary metadata to the snapshot,
 such as who took the snapshot,

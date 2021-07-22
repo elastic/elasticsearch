@@ -105,7 +105,8 @@ public class ActionWrapperTests extends ESTestCase {
             final Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, true);
             assertThat(map, hasKey("foreach"));
             assertThat(map.get("foreach"), instanceOf(List.class));
-            List<Map<String, Object>> actions = (List) map.get("foreach");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> actions = (List<Map<String, Object>>) map.get("foreach");
             assertThat(actions, hasSize(3));
         }
     }
@@ -192,7 +193,8 @@ public class ActionWrapperTests extends ESTestCase {
             final Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, true);
             assertThat(map, hasKey("foreach"));
             assertThat(map.get("foreach"), instanceOf(List.class));
-            List<Map<String, Object>> actions = (List) map.get("foreach");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> actions = (List<Map<String, Object>>) map.get("foreach");
             assertThat(actions, hasSize(100));
             assertThat(map, hasKey("max_iterations"));
             assertThat(map.get("max_iterations"), is(100));
@@ -228,7 +230,8 @@ public class ActionWrapperTests extends ESTestCase {
             final Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, true);
             assertThat(map, hasKey("foreach"));
             assertThat(map.get("foreach"), instanceOf(List.class));
-            List<Map<String, Object>> actions = (List) map.get("foreach");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> actions = (List<Map<String, Object>>) map.get("foreach");
             assertThat(actions, hasSize(randomMaxIterations));
             assertThat(map, hasKey("max_iterations"));
             assertThat(map.get("max_iterations"), is(randomMaxIterations));

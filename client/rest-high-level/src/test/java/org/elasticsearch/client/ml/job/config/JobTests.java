@@ -8,6 +8,8 @@
 package org.elasticsearch.client.ml.job.config;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
+import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -162,6 +164,9 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         }
         if (randomBoolean()) {
             builder.setBlocked(BlockedTests.createRandom());
+        }
+        if (randomBoolean()) {
+            builder.setDatafeed(DatafeedConfigTests.createRandomBuilder(jobId, jobId));
         }
         return builder;
     }

@@ -1,3 +1,31 @@
+[[release-notes-7.13.4]]
+== {es} version 7.13.4
+
+Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
+
+[discrete]
+[[security-updates-7.13.4]]
+=== Security updates
+
+* A memory disclosure vulnerability was identified in {es}'s error reporting. A
+user with the ability to submit arbitrary queries to {es} could submit a
+malformed query that would result in an error message returned containing
+previously used portions of a data buffer. This buffer could contain sensitive
+information, such as {es} documents or authentication details. All versions of
+{es} prior to 7.13.4 are affected by this flaw. There is no known workaround for
+this issue. You must upgrade to {es} version 7.13.4 to obtain the fix.
+https://cve.mitre.org/cgi-bin/cvename.cgi?name=2021-22145[CVE-2021-22145]
+
+[[bug-7.13.4]]
+[float]
+=== Bug fixes
+
+Mapping::
+* Call `fixRedundantIncludes` on dynamic mapping updates {es-pull}74903[#74903] (issue: {es-issue}74899[#74899])
+
+Snapshot/Restore::
+* Fix Concurrent Snapshot Repository Remove Issues {es-pull}74880[#74880] (issue: {es-issue}74858[#74858])
+
 [[release-notes-7.13.3]]
 == {es} version 7.13.3
 

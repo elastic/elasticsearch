@@ -84,7 +84,7 @@ fi
 
 export HOSTNAME=$HOSTNAME
 
-${source.path.env}
+@source.path.env@
 
 if [ -z "$ES_PATH_CONF" ]; then
   echo "ES_PATH_CONF must be set to the configuration path"
@@ -94,9 +94,9 @@ fi
 # now make ES_PATH_CONF absolute
 ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 
-ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
-ES_DISTRIBUTION_TYPE=${es.distribution.type}
-ES_BUNDLED_JDK=${es.bundled_jdk}
+ES_DISTRIBUTION_FLAVOR=@es.distribution.flavor@
+ES_DISTRIBUTION_TYPE=@es.distribution.type@
+ES_BUNDLED_JDK=@es.bundled_jdk@
 
 if [[ "$ES_BUNDLED_JDK" == "false" ]]; then
   echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2

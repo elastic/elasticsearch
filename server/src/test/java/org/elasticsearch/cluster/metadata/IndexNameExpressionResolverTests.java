@@ -70,6 +70,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IndexNameExpressionResolverTests extends ESTestCase {
 
@@ -700,7 +701,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(infe.getResourceId().toString(), equalTo("[_all]"));
     }
 
-    private static IndexMetadata.Builder indexBuilder(String index) {
+    public static IndexMetadata.Builder indexBuilder(String index) {
         return indexBuilder(index, Settings.EMPTY);
     }
 
@@ -1431,6 +1432,45 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertArrayEquals(null, strings);
     }
 
+    public void testIndexAliasesDataStreamAliases() {
+        final String dataStreamName1 = "logs-foobar";
+        final String dataStreamName2 = "logs-barbaz";
+        IndexMetadata backingIndex1 = createBackingIndex(dataStreamName1, 1).build();
+        IndexMetadata backingIndex2 = createBackingIndex(dataStreamName2, 1).build();
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(backingIndex1, false)
+            .put(backingIndex2, false)
+            .put(new DataStream(dataStreamName1, createTimestampField("@timestamp"), Collections.singletonList(backingIndex1.getIndex())))
+            .put(new DataStream(dataStreamName2, createTimestampField("@timestamp"), Collections.singletonList(backingIndex2.getIndex())));
+        mdBuilder.put("logs_foo", dataStreamName1, null, "{ \"term\": \"foo\"}");
+        mdBuilder.put("logs", dataStreamName1, null, "{ \"term\": \"logs\"}");
+        mdBuilder.put("logs_bar", dataStreamName1, null, null);
+        mdBuilder.put("logs_baz", dataStreamName2, null, "{ \"term\": \"logs\"}");
+        mdBuilder.put("logs_baz2", dataStreamName2, null, null);
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        {
+            // Only resolve aliases with with that refer to dataStreamName1
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
+            String index = backingIndex1.getIndex().getName();
+            String[] result = indexNameExpressionResolver.indexAliases(state, index, x -> true, true, resolvedExpressions);
+            assertThat(result, arrayContainingInAnyOrder("logs_foo", "logs"));
+        }
+        {
+            // Only resolve aliases with with that refer to dataStreamName2
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
+            String index = backingIndex2.getIndex().getName();
+            String[] result = indexNameExpressionResolver.indexAliases(state, index, x -> true, true, resolvedExpressions);
+            assertThat(result, arrayContainingInAnyOrder("logs_baz"));
+        }
+        {
+            // Null is returned, because skipping identity check and resolvedExpressions contains the backing index name
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
+            String index = backingIndex2.getIndex().getName();
+            String[] result = indexNameExpressionResolver.indexAliases(state, index, x -> true, false, resolvedExpressions);
+            assertThat(result, nullValue());
+        }
+    }
+
     public void testIndexAliasesSkipIdentity() {
         Metadata.Builder mdBuilder = Metadata.builder()
                 .put(indexBuilder("test-0").state(State.OPEN)
@@ -1757,24 +1797,21 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index(dataStreamName);
-            IndexNotFoundException iae = expectThrows(IndexNotFoundException.class,
-                () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
-            assertEquals("no such index [" + dataStreamName + "]", iae.getMessage());
+            assertThat(indexNameExpressionResolver.concreteIndexNames(state, aliasActions),
+                arrayContaining(backingIndexEqualTo(dataStreamName, 1)));
         }
 
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index("my-data-*").alias("my-data");
-            IndexNotFoundException iae = expectThrows(IndexNotFoundException.class,
-                () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
-            assertEquals("no such index [my-data-*]", iae.getMessage());
+            assertThat(indexNameExpressionResolver.concreteIndexNames(state, aliasActions),
+                arrayContaining(backingIndexEqualTo(dataStreamName, 1)));
         }
 
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index(dataStreamName)
                 .alias("my-data");
-            IndexNotFoundException iae = expectThrows(IndexNotFoundException.class,
-                () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
-            assertEquals("no such index [" + dataStreamName + "]", iae.getMessage());
+            assertThat(indexNameExpressionResolver.concreteIndexNames(state, aliasActions),
+                arrayContaining(backingIndexEqualTo(dataStreamName, 1)));
         }
     }
 
@@ -2153,10 +2190,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(new DataStream(dataStream1, createTimestampField("@timestamp"), Arrays.asList(index1.getIndex(), index2.getIndex())))
             .put(new DataStream(dataStream2, createTimestampField("@timestamp"), Arrays.asList(index3.getIndex(), index4.getIndex())))
             .put(new DataStream(dataStream3, createTimestampField("@timestamp"), Arrays.asList(index5.getIndex(), index6.getIndex())));
-        mdBuilder.put(dataStreamAlias1, dataStream1, null);
-        mdBuilder.put(dataStreamAlias1, dataStream2, true);
-        mdBuilder.put(dataStreamAlias2, dataStream2, null);
-        mdBuilder.put(dataStreamAlias3, dataStream3, null);
+        mdBuilder.put(dataStreamAlias1, dataStream1, null, null);
+        mdBuilder.put(dataStreamAlias1, dataStream2, true, null);
+        mdBuilder.put(dataStreamAlias2, dataStream2, null, null);
+        mdBuilder.put(dataStreamAlias3, dataStream3, null, "{\"term\":{\"year\":2021}}");
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {

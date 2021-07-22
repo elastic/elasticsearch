@@ -24,7 +24,7 @@ class RemoteClusterResolver extends RemoteClusterAware {
 
     private final CopyOnWriteArraySet<String> clusters;
 
-    class ResolvedIndices {
+    static class ResolvedIndices {
         private final Map<String, List<String>> remoteIndicesPerClusterAlias;
         private final List<String> localIndices;
 

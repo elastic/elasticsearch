@@ -12,6 +12,7 @@ import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -25,7 +26,6 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xpack.spatial.common.CartesianFormatterFactory;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
 
@@ -179,9 +179,8 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         }
 
         @Override
-        protected Function<CartesianPoint, Object> getFormatter(String format) {
-            Function<Geometry, Object> formatter = CartesianFormatterFactory.getFormatter(format);
-            return (point) -> formatter.apply(new Point(point.getX(), point.getY()));
+        protected Function<List<CartesianPoint>, List<Object>> getFormatter(String format) {
+           return GeometryFormatterFactory.getFormatter(format, p -> new Point(p.getX(), p.getY()));
         }
     }
 

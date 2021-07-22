@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,11 +23,14 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JavaVersion;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -49,7 +53,7 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED
 class NodeDeprecationChecks {
 
     static DeprecationIssue checkPidfile(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                         final ClusterState clusterState) {
+                                         final ClusterState clusterState, final XPackLicenseState licenseState) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
@@ -59,7 +63,7 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkProcessors(final Settings settings , final PluginsAndModules pluginsAndModules,
-                                            final ClusterState clusterState) {
+                                            final ClusterState clusterState, final XPackLicenseState licenseState) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
@@ -69,7 +73,7 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkMissingRealmOrders(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                    final ClusterState clusterState) {
+                                                    final ClusterState clusterState, final XPackLicenseState licenseState) {
         final Set<String> orderNotConfiguredRealms = RealmSettings.getRealmSettings(settings).entrySet()
                 .stream()
                 .filter(e -> false == e.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY))
@@ -95,7 +99,7 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkUniqueRealmOrders(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                   final ClusterState clusterState) {
+                                                   final ClusterState clusterState, final XPackLicenseState licenseState) {
         final Map<String, List<String>> orderToRealmSettings =
             RealmSettings.getRealmSettings(settings).entrySet()
                 .stream()
@@ -129,8 +133,31 @@ class NodeDeprecationChecks {
         );
     }
 
+    static DeprecationIssue checkImplicitlyDisabledSecurityOnBasicAndTrial(final Settings settings,
+                                                                           final PluginsAndModules pluginsAndModules,
+                                                                           final ClusterState clusterState,
+                                                                           final XPackLicenseState licenseState) {
+        if ( XPackSettings.SECURITY_ENABLED.exists(settings) == false
+            && (licenseState.getOperationMode().equals(License.OperationMode.BASIC)
+            || licenseState.getOperationMode().equals(License.OperationMode.TRIAL))) {
+          String details = "The default behavior of disabling security on " + licenseState.getOperationMode().description()
+              + " licenses is deprecated. In a later version of Elasticsearch, the value of [xpack.security.enabled] will "
+              + "default to \"true\" , regardless of the license level. "
+              + "See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "."
+              + Version.CURRENT.minor + "/security-minimal-setup.html to enable security, or explicitly disable security by "
+              + "setting [xpack.security.enabled] to \"false\" in elasticsearch.yml";
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Security is enabled by default for all licenses in the next major version.",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/migrating-7.14.html#implicitly-disabled-security",
+                details,
+                null);
+        }
+        return null;
+    }
+
     static DeprecationIssue checkImplicitlyDisabledBasicRealms(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                               final ClusterState clusterState) {
+                                                               final ClusterState clusterState, final XPackLicenseState licenseState) {
         final Map<RealmConfig.RealmIdentifier, Settings> realmSettings = RealmSettings.getRealmSettings(settings);
         if (realmSettings.isEmpty()) {
             return null;
@@ -183,7 +210,7 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkReservedPrefixedRealmNames(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                            final ClusterState clusterState) {
+                                                            final ClusterState clusterState, final XPackLicenseState licenseState) {
         final Map<RealmConfig.RealmIdentifier, Settings> realmSettings = RealmSettings.getRealmSettings(settings);
         if (realmSettings.isEmpty()) {
             return null;
@@ -234,7 +261,7 @@ class NodeDeprecationChecks {
     }
 
     public static DeprecationIssue checkClusterRemoteConnectSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                                    final ClusterState clusterState) {
+                                                                    final ClusterState clusterState, final XPackLicenseState licenseState) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
@@ -249,7 +276,7 @@ class NodeDeprecationChecks {
     }
 
     public static DeprecationIssue checkNodeLocalStorageSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                                final ClusterState clusterState) {
+                                                                final ClusterState clusterState, final XPackLicenseState licenseState) {
         return checkRemovedSetting(
             settings,
             Node.NODE_LOCAL_STORAGE_SETTING,
@@ -266,7 +293,7 @@ class NodeDeprecationChecks {
     }
 
     public static DeprecationIssue checkGeneralScriptSizeSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                                 final ClusterState clusterState) {
+                                                                 final ClusterState clusterState, final XPackLicenseState licenseState) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
@@ -278,7 +305,7 @@ class NodeDeprecationChecks {
     }
 
     public static DeprecationIssue checkGeneralScriptExpireSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                                   final ClusterState clusterState) {
+                                                                   final ClusterState clusterState, final XPackLicenseState licenseState) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
@@ -290,7 +317,7 @@ class NodeDeprecationChecks {
     }
 
     public static DeprecationIssue checkGeneralScriptCompileSettings(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState) {
+                                                                    final ClusterState clusterState, final XPackLicenseState licenseState) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
@@ -323,7 +350,7 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkBootstrapSystemCallFilterSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                                  final ClusterState clusterState) {
+                                                                  final ClusterState clusterState, final XPackLicenseState licenseState) {
         return checkRemovedSetting(
             settings,
             BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
@@ -434,7 +461,8 @@ class NodeDeprecationChecks {
         return new DeprecationIssue(deprecationLevel, message, url, details, null);
     }
 
-    static DeprecationIssue javaVersionCheck(Settings nodeSettings, PluginsAndModules plugins, final ClusterState clusterState) {
+    static DeprecationIssue javaVersionCheck(Settings nodeSettings, PluginsAndModules plugins, final ClusterState clusterState,
+                                             final XPackLicenseState licenseState) {
         final JavaVersion javaVersion = JavaVersion.current();
 
         if (javaVersion.compareTo(JavaVersion.parse("11")) < 0) {
@@ -449,7 +477,8 @@ class NodeDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue checkMultipleDataPaths(Settings nodeSettings, PluginsAndModules plugins, final ClusterState clusterState) {
+    static DeprecationIssue checkMultipleDataPaths(Settings nodeSettings, PluginsAndModules plugins, final ClusterState clusterState,
+                                                   final XPackLicenseState licenseState) {
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(nodeSettings);
         if (dataPaths.size() > 1) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
@@ -461,7 +490,8 @@ class NodeDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue checkDataPathsList(Settings nodeSettings, PluginsAndModules plugins, final ClusterState clusterState) {
+    static DeprecationIssue checkDataPathsList(Settings nodeSettings, PluginsAndModules plugins, final ClusterState clusterState,
+                                               final XPackLicenseState licenseState) {
         if (Environment.dataPathUsesList(nodeSettings)) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "[path.data] in a list is deprecated, use a string value",
@@ -472,7 +502,7 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkSharedDataPathSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                       final ClusterState clusterState) {
+                                                       final ClusterState clusterState, final XPackLicenseState licenseState) {
         if (Environment.PATH_SHARED_DATA_SETTING.exists(settings)) {
             final String message = String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in a future version", Environment.PATH_SHARED_DATA_SETTING.getKey());
@@ -485,7 +515,7 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkSingleDataNodeWatermarkSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                                final ClusterState clusterState) {
+                                                                final ClusterState clusterState, final XPackLicenseState licenseState) {
         if (DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.get(settings) == false
             && DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.exists(settings)) {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
@@ -523,7 +553,8 @@ class NodeDeprecationChecks {
     static DeprecationIssue checkMonitoringExporterPassword(
         final Settings settings,
         final PluginsAndModules pluginsAndModules,
-        ClusterState cs
+        ClusterState cs,
+        XPackLicenseState licenseState
     ) {
         // Mimic the HttpExporter#AUTH_PASSWORD_SETTING setting here to avoid a depedency on monitoring module:
         // (just having the setting prefix and suffic here is sufficient to check on whether this setting is used)
@@ -553,7 +584,8 @@ class NodeDeprecationChecks {
 
     static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final Settings settings,
                                                                                    final PluginsAndModules pluginsAndModules,
-                                                                                   final ClusterState clusterState) {
+                                                                                   final ClusterState clusterState,
+                                                                                   final XPackLicenseState licenseState) {
         return checkRemovedSetting(settings,
             CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",

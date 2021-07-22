@@ -117,6 +117,19 @@ Discontinue use of the `type` parameter in `geo_bounding_box` queries.
 [[breaking_714_security_changes]]
 ==== Security deprecations
 
+[discrete]
+[[implicitly-disabled-security]]
+.The default behavior of disabling security on basic and trial licenses is deprecated
+[%collapsible]
+====
+*Details* +
+Currently, security features are disabled when operating on a basic or trial
+license when `xpack.security.enabled` has not been explicitly set to `true`.
+This behavior is now deprecated. In version 8.0.0, security features will be
+enabled by default for all licenses, unless explicitly disabled (by setting
+`xpack.security.enabled` to `false`).
+====
+
 [[reserved-prefixed-realm-names]]
 .Configuring a realm name with a leading underscore is deprecated.
 [%collapsible]

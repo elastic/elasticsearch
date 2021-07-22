@@ -390,6 +390,7 @@ public class Constants {
         "indices:monitor/shard_stores",
         "indices:monitor/stats",
         "indices:monitor/upgrade",
+        "indices:monitor/field_usage_stats",
         "internal:admin/ccr/internal_repository/delete",
         "internal:admin/ccr/internal_repository/put",
         "internal:admin/ccr/restore/file_chunk/get",

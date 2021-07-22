@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
+import net.minidev.json.JSONArray;
+
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWK;
@@ -40,7 +42,7 @@ import com.nimbusds.openid.connect.sdk.claims.AccessTokenHash;
 import com.nimbusds.openid.connect.sdk.token.OIDCTokens;
 import com.nimbusds.openid.connect.sdk.validators.AccessTokenValidator;
 import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
-import net.minidev.json.JSONArray;
+
 import org.apache.commons.codec.Charsets;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
@@ -75,11 +77,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -90,8 +92,6 @@ import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettin
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
@@ -110,6 +110,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.ALLOWED_CLOCK_SKEW;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECTION_READ_TIMEOUT;
@@ -224,6 +226,7 @@ public class OpenIdConnectAuthenticator {
      * @param expectedNonce  The nonce value we sent in the authentication request and should be contained in the Id Token
      * @param claimsListener The listener to notify with the resolved {@link JWTClaimsSet}
      */
+    @SuppressWarnings("unchecked")
     private void getUserClaims(@Nullable AccessToken accessToken, JWT idToken, Nonce expectedNonce, boolean shouldRetry,
                                ActionListener<JWTClaimsSet> claimsListener) {
         try {
@@ -636,8 +639,8 @@ public class OpenIdConnectAuthenticator {
                 if (jwkSetPath.startsWith("http://")) {
                     throw new IllegalArgumentException("The [http] protocol is not supported as it is insecure. Use [https] instead");
                 } else if (jwkSetPath.startsWith("https://")) {
-                    final JWSVerificationKeySelector keySelector = new JWSVerificationKeySelector(requestedAlgorithm,
-                        new ReloadableJWKSource(new URL(jwkSetPath)));
+                    final JWSVerificationKeySelector<SecurityContext> keySelector = new JWSVerificationKeySelector<>(requestedAlgorithm,
+                        new ReloadableJWKSource<>(new URL(jwkSetPath)));
                     idTokenValidator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), keySelector, null);
                 } else {
                     if (addFileWatcherIfRequired) {
@@ -676,6 +679,7 @@ public class OpenIdConnectAuthenticator {
      * @return the merged Map
      */
     // pkg protected for testing
+    @SuppressWarnings("unchecked")
     static Map<String, Object> mergeObjects(Map<String, Object> idToken, Map<String, Object> userInfo) {
         for (Map.Entry<String, Object> entry : idToken.entrySet()) {
             Object value1 = entry.getValue();
@@ -707,6 +711,7 @@ public class OpenIdConnectAuthenticator {
         return idToken;
     }
 
+    @SuppressWarnings("unchecked")
     private static Map<String, Object> mergeObjects(Map<String, Object>  jsonObject1, Object jsonObject2) {
         if (jsonObject2 == null) {
             return jsonObject1;

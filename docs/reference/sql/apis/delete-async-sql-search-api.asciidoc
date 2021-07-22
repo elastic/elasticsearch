@@ -11,14 +11,14 @@ synchronous SQL search>>. If the search is still running, the API cancels it.
 
 [source,console]
 ----
-DELETE /_sql/async/delete/FkpMRkJGS1gzVDRlM3g4ZzMyRGlLbkEaTXlJZHdNT09TU2VTZVBoNDM3cFZMUToxMDM=
+DELETE _sql/async/delete/FkpMRkJGS1gzVDRlM3g4ZzMyRGlLbkEaTXlJZHdNT09TU2VTZVBoNDM3cFZMUToxMDM=
 ----
 // TEST[skip: no access to search ID]
 
 [[delete-async-sql-search-api-request]]
 ==== {api-request-title}
 
-`DELETE /_sql/async/delete/<search_id>`
+`DELETE _sql/async/delete/<search_id>`
 
 [[delete-async-sql-search-api-prereqs]]
 ==== {api-prereq-title}

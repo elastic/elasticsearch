@@ -337,33 +337,40 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
 
     public void testCreateCandidateQuery() throws Exception {
-        addQueryFieldMappings();
+        int origMaxClauseCount = BooleanQuery.getMaxClauseCount();
+        try {
+            final int maxClauseCount = 100;
+            BooleanQuery.setMaxClauseCount(maxClauseCount);
+            addQueryFieldMappings();
 
-        MemoryIndex memoryIndex = new MemoryIndex(false);
-        StringBuilder text = new StringBuilder();
-        for (int i = 0; i < 1022; i++) {
-            text.append(i).append(' ');
+            MemoryIndex memoryIndex = new MemoryIndex(false);
+            StringBuilder text = new StringBuilder();
+            for (int i = 0; i < maxClauseCount - 2; i++) {
+                text.append(i).append(' ');
+            }
+            memoryIndex.addField("field1", text.toString(), new WhitespaceAnalyzer());
+            memoryIndex.addField(new LongPoint("field2", 10L), new WhitespaceAnalyzer());
+            IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
+
+            Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader, Version.CURRENT);
+            assertTrue(t.v2());
+            assertEquals(2, t.v1().clauses().size());
+            assertThat(t.v1().clauses().get(0).getQuery(), instanceOf(CoveringQuery.class));
+            assertThat(t.v1().clauses().get(1).getQuery(), instanceOf(TermQuery.class));
+
+            // Now push it over the edge, so that it falls back using TermInSetQuery
+            memoryIndex.addField("field2", "value", new WhitespaceAnalyzer());
+            indexReader = memoryIndex.createSearcher().getIndexReader();
+            t = fieldType.createCandidateQuery(indexReader, Version.CURRENT);
+            assertFalse(t.v2());
+            assertEquals(3, t.v1().clauses().size());
+            TermInSetQuery terms = (TermInSetQuery) t.v1().clauses().get(0).getQuery();
+            assertEquals(maxClauseCount - 1, terms.getTermData().size());
+            assertThat(t.v1().clauses().get(1).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:"));
+            assertThat(t.v1().clauses().get(2).getQuery().toString(), containsString(fieldName + ".extraction_result:failed"));
+        } finally {
+            BooleanQuery.setMaxClauseCount(origMaxClauseCount);
         }
-        memoryIndex.addField("field1", text.toString(), new WhitespaceAnalyzer());
-        memoryIndex.addField(new LongPoint("field2", 10L), new WhitespaceAnalyzer());
-        IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
-
-        Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader, Version.CURRENT);
-        assertTrue(t.v2());
-        assertEquals(2, t.v1().clauses().size());
-        assertThat(t.v1().clauses().get(0).getQuery(), instanceOf(CoveringQuery.class));
-        assertThat(t.v1().clauses().get(1).getQuery(), instanceOf(TermQuery.class));
-
-        // Now push it over the edge, so that it falls back using TermInSetQuery
-        memoryIndex.addField("field2", "value", new WhitespaceAnalyzer());
-        indexReader = memoryIndex.createSearcher().getIndexReader();
-        t = fieldType.createCandidateQuery(indexReader, Version.CURRENT);
-        assertFalse(t.v2());
-        assertEquals(3, t.v1().clauses().size());
-        TermInSetQuery terms = (TermInSetQuery) t.v1().clauses().get(0).getQuery();
-        assertEquals(1023, terms.getTermData().size());
-        assertThat(t.v1().clauses().get(1).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:"));
-        assertThat(t.v1().clauses().get(2).getQuery().toString(), containsString(fieldName + ".extraction_result:failed"));
     }
 
     public void testExtractTermsAndRanges_numberFields() throws Exception {

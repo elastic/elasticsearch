@@ -148,6 +148,10 @@ public class MockRepository extends FsRepository {
     private volatile boolean failReadsAfterUnblock;
     private volatile boolean throwReadErrorAfterUnblock = false;
 
+    private volatile boolean blockAndFailOnReadSnapFile;
+
+    private volatile boolean blockAndFailOnReadIndexFile;
+
     private volatile boolean blocked = false;
 
     public MockRepository(RepositoryMetadata metadata, Environment environment,
@@ -219,6 +223,8 @@ public class MockRepository extends FsRepository {
         blockOnWriteShardLevelMeta = false;
         blockOnReadIndexMeta = false;
         blockOnceOnReadSnapshotInfo.set(false);
+        blockAndFailOnReadSnapFile = false;
+        blockAndFailOnReadIndexFile = false;
         this.notifyAll();
     }
 
@@ -264,6 +270,14 @@ public class MockRepository extends FsRepository {
         this.failReadsAfterUnblock = failReadsAfterUnblock;
     }
 
+    public void setBlockAndFailOnReadSnapFiles() {
+        blockAndFailOnReadSnapFile = true;
+    }
+
+    public void setBlockAndFailOnReadIndexFiles() {
+        blockAndFailOnReadIndexFile = true;
+    }
+
     /**
      * Enable blocking a single read of {@link org.elasticsearch.snapshots.SnapshotInfo} in case the repo is already blocked on another
      * file. This allows testing very specific timing issues where a read of {@code SnapshotInfo} is much slower than another concurrent
@@ -288,7 +302,7 @@ public class MockRepository extends FsRepository {
         try {
             while (blockOnDataFiles || blockOnAnyFiles || blockAndFailOnWriteIndexFile || blockOnWriteIndexFile ||
                 blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta || blockOnReadIndexMeta ||
-                blockedIndexId != null) {
+                blockAndFailOnReadSnapFile || blockAndFailOnReadIndexFile || blockedIndexId != null) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -375,7 +389,9 @@ public class MockRepository extends FsRepository {
                         throw new IOException("Random IOException");
                     } else if (blockOnAnyFiles) {
                         blockExecutionAndMaybeWait(blobName);
-                    } else if (blobName.startsWith("snap-") && blockAndFailOnWriteSnapFile) {
+                    } else if (blobName.startsWith("snap-") && (blockAndFailOnWriteSnapFile || blockAndFailOnReadSnapFile)) {
+                        blockExecutionAndFail(blobName);
+                    } else if (blobName.startsWith(INDEX_FILE_PREFIX) && blockAndFailOnReadIndexFile) {
                         blockExecutionAndFail(blobName);
                     } else if (blockedIndexId != null && path().parts().contains(blockedIndexId) && blobName.startsWith("snap-")) {
                         blockExecutionAndMaybeWait(blobName);

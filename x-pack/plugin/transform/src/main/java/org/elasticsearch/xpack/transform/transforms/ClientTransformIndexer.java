@@ -572,6 +572,7 @@ class ClientTransformIndexer extends TransformIndexer {
                         searchRequest,
                         listener
                     );
+                    return;
                 }
                 listener.onFailure(e);
             })

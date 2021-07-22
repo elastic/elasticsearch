@@ -133,6 +133,10 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
             IllegalArgumentException.class,
             () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), new Item("test", "1"), null, new Item("test", "2"))
         );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), new Item("test*", "1"))
+        );
         String[] bigIdList = new String[PinnedQueryBuilder.MAX_NUM_PINNED_HITS + 1];
         Item[] bigItemList = new Item[PinnedQueryBuilder.MAX_NUM_PINNED_HITS + 1];
         for (int i = 0; i < bigIdList.length; i++) {

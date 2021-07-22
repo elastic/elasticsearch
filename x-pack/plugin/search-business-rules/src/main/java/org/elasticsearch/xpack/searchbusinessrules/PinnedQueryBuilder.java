@@ -15,6 +15,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -87,6 +88,9 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         public Item(String index, String id) {
             if (index == null) {
                 throw new IllegalArgumentException("Item requires index to be non-null");
+            }
+            if (Regex.isSimpleMatchPattern(index)) {
+                throw new IllegalArgumentException("Item index cannot contain wildcard expressions");
             }
             if (id == null) {
                 throw new IllegalArgumentException("Item requires id to be non-null");

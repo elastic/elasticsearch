@@ -36,8 +36,11 @@ import org.elasticsearch.xpack.transform.transforms.common.AbstractCompositeAggF
 import org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
@@ -59,8 +62,8 @@ public class Pivot extends AbstractCompositeAggFunction {
      * @param settings Any miscellaneous settings for the function
      * @param version The version of the transform
      */
-    public Pivot(PivotConfig config, SettingsConfig settings, Version version) {
-        super(createCompositeAggregation(config));
+    public Pivot(PivotConfig config, SettingsConfig settings, Version version, Set<String> runtimeFields) {
+        super(createCompositeAggregation(config, runtimeFields));
         this.config = config;
         this.settings = settings;
         this.version = version == null ? Version.CURRENT : version;
@@ -71,10 +74,9 @@ public class Pivot extends AbstractCompositeAggFunction {
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             if (TransformAggregations.isSupportedByTransform(agg.getType()) == false) {
                 listener.onFailure(
-                    new ValidationException()
-                        .addValidationError(
-                            new ParameterizedMessage("Unsupported aggregation type [{}]", agg.getType()).getFormattedMessage()
-                        )
+                    new ValidationException().addValidationError(
+                        new ParameterizedMessage("Unsupported aggregation type [{}]", agg.getType()).getFormattedMessage()
+                    )
                 );
                 return;
             }
@@ -159,8 +161,8 @@ public class Pivot extends AbstractCompositeAggFunction {
         return searchSourceBuilder.query(existsClauses).size(0).trackTotalHits(true);
     }
 
-    private static CompositeAggregationBuilder createCompositeAggregation(PivotConfig config) {
-        final CompositeAggregationBuilder compositeAggregation = createCompositeAggregationSources(config);
+    private static CompositeAggregationBuilder createCompositeAggregation(PivotConfig config, Set<String> runtimeFields) {
+        final CompositeAggregationBuilder compositeAggregation = createCompositeAggregationSources(config, runtimeFields);
 
         config.getAggregationConfig().getAggregatorFactories().forEach(compositeAggregation::subAggregation);
         config.getAggregationConfig().getPipelineAggregatorFactories().forEach(compositeAggregation::subAggregation);
@@ -168,11 +170,29 @@ public class Pivot extends AbstractCompositeAggFunction {
         return compositeAggregation;
     }
 
-    private static CompositeAggregationBuilder createCompositeAggregationSources(PivotConfig config) {
+    private static CompositeAggregationBuilder createCompositeAggregationSources(PivotConfig config, Set<String> runtimeFields) {
         CompositeAggregationBuilder compositeAggregation;
 
+        Collection<Entry<String, SingleGroupSource>> groups = GroupByOptimizer.reorderGroups(
+            config.getGroupConfig().getGroups(),
+            runtimeFields
+        );
+
         try (XContentBuilder builder = jsonBuilder()) {
-            config.toCompositeAggXContent(builder);
+            builder.startObject();
+            builder.field(CompositeAggregationBuilder.SOURCES_FIELD_NAME.getPreferredName());
+            builder.startArray();
+
+            for (Entry<String, SingleGroupSource> groupBy : groups) {
+                builder.startObject();
+                builder.startObject(groupBy.getKey());
+                builder.field(groupBy.getValue().getType().value(), groupBy.getValue());
+                builder.endObject();
+                builder.endObject();
+            }
+
+            builder.endArray();
+            builder.endObject(); // sources
             XContentParser parser = builder.generator()
                 .contentType()
                 .xContent()
@@ -180,7 +200,9 @@ public class Pivot extends AbstractCompositeAggFunction {
             compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, COMPOSITE_AGGREGATION_NAME);
         } catch (IOException e) {
             throw new RuntimeException(
-                TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, "pivot"), e);
+                TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, "pivot"),
+                e
+            );
         }
         return compositeAggregation;
     }

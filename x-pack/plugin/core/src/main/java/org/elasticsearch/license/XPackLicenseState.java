@@ -529,11 +529,13 @@ public class XPackLicenseState {
 
     void featureUsed(LicensedFeature feature) {
         Optional.ofNullable(this.featureLastUsed.get(feature)).ifPresent(a -> a.accumulate(epochMillisProvider.getAsLong()));
+        checkForExpiry(feature);
     }
 
     void enableUsageTracking(LicensedFeature feature, String contextName) {
         FeatureUsage usage = new FeatureUsage(feature, Objects.requireNonNull(contextName, "Context name cannot be null"));
         this.contextLastUsed.put(usage, -1L);
+        checkForExpiry(feature);
     }
 
     void disableUsageTracking(LicensedFeature feature, String contextName) {
@@ -554,7 +556,6 @@ public class XPackLicenseState {
     // Package protected: Only allowed to be called by LicensedFeature
     boolean isAllowed(LicensedFeature feature) {
         if (isAllowedByLicense(feature.minimumOperationMode, feature.needsActive)) {
-            checkForExpiry(feature);
             return true;
         }
         return false;

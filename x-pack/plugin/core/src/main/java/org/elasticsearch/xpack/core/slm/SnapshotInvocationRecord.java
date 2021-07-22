@@ -31,7 +31,8 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
     implements Writeable, ToXContentObject, Diffable<SnapshotInvocationRecord> {
 
     static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
-    static final ParseField START_TIMESTAMP = new ParseField("snapshot_start_time").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8));
+    static final ParseField START_TIMESTAMP = new ParseField("snapshot_start_time")
+        .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8));
     static final ParseField TIMESTAMP = new ParseField("time");
     static final ParseField DETAILS = new ParseField("details");
 

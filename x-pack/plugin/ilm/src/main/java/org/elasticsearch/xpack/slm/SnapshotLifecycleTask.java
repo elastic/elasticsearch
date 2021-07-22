@@ -171,7 +171,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         private final long timestamp;
         private final Optional<Exception> exception;
 
-        private WriteJobStatus(String policyName, String snapshotName, long snapshotStartTime, long timestamp, Optional<Exception> exception) {
+        private WriteJobStatus(String policyName, String snapshotName, long snapshotStartTime, long timestamp,
+                               Optional<Exception> exception) {
             this.policyName = policyName;
             this.snapshotName = snapshotName;
             this.exception = exception;
@@ -223,7 +224,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
             if (exception.isPresent()) {
                 stats.snapshotFailed(policyName);
-                newPolicyMetadata.setLastFailure(new SnapshotInvocationRecord(snapshotName, snapshotStartTime, timestamp, exceptionToString()));
+                newPolicyMetadata.setLastFailure(new SnapshotInvocationRecord(snapshotName, snapshotStartTime, timestamp,
+                    exceptionToString()));
             } else {
                 stats.snapshotTaken(policyName);
                 newPolicyMetadata.setLastSuccess(new SnapshotInvocationRecord(snapshotName, snapshotStartTime, timestamp, null));

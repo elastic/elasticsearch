@@ -44,4 +44,36 @@ public class JobTaskTests extends ESTestCase {
         assertThat(jobTask.isClosing(), is(true));
         verify(processManager).killProcess(jobTask, true, "test");
     }
+
+    public void testCloseOrVacateTransitions() {
+
+        JobTask jobTask = new JobTask("transition-test-task", 0, "persistent", "", null, null);
+
+        assertThat(jobTask.isClosing(), is(false));
+        assertThat(jobTask.isVacating(), is(false));
+
+        AutodetectProcessManager processManager = mock(AutodetectProcessManager.class);
+        jobTask.setAutodetectProcessManager(processManager);
+
+        assertThat(jobTask.isClosing(), is(false));
+        assertThat(jobTask.isVacating(), is(false));
+
+        // we can transition from neither closing nor vacating to vacating
+        assertThat(jobTask.triggerVacate(), is(true));
+
+        assertThat(jobTask.isClosing(), is(false));
+        assertThat(jobTask.isVacating(), is(true));
+
+        jobTask.closeJob("just testing");
+        verify(processManager).closeJob(jobTask, "just testing");
+
+        assertThat(jobTask.isClosing(), is(true));
+        assertThat(jobTask.isVacating(), is(false));
+
+        // we cannot transition from closing back to vacating
+        assertThat(jobTask.triggerVacate(), is(false));
+
+        assertThat(jobTask.isClosing(), is(true));
+        assertThat(jobTask.isVacating(), is(false));
+    }
 }

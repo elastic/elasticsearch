@@ -104,6 +104,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     private TransportSamlLogoutAction action;
     private Client client;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setup() throws Exception {
         final RealmIdentifier realmIdentifier = new RealmIdentifier("saml", REALM_NAME);

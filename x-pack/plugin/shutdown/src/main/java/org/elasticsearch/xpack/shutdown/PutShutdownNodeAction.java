@@ -25,7 +25,6 @@ import java.io.IOException;
 
 public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
-
     public static final PutShutdownNodeAction INSTANCE = new PutShutdownNodeAction();
     public static final String NAME = "cluster:admin/shutdown/create";
 

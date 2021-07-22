@@ -460,7 +460,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             // node.
             if (DatafeedState.STOPPING.equals(datafeedState)) {
                 logger.info("[{}] datafeed got reassigned while stopping. Marking as completed", params.getDatafeedId());
-                datafeedTask.markAsCompleted();
+                datafeedTask.completeOrFailIfRequired(null);
                 return;
             }
             switch (datafeedTask.setDatafeedRunner(datafeedRunner)) {
@@ -472,7 +472,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     break;
                 case STOPPED:
                     logger.info("[{}] datafeed stopped immediately after reassignment. Marking as completed", params.getDatafeedId());
-                    datafeedTask.markAsCompleted();
+                    datafeedTask.completeOrFailIfRequired(null);
                     break;
             }
         }

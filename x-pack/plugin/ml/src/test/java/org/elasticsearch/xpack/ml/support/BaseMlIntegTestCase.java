@@ -10,6 +10,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -40,6 +43,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -92,7 +96,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -255,11 +261,12 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     @After
-    public void cleanupWorkaround() throws Exception {
+    public void cleanup() throws Exception {
         logger.info("[{}#{}]: Cleaning up datafeeds and jobs after test", getTestClass().getSimpleName(), getTestName());
         deleteAllDatafeeds(logger, client());
         deleteAllJobs(logger, client());
         deleteAllDataFrameAnalytics(client());
+        waitForPendingTasks(client());
         assertBusy(() -> {
             RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries()
                     .setActiveOnly(true)
@@ -409,7 +416,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         for (final Job job : jobs.results()) {
             assertBusy(() -> {
                 GetJobsStatsAction.Response statsResponse =
-                        client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
+                        client.execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
                 assertEquals(JobState.CLOSED, statsResponse.getResponse().results().get(0).getState());
             });
             AcknowledgedResponse response =
@@ -425,12 +432,25 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
         assertBusy(() -> {
             GetDataFrameAnalyticsStatsAction.Response statsResponse =
-                client().execute(GetDataFrameAnalyticsStatsAction.INSTANCE, new GetDataFrameAnalyticsStatsAction.Request("_all")).get();
+                client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, new GetDataFrameAnalyticsStatsAction.Request("_all")).get();
             assertTrue(statsResponse.getResponse().results().stream().allMatch(s -> s.getState().equals(DataFrameAnalyticsState.STOPPED)));
         });
         for (final DataFrameAnalyticsConfig config : analytics.results()) {
             client.execute(DeleteDataFrameAnalyticsAction.INSTANCE, new DeleteDataFrameAnalyticsAction.Request(config.getId())).actionGet();
         }
+    }
+
+    public static void waitForPendingTasks(Client client) throws Exception {
+        ListTasksRequest request = new ListTasksRequest().setDetailed(true);
+
+        assertBusy(() -> {
+            ListTasksResponse response = client.execute(ListTasksAction.INSTANCE, request).get();
+            List<String> activeTasks = response.getTasks().stream()
+                .filter(t -> t.getAction().startsWith(ListTasksAction.NAME) == false)
+                .map(TaskInfo::toString)
+                .collect(Collectors.toList());
+            assertThat(activeTasks, empty());
+        });
     }
 
     protected static <T> void blockingCall(Consumer<ActionListener<T>> function,

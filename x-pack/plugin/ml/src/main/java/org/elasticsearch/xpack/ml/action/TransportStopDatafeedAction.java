@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -57,6 +58,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class TransportStopDatafeedAction extends TransportTasksAction<TransportStartDatafeedAction.DatafeedTask, StopDatafeedAction.Request,
         StopDatafeedAction.Response, StopDatafeedAction.Response> {
+
+    private static final int MAX_ATTEMPTS = 10;
 
     private static final Logger logger = LogManager.getLogger(TransportStopDatafeedAction.class);
 
@@ -128,6 +131,11 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
 
     @Override
     protected void doExecute(Task task, StopDatafeedAction.Request request, ActionListener<StopDatafeedAction.Response> listener) {
+        doExecute(task, request, listener, 1);
+    }
+
+    private void doExecute(Task task, StopDatafeedAction.Request request, ActionListener<StopDatafeedAction.Response> listener,
+                           int attempt) {
         final ClusterState state = clusterService.state();
         final DiscoveryNodes nodes = state.nodes();
         if (nodes.isLocalNodeElectedMaster() == false) {
@@ -155,12 +163,11 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                             listener.onResponse(new StopDatafeedAction.Response(true));
                             return;
                         }
-                        request.setResolvedStartedDatafeedIds(startedDatafeeds.toArray(new String[0]));
 
                         if (request.isForce()) {
                             forceStopDatafeed(request, listener, tasks, nodes, notStoppedDatafeeds);
                         } else {
-                            normalStopDatafeed(task, request, listener, tasks, nodes, startedDatafeeds, stoppingDatafeeds);
+                            normalStopDatafeed(task, request, listener, tasks, nodes, startedDatafeeds, stoppingDatafeeds, attempt);
                         }
                     },
                     listener::onFailure
@@ -170,9 +177,10 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
 
     private void normalStopDatafeed(Task task, StopDatafeedAction.Request request, ActionListener<StopDatafeedAction.Response> listener,
                                     PersistentTasksCustomMetadata tasks, DiscoveryNodes nodes,
-                                    List<String> startedDatafeeds, List<String> stoppingDatafeeds) {
+                                    List<String> startedDatafeeds, List<String> stoppingDatafeeds, int attempt) {
         final Set<String> executorNodes = new HashSet<>();
         final List<String> startedDatafeedsJobs = new ArrayList<>();
+        final List<String> resolvedStartedDatafeeds = new ArrayList<>();
         final List<PersistentTasksCustomMetadata.PersistentTask<?>> allDataFeedsToWaitFor = new ArrayList<>();
         for (String datafeedId : startedDatafeeds) {
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
@@ -183,6 +191,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                 logger.error(msg);
             } else if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes) == false) {
                 startedDatafeedsJobs.add(((StartDatafeedAction.DatafeedParams) datafeedTask.getParams()).getJobId());
+                resolvedStartedDatafeeds.add(datafeedId);
                 executorNodes.add(datafeedTask.getExecutorNode());
                 allDataFeedsToWaitFor.add(datafeedTask);
             } else {
@@ -206,6 +215,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
             allDataFeedsToWaitFor.add(datafeedTask);
         }
 
+        request.setResolvedStartedDatafeedIds(resolvedStartedDatafeeds.toArray(new String[0]));
         request.setNodes(executorNodes.toArray(new String[0]));
 
         final Set<String> movedDatafeeds = Sets.newConcurrentHashSet();
@@ -251,13 +261,38 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                     listener::onFailure
                 ), movedDatafeeds),
                 e -> {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof FailedNodeException) {
+                    Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                    if (unwrapped instanceof FailedNodeException) {
                         // A node has dropped out of the cluster since we started executing the requests.
                         // Since stopping an already stopped datafeed is not an error we can try again.
                         // The datafeeds that were running on the node that dropped out of the cluster
                         // will just have their persistent tasks cancelled.  Datafeeds that were stopped
                         // by the previous attempt will be noops in the subsequent attempt.
-                        doExecute(task, request, listener);
+                        if (attempt <= MAX_ATTEMPTS) {
+                            logger.warn("Node [{}] failed while processing stop datafeed request - retrying",
+                                ((FailedNodeException) unwrapped).nodeId());
+                            doExecute(task, request, listener, attempt + 1);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    } else if (unwrapped instanceof RetryStopDatafeedException) {
+                        // This is for the case where a local task wasn't yet running at the moment a
+                        // request to stop it arrived at its node.  This can happen when the cluster
+                        // state says a persistent task should be running on a particular node but that
+                        // node hasn't yet had time to start the corresponding local task.
+                        if (attempt <= MAX_ATTEMPTS) {
+                            logger.info("Insufficient responses while processing stop datafeed request [{}] - retrying",
+                                unwrapped.getMessage());
+                            // Unlike the failed node case above, in this case we should wait a little
+                            // before retrying because we need to allow time for the local task to
+                            // start on the node it's supposed to be running on.
+                            threadPool.schedule(() -> doExecute(task, request, listener, attempt + 1),
+                                TimeValue.timeValueMillis(100L * attempt), ThreadPool.Names.SAME);
+                        } else {
+                            listener.onFailure(ExceptionsHelper.serverError("Failed to stop datafeed [" + request.getDatafeedId()
+                                + "] after " + MAX_ATTEMPTS
+                                + " due to inconsistencies between local and persistent tasks within the cluster"));
+                        }
                     } else {
                         listener.onFailure(e);
                     }
@@ -400,7 +435,8 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                 PersistentTasksCustomMetadata.PersistentTask<?> currentPersistentTask =
                     persistentTasksCustomMetadata.getTask(originalPersistentTaskId);
                 if (currentPersistentTask != null) {
-                    if (Objects.equals(originalPersistentTask.getExecutorNode(), currentPersistentTask.getExecutorNode())) {
+                    if (Objects.equals(originalPersistentTask.getExecutorNode(), currentPersistentTask.getExecutorNode())
+                        && originalPersistentTask.getAllocationId() == currentPersistentTask.getAllocationId()) {
                         return false;
                     }
                     StartDatafeedAction.DatafeedParams params = (StartDatafeedAction.DatafeedParams) originalPersistentTask.getParams();
@@ -417,7 +453,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
     protected StopDatafeedAction.Response newResponse(StopDatafeedAction.Request request, List<StopDatafeedAction.Response> tasks,
                                                       List<TaskOperationFailure> taskOperationFailures,
                                                       List<FailedNodeException> failedNodeExceptions) {
-        // number of resolved data feeds should be equal to the number of
+        // number of resolved (i.e. running on a node) started data feeds should be equal to the number of
         // tasks, otherwise something went wrong
         if (request.getResolvedStartedDatafeedIds().length != tasks.size()) {
             if (taskOperationFailures.isEmpty() == false) {
@@ -427,13 +463,30 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                 throw org.elasticsearch.ExceptionsHelper
                         .convertToElastic(failedNodeExceptions.get(0));
             } else {
-                // This can happen when the actual task in the node no longer exists,
-                // which means the datafeed(s) have already been stopped.
-                return new StopDatafeedAction.Response(true);
+                // This can happen when the local task in the node no longer exists,
+                // which means the datafeed(s) have already been stopped.  It can
+                // also happen if the local task hadn't yet been created when the
+                // stop request hit the executor node.  In this second case we need
+                // to retry, otherwise the wait for completion will wait until it
+                // times out.  We cannot tell which case it is, but it doesn't hurt
+                // to retry in both cases since stopping a stopped datafeed is a
+                // no-op.
+                throw new RetryStopDatafeedException(request.getResolvedStartedDatafeedIds().length, tasks.size());
             }
         }
 
         return new StopDatafeedAction.Response(tasks.stream().allMatch(StopDatafeedAction.Response::isStopped));
     }
 
+    /**
+     * A special exception to indicate that we should retry stopping the datafeeds.
+     * This exception is not transportable, so should only be thrown in situations
+     * where it will be caught on the same node.
+     */
+    static class RetryStopDatafeedException extends RuntimeException {
+
+        RetryStopDatafeedException(int numResponsesExpected, int numResponsesReceived) {
+            super("expected " + numResponsesExpected + " responses, got " + numResponsesReceived);
+        }
+    }
 }

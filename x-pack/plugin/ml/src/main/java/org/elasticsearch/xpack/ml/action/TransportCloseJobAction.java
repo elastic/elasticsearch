@@ -585,7 +585,8 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
                 PersistentTasksCustomMetadata.PersistentTask<?> currentPersistentTask =
                     persistentTasksCustomMetadata.getTask(originalPersistentTaskId);
                 if (currentPersistentTask != null) {
-                    if (Objects.equals(originalPersistentTask.getExecutorNode(), currentPersistentTask.getExecutorNode())) {
+                    if (Objects.equals(originalPersistentTask.getExecutorNode(), currentPersistentTask.getExecutorNode())
+                        && originalPersistentTask.getAllocationId() == currentPersistentTask.getAllocationId()) {
                         return false;
                     }
                     OpenJobAction.JobParams params = (OpenJobAction.JobParams) originalPersistentTask.getParams();

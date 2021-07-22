@@ -104,6 +104,7 @@ public class DatafeedRunner {
                                 // The task was stopped in the meantime, no need to do anything
                                 logger.info("[{}] Aborting as datafeed has been stopped", task.getDatafeedId());
                                 runningDatafeedsOnThisNode.remove(task.getAllocationId());
+                                finishHandler.accept(null);
                             } else {
                                 finishHandler.accept(e);
                             }
@@ -112,6 +113,7 @@ public class DatafeedRunner {
                 } else {
                     logger.info("[{}] Datafeed has been {} before running", task.getDatafeedId(),
                         task.getStoppedOrIsolatedBeforeRunning().toString().toLowerCase(Locale.ROOT));
+                    finishHandler.accept(null);
                 }
             }, finishHandler
         );
@@ -123,6 +125,7 @@ public class DatafeedRunner {
                 } else {
                     logger.info("[{}] Datafeed has been {} while building context", task.getDatafeedId(),
                         task.getStoppedOrIsolatedBeforeRunning().toString().toLowerCase(Locale.ROOT));
+                    finishHandler.accept(null);
                 }
             },
             finishHandler

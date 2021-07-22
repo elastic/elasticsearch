@@ -41,6 +41,10 @@ public class TrainedModelDeploymentTask extends AllocatedPersistentTask implemen
         return params.getIndex();
     }
 
+    public long estimateMemoryUsageBytes() {
+        return params.estimateMemoryUsageBytes();
+    }
+
     public void stop(String reason) {
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
 

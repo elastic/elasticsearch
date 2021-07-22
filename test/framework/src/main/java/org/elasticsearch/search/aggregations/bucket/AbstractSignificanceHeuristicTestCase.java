@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.bucket.terms;
+package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -28,6 +28,12 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.terms.InternalMappedSignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.InternalSignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -56,17 +62,12 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  * Abstract test case for testing significant term heuristics
  */
-public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
+public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
 
     /**
      * @return A random instance of the heuristic to test
      */
     protected abstract SignificanceHeuristic getHeuristic();
-
-    /**
-     * @return test if the score is `0` with a subset frequency of `0`
-     */
-    protected abstract boolean testZeroScore();
 
     // test that stream output can actually be read - does not replace bwc test
     public void testStreamResponse() throws Exception {
@@ -83,13 +84,11 @@ public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         StreamInput in = new InputStreamStreamInput(inBuffer);
         // populates the registry through side effects
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
-        NamedWriteableRegistry registry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        in = new NamedWriteableAwareStreamInput(in, registry);
+        in = new NamedWriteableAwareStreamInput(in, writableRegistry());
         in.setVersion(version);
         InternalMappedSignificantTerms<?, ?> read = (InternalMappedSignificantTerms<?, ?>) in.readNamedWriteable(InternalAggregation.class);
 
-        assertEquals(sigTerms.significanceHeuristic, read.significanceHeuristic);
+        assertEquals(sigTerms.getSignificanceHeuristic(), read.getSignificanceHeuristic());
         SignificantTerms.Bucket originalBucket = sigTerms.getBuckets().get(0);
         SignificantTerms.Bucket streamedBucket = read.getBuckets().get(0);
         assertThat(originalBucket.getKeyAsString(), equalTo(streamedBucket.getKeyAsString()));
@@ -127,11 +126,14 @@ public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
     }
 
     public void testBasicScoreProperties() {
-        SignificanceHeuristic heuristic = getHeuristic();
+        testBasicScoreProperties(getHeuristic(), true);
+    }
+
+    protected void testBasicScoreProperties(SignificanceHeuristic heuristic, boolean testZeroScore) {
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
         assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
         assertThat(heuristic.getScore(1, 1, 3, 4), lessThan(heuristic.getScore(1, 1, 2, 4)));
-        if (testZeroScore()) {
+        if (testZeroScore) {
             assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(0.0));
         }
 
@@ -150,8 +152,8 @@ public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
     /**
      * Testing heuristic specific assertions
      * Typically, this method would call either
-     * {@link AbstractSignificanceHeuristicTests#testBackgroundAssertions(SignificanceHeuristic, SignificanceHeuristic)}
-     * or {@link AbstractSignificanceHeuristicTests#testAssertions(SignificanceHeuristic)}
+     * {@link AbstractSignificanceHeuristicTestCase#testBackgroundAssertions(SignificanceHeuristic, SignificanceHeuristic)}
+     * or {@link AbstractSignificanceHeuristicTestCase#testAssertions(SignificanceHeuristic)}
      * depending on which was appropriate
      */
     public abstract void testAssertions();
@@ -206,9 +208,9 @@ public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
     // Create aggregations as they might come from three different shards and return as list.
     private List<InternalAggregation> createInternalAggregations() {
         SignificanceHeuristic significanceHeuristic = getHeuristic();
-        AbstractSignificanceHeuristicTests.TestAggFactory<?, ?> factory = randomBoolean() ?
-            new AbstractSignificanceHeuristicTests.StringTestAggFactory() :
-            new AbstractSignificanceHeuristicTests.LongTestAggFactory();
+        AbstractSignificanceHeuristicTestCase.TestAggFactory<?, ?> factory = randomBoolean() ?
+            new AbstractSignificanceHeuristicTestCase.StringTestAggFactory() :
+            new AbstractSignificanceHeuristicTestCase.LongTestAggFactory();
 
         List<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(factory.createAggregation(significanceHeuristic, 4, 10, 1, (f, i) -> f.createBucket(4, 4, 5, 10, 0)));
@@ -271,6 +273,11 @@ public abstract class AbstractSignificanceHeuristicTests extends ESTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents());
+    }
+
+    @Override
+    protected NamedWriteableRegistry writableRegistry() {
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
     }
 
     protected void testBackgroundAssertions(SignificanceHeuristic heuristicIsSuperset, SignificanceHeuristic heuristicNotSuperset) {

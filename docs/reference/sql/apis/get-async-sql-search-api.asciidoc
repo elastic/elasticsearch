@@ -60,5 +60,5 @@ Defaults to no timeout, meaning the request waits for complete search results.
 [[get-async-sql-search-api-response-body]]
 ==== {api-response-body-title}
 
-The get async SQL search API returns the same response body as the SQL search
-API.
+The get async SQL search API returns the same response body as the
+<<sql-search-api-response-body,SQL search API>>.

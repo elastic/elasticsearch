@@ -14,6 +14,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,16 +46,18 @@ public class RoutingNode implements Iterable<ShardRouting> {
     private final HashMap<Index, LinkedHashSet<ShardRouting>> shardsByIndex;
 
     public RoutingNode(String nodeId, DiscoveryNode node, ShardRouting... shards) {
-        this(nodeId, node, buildShardRoutingMap(shards));
+        this(nodeId, node, buildShardRoutingMap(shards),
+            (int) Arrays.stream(shards).map(ShardRouting::getIndexName).distinct().count()
+        );
     }
 
-    RoutingNode(String nodeId, DiscoveryNode node, LinkedHashMap<ShardId, ShardRouting> shards) {
+    RoutingNode(String nodeId, DiscoveryNode node, LinkedHashMap<ShardId, ShardRouting> shards, int indexSize){
         this.nodeId = nodeId;
         this.node = node;
         this.shards = shards;
         this.relocatingShards = new LinkedHashSet<>();
         this.initializingShards = new LinkedHashSet<>();
-        this.shardsByIndex = new LinkedHashMap<>();
+        this.shardsByIndex = new LinkedHashMap<>(Math.min(1024, Math.max(16, (int) (indexSize / 0.75) + 1)));
         for (ShardRouting shardRouting : shards.values()) {
             if (shardRouting.initializing()) {
                 initializingShards.add(shardRouting);

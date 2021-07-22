@@ -59,7 +59,7 @@ import java.util.stream.StreamSupport;
  */
 public class RoutingNodes implements Iterable<RoutingNode> {
 
-    private final Map<String, RoutingNode> nodesToShards = new HashMap<>();
+    private final Map<String, RoutingNode> nodesToShards;
 
     private final UnassignedShards unassignedShards = new UnassignedShards(this);
 
@@ -84,10 +84,15 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.readOnly = readOnly;
         final RoutingTable routingTable = clusterState.routingTable();
 
-        Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = new HashMap<>();
+        int totalShards = routingTable.allShards().size();
+        int nodes = Math.max(clusterState.nodes().getDataNodes().size(), 1);
+        final int initialNodesSize = Math.max((int)(nodes / 0.75) + 1, 16);
+        final int initialShardSize = Math.max((int)(totalShards / nodes / 0.75) + 1, 16);
+
+        Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = new HashMap<>(initialNodesSize);
         // fill in the nodeToShards with the "live" nodes
         for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
-            nodesToShards.put(cursor.value.getId(), new LinkedHashMap<>()); // LinkedHashMap to preserve order
+            nodesToShards.put(cursor.value.getId(), new LinkedHashMap<>(initialShardSize)); // LinkedHashMap to preserve order
         }
 
         // fill in the inverse of node -> shards allocated
@@ -102,7 +107,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     // A replica Set might have one (and not more) replicas with the state of RELOCATING.
                     if (shard.assignedToNode()) {
                         Map<ShardId, ShardRouting> entries = nodesToShards.computeIfAbsent(shard.currentNodeId(),
-                            k -> new LinkedHashMap<>()); // LinkedHashMap to preserve order
+                            k -> new LinkedHashMap<>(initialShardSize)); // LinkedHashMap to preserve order
                         ShardRouting previousValue = entries.put(shard.shardId(), shard);
                         if (previousValue != null) {
                             throw new IllegalArgumentException("Cannot have two different shards with same shard id on same node");
@@ -114,7 +119,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             // Add the counterpart shard with relocatingNodeId reflecting the source from which
                             // it's relocating from.
                             entries = nodesToShards.computeIfAbsent(shard.relocatingNodeId(),
-                                k -> new LinkedHashMap<>());
+                                k -> new LinkedHashMap<>(initialShardSize));
                             ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
                             addInitialRecovery(targetShardRouting, indexShard.primary);
                             previousValue = entries.put(targetShardRouting.shardId(), targetShardRouting);
@@ -135,9 +140,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 }
             }
         }
+
+        this.nodesToShards = new HashMap<>((int)(nodesToShards.size() / 0.75) + 1);
         for (Map.Entry<String, LinkedHashMap<ShardId, ShardRouting>> entry : nodesToShards.entrySet()) {
             String nodeId = entry.getKey();
-            this.nodesToShards.put(nodeId, new RoutingNode(nodeId, clusterState.nodes().get(nodeId), entry.getValue()));
+            this.nodesToShards.put(nodeId, new RoutingNode(nodeId, clusterState.nodes().get(nodeId), entry.getValue(),
+                clusterState.getRoutingTable().getIndicesRouting().size()));
         }
     }
 

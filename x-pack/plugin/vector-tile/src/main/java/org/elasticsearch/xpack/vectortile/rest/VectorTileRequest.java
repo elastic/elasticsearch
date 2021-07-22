@@ -79,7 +79,6 @@ class VectorTileRequest {
         public static final Map<String, Object> RUNTIME_MAPPINGS = emptyMap();
         public static final QueryBuilder QUERY = null;
         public static final AggregatorFactories.Builder AGGS = null;
-        public static final List<SortBuilder<?>> SORT = null;
         public static final int GRID_PRECISION = 8;
         public static final GRID_TYPE GRID_TYPE = VectorTileRequest.GRID_TYPE.GRID;
         public static final int EXTENT = 4096;
@@ -176,7 +175,7 @@ class VectorTileRequest {
     private int extent = Defaults.EXTENT;
     private AggregatorFactories.Builder aggBuilder = Defaults.AGGS;
     private List<FieldAndFormat> fields = Defaults.FETCH;
-    private List<SortBuilder<?>> sortBuilders = Defaults.SORT;
+    private List<SortBuilder<?>> sortBuilders;
     private boolean exact_bounds = Defaults.EXACT_BOUNDS;
 
     private VectorTileRequest(String[] indexes, String field, int z, int x, int y) {

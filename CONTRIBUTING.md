@@ -575,9 +575,9 @@ incident.
 This level is enabled by default so its target audience is the general
 population of users and administrators. You should use user-facing terminology
 and ensure that messages at this level are self-contained. In general you
-shouldn't log exceptions with stack traces at `INFO` level: if the exception is
-relatively benign then use `DEBUG`, whereas if the user should be notified then
-use `WARN`.
+shouldn't log unusual events, particularly exceptions with stack traces, at
+`INFO` level. If the event is relatively benign then use `DEBUG`, whereas if
+the user should be notified then use `WARN`.
 
 ##### `WARN`
 

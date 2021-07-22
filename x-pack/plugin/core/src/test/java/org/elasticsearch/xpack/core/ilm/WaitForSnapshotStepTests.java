@@ -101,7 +101,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         SnapshotLifecyclePolicyMetadata slmPolicy = SnapshotLifecyclePolicyMetadata.builder()
             .setModifiedDate(randomLong())
             .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", null, null))
-            .setLastSuccess(new SnapshotInvocationRecord("", phaseTime - 10, ""))
+            .setLastSuccess(new SnapshotInvocationRecord("", phaseTime - 100, phaseTime - 10, ""))
             .build();
         SnapshotLifecycleMetadata smlMetadata = new SnapshotLifecycleMetadata(Map.of(instance.getPolicy(), slmPolicy),
             OperationMode.RUNNING, null);
@@ -126,7 +126,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         SnapshotLifecyclePolicyMetadata slmPolicy = SnapshotLifecyclePolicyMetadata.builder()
             .setModifiedDate(randomLong())
             .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", null, null))
-            .setLastSuccess(new SnapshotInvocationRecord("", phaseTime + 10, ""))
+            .setLastSuccess(new SnapshotInvocationRecord("", phaseTime + 10, phaseTime + 100, ""))
             .build();
         SnapshotLifecycleMetadata smlMetadata = new SnapshotLifecycleMetadata(Map.of(instance.getPolicy(), slmPolicy),
             OperationMode.RUNNING, null);

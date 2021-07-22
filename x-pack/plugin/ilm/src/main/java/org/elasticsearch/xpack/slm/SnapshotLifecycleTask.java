@@ -93,18 +93,19 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             logger.info("snapshot lifecycle policy [{}] issuing create snapshot [{}]",
                 policyMetadata.getPolicy().getId(), request.snapshot());
             clientWithHeaders.admin().cluster().createSnapshot(request, new ActionListener<>() {
+                private long snapshotStartTime;
                 @Override
                 public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
                     logger.debug("snapshot response for [{}]: {}",
                         policyMetadata.getPolicy().getId(), Strings.toString(createSnapshotResponse));
                     final SnapshotInfo snapInfo = createSnapshotResponse.getSnapshotInfo();
-
+                    snapshotStartTime = snapInfo.startTime();
                     // Check that there are no failed shards, since the request may not entirely
                     // fail, but may still have failures (such as in the case of an aborted snapshot)
                     if (snapInfo.failedShards() == 0) {
                         final long timestamp = Instant.now().toEpochMilli();
                         clusterService.submitStateUpdateTask("slm-record-success-" + policyMetadata.getPolicy().getId(),
-                            WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp));
+                            WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), snapshotStartTime, timestamp));
                         historyStore.putAsync(SnapshotHistoryItem.creationSuccessRecord(timestamp, policyMetadata.getPolicy(),
                             request.snapshot()));
                     } else {
@@ -126,7 +127,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         policyMetadata.getPolicy().getId(), e);
                     final long timestamp = Instant.now().toEpochMilli();
                     clusterService.submitStateUpdateTask("slm-record-failure-" + policyMetadata.getPolicy().getId(),
-                        WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp, e));
+                        WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), snapshotStartTime, timestamp, e));
                     final SnapshotHistoryItem failureRecord;
                     try {
                         failureRecord = SnapshotHistoryItem.creationFailureRecord(timestamp, policyMetadata.getPolicy(),
@@ -166,22 +167,24 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
         private final String policyName;
         private final String snapshotName;
+        private final long snapshotStartTime;
         private final long timestamp;
         private final Optional<Exception> exception;
 
-        private WriteJobStatus(String policyName, String snapshotName, long timestamp, Optional<Exception> exception) {
+        private WriteJobStatus(String policyName, String snapshotName, long snapshotStartTime, long timestamp, Optional<Exception> exception) {
             this.policyName = policyName;
             this.snapshotName = snapshotName;
             this.exception = exception;
+            this.snapshotStartTime = snapshotStartTime;
             this.timestamp = timestamp;
         }
 
-        static WriteJobStatus success(String policyId, String snapshotName, long timestamp) {
-            return new WriteJobStatus(policyId, snapshotName, timestamp, Optional.empty());
+        static WriteJobStatus success(String policyId, String snapshotName, long snapshotStartTime, long timestamp) {
+            return new WriteJobStatus(policyId, snapshotName, snapshotStartTime, timestamp, Optional.empty());
         }
 
-        static WriteJobStatus failure(String policyId, String snapshotName, long timestamp, Exception exception) {
-            return new WriteJobStatus(policyId, snapshotName, timestamp, Optional.of(exception));
+        static WriteJobStatus failure(String policyId, String snapshotName, long snapshotStartTime, long timestamp, Exception exception) {
+            return new WriteJobStatus(policyId, snapshotName, snapshotStartTime, timestamp, Optional.of(exception));
         }
 
         private String exceptionToString() throws IOException {
@@ -220,10 +223,10 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
             if (exception.isPresent()) {
                 stats.snapshotFailed(policyName);
-                newPolicyMetadata.setLastFailure(new SnapshotInvocationRecord(snapshotName, timestamp, exceptionToString()));
+                newPolicyMetadata.setLastFailure(new SnapshotInvocationRecord(snapshotName, snapshotStartTime, timestamp, exceptionToString()));
             } else {
                 stats.snapshotTaken(policyName);
-                newPolicyMetadata.setLastSuccess(new SnapshotInvocationRecord(snapshotName, timestamp, null));
+                newPolicyMetadata.setLastSuccess(new SnapshotInvocationRecord(snapshotName, snapshotStartTime, timestamp, null));
             }
 
             snapLifecycles.put(policyName, newPolicyMetadata.build());

@@ -37,15 +37,17 @@ public class SnapshotInvocationRecordTests extends AbstractSerializingTestCase<S
             case 0:
                 return new SnapshotInvocationRecord(
                     randomValueOtherThan(instance.getSnapshotName(), () -> randomAlphaOfLengthBetween(2,10)),
+                    instance.getTimestamp() - 100,
                     instance.getTimestamp(),
                     instance.getDetails());
             case 1:
+                long timestamp = randomValueOtherThan(instance.getTimestamp(), ESTestCase::randomNonNegativeLong);
                 return new SnapshotInvocationRecord(instance.getSnapshotName(),
-                    randomValueOtherThan(instance.getTimestamp(), ESTestCase::randomNonNegativeLong),
+                    timestamp - 100, timestamp,
                     instance.getDetails());
             case 2:
                 return new SnapshotInvocationRecord(instance.getSnapshotName(),
-                    instance.getTimestamp(),
+                    instance.getTimestamp() - 100, instance.getTimestamp(),
                     randomValueOtherThan(instance.getDetails(), () -> randomAlphaOfLengthBetween(2,10)));
             default:
                 throw new AssertionError("failure, got illegal switch case");
@@ -55,6 +57,7 @@ public class SnapshotInvocationRecordTests extends AbstractSerializingTestCase<S
     public static SnapshotInvocationRecord randomSnapshotInvocationRecord() {
         return new SnapshotInvocationRecord(
             randomAlphaOfLengthBetween(5,10),
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10));
     }

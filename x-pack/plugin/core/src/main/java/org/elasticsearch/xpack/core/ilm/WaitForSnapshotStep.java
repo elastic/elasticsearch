@@ -57,7 +57,7 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
             throw error(POLICY_NOT_FOUND_MESSAGE, policy);
         }
         SnapshotLifecyclePolicyMetadata snapPolicyMeta = snapMeta.getSnapshotConfigurations().get(policy);
-        if (snapPolicyMeta.getLastSuccess() == null || snapPolicyMeta.getLastSuccess().getTimestamp() < phaseTime) {
+        if (snapPolicyMeta.getLastSuccess() == null || snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() < phaseTime) {
             return new Result(false, notExecutedMessage(phaseTime));
         }
 

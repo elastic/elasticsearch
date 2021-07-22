@@ -9,8 +9,11 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
+
+import java.util.Map;
 
 public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase {
 
@@ -70,4 +73,16 @@ public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase 
     protected boolean preserveDataStreamsUponCompletion() {
         return true;
     }
+
+
+    protected static void assertNoFailures(Map<?, ?> response) {
+        int failed = (int) XContentMapValues.extractValue("_shards.failed", response);
+        assertEquals(0, failed);
+    }
+
+
+    protected static int extractTotalHits(Map<?, ?> response) {
+        return (Integer) XContentMapValues.extractValue("hits.total.value", response);
+    }
+
 }

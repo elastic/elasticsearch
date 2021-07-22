@@ -8,9 +8,6 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.message.BasicNameValuePair;
-import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
@@ -22,19 +19,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.TypeQueryV7Builder;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
-import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -607,18 +599,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         return EntityUtils.toString(response.getEntity());
     }
 
-    static void assertNoFailures(Map<?, ?> response) {
-        int failed = (int) XContentMapValues.extractValue("_shards.failed", response);
-        assertEquals(0, failed);
-    }
-
     void assertTotalHits(int expectedTotalHits, Map<?, ?> response) {
         int actualTotalHits = extractTotalHits(response);
         assertEquals(response.toString(), expectedTotalHits, actualTotalHits);
-    }
-
-    static int extractTotalHits(Map<?, ?> response) {
-        return (Integer) XContentMapValues.extractValue("hits.total.value", response);
     }
 
     /**
@@ -1634,51 +1617,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
 
-    public void testTypeQuery() throws IOException {
-        if (isRunningAgainstOldCluster()) {
-            String doc = "{\"foo\": \"bar\"}";
-            Request createDoc = new Request("PUT", "/test_type_query_1/cat/1");
-            createDoc.addParameter("refresh", "true");
-            createDoc.setJsonEntity(doc);
-            createDoc.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
-            client().performRequest(createDoc);
 
-            createDoc = new Request("PUT", "/test_type_query_2/_doc/1");
-            createDoc.addParameter("refresh", "true");
-            createDoc.setJsonEntity(doc);
-            createDoc.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
-            client().performRequest(createDoc);
-        } else {
-            assertTypeQueryHits("test_type_query_1", "cat", 1);
-            assertTypeQueryHits("test_type_query_1", "dog", 0);
-            assertTypeQueryHits("test_type_query_1", "_doc", 0);
-            assertTypeQueryHits("test_type_query_1", "_default_", 0);
-
-            assertTypeQueryHits("test_type_query_2", "_doc", 1);
-            assertTypeQueryHits("test_type_query_2", "dog", 0);
-            assertTypeQueryHits("test_type_query_2", "_default_", 0);
-
-        }
-    }
-
-    private void assertTypeQueryHits(String index, String type, int numHits) throws IOException {
-        final ParsedMediaType parsedMediaType = XContentType.VND_JSON.toParsedMediaType();
-        final String v7MediaType = parsedMediaType
-            .responseContentTypeHeader(Map.of("compatible-with", String.valueOf(RestApiVersion.V_7.major)));
-
-        final ContentType contentType = ContentType.create(parsedMediaType.mediaTypeWithoutParameters(),
-            new BasicNameValuePair("compatible-with", String.valueOf(RestApiVersion.V_7.major)));
-
-        Request searchRequest = new Request("GET", "/" + index + "/_search");
-
-        searchRequest.setOptions(expectWarnings(TypeQueryV7Builder.TYPES_DEPRECATION_MESSAGE).toBuilder()
-            .addHeader("Accept", v7MediaType));
-        searchRequest.setEntity(new NStringEntity("{ \"query\": { \"type\" : {\"value\": \"" + type + "\"} }}", contentType));
-
-        Map<String, Object> response = entityAsMap(client().performRequest(searchRequest));
-        assertNoFailures(response);
-        assertThat(extractTotalHits(response), equalTo(numHits));
-    }
 
     public static void assertNumHits(String index, int numHits, int totalShards) throws IOException {
         Map<String, Object> resp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));

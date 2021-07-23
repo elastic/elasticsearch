@@ -155,6 +155,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         return defaults;
     }
 
+    @SuppressWarnings("unchecked")
     private void mockDocument(String entityId, DocumentVersion docVersion, SamlServiceProviderDocument document) {
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();

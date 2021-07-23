@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Objects;
 
 public class MlLifeCycleService {
 

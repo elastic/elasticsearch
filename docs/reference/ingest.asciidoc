@@ -723,7 +723,7 @@ document metadata fields `on_failure_message`, `on_failure_processor_type`,
 accessible only from within an `on_failure` block.
 
 The following example uses the metadata fields to include information about
-pipelines failures in documents.
+pipeline failures in documents.
 
 [source,console]
 ----

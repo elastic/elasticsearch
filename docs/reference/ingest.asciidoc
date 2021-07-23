@@ -722,8 +722,8 @@ document metadata fields `on_failure_message`, `on_failure_processor_type`,
 `on_failure_processor_tag`, and `on_failure_pipeline`. These fields are
 accessible only from within an `on_failure` block.
 
-The following example uses the error metadata fields to provide additional
-information on the document about the failure.
+The following example uses the metadata fields to include information about
+pipelines failures in documents.
 
 [source,console]
 ----

@@ -9,6 +9,7 @@ setup:
             settings:
               index:
                 time_series_mode: true
+                number_of_shards: 3
             mappings:
               properties:
                 "@timestamp":

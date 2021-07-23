@@ -532,7 +532,7 @@ public final class IndexSettings {
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
-        timeSeriesMode = scopedSettings.get(TIME_SERIES_MODE);
+        timeSeriesMode = isTimeSeriesModeEnabled() ? scopedSettings.get(TIME_SERIES_MODE) : false;
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);

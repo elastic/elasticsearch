@@ -24,6 +24,7 @@ artifacts {
 
 testClusters.all {
   module ':modules:mapper-extras'
+  systemProperty 'es.time_series_mode_feature_flag_registered', 'true'
 }
 
 tasks.named("test").configure { enabled = false }

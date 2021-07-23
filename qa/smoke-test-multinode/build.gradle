@@ -25,6 +25,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 
 testClusters.all {
   setting 'xpack.security.enabled', 'false'
+  systemProperty 'es.time_series_mode_feature_flag_registered', 'true'
 }
 
 tasks.named("integTest").configure {

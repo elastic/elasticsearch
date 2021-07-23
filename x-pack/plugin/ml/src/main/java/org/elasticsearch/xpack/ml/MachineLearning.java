@@ -23,6 +23,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -61,6 +62,7 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
@@ -385,7 +387,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                                                        CircuitBreakerPlugin,
                                                        IngestPlugin,
                                                        PersistentTaskPlugin,
-                                                       SearchPlugin {
+                                                       SearchPlugin,
+                                                       ShutdownAwarePlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
@@ -540,6 +543,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     private final SetOnce<DataFrameAnalyticsAuditor> dataFrameAnalyticsAuditor = new SetOnce<>();
     private final SetOnce<MlMemoryTracker> memoryTracker = new SetOnce<>();
     private final SetOnce<ActionFilter> mlUpgradeModeActionFilter = new SetOnce<>();
+    private final SetOnce<MlLifeCycleService> mlLifeCycleService = new SetOnce<>();
     private final SetOnce<CircuitBreaker> inferenceModelBreaker = new SetOnce<>();
     private final SetOnce<ModelLoadingService> modelLoadingService = new SetOnce<>();
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
@@ -822,7 +826,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         this.memoryTracker.set(memoryTracker);
         MlLifeCycleService mlLifeCycleService =
             new MlLifeCycleService(
-            environment, clusterService, datafeedRunner, autodetectProcessManager, dataFrameAnalyticsManager, memoryTracker);
+                environment, clusterService, datafeedRunner, autodetectProcessManager, dataFrameAnalyticsManager, memoryTracker);
+        this.mlLifeCycleService.set(mlLifeCycleService);
         MlAssignmentNotifier mlAssignmentNotifier = new MlAssignmentNotifier(anomalyDetectionAuditor, dataFrameAnalyticsAuditor, threadPool,
             new MlConfigMigrator(settings, client, clusterService, indexNameExpressionResolver), clusterService);
 
@@ -1461,5 +1466,15 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         } else {
             return Collections.emptyList();
         }
+    }
+
+    @Override
+    public boolean safeToShutdown(String nodeId, SingleNodeShutdownMetadata.Type shutdownType) {
+        return mlLifeCycleService.get().isNodeSafeToShutdown(nodeId);
+    }
+
+    @Override
+    public void signalShutdown(Collection<String> shutdownNodeIds) {
+        mlLifeCycleService.get().signalGracefulShutdown(shutdownNodeIds);
     }
 }

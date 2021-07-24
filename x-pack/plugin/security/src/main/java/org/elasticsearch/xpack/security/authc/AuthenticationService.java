@@ -611,19 +611,12 @@ public class AuthenticationService {
                 authentication = null;
             }
 
-            Runnable action;
             if (authentication != null) {
-                action = () -> writeAuthToContext(authentication);
+                writeAuthToContext(authentication);
             } else {
-                action = () -> {
-                    logger.debug("No valid credentials found in request [{}], rejecting", request);
-                    listener.onFailure(request.anonymousAccessDenied());
-                };
+                logger.debug("No valid credentials found in request [{}], rejecting", request);
+                listener.onFailure(request.anonymousAccessDenied());
             }
-
-            // we assign the listener call to an action to avoid calling the listener within a try block and auditing the wrong thing when
-            // an exception bubbles up even after successful authentication
-            action.run();
         }
 
         /**
@@ -717,10 +710,6 @@ public class AuthenticationService {
          * successful
          */
         void writeAuthToContext(Authentication authentication) {
-            Runnable action = () -> {
-                logger.trace("Established authentication [{}] for request [{}]", authentication, request);
-                listener.onResponse(authentication);
-            };
             try {
                 authenticationSerializer.writeToContext(authentication, threadContext);
                 request.authenticationSuccess(authentication);
@@ -728,16 +717,14 @@ public class AuthenticationService {
                 // i.e. not read from either header or transient header
                 operatorPrivilegesService.maybeMarkOperatorUser(authentication, threadContext);
             } catch (Exception e) {
-                action = () -> {
-                    logger.debug(
+                logger.debug(
                         new ParameterizedMessage("Failed to store authentication [{}] for request [{}]", authentication, request), e);
-                    listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken));
-                };
+                listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken));
+                return;
             }
 
-            // we assign the listener call to an action to avoid calling the listener within a try block and auditing the wrong thing
-            // when an exception bubbles up even after successful authentication
-            action.run();
+            logger.trace("Established authentication [{}] for request [{}]", authentication, request);
+            listener.onResponse(authentication);
         }
 
     }

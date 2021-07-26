@@ -7,66 +7,157 @@
 
 package org.elasticsearch.xpack.vectortile.feature;
 
-import com.wdtinc.mapbox_vector_tile.VectorTile;
-import com.wdtinc.mapbox_vector_tile.encoding.GeomCmd;
-import com.wdtinc.mapbox_vector_tile.encoding.GeomCmdHdr;
-
 import org.apache.lucene.util.BitUtil;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+
+import java.io.IOException;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Similar to {@link FeatureFactory} but only supports points and rectangles. It is just
- * much more efficient for those shapes.
+ * more efficient for those shapes and it does not use external dependencies.
  */
 public class SimpleFeatureFactory {
 
     private final int extent;
     private final double pointXScale, pointYScale, pointXTranslate, pointYTranslate;
 
+    private static final int MOVETO = 1;
+    private static final int LINETO = 2;
+    private static final int CLOSEPATH = 7;
+
+    private static final byte[] EMPTY = new byte[0];
+
     public SimpleFeatureFactory(int z, int x, int y, int extent) {
         this.extent = extent;
-        final Rectangle rectangle = FeatureFactoryUtils.getTileBounds(z, x, y);
+        final Rectangle rectangle = SphericalMercatorUtils.recToSphericalMercator(GeoTileUtils.toBoundingBox(x, y, z));
         pointXScale = (double) extent / (rectangle.getMaxLon() - rectangle.getMinLon());
         pointYScale = (double) -extent / (rectangle.getMaxLat() - rectangle.getMinLat());
         pointXTranslate = -pointXScale * rectangle.getMinX();
         pointYTranslate = -pointYScale * rectangle.getMinY();
     }
 
-    public void point(VectorTile.Tile.Feature.Builder featureBuilder, double lon, double lat) {
-        featureBuilder.setType(VectorTile.Tile.GeomType.POINT);
-        featureBuilder.addGeometry(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, 1));
-        featureBuilder.addGeometry(BitUtil.zigZagEncode(lon(lon)));
-        featureBuilder.addGeometry(BitUtil.zigZagEncode(lat(lat)));
+    /**
+     * Returns a {@code byte[]} containing the mvt representation of the provided point
+     */
+    public byte[] point(double lon, double lat) throws IOException {
+        final int posLon = lon(lon);
+        if (posLon > extent || posLon < 0) {
+            return EMPTY;
+        }
+        final int posLat = lat(lat);
+        if (posLat > extent || posLat < 0) {
+            return EMPTY;
+        }
+        final int[] commands = new int[3];
+        commands[0] = encodeCommand(MOVETO, 1);
+        commands[1] = BitUtil.zigZagEncode(posLon);
+        commands[2] = BitUtil.zigZagEncode(posLat);
+        return writeCommands(commands, 1, 3);
     }
 
-    public void box(VectorTile.Tile.Feature.Builder featureBuilder, double minLon, double maxLon, double minLat, double maxLat) {
-        featureBuilder.setType(VectorTile.Tile.GeomType.POLYGON);
-        final int minX = lon(minLon);
-        final int minY = lat(minLat);
-        final int maxX = lon(maxLon);
-        final int maxY = lat(maxLat);
-        featureBuilder.addGeometry(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, 1));
-        featureBuilder.addGeometry(BitUtil.zigZagEncode(minX));
-        featureBuilder.addGeometry(BitUtil.zigZagEncode(minY));
-        featureBuilder.addGeometry(GeomCmdHdr.cmdHdr(GeomCmd.LineTo, 3));
+    /**
+     * Returns a {@code byte[]} containing the mvt representation of the provided points
+     */
+    public byte[] points(List<Point> multiPoint) throws IOException {
+        multiPoint.sort(Comparator.comparingDouble(Point::getLon).thenComparingDouble(Point::getLat));
+        final int[] commands = new int[2 * multiPoint.size() + 1];
+        int pos = 1, prevLon = 0, prevLat = 0, numPoints = 0;
+        for (Point point : multiPoint) {
+            final int posLon = lon(point.getLon());
+            if (posLon > extent || posLon < 0) {
+                continue;
+            }
+            final int posLat = lat(point.getLat());
+            if (posLat > extent || posLat < 0) {
+                continue;
+            }
+            // filter out repeated points
+            if (numPoints == 0 || posLon != prevLon || posLat != prevLat) {
+                commands[pos++] = BitUtil.zigZagEncode(posLon - prevLon);
+                commands[pos++] = BitUtil.zigZagEncode(posLat - prevLat);
+                prevLon = posLon;
+                prevLat = posLat;
+                numPoints++;
+            }
+        }
+        if (numPoints == 0) {
+            return EMPTY;
+        }
+        commands[0] = encodeCommand(MOVETO, numPoints);
+        return writeCommands(commands, 1, pos);
+    }
+
+    /**
+     * Returns a {@code byte[]} containing the mvt representation of the provided rectangle
+     */
+    public byte[] box(double minLon, double maxLon, double minLat, double maxLat) throws IOException {
+        int[] commands = new int[11];
+        final int minX = Math.max(0, lon(minLon));
+        if (minX > extent) {
+            return EMPTY;
+        }
+        final int minY = Math.min(extent, lat(minLat));
+        if (minY > extent) {
+            return EMPTY;
+        }
+        final int maxX = Math.min(extent, lon(maxLon));
+        if (maxX < 0 || minX == maxX) {
+            return EMPTY;
+        }
+        final int maxY = Math.max(0, lat(maxLat));
+        if (maxY < 0 || minY == maxY) {
+            return EMPTY;
+        }
+        commands[0] = encodeCommand(MOVETO, 1);
+        commands[1] = BitUtil.zigZagEncode(minX);
+        commands[2] = BitUtil.zigZagEncode(minY);
+        commands[3] = encodeCommand(LINETO, 3);
         // 1
-        featureBuilder.addGeometry(BitUtil.zigZagEncode(maxX - minX));
-        featureBuilder.addGeometry(BitUtil.zigZagEncode(0));
+        commands[4] = BitUtil.zigZagEncode(maxX - minX);
+        commands[5] = BitUtil.zigZagEncode(0);
         // 2
-        featureBuilder.addGeometry(BitUtil.zigZagEncode(0));
-        featureBuilder.addGeometry(BitUtil.zigZagEncode(maxY - minY));
+        commands[6] = BitUtil.zigZagEncode(0);
+        commands[7] = BitUtil.zigZagEncode(maxY - minY);
         // 3
-        featureBuilder.addGeometry(BitUtil.zigZagEncode(minX - maxX));
-        featureBuilder.addGeometry(BitUtil.zigZagEncode(0));
+        commands[8] = BitUtil.zigZagEncode(minX - maxX);
+        commands[9] = BitUtil.zigZagEncode(0);
         // close
-        featureBuilder.addGeometry(GeomCmdHdr.cmdHdr(GeomCmd.ClosePath, 1));
+        commands[10] = encodeCommand(CLOSEPATH, 1);
+        return writeCommands(commands, 3, 11);
     }
 
     private int lat(double lat) {
-        return (int) Math.round(pointYScale * FeatureFactoryUtils.latToSphericalMercator(lat) + pointYTranslate) + extent;
+        return (int) Math.round(pointYScale * SphericalMercatorUtils.latToSphericalMercator(lat) + pointYTranslate) + extent;
     }
 
     private int lon(double lon) {
-        return (int) Math.round(pointXScale * FeatureFactoryUtils.lonToSphericalMercator(lon) + pointXTranslate);
+        return (int) Math.round(pointXScale * SphericalMercatorUtils.lonToSphericalMercator(lon) + pointXTranslate);
+    }
+
+    private static int encodeCommand(int id, int length) {
+        return (id & 0x7) | (length << 3);
+    }
+
+    private static byte[] writeCommands(final int[] commands, final int type, final int length) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            for (int i = 0; i < length; i++) {
+                output.writeVInt(commands[i]);
+            }
+            final int dataSize = output.size();
+            output.reset();
+            output.writeVInt(24);
+            output.writeVInt(type);
+            output.writeVInt(34);
+            output.writeVInt(dataSize);
+            for (int i = 0; i < length; i++) {
+                output.writeVInt(commands[i]);
+            }
+            return output.copyBytes().array();
+        }
     }
 }

@@ -71,3 +71,125 @@
         index: events
         body: { query: { match_all: {} } }
   - length:   { hits.hits: 2  }
+
+---
+"Create data stream alias with filter":
+  - skip:
+      version: " - 7.14.99"
+      reason: "data stream alias filter supported was added in 7.15.0"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ log-* ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+          data_stream: { }
+
+  - do:
+      index:
+        index: log-app1
+        refresh: true
+        body:
+          '@timestamp': '2022-12-12'
+          zone: 'a'
+
+  - do:
+      index:
+        index: log-app1
+        refresh: true
+        body:
+          '@timestamp': '2022-12-12'
+          zone: 'b'
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: log-app1
+                alias: app1-zone-a
+                filter:
+                  term:
+                    zone: 'a'
+            - add:
+                index: log-app1
+                alias: app1-zone-b
+                filter:
+                  term:
+                    zone: 'b'
+            - add:
+                index: log-app1
+                alias: app1
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: log-app1 }
+
+  - do:
+      indices.get_alias: {}
+  - match: {log-app1.aliases.app1: {}}
+  - match: {log-app1.aliases.app1-zone-a.filter.term.zone: 'a'}
+  - match: {log-app1.aliases.app1-zone-b.filter.term.zone: 'b'}
+
+  - do:
+      search:
+        index: app1
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: app1-zone-a
+  - length:   { hits.hits: 1  }
+  - do:
+      search:
+        index: app1-zone-b
+  - length:   { hits.hits: 1  }
+
+---
+"Create data stream aliases using wildcard expression":
+  - skip:
+      version: " - 7.14.0"
+      reason: "bugfix fixed from 7.14.1 and later"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ log-* ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+          data_stream: { }
+
+  - do:
+      indices.create_data_stream:
+        name: log-foobar
+  - is_true: acknowledged
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: log-*
+                alias: my-alias
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: log-foobar }
+
+  - do:
+      indices.get_alias: {}
+  - match: {log-foobar.aliases.my-alias: {}}

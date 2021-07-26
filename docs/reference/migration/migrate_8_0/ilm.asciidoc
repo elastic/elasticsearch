@@ -1,6 +1,6 @@
 [discrete]
 [[breaking_80_ilm_changes]]
-==== {ilm-cap} changes
+==== {ilm-cap} ({ilm-init}) changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

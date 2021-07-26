@@ -224,7 +224,7 @@ Discontinue use of the removed settings. Specifying these settings in
 ====
 
 [[system-call-filter-setting]]
-.System call filter setting removed
+.The system call filter setting has been removed.
 [%collapsible]
 ====
 *Details* +
@@ -242,7 +242,7 @@ configuration will result in an error on startup.
 ====
 
 [[tier-filter-setting]]
-.Tier filtering settings removed
+.Tier filtering settings have been removed.
 [%collapsible]
 ====
 *Details* +
@@ -268,7 +268,7 @@ settings archived (and they will have no effect) when the index metadata is load
 ====
 
 [[shared-data-path-setting]]
-.Shared data path and per index data path settings deprecated
+.Shared data path and per index data path settings are deprecated.
 [%collapsible]
 ====
 *Details* +
@@ -283,7 +283,7 @@ Discontinue use of the deprecated settings.
 ====
 
 [[single-data-node-watermark-setting]]
-.Single data node watermark setting only accept true and is deprecated
+.The single data node watermark setting is deprecated and now only accepts `true`.
 [%collapsible]
 ====
 *Details* +

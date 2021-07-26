@@ -502,9 +502,9 @@ and when to log it. You can use a `org.elasticsearch.test.MockLogAppender` to
 make assertions about the logs that are being emitted.
 
 Logging is a powerful diagnostic technique but it is not the only possibility.
-You should also consider exposing information about your component via an API
-instead of in logs. For instance you can implement APIs to report its current
-status, various statistics, and maybe even details of recent failures.
+You should also consider exposing some information about your component via an
+API instead of in logs. For instance you can implement APIs to report its
+current status, various statistics, and maybe even details of recent failures.
 
 #### Log levels
 
@@ -514,6 +514,9 @@ will output messages at all other levels. Users can configure which levels of
 message are written by each logger at runtime, but you should expect everyone
 to run with the default configuration almost all of the time and choose your
 levels accordingly.
+
+The guidance in this section is subjective in some areas. When in doubt,
+discuss your choices with reviewers.
 
 ##### `TRACE`
 
@@ -535,7 +538,7 @@ itself rather than by trawling through hundreds of trivial log messages.
 
 It may not be easy, or even possible, to obtain `TRACE` logs from a production
 system. Therefore they are not appropriate for information that you would
-expect to be useful in diagnosing problems in production.
+normally expect to be useful in diagnosing problems in production.
 
 ##### `DEBUG`
 
@@ -549,9 +552,9 @@ systems for a whole subsystem for an extended period of time without
 overwhelming the system or filling up their disks with logs, so it is important
 to limit the volume of messages logged at this level. On the other hand, these
 messages must still provide enough detail to diagnose the sorts of problems
-that Elasticsearch might encounter. In some cases it works well to collect
-information over a period of time and then log a complete summary, rather than
-recording every step of a process in its own message.
+that you expect Elasticsearch to encounter. In some cases it works well to
+collect information over a period of time and then log a complete summary,
+rather than recording every step of a process in its own message.
 
 It's possible that the reader of `DEBUG` logs is also reading the code, but
 that is less likely than for `TRACE` logs. You should strive to avoid
@@ -572,12 +575,19 @@ completing. Users will mostly ignore log messages at `INFO` level, but may use
 these messages to construct a high-level timeline of events leading up to an
 incident.
 
-This level is enabled by default so its target audience is the general
-population of users and administrators. You should use user-facing terminology
-and ensure that messages at this level are self-contained. In general you
-shouldn't log unusual events, particularly exceptions with stack traces, at
-`INFO` level. If the event is relatively benign then use `DEBUG`, whereas if
-the user should be notified then use `WARN`.
+`INFO`-level logging is enabled by default so its target audience is the
+general population of users and administrators. You should use user-facing
+terminology and ensure that messages at this level are self-contained. In
+general you shouldn't log unusual events, particularly exceptions with stack
+traces, at `INFO` level. If the event is relatively benign then use `DEBUG`,
+whereas if the user should be notified then use `WARN`.
+
+Bear in mind that users will be reading the logs when they're trying to
+determine why their node is not behaving the way they expect. If a log message
+sounds like an error then some users will interpret it as one, even if it is
+logged at `INFO` level. Where possible, `INFO` messages should prefer factual
+over judgemental language, for instance saying `Did not find ...` rather than
+`Failed to find ...`.
 
 ##### `WARN`
 
@@ -595,13 +605,14 @@ take some investigative action. Unlike at the `INFO` level, it is often
 appropriate to log an exception, complete with stack trace, at `WARN` level.
 Although the stack trace may not be useful to the user, it may contain
 information that is vital for a developer to fully understand the problem. In
-other cases it may be appropriate to log the exception message at `WARN` and
-only log the full exception if the user has enabled `DEBUG` logging:
+other cases it may be appropriate to log just the message for certain
+exceptions at `WARN` and only log the full exception if the user has enabled
+`DEBUG` logging:
 
-    if (logger.isDebugEnabled()) {
-        logger.warn("investigate me", exception);
-    } else {
+    if (logger.isDebugEnabled() == false && exception instanceof BoringException) {
         logger.warn("investigate me: [{}]", exception.getMessage())
+    } else {
+        logger.warn("investigate me", exception);
     }
 
 In a situation where occasional transient failures are expected and handled,
@@ -614,10 +625,11 @@ failing persistently and silently by default and requiring the user to enable
 `DEBUG` logging to investigate the problem.
 
 If an exception occurs as a direct result of a request received from a client
-then you should include the exception in the response back to the client rather
-than recording it in the logs at `WARN` level. The person reading the logs is
-usually unable to address any problems caused by faulty client requests, and
-the person running the client is often forbidden from seeing the server logs.
+then you should usually include the exception in the response back to the
+client and not record it in the logs at `WARN` level. The person reading the
+logs is usually unable to address any problems caused by faulty client
+requests, and the person running the client is often forbidden from seeing the
+server logs.
 
 ##### `ERROR`
 
@@ -634,9 +646,9 @@ possibly _not_ recoverable too, and we do encounter users that get very worried
 by logs at `ERROR` level for this reason.
 
 Therefore you should try and avoid logging at `ERROR` level unless the error
-really does indicate that Elasticsearch is now running in a permanently
-degraded state from which it will not recover. Errors like this should be very
-rare. When in doubt, prefer `WARN`.
+really does indicate that Elasticsearch is now running in a degraded state from
+which it will not recover. Errors like this should be very rare. When in doubt,
+prefer `WARN`.
 
 ### Creating A Distribution
 

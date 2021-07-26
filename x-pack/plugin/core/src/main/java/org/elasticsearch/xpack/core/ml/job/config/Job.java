@@ -1002,6 +1002,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
+        public DatafeedConfig.Builder getDatafeedConfig() {
+            return datafeedConfig;
+        }
+
         /**
          * This is used for parsing. If the datafeed_config exists AND its indices options are `null`, we set them to these options
          *

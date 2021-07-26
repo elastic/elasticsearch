@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRan
 
 public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<DatafeedConfig.Builder> {
 
-    static DatafeedConfig.Builder createRandomizedDatafeedConfigBuilder(String jobId, String datafeedId, long bucketSpanMillis) {
+    public static DatafeedConfig.Builder createRandomizedDatafeedConfigBuilder(String jobId, String datafeedId, long bucketSpanMillis) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder();
         if (jobId != null) {
             builder.setJobId(jobId);

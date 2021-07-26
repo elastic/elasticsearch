@@ -36,6 +36,14 @@ public class PyTorchResultProcessor {
         this.summaryStatistics = new LongSummaryStatistics();
     }
 
+    public PendingResult requestWritten(String requestId) {
+        return pendingResults.computeIfAbsent(requestId, k -> new PendingResult());
+    }
+
+    public void requestAccepted(String requestId) {
+        pendingResults.remove(requestId);
+    }
+
     public void process(NativePyTorchProcess process) {
         try {
             Iterator<PyTorchResult> iterator = process.readResults();
@@ -56,20 +64,28 @@ public class PyTorchResultProcessor {
             if (isStopping == false) {
                 logger.error(new ParameterizedMessage("[{}] Error processing results", deploymentId), e);
             }
-            // If we are stopping, or the process is no longer alive, notify all the pendingResults listeners
-            // Otherwise, we don't particularly know which result failed
-            if (isStopping || (process.isProcessAliveAfterWaiting() == false)) {
-                pendingResults.forEach((id, pendingResults) -> {
-                    pendingResults.result = new PyTorchResult(
-                        id,
-                        null,
-                        null,
-                        isStopping ?
-                            "inference canceled as process is stopping" :
-                            "inference native process died unexpectedly with failure [" + e.getMessage() + "]");
-                    pendingResults.latch.countDown();
-                });
-            }
+            pendingResults.forEach((id, pendingResults) -> {
+                pendingResults.result = new PyTorchResult(
+                    id,
+                    null,
+                    null,
+                    isStopping ?
+                        "inference canceled as process is stopping" :
+                        "inference native process died unexpectedly with failure [" + e.getMessage() + "]");
+                pendingResults.latch.countDown();
+            });
+            pendingResults.clear();
+        } finally {
+            pendingResults.forEach((id, pendingResults) -> {
+                pendingResults.result = new PyTorchResult(
+                    id,
+                    null,
+                    null,
+                    "inference canceled as process is stopping"
+                );
+                pendingResults.latch.countDown();
+            });
+            pendingResults.clear();
         }
         logger.debug(() -> new ParameterizedMessage("[{}] Results processing finished", deploymentId));
     }
@@ -87,14 +103,20 @@ public class PyTorchResultProcessor {
         }
     }
 
-    public PyTorchResult waitForResult(String requestId, TimeValue timeout) throws InterruptedException {
-        PendingResult pendingResult = pendingResults.computeIfAbsent(requestId, k -> new PendingResult());
-        try {
-            if (pendingResult.latch.await(timeout.millis(), TimeUnit.MILLISECONDS)) {
-                return pendingResult.result;
-            }
-        } finally {
-            pendingResults.remove(requestId);
+    public PyTorchResult waitForResult(
+        NativePyTorchProcess process,
+        String requestId,
+        PendingResult pendingResult,
+        TimeValue timeout
+    ) throws InterruptedException {
+        if (process == null || process.isProcessAliveAfterWaiting() == false) {
+            PyTorchResult storedResult = pendingResult.result;
+            return storedResult == null ?
+                new PyTorchResult(requestId, null, null, "native process no longer started") :
+                storedResult;
+        }
+        if (pendingResult.latch.await(timeout.millis(), TimeUnit.MILLISECONDS)) {
+            return pendingResult.result;
         }
         return null;
     }
@@ -103,7 +125,7 @@ public class PyTorchResultProcessor {
         isStopping = true;
     }
 
-    private static class PendingResult {
+    public static class PendingResult {
         private volatile PyTorchResult result;
         private final CountDownLatch latch = new CountDownLatch(1);
     }

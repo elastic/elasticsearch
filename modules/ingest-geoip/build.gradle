@@ -100,3 +100,9 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.mmdb'
 }
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /geoip.*/, to: 'maxmind-geolite2-eula'
+  mapping from: /maxmind-db.*/, to: 'maxmind-db-reader'
+  ignoreFile 'elastic-geoip-database-service-agreement-LICENSE.txt'
+}

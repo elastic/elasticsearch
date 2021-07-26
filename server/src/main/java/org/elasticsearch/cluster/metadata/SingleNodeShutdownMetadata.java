@@ -10,11 +10,11 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -140,7 +140,12 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
      */
     @Nullable
     public TimeValue getShardReallocationDelay() {
-        return shardReallocationDelay;
+        if (shardReallocationDelay != null) {
+            return shardReallocationDelay;
+        } else if (Type.RESTART.equals(type)) {
+            return DEFAULT_RESTART_SHARD_ALLOCATION_DELAY;
+        }
+        return null;
     }
 
     @Override
@@ -261,16 +266,13 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             if (startedAtMillis == -1) {
                 throw new IllegalArgumentException("start timestamp must be set");
             }
-            TimeValue delayOrDefault = shardReallocationDelay;
-            if (Type.RESTART.equals(type) && delayOrDefault == null) {
-                delayOrDefault = DEFAULT_RESTART_SHARD_ALLOCATION_DELAY;
-            }
+
             return new SingleNodeShutdownMetadata(
                 nodeId,
                 type,
                 reason,
                 startedAtMillis,
-                delayOrDefault
+                shardReallocationDelay
             );
         }
     }

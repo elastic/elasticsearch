@@ -161,13 +161,6 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             assertTrue(putShutdownResponse.isAcknowledged());
         }
 
-        // Verify that the shard's allocation is still delayed
-        assertBusy(
-            () -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); },
-            2,
-            TimeUnit.SECONDS
-        );
-
         // And the index should turn green again well within the 30-second timeout
         ensureGreen(TimeValue.timeValueSeconds(30), "test");
     }

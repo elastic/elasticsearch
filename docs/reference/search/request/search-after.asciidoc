@@ -41,7 +41,7 @@ Beware that `search_after` looks for the first document which fully or partially
 matches tiebreaker's provided value. Therefore if a document has a tiebreaker value of
 `"654323"` and you `search_after` for `"654"` it would still match that document
 and return results found after it.
-<<doc-values,doc value>> is disabled on this field so sorting on it requires
+<<doc-values,Doc values>> are disabled on this field so sorting on it requires
 to load a lot of data in memory. Instead it is advised to duplicate (client side
  or with a <<ingest-processors,set ingest processor>>) the content
 of the <<mapping-id-field,`_id` field>> in another field that has

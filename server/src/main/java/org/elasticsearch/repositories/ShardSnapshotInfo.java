@@ -76,6 +76,14 @@ public class ShardSnapshotInfo implements Writeable {
         return snapshot.getRepository();
     }
 
+    public IndexId getIndexId() {
+        return indexId;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -91,5 +99,23 @@ public class ShardSnapshotInfo implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(indexId, snapshot, shardId, indexMetadataIdentifier, shardStateIdentifier);
+    }
+
+    @Override
+    public String toString() {
+        return "ShardSnapshotInfo{"
+            + "indexId="
+            + indexId
+            + ", snapshot="
+            + snapshot
+            + ", shardId="
+            + shardId
+            + ", indexMetadataIdentifier='"
+            + indexMetadataIdentifier
+            + '\''
+            + ", shardStateIdentifier='"
+            + shardStateIdentifier
+            + '\''
+            + '}';
     }
 }

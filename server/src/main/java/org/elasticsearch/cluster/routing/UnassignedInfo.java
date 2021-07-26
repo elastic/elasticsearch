@@ -43,7 +43,11 @@ import java.util.Set;
  */
 public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
-    private static final Version LAST_ALLOCATED_NODE_VERSION = Version.V_8_0_0;
+    /**
+     * The version that the {@code lastAllocatedNode} field was added in. Used to adapt streaming of this class as appropriate for the
+     * version of the node sending/receiving it. Should be removed once wire compatibility with this version is no longer necessary.
+     */
+    private static final Version VERSION_LAST_ALLOCATED_NODE_ADDED = Version.V_8_0_0;
 
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
@@ -268,7 +272,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
         this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        if (in.getVersion().onOrAfter(LAST_ALLOCATED_NODE_VERSION)) {
+        if (in.getVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
             this.lastAllocatedNodeId = in.readOptionalString();
         } else {
             this.lastAllocatedNodeId = null;
@@ -285,7 +289,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
         out.writeCollection(failedNodeIds, StreamOutput::writeString);
-        if (out.getVersion().onOrAfter(LAST_ALLOCATED_NODE_VERSION)) {
+        if (out.getVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
             out.writeOptionalString(lastAllocatedNodeId);
         }
     }

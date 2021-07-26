@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
@@ -24,7 +25,9 @@ artifacts {
 
 testClusters.all {
   module ':modules:mapper-extras'
-  systemProperty 'es.time_series_mode_feature_flag_registered', 'true'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.time_series_mode_feature_flag_registered', 'true'
+  }
 }
 
 tasks.named("test").configure { enabled = false }

@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -25,7 +27,9 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 
 testClusters.all {
   setting 'xpack.security.enabled', 'false'
-  systemProperty 'es.time_series_mode_feature_flag_registered', 'true'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.time_series_mode_feature_flag_registered', 'true'
+  }
 }
 
 tasks.named("integTest").configure {

@@ -51,6 +51,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
@@ -88,6 +89,7 @@ import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -145,6 +147,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -215,8 +218,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .build();
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS)).thenReturn(true);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.ALL_REALMS_FEATURE)).thenReturn(true);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
@@ -447,8 +450,9 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         verify(auditTrail).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
         verify(firstRealm, times(2)).name(); // used above one time
-        verify(secondRealm, times(2)).name();
-        verify(secondRealm, times(2)).type(); // used to create realm ref
+        verify(firstRealm, atLeastOnce()).type();
+        verify(secondRealm, Mockito.atLeast(3)).name(); // also used in license tracking
+        verify(secondRealm, Mockito.atLeast(3)).type(); // used to create realm ref, and license tracking
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);
         verify(firstRealm).supports(token);
@@ -572,8 +576,9 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
         verify(auditTrail, times(2)).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
         verify(firstRealm, times(3)).name(); // used above one time
-        verify(secondRealm, times(2)).name();
-        verify(secondRealm, times(2)).type(); // used to create realm ref
+        verify(firstRealm, atLeastOnce()).type();
+        verify(secondRealm, Mockito.atLeast(3)).name();
+        verify(secondRealm, Mockito.atLeast(3)).type(); // used to create realm ref
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);
         verify(firstRealm, times(2)).supports(token);
@@ -636,8 +641,10 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThat(result.v1(), is(authentication));
         assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.REALM));
         verifyZeroInteractions(auditTrail);
-        verifyZeroInteractions(firstRealm);
-        verifyZeroInteractions(secondRealm);
+        verify(firstRealm, atLeastOnce()).type();
+        verify(secondRealm, atLeastOnce()).type();
+        verify(secondRealm, atLeastOnce()).name(); // This realm is license-tracked, which uses the name
+        verifyNoMoreInteractions(firstRealm, secondRealm);
         verifyZeroInteractions(operatorPrivilegesService);
     }
 
@@ -917,7 +924,9 @@ public class AuthenticationServiceTests extends ESTestCase {
                     verifyZeroInteractions(operatorPrivilegesService);
                 }, this::logAndFail));
             assertTrue(completed.compareAndSet(true, false));
-            verifyZeroInteractions(firstRealm);
+            verify(firstRealm, atLeastOnce()).type();
+            verify(firstRealm, atLeastOnce()).name();
+            verifyNoMoreInteractions(firstRealm);
             reset(firstRealm);
         } finally {
             terminate(threadPool1);
@@ -965,7 +974,9 @@ public class AuthenticationServiceTests extends ESTestCase {
                     verifyZeroInteractions(operatorPrivilegesService);
                 }, this::logAndFail));
             assertTrue(completed.get());
-            verifyZeroInteractions(firstRealm);
+            verify(firstRealm, atLeastOnce()).type();
+            verify(firstRealm, atLeastOnce()).name();
+            verifyNoMoreInteractions(firstRealm);
         } finally {
             terminate(threadPool2);
         }

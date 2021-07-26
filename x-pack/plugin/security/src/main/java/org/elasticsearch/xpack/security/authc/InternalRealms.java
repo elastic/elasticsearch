@@ -91,6 +91,10 @@ public final class InternalRealms {
         return STANDARD_TYPES.contains(type);
     }
 
+    static boolean isBuiltinRealm(String type) {
+        return FileRealmSettings.TYPE.equals(type) || NativeRealmSettings.TYPE.equals(type);
+    }
+
     /**
      * Creates {@link Realm.Factory factories} for each <em>internal</em> realm type.
      * This excludes the {@link ReservedRealm}, as it cannot be created dynamically.
@@ -147,4 +151,5 @@ public final class InternalRealms {
             .collect(Collectors.toList());
         return checks;
     }
+
 }

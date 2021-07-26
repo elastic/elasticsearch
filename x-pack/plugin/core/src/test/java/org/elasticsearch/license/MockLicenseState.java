@@ -22,4 +22,9 @@ public class MockLicenseState extends XPackLicenseState {
     public boolean isAllowed(LicensedFeature feature) {
         return super.isAllowed(feature);
     }
+
+    @Override
+    public void enableUsageTracking(LicensedFeature feature, String contextName) {
+        super.enableUsageTracking(feature, contextName);
+    }
 }

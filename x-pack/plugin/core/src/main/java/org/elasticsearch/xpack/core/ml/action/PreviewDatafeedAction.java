@@ -185,7 +185,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
                     }
                     if (datafeedBuilder != null && jobBuilder.getDatafeedConfig() != null) {
                         throw new IllegalArgumentException(
-                            "[datafeed_config] must not be present when a [job_config.datafeed_config] is provided"
+                            "[datafeed_config] must not be present when a [job_config.datafeed_config] is present"
                         );
                     }
                     // If the datafeed_config has been provided via the jobBuilder, set it here for easier serialization and use

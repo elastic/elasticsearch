@@ -86,7 +86,7 @@ public class PreviewDatafeedActionRequestTests extends AbstractWireSerializingTe
             .setDatafeedBuilder(new DatafeedConfig.Builder());
         ex = expectThrows(IllegalArgumentException.class, requestBuilder::build);
         assertThat(ex.getMessage(),
-            containsString("[datafeed_config] must not be present when a [job_config.datafeed_config] is provided"));
+            containsString("[datafeed_config] must not be present when a [job_config.datafeed_config] is present"));
 
         requestBuilder
             .setJobBuilder(JobTests.buildJobBuilder(jobId))

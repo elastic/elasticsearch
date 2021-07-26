@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.junit.Assert;
 
-public class ShardCountStatsTest extends AbstractWireSerializingTestCase<ShardCountStats> {
+class ShardCountStatsTest extends AbstractWireSerializingTestCase<ShardCountStats> {
 
     public void testAdd() {
         ShardCountStats shardStats1 = new ShardCountStats(5);

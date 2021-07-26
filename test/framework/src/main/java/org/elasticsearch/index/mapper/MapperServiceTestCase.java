@@ -516,6 +516,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {
         final SimilarityService similarityService = new SimilarityService(mapperService.getIndexSettings(), null, Map.of());
         return new SearchExecutionContext(0, 1, mapperService.getIndexSettings(), null, null, mapperService,
-            mapperService.mappingLookup(), similarityService, null, xContentRegistry(), writableRegistry(), null, null, () -> 0L, null, null, () -> true, null, Collections.emptyMap());
+            mapperService.mappingLookup(), similarityService, null, xContentRegistry(), writableRegistry(),
+            null, null, () -> 0L, null, null, () -> true, null, Collections.emptyMap());
     }
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.searchbusinessrules;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
@@ -269,6 +270,35 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         assertSecondHit(searchResponse, both(hasIndex("test1")).and(hasId("a")));
         assertThirdHit(searchResponse, both(hasIndex("test1")).and(hasId("b")));
         assertFourthHit(searchResponse, both(hasIndex("test2")).and(hasId("c")));
+    }
+
+    public void testAliasedDocs() throws Exception {
+        assertAcked(prepareCreate("test")
+            .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
+                .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
+            .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5)))
+            .addAlias(new Alias("test-alias")));
+
+        client().prepareIndex("test").setId("a").setSource("field1", "document a").get();
+        client().prepareIndex("test").setId("b").setSource("field1", "document b").get();
+        client().prepareIndex("test").setId("c").setSource("field1", "document c").get();
+
+        refresh();
+
+        PinnedQueryBuilder pqb = new PinnedQueryBuilder(
+            QueryBuilders.queryStringQuery("document"),
+            new Item("test-alias", "b"),
+            new Item("test", "a"),
+            new Item("test", "b")
+        );
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(pqb).setTrackTotalHits(true)
+            .setSearchType(DFS_QUERY_THEN_FETCH).get();
+
+        assertHitCount(searchResponse, 3);
+        assertFirstHit(searchResponse, both(hasIndex("test")).and(hasId("b")));
+        assertSecondHit(searchResponse, both(hasIndex("test")).and(hasId("a")));
+        assertThirdHit(searchResponse, both(hasIndex("test")).and(hasId("c")));
     }
 }
 

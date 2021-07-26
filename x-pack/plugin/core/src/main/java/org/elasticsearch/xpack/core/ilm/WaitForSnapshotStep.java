@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -25,6 +27,7 @@ import java.util.Objects;
 public class WaitForSnapshotStep extends ClusterStateWaitStep {
 
     static final String NAME = "wait-for-snapshot";
+    private static final Logger logger = LogManager.getLogger(WaitForSnapshotStep.class);
 
     private static final String MESSAGE_FIELD = "message";
     private static final String POLICY_NOT_EXECUTED_MESSAGE = "waiting for policy '%s' to be executed since %s";
@@ -58,9 +61,17 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
         }
         SnapshotLifecyclePolicyMetadata snapPolicyMeta = snapMeta.getSnapshotConfigurations().get(policy);
         if (snapPolicyMeta.getLastSuccess() == null || snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() < phaseTime) {
+            if (snapPolicyMeta.getLastSuccess() == null) {
+                logger.info("Not executing policy because no last snapshot success.");
+            }
+            else {
+                logger.info("Not executing policy because snapshot start time {} is before phase time {}. Snapshot timestamp is {}",
+                    snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(), phaseTime, snapPolicyMeta.getLastSuccess().getTimestamp());
+            }
             return new Result(false, notExecutedMessage(phaseTime));
         }
-
+        logger.info("Executing policy because snapshot start time {} is after phase time {}. Snapshot timestamp is {}",
+            snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(), phaseTime, snapPolicyMeta.getLastSuccess().getTimestamp());
         return new Result(true, null);
     }
 

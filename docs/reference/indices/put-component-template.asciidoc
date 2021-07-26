@@ -132,8 +132,9 @@ This is the template to be applied, may optionally include a `mappings`,
 [%collapsible%open]
 ====
 `aliases`::
-(Optional, object of objects) Aliases for the index. If an index template
-includes `data_stream`, this parameter is not supported.
+(Optional, object of objects) Aliases to add.
++
+include::{es-repo-dir}/indices/put-index-template.asciidoc[tag=template-ds-alias]
 +
 include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
 

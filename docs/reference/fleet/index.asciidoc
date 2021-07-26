@@ -2,9 +2,9 @@
 [[fleet-apis]]
 == Fleet APIs
 
-The following APIs are design to support fleet-server's usage of Elasticsearch as
-a datastore for internal agent and action data. These APIS are currently intended
-for internal use only and should be considered experimental.
+The following APIs support {fleet}'s use of {es} as a data store for internal
+agent and action data. These APIs are experimental and for internal use by
+{fleet} only.
 
 * <<get-global-checkpoints,Get global checkpoints>>
 

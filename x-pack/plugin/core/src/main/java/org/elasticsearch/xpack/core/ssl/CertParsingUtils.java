@@ -224,15 +224,21 @@ public class CertParsingUtils {
             return new PEMKeyConfig(keyPath, keyPassword, certPath);
         }
 
-        if (keyStorePath != null || keyStoreType.equalsIgnoreCase("pkcs11")) {
+        if (keyStorePath != null) {
             SecureString keyStorePassword = keyPair.keystorePassword.get(settings);
             String keyStoreAlgorithm = keyPair.keystoreAlgorithm.get(settings);
             SecureString keyStoreKeyPassword = keyPair.keystoreKeyPassword.get(settings);
             if (keyStoreKeyPassword.length() == 0) {
                 keyStoreKeyPassword = keyStorePassword;
             }
-            return new StoreKeyConfig(keyStorePath, keyStoreType, keyStorePassword, keyStoreKeyPassword, keyStoreAlgorithm,
-                trustStoreAlgorithm);
+            return new StoreKeyConfig(
+                keyStorePath,
+                keyStoreType,
+                keyStorePassword,
+                keyStoreKeyPassword,
+                keyStoreAlgorithm,
+                trustStoreAlgorithm
+            );
         }
         return null;
     }

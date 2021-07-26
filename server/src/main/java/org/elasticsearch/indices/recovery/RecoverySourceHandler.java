@@ -106,7 +106,8 @@ public class RecoverySourceHandler {
     private final int maxConcurrentFileChunks;
     private final int maxConcurrentOperations;
     private final ThreadPool threadPool;
-    private final ShardRecoveryIndexPlanner shardRecoveryIndexPlanner;
+    private final SnapshotInfoFetcher snapshotInfoFetcher;
+    private final boolean useSnapshots;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
     private final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
@@ -117,7 +118,8 @@ public class RecoverySourceHandler {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.threadPool = threadPool;
-        this.shardRecoveryIndexPlanner = new ShardRecoveryIndexPlanner(new SnapshotInfoFetcher(null, null, threadPool), false);
+        this.snapshotInfoFetcher = new SnapshotInfoFetcher(null, null, threadPool);
+        this.useSnapshots = false;
         this.request = request;
         this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
@@ -471,13 +473,10 @@ public class RecoverySourceHandler {
             }
             if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
                 cancellableThreads.checkForCancel();
-                shardRecoveryIndexPlanner.getRecoveryPlanForShard(shardStateIdentifier,
-                    recoverySourceMetadata,
-                    request.metadataSnapshot(),
-                    startingSeqNo,
-                    shard.shardId(),
+                computeRecoveryPlan(shardStateIdentifier, recoverySourceMetadata, startingSeqNo, translogOps.getAsInt(),
                     ActionListener.wrap(plan ->
-                        recoverFilesFromSnapshotAndTarget(plan, store, stopWatch, listener), listener::onFailure));
+                        recoverFilesFromSnapshotAndTarget(plan, store, stopWatch, listener), listener::onFailure)
+                );
             } else {
                 logger.trace("skipping [phase1] since source and target have identical sync id [{}]", recoverySourceMetadata.getSyncId());
 
@@ -497,34 +496,62 @@ public class RecoverySourceHandler {
         }
     }
 
-    void recoverFilesFromSnapshotAndTarget(ShardRecoveryIndexPlanner.RecoveryIndexPlan recoveryIndexPlan,
+    void computeRecoveryPlan(String shardStateIdentifier,
+                             Store.MetadataSnapshot recoverySourceMetadata,
+                             long startingSeqNo,
+                             int translogOps,
+                             ActionListener<ShardRecoveryPlan> listener) {
+        ShardRecoveryIndexPlanner shardRecoveryIndexPlanner = new ShardRecoveryIndexPlanner(shard.shardId(),
+            shardStateIdentifier,
+            recoverySourceMetadata,
+            request.metadataSnapshot(),
+            startingSeqNo,
+            translogOps,
+            snapshotInfoFetcher,
+            useSnapshots
+        );
+
+        shardRecoveryIndexPlanner.computeRecoveryPlan(listener);
+    }
+
+    void recoverFilesFromSnapshotAndTarget(ShardRecoveryPlan shardRecoveryPlan,
                                            Store store,
                                            StopWatch stopWatch,
                                            ActionListener<SendFileResult> listener) {
-        final List<String> missingFileNames = recoveryIndexPlan.getMissingFileNames();
-        final List<Long> missingFileSizes = recoveryIndexPlan.getMissingFileSizes();
-        final List<String> phase1ExistingFileNames = recoveryIndexPlan.getIdenticalFileNames();
-        final List<Long> phase1ExistingFileSizes = recoveryIndexPlan.getIdenticalFileSizes();
-        final long totalSize = recoveryIndexPlan.getTotalSize();
-        final long existingTotalSize = recoveryIndexPlan.getExistingSize();
+        final List<String> filesToRecoverNames = shardRecoveryPlan.getFilesToRecoverNames();
+        final List<Long> filesToRecoverSizes = shardRecoveryPlan.getFilesToRecoverSizes();
+        final List<String> phase1ExistingFileNames = shardRecoveryPlan.getIdenticalFileNames();
+        final List<Long> phase1ExistingFileSizes = shardRecoveryPlan.getIdenticalFileSizes();
+        final long totalSize = shardRecoveryPlan.getTotalSize();
+        final long existingTotalSize = shardRecoveryPlan.getExistingSize();
 
         if (logger.isTraceEnabled()) {
-            for (StoreFileMetadata md : recoveryIndexPlan.getIdenticalFiles()) {
+            for (StoreFileMetadata md : shardRecoveryPlan.getIdenticalFiles()) {
                 logger.trace("recovery [phase1]: not recovering [{}], exist in local store and has checksum [{}]," +
                     " size [{}]", md.name(), md.checksum(), md.length());
             }
 
-            for (StoreFileMetadata md : recoveryIndexPlan.getSourceFiles()) {
-                traceSendFileRecovery(md);
+            for (StoreFileMetadata md : shardRecoveryPlan.getSourceFilesToRecover()) {
+                if (request.metadataSnapshot().asMap().containsKey(md.name())) {
+                    logger.trace("recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
+                        md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
+                } else {
+                    logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
+                }
             }
 
-            for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : recoveryIndexPlan.getSnapshotFilesToRecover()) {
+            for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : shardRecoveryPlan.getSnapshotFilesToRecover()) {
                 final StoreFileMetadata md = fileInfo.metadata();
-                traceSendFileRecovery(md);
+                if (request.metadataSnapshot().asMap().containsKey(md.name())) {
+                    logger.trace("recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
+                        md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
+                } else {
+                    logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
+                }
             }
 
             logger.trace("recovery [phase1]: recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]",
-                missingFileNames.size(), new ByteSizeValue(totalSize),
+                filesToRecoverNames.size(), new ByteSizeValue(totalSize),
                 phase1ExistingFileNames.size(), new ByteSizeValue(existingTotalSize));
         }
 
@@ -533,25 +560,26 @@ public class RecoverySourceHandler {
         final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
         final StepListener<Void> cleanFilesStep = new StepListener<>();
 
-        final int translogOps = recoveryIndexPlan.getTranslogOps();
-        recoveryTarget.receiveFileInfo(missingFileNames,
-            missingFileSizes,
+        final int translogOps = shardRecoveryPlan.getTranslogOps();
+        recoveryTarget.receiveFileInfo(filesToRecoverNames,
+            filesToRecoverSizes,
             phase1ExistingFileNames,
             phase1ExistingFileSizes,
             translogOps,
             sendFileInfoStep
         );
 
-        final List<StoreFileMetadata> sourceFiles = recoveryIndexPlan.getSourceFiles();
-        assert sourceFiles.isEmpty() != recoveryIndexPlan.getSnapshotFilesToRecover().isEmpty();
+        final List<StoreFileMetadata> sourceFiles = shardRecoveryPlan.getSourceFilesToRecover();
+        assert sourceFiles.isEmpty() != shardRecoveryPlan.getSnapshotFilesToRecover().isEmpty();
 
         sendFileInfoStep.whenComplete(r ->
-            sendFiles(store, sourceFiles.toArray(new StoreFileMetadata[0]), () -> translogOps, sendFilesStep), listener::onFailure);
+            sendFiles(store,
+                sourceFiles.toArray(new StoreFileMetadata[0]), shardRecoveryPlan::getTranslogOps, sendFilesStep), listener::onFailure);
 
-        final long startingSeqNo = recoveryIndexPlan.getStartingSeqNo();
+        final long startingSeqNo = shardRecoveryPlan.getStartingSeqNo();
         sendFilesStep.whenComplete(r -> createRetentionLease(startingSeqNo, createRetentionLeaseStep), listener::onFailure);
 
-        final Store.MetadataSnapshot recoverySourceMetadata = recoveryIndexPlan.getMetadataSnapshot();
+        final Store.MetadataSnapshot recoverySourceMetadata = shardRecoveryPlan.getMetadataSnapshot();
         createRetentionLeaseStep.whenComplete(retentionLease ->
             {
                 final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();
@@ -569,19 +597,10 @@ public class RecoverySourceHandler {
             final TimeValue took = stopWatch.totalTime();
             logger.trace("recovery [phase1]: took [{}]", took);
             listener.onResponse(
-                new SendFileResult(missingFileNames, missingFileSizes, totalSize,
+                new SendFileResult(filesToRecoverNames, filesToRecoverSizes, totalSize,
                     phase1ExistingFileNames, phase1ExistingFileSizes, existingTotalSize, took)
             );
         }, listener::onFailure);
-    }
-
-    private void traceSendFileRecovery(StoreFileMetadata md) {
-        if (request.metadataSnapshot().asMap().containsKey(md.name())) {
-            logger.trace("recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
-                md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
-        } else {
-            logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
-        }
     }
 
     void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {

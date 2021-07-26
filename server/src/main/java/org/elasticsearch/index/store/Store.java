@@ -1090,10 +1090,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          */
         public final List<StoreFileMetadata> missing;
 
+        public final List<StoreFileMetadata> missingAndDifferent;
+
         RecoveryDiff(List<StoreFileMetadata> identical, List<StoreFileMetadata> different, List<StoreFileMetadata> missing) {
             this.identical = identical;
             this.different = different;
             this.missing = missing;
+            List<StoreFileMetadata> missingAndDifferent = new ArrayList<>(different.size() + missing.size());
+            missingAndDifferent.addAll(different);
+            missingAndDifferent.addAll(missing);
+            this.missingAndDifferent = Collections.unmodifiableList(missingAndDifferent);
         }
 
         /**

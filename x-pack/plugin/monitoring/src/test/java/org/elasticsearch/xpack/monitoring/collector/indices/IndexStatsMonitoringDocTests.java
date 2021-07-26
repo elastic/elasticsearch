@@ -275,8 +275,6 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             + "}",
             // Since the summary is being merged with other data, remove the enclosing braces.
             indexStatsSummary().replaceAll("(^\\{|}$)", "")));
-        System.out.println(expected);
-        System.out.println(xContent.utf8ToString());
         assertThat(xContent.utf8ToString(), equalTo(expected));
     }
 

@@ -37,17 +37,17 @@ public class SnapshotInvocationRecordTests extends AbstractSerializingTestCase<S
             case 0:
                 return new SnapshotInvocationRecord(
                     randomValueOtherThan(instance.getSnapshotName(), () -> randomAlphaOfLengthBetween(2,10)),
-                    instance.getTimestamp() - 100,
-                    instance.getTimestamp(),
+                    instance.getSnapshotFinishTimestamp() - 100,
+                    instance.getSnapshotFinishTimestamp(),
                     instance.getDetails());
             case 1:
-                long timestamp = randomValueOtherThan(instance.getTimestamp(), ESTestCase::randomNonNegativeLong);
+                long timestamp = randomValueOtherThan(instance.getSnapshotFinishTimestamp(), ESTestCase::randomNonNegativeLong);
                 return new SnapshotInvocationRecord(instance.getSnapshotName(),
                     timestamp - 100, timestamp,
                     instance.getDetails());
             case 2:
                 return new SnapshotInvocationRecord(instance.getSnapshotName(),
-                    instance.getTimestamp() - 100, instance.getTimestamp(),
+                    instance.getSnapshotFinishTimestamp() - 100, instance.getSnapshotFinishTimestamp(),
                     randomValueOtherThan(instance.getDetails(), () -> randomAlphaOfLengthBetween(2,10)));
             default:
                 throw new AssertionError("failure, got illegal switch case");
@@ -57,9 +57,18 @@ public class SnapshotInvocationRecordTests extends AbstractSerializingTestCase<S
     public static SnapshotInvocationRecord randomSnapshotInvocationRecord() {
         return new SnapshotInvocationRecord(
             randomAlphaOfLengthBetween(5,10),
-            randomNonNegativeLong(),
+            randomNonNegativeNullableLong(),
             randomNonNegativeLong(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10));
+    }
+
+    private static Long randomNonNegativeNullableLong() {
+        long value = randomLong();
+        if (value < 0) {
+            return null;
+        } else {
+            return value;
+        }
     }
 
 }

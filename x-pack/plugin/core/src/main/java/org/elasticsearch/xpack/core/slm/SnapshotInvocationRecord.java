@@ -10,15 +10,14 @@ package org.elasticsearch.xpack.core.slm;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -31,23 +30,22 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
     implements Writeable, ToXContentObject, Diffable<SnapshotInvocationRecord> {
 
     static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
-    static final ParseField START_TIMESTAMP = new ParseField("snapshot_start_time")
-        .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8));
+    static final ParseField START_TIMESTAMP = new ParseField("snapshot_start_time");
     static final ParseField TIMESTAMP = new ParseField("time");
     static final ParseField DETAILS = new ParseField("details");
 
     private String snapshotName;
-    private long snapshotStartTimestamp;
-    private long timestamp;
+    private Long snapshotStartTimestamp;
+    private long snapshotFinishTimestamp;
     private String details;
 
     public static final ConstructingObjectParser<SnapshotInvocationRecord, String> PARSER =
         new ConstructingObjectParser<>("snapshot_policy_invocation_record", true,
-            a -> new SnapshotInvocationRecord((String) a[0], (long) a[1], (long) a[2], (String) a[3]));
+            a -> new SnapshotInvocationRecord((String) a[0], (Long) a[1], (long) a[2], (String) a[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_NAME);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), START_TIMESTAMP);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), START_TIMESTAMP);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIMESTAMP);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DETAILS);
     }
@@ -56,19 +54,21 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
         return PARSER.apply(parser, name);
     }
 
-    public SnapshotInvocationRecord(String snapshotName, long snapshotStartTimestamp, long timestamp, String details) {
+    public SnapshotInvocationRecord(String snapshotName, Long snapshotStartTimestamp, long snapshotFinishTimestamp, String details) {
         this.snapshotName = Objects.requireNonNull(snapshotName, "snapshot name must be provided");
         this.snapshotStartTimestamp = snapshotStartTimestamp;
-        this.timestamp = timestamp;
+        this.snapshotFinishTimestamp = snapshotFinishTimestamp;
         this.details = details;
     }
 
     public SnapshotInvocationRecord(StreamInput in) throws IOException {
         this.snapshotName = in.readString();
         if(in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.snapshotStartTimestamp = in.readVLong();
+            this.snapshotStartTimestamp = in.readOptionalVLong();
+        } else {
+            this.snapshotStartTimestamp = null;
         }
-        this.timestamp = in.readVLong();
+        this.snapshotFinishTimestamp = in.readVLong();
         this.details = in.readOptionalString();
     }
 
@@ -76,12 +76,12 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
         return snapshotName;
     }
 
-    public long getSnapshotStartTimestamp() {
+    public Long getSnapshotStartTimestamp() {
         return snapshotStartTimestamp;
     }
 
-    public long getTimestamp() {
-        return timestamp;
+    public long getSnapshotFinishTimestamp() {
+        return snapshotFinishTimestamp;
     }
 
     public String getDetails() {
@@ -92,9 +92,9 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(snapshotName);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeVLong(snapshotStartTimestamp);
+            out.writeOptionalVLong(snapshotStartTimestamp);
         }
-        out.writeVLong(timestamp);
+        out.writeVLong(snapshotFinishTimestamp);
         out.writeOptionalString(details);
     }
 
@@ -103,10 +103,10 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
         builder.startObject();
         {
             builder.field(SNAPSHOT_NAME.getPreferredName(), snapshotName);
-            if (builder.getRestApiVersion().matches(START_TIMESTAMP.getForRestApiVersion())) {
+            if (snapshotStartTimestamp != null) {
                 builder.timeField(START_TIMESTAMP.getPreferredName(), "snapshot_start_time_string", snapshotStartTimestamp);
             }
-            builder.timeField(TIMESTAMP.getPreferredName(), "time_string", timestamp);
+            builder.timeField(TIMESTAMP.getPreferredName(), "time_string", snapshotFinishTimestamp);
             if (Objects.nonNull(details)) {
                 builder.field(DETAILS.getPreferredName(), details);
             }
@@ -120,14 +120,14 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotInvocationRecord that = (SnapshotInvocationRecord) o;
-        return getTimestamp() == that.getTimestamp() &&
-            getSnapshotStartTimestamp() == that.getSnapshotStartTimestamp() &&
+        return getSnapshotFinishTimestamp() == that.getSnapshotFinishTimestamp() &&
+            Objects.equals(getSnapshotStartTimestamp(), that.getSnapshotStartTimestamp()) &&
             Objects.equals(getSnapshotName(), that.getSnapshotName()) &&
             Objects.equals(getDetails(), that.getDetails());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getSnapshotName(), getSnapshotStartTimestamp(), getTimestamp(), getDetails());
+        return Objects.hash(getSnapshotName(), getSnapshotStartTimestamp(), getSnapshotFinishTimestamp(), getDetails());
     }
 }

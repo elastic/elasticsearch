@@ -60,18 +60,22 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
             throw error(POLICY_NOT_FOUND_MESSAGE, policy);
         }
         SnapshotLifecyclePolicyMetadata snapPolicyMeta = snapMeta.getSnapshotConfigurations().get(policy);
-        if (snapPolicyMeta.getLastSuccess() == null || snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() < phaseTime) {
+        if (snapPolicyMeta.getLastSuccess() == null || snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() == null ||
+            snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() < phaseTime) {
+            //TODO: Clean up all this logging once I figure out the TimeSeriesLiefecycleActionsIT timing problems
             if (snapPolicyMeta.getLastSuccess() == null) {
-                logger.info("Not executing policy because no last snapshot success.");
+                logger.info("Not executing policy because no last snapshot success. Phase time: {}", phaseTime);
+            } else if (snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() == null) {
+                logger.info("Not executing policy because no last snapshot start date.");
             }
             else {
                 logger.info("Not executing policy because snapshot start time {} is before phase time {}. Snapshot timestamp is {}",
-                    snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(), phaseTime, snapPolicyMeta.getLastSuccess().getTimestamp());
+                    snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(), phaseTime, snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp());
             }
             return new Result(false, notExecutedMessage(phaseTime));
         }
         logger.info("Executing policy because snapshot start time {} is after phase time {}. Snapshot timestamp is {}",
-            snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(), phaseTime, snapPolicyMeta.getLastSuccess().getTimestamp());
+            snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(), phaseTime, snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp());
         return new Result(true, null);
     }
 

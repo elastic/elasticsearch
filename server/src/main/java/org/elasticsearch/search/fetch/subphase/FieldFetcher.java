@@ -229,9 +229,11 @@ public class FieldFetcher {
         List<Object> list = new ArrayList<>();
         for (Object value : iterable) {
             if (value instanceof Map) {
+                @SuppressWarnings("unchecked")
+                final Map<String, Object> objectMap = (Map<String, Object>) value;
                 collectUnmapped(
                     documentFields,
-                    (Map<String, Object>) value,
+                    objectMap,
                     parentPath + ".",
                     step(this.unmappedFieldsFetchAutomaton, ".", lastState)
                 );

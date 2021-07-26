@@ -59,7 +59,7 @@ import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.binaryGeoShapeDo
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geoShapeValue;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>> extends AggregatorTestCase {
+public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
     private static final String FIELD_NAME = "location";
 
     /**

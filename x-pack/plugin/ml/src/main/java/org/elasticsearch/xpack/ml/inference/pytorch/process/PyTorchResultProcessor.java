@@ -56,6 +56,20 @@ public class PyTorchResultProcessor {
             if (isStopping == false) {
                 logger.error(new ParameterizedMessage("[{}] Error processing results", deploymentId), e);
             }
+            // If we are stopping, or the process is no longer alive, notify all the pendingResults listeners
+            // Otherwise, we don't particularly know which result failed
+            if (isStopping || (process.isProcessAliveAfterWaiting() == false)) {
+                pendingResults.forEach((id, pendingResults) -> {
+                    pendingResults.result = new PyTorchResult(
+                        id,
+                        null,
+                        null,
+                        isStopping ?
+                            "inference canceled as process is stopping" :
+                            "inference native process died unexpectedly with failure [" + e.getMessage() + "]");
+                    pendingResults.latch.countDown();
+                });
+            }
         }
         logger.debug(() -> new ParameterizedMessage("[{}] Results processing finished", deploymentId));
     }

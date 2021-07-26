@@ -307,10 +307,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     }
 
     /**
-     * Verifies that delayed allocation calculation are correct when there have never been any registered node shutdowns. This ensures we
-     * don't accidentally introduce an NPE in trying to read the custom metadata.
+     * Verifies that delayed allocation calculation are correct when there are no registered node shutdowns.
      */
-    public void testRemainingDelayCalculationWithNoShutdownsEverRegistered() throws Exception {
+    public void testRemainingDelayCalculationWithNoShutdowns() throws Exception {
         checkRemainingDelayCalculation("bogusNodeId", TimeValue.timeValueNanos(10), Collections.emptyMap(), TimeValue.timeValueNanos(10));
     }
 

@@ -399,9 +399,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         final Settings indexSettings,
         final Map<String, SingleNodeShutdownMetadata> nodesShutdownMap
     ) {
-        Map<String, SingleNodeShutdownMetadata> nodeShutdowns = nodesShutdownMap != null ? nodesShutdownMap : Collections.emptyMap();
         long delayTimeoutNanos = Optional.ofNullable(lastAllocatedNodeId)
-            .map(nodeShutdowns::get)
+            .map(nodesShutdownMap::get)
             .filter(shutdownMetadata -> SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownMetadata.getType()))
             .map(SingleNodeShutdownMetadata::getShardReallocationDelay)
             .map(TimeValue::nanos)

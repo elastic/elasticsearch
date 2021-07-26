@@ -15,12 +15,14 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -132,7 +134,7 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
 
     private Settings searchableSnapshotSettings(Version version, boolean partial) {
         Settings.Builder settings = settings(version);
-        settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+        settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE);
         if (partial || randomBoolean()) {
             settings.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), partial);
         }
@@ -177,6 +179,6 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
     }
 
     private boolean isPartial(IndexMetadata upgraded) {
-        return SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(upgraded.getSettings());
+        return SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(upgraded.getSettings());
     }
 }

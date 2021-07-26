@@ -1579,3 +1579,14 @@ include::redirects.asciidoc[tag=frozen-index-redirect]
 === Glossary
 
 See the {glossary}/terms.html[Elastic glossary].
+
+[role="exclude",id="indices-field-usage-stats"]
+=== Field usage stats API
+
+See <<field-usage-stats>>.
+
+[role="exclude",id="sql-rest-fields"]
+=== Supported REST parameters for SQL search API
+
+See the <<sql-search-api-request-body,request body parameters>> for the
+<<sql-search-api,SQL search API>>.

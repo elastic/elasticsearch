@@ -6,8 +6,8 @@
  * Side Public License, v 1.
  */
 
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.internal.MavenFilteringHack
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.redline_rpm.header.Flags
@@ -33,7 +33,7 @@ import java.util.regex.Pattern
  *    empty directory requires more wits than I have.
  * 3. ospackage really wants to suck up some of the debian control scripts
  *    directly from the filesystem. It doesn't want to process them through
- *    MavenFilteringHack or any other copy-style action.
+ *    any copy-style action.
  *
  * The following commands are useful when it comes to check the user/group
  * and files permissions set within the RPM and DEB packages:
@@ -64,13 +64,14 @@ void addProcessFilesTask(String type, boolean oss, boolean jdk) {
     with copySpec {
       from 'src/common'
       from "src/${type}"
-      MavenFilteringHack.filter(it, expansionsForDistribution(type, oss, jdk))
+      filter("tokens" : expansionsForDistribution(type, oss, jdk), ReplaceTokens.class)
     }
 
     into('etc/elasticsearch') {
       with configFiles(type, oss, jdk)
     }
-    MavenFilteringHack.filter(it, expansionsForDistribution(type, oss, jdk))
+
+    filter("tokens" : expansionsForDistribution(type, oss, jdk), ReplaceTokens.class)
 
     doLast {
       // create empty dirs, we set the permissions when configuring the packages

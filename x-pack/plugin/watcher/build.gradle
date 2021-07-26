@@ -16,10 +16,6 @@ archivesBaseName = 'x-pack-watcher'
 
 ext.compactProfile = 'full'
 
-tasks.withType(JavaCompile).configureEach {
-  options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-}
-
 tasks.named("dependencyLicenses").configure {
   mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
 }

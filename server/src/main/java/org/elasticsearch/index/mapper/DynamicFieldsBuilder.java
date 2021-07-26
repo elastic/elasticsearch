@@ -125,8 +125,7 @@ final class DynamicFieldsBuilder {
      */
     Mapper createDynamicObjectMapper(DocumentParserContext context, String name) {
         Mapper mapper = createObjectMapperFromTemplate(context, name);
-        return mapper != null ? mapper :
-            new ObjectMapper.Builder(name, context.indexSettings().getIndexVersionCreated()).enabled(true).build(context.path());
+        return mapper != null ? mapper : new ObjectMapper.Builder(name).enabled(true).build(context.path());
     }
 
     /**

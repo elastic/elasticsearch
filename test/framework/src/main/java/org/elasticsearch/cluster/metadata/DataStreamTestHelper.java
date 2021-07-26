@@ -12,8 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Description;
@@ -22,6 +22,7 @@ import org.hamcrest.TypeSafeMatcher;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -35,6 +36,7 @@ import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomMap;
 
 public final class DataStreamTestHelper {
 
@@ -135,8 +137,8 @@ public final class DataStreamTestHelper {
         return new DataStreamAlias(
             randomAlphaOfLength(5),
             dataStreams,
-            randomBoolean() ? randomFrom(dataStreams) : null
-        );
+            randomBoolean() ? randomFrom(dataStreams) : null,
+            randomBoolean() ? randomMap(1, 4, () -> new Tuple<>("term", Collections.singletonMap("year", "2022"))) : null);
     }
 
     /**

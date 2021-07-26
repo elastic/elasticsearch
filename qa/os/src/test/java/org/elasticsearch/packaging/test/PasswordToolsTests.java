@@ -52,6 +52,7 @@ public class PasswordToolsTests extends PackagingTestCase {
 
     public void test20GeneratePasswords() throws Exception {
         assertWhileRunning(() -> {
+            ServerUtils.waitForElasticsearch(installation);
             Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
             Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {

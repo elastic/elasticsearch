@@ -42,6 +42,7 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -81,12 +82,12 @@ public final class SecurityMocks {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
             return null;
-        }).when(securityIndexManager).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndexManager).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
             return null;
-        }).when(securityIndexManager).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndexManager).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         when(securityIndexManager.indexExists()).thenReturn(exists);
         when(securityIndexManager.isAvailable()).thenReturn(available);
         when(securityIndexManager.aliasName()).thenReturn(alias);
@@ -121,20 +122,22 @@ public final class SecurityMocks {
             Assert.assertThat(request.type(), equalTo(SINGLE_MAPPING_NAME));
 
             Assert.assertThat(inv.getArguments()[1], instanceOf(ActionListener.class));
+            @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) inv.getArguments()[1];
             listener.onResponse(new GetResponse(result));
 
             return null;
-        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), anyActionListener());
     }
 
     public static void mockGetRequestException(Client client, Exception e) {
         when(client.prepareGet(anyString(), anyString(), anyString())).thenReturn(new GetRequestBuilder(client, GetAction.INSTANCE));
         doAnswer(inv -> {
+            @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) inv.getArguments()[1];
             listener.onFailure(e);
             return null;
-        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), anyActionListener());
     }
 
     public static void mockIndexRequest(Client client, String indexAliasName, Consumer<IndexRequest> consumer) {
@@ -171,11 +174,12 @@ public final class SecurityMocks {
             Assert.assertThat(request.index(), equalTo(indexAliasName));
             consumer.accept(request);
             Assert.assertThat(inv.getArguments()[2], instanceOf(ActionListener.class));
+            @SuppressWarnings("unchecked")
             final ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) inv.getArguments()[2];
             final ShardId shardId = new ShardId(request.index(), ESTestCase.randomAlphaOfLength(12), 0);
             listener.onResponse(new IndexResponse(shardId, request.type(), request.id(), 1, 1, 1, true));
             return null;
-        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), anyActionListener());
     }
 
     public static TokenServiceMock tokenService(boolean enabled, ThreadPool threadPool) throws GeneralSecurityException {
@@ -193,5 +197,10 @@ public final class SecurityMocks {
         final TokenService service = new TokenService(settings, clock, client, licenseState, securityContext,
             mockSecurityIndexManager(SECURITY_MAIN_ALIAS), mockSecurityIndexManager(SECURITY_TOKENS_ALIAS), clusterService);
         return new TokenServiceMock(service, client);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Consumer<T> anyConsumer() {
+        return any(Consumer.class);
     }
 }

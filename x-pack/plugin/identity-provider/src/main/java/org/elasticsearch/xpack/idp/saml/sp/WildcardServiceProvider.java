@@ -41,6 +41,7 @@ import java.util.regex.Pattern;
  */
 class WildcardServiceProvider {
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<WildcardServiceProvider, Void> PARSER = new ConstructingObjectParser<>(
         "wildcard_service",
         args -> {

@@ -67,6 +67,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
         // mock an index response that calls the listener
         doAnswer(invocation -> {
             IndexRequest request = (IndexRequest) invocation.getArguments()[1];
+            @SuppressWarnings("unchecked")
             ActionListener<IndexResponse> listener = (ActionListener) invocation.getArguments()[2];
 
             ShardId shardId = new ShardId(new Index(Watch.INDEX, "uuid"), 0);
@@ -79,6 +80,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
             new ClockMock(), TestUtils.newTestLicenseState(), parser, client);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testHeadersAreFilteredWhenPuttingWatches() throws Exception {
         // set up threadcontext with some arbitrary info
         String headerName = randomFrom(ClientHelper.SECURITY_HEADER_FILTERS);

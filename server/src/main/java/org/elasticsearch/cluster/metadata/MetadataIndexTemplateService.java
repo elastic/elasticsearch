@@ -1097,9 +1097,9 @@ public class MetadataIndexTemplateService {
      * Resolve the given v2 template into an ordered list of aliases
      *
      * @param failIfTemplateHasDataStream Whether to skip validating if a template has a data stream definition and an alias definition.
-     *                                    This validation is needed so that no template gets created that creates datastream and also
-     *                                    a an alias pointing to the backing indices of a data stream. Unfortunately this validation
-     *                                    was missing in versions prior to 7.11, which mean that there are cluster states out there,
+     *                                    This validation is needed so that no template gets created that creates data stream and also
+     *                                    an alias pointing to the backing indices of a data stream. Unfortunately this validation
+     *                                    was missing in versions prior to 7.11, which mean that there are cluster states out there
      *                                    that have this malformed templates. This method is used when rolling over a data stream
      *                                    or creating new data streams. In order for these clusters to avoid failing these operations
      *                                    immediately after an upgrade the failure should be optional. So that there is time to change
@@ -1140,18 +1140,6 @@ public class MetadataIndexTemplateService {
         Optional.ofNullable(template.template())
             .map(Template::aliases)
             .ifPresent(aliases::add);
-
-        // A template that creates data streams can't also create aliases.
-        // (otherwise we end up with aliases pointing to backing indices of data streams)
-        if (aliases.size() > 0 && template.getDataStreamTemplate() != null) {
-            if (failIfTemplateHasDataStream) {
-                throw new IllegalArgumentException("template [" + templateName + "] has alias and data stream definitions");
-            } else {
-                String warning = "template [" + templateName + "] has alias and data stream definitions";
-                logger.warn(warning);
-                HeaderWarning.addWarning(warning);
-            }
-        }
 
         // Aliases are applied in order, but subsequent alias configuration from the same name is
         // ignored, so in order for the order to be correct, alias configuration should be in order

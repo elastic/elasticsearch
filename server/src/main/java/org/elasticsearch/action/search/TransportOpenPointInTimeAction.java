@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,18 +42,21 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private final TransportSearchAction transportSearchAction;
     private final TransportService transportService;
     private final SearchService searchService;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportOpenPointInTimeAction(
         TransportService transportService,
         SearchService searchService,
         ActionFilters actionFilters,
+        ClusterService clusterService,
         TransportSearchAction transportSearchAction
     ) {
         super(OpenPointInTimeAction.NAME, transportService, actionFilters, OpenPointInTimeRequest::new);
         this.transportService = transportService;
         this.transportSearchAction = transportSearchAction;
         this.searchService = searchService;
+        this.clusterService = clusterService;
         transportService.registerRequestHandler(
             OPEN_SHARD_READER_CONTEXT_NAME,
             ThreadPool.Names.SAME,
@@ -68,6 +73,13 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
     @Override
     protected void doExecute(Task task, OpenPointInTimeRequest request, ActionListener<OpenPointInTimeResponse> listener) {
+        final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
+        if (minNodeVersion.before(Version.V_7_10_0)) {
+            listener.onFailure(
+                new IllegalArgumentException("Point-in-time requires every node in the cluster on 7.10 or later; " +
+                    "got [" + minNodeVersion + "]"));
+            return;
+        }
         final SearchRequest searchRequest = new SearchRequest().indices(request.indices())
             .indicesOptions(request.indicesOptions())
             .preference(request.preference())

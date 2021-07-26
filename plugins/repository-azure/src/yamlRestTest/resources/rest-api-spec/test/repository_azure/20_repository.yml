@@ -9,9 +9,9 @@ setup:
         body:
           type: azure
           settings:
-            container: ${container}
+            container: @container@
             client: "integration_test"
-            base_path: ${base_path}
+            base_path: @base_path@
 
   # Remove the snapshots, if a previous test failed to delete them. This is
   # useful for third party tests that runs the test against a real external service.
@@ -34,9 +34,9 @@ setup:
       snapshot.get_repository:
         repository: repository
 
-  - match: { repository.settings.container: ${container} }
+  - match: { repository.settings.container: @container@ }
   - match: { repository.settings.client : "integration_test" }
-  - match: { repository.settings.base_path : "${base_path}" }
+  - match: { repository.settings.base_path : @base_path@ }
 
   # Index documents
   - do:

@@ -213,6 +213,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         assertThat(constructedUserInfo.hasEmptyPassword(), equalTo(false));
     }
 
+    @SuppressWarnings("unchecked")
     private <ARequest extends ActionRequest, AResponse extends ActionResponse> ARequest actionRespond(Class<ARequest> requestClass,
                                                                                                       AResponse response) {
         Tuple<ARequest, ActionListener<?>> tuple = findRequest(requestClass);
@@ -250,6 +251,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         actionRespond(GetRequest.class, new GetResponse(getResult));
     }
 
+    @SuppressWarnings("unchecked")
     private NativeUsersStore startNativeUsersStore() {
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         when(securityIndex.isAvailable()).thenReturn(true);

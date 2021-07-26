@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -157,6 +158,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         this.maxAllowedRunningJobs = maxAllowedRunningJobs;
     }
 
+    // The primary use of this is for license expiry
     public synchronized void closeAllJobsOnThisNode(String reason) {
         // Note, snapshot upgrader processes could still be running, but those are short lived
         // Leaving them running is OK.
@@ -164,8 +166,10 @@ public class AutodetectProcessManager implements ClusterStateListener {
         if (numJobs != 0) {
             logger.info("Closing [{}] jobs, because [{}]", numJobs, reason);
 
-            for (ProcessContext process : processByAllocation.values()) {
-                closeJob(process.getJobTask(), reason);
+            for (ProcessContext processContext : processByAllocation.values()) {
+                JobTask jobTask = processContext.getJobTask();
+                setJobState(jobTask, JobState.CLOSING, reason);
+                jobTask.closeJob(reason);
             }
         }
     }
@@ -215,6 +219,32 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 .setSilent(true)
                 .kill();
             iterator.remove();
+        }
+    }
+
+    /**
+     * Makes open jobs on this node go through the motions of closing but
+     * without completing the persistent task and instead telling the
+     * master node to assign the persistent task to a different node.
+     * The intended user of this functionality is the node shutdown API.
+     * Jobs that are already closing continue to close.
+     */
+    public synchronized void vacateOpenJobsOnThisNode() {
+
+        for (ProcessContext processContext : processByAllocation.values()) {
+
+            // We ignore jobs that either don't have a running process yet or already closing.
+            // - The ones that don't yet have a running process will get picked up on a subsequent call to this
+            //   method.  This is simpler than trying to interact with a job before its process is started,
+            //   and importantly, when it eventually does get picked up it will be fast to shut down again
+            //   since it will only just have been started.
+            // - For jobs that are already closing we might as well let them close on the current node
+            //   rather than trying to vacate them to a different node first.
+            if (processContext.getState() == ProcessContext.ProcessStateName.RUNNING && processContext.getJobTask().triggerVacate()) {
+                // We need to fork here, as persisting state is a potentially long-running operation
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
+                    () -> closeProcessAndTask(processContext, processContext.getJobTask(), "node is shutting down"));
+            }
         }
     }
 
@@ -460,6 +490,11 @@ public class AutodetectProcessManager implements ClusterStateListener {
     public void openJob(JobTask jobTask, ClusterState clusterState, TimeValue masterNodeTimeout,
                         BiConsumer<Exception, Boolean> closeHandler) {
         String jobId = jobTask.getJobId();
+        if (jobTask.isClosing()) {
+            logger.info("Aborting opening of job [{}] as it is being closed", jobId);
+            jobTask.markAsCompleted();
+            return;
+        }
         logger.info("Opening job [{}]", jobId);
 
         // Start the process
@@ -553,7 +588,19 @@ public class AutodetectProcessManager implements ClusterStateListener {
                                 return;
                             }
                             processContext.getAutodetectCommunicator().restoreState(params.modelSnapshot());
-                            setJobState(jobTask, JobState.OPENED);
+                            setJobState(jobTask, JobState.OPENED, null, e -> {
+                                if (e != null) {
+                                    logSetJobStateFailure(JobState.OPENED, job.getId(), e);
+                                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                                        // Don't leave a process with no persistent task hanging around
+                                        processContext.newKillBuilder()
+                                            .setAwaitCompletion(false)
+                                            .setFinish(false)
+                                            .kill();
+                                        processByAllocation.remove(jobTask.getAllocationId());
+                                    }
+                                }
+                            });
                         }
                     } catch (Exception e1) {
                         // No need to log here as the persistent task framework will log it
@@ -743,7 +790,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         processContext.tryLock();
         try {
             if (processContext.setDying() == false) {
-                logger.debug("Cannot close job [{}] as it has been marked as dying", jobId);
+                logger.debug("Cannot {} job [{}] as it has been marked as dying", jobTask.isVacating() ? "vacate" : "close", jobId);
                 // The only way we can get here is if 2 close requests are made very close together.
                 // The other close has done the work so it's safe to return here without doing anything.
                 return;
@@ -755,15 +802,17 @@ public class AutodetectProcessManager implements ClusterStateListener {
             if (jobKilled) {
                 logger.debug("[{}] Cleaning up job opened after kill", jobId);
             } else if (reason == null) {
-                logger.info("Closing job [{}]", jobId);
+                logger.info("{} job [{}]", jobTask.isVacating() ? "Vacating" : "Closing", jobId);
             } else {
-                logger.info("Closing job [{}], because [{}]", jobId, reason);
+                logger.info("{} job [{}], because [{}]", jobTask.isVacating() ? "Vacating" : "Closing", jobId, reason);
             }
 
             AutodetectCommunicator communicator = processContext.getAutodetectCommunicator();
             if (communicator == null) {
                 assert jobKilled == false
                     : "Job " + jobId + " killed before process started yet still had no communicator during cleanup after process started";
+                assert jobTask.isVacating() == false
+                    : "Job " + jobId + " was vacated before it had a communicator - should not be possible";
                 logger.debug("Job [{}] is being closed before its process is started", jobId);
                 jobTask.markAsCompleted();
                 processByAllocation.remove(allocationId);
@@ -782,11 +831,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
             // If the close failed because the process has explicitly been killed by us then just pass on that exception.
             // (Note that jobKilled may be false in this case, if the kill is executed while communicator.close() is running.)
             if (e instanceof ElasticsearchStatusException && ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT) {
-                logger.trace("[{}] Conflict between kill and close during autodetect process cleanup - job {} before cleanup started",
-                    jobId, jobKilled ? "killed" : "not killed");
+                logger.trace("[{}] Conflict between kill and {} during autodetect process cleanup - job {} before cleanup started",
+                    jobId, jobTask.isVacating() ? "vacate" : "close", jobKilled ? "killed" : "not killed");
                 throw (ElasticsearchStatusException) e;
             }
-            String msg = jobKilled ? "Exception cleaning up autodetect process started after kill" : "Exception closing autodetect process";
+            String msg = jobKilled ? "Exception cleaning up autodetect process started after kill"
+                : "Exception " + (jobTask.isVacating() ? "vacating" : "closing") + " autodetect process";
             logger.warn("[" + jobId + "] " + msg, e);
             setJobState(jobTask, JobState.FAILED, e.getMessage());
             throw ExceptionsHelper.serverError(msg, e);
@@ -805,8 +855,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
     }
 
     /**
-     * Stop the running job and mark it as finished.
-     *
+     * Stop the running job and mark it as finished.  For consistency with the job task,
+     * other than for testing this method should only be called via {@link JobTask#closeJob}.
      * @param jobTask The job to stop
      * @param reason  The reason for closing the job
      */
@@ -866,14 +916,16 @@ public class AutodetectProcessManager implements ClusterStateListener {
         JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
         jobTask.updatePersistentTaskState(jobTaskState, ActionListener.wrap(
             persistentTask -> logger.info("Successfully set job state to [{}] for job [{}]", state, jobTask.getJobId()),
-            e -> logger.error(
-                () -> new ParameterizedMessage("Could not set job state to [{}] for job [{}]", state, jobTask.getJobId()),
-                e)
+            e -> logSetJobStateFailure(state, jobTask.getJobId(), e)
         ));
     }
 
-    void setJobState(JobTask jobTask, JobState state) {
-        setJobState(jobTask, state, null);
+    private void logSetJobStateFailure(JobState state, String jobId, Exception e) {
+        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+            logger.debug("Could not set job state to [{}] for job [{}] as it has been closed", state, jobId);
+        } else {
+            logger.error(() -> new ParameterizedMessage("Could not set job state to [{}] for job [{}]", state, jobId), e);
+        }
     }
 
     void setJobState(JobTask jobTask, JobState state, String reason, CheckedConsumer<Exception, IOException> handler) {

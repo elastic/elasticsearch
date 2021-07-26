@@ -92,6 +92,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -713,8 +714,132 @@ public class DataStreamIT extends ESIntegTestCase {
         GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
         assertThat(
             response.getDataStreamAliases(),
-            equalTo(Map.of("metrics-foo", List.of(new DataStreamAlias("foo", List.of("metrics-foo"), null))))
+            equalTo(Map.of("metrics-foo", List.of(new DataStreamAlias("foo", List.of("metrics-foo"), null, null))))
         );
+    }
+
+    public void testDataSteamAliasWithFilter() throws Exception {
+        putComposableIndexTemplate("id1", List.of("logs-*"));
+        String dataStreamName = "logs-foobar";
+        client().prepareIndex(dataStreamName, "_doc")
+            .setId("1")
+            .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"x\"}", XContentType.JSON)
+            .setOpType(DocWriteRequest.OpType.CREATE)
+            .get();
+        client().prepareIndex(dataStreamName, "_doc")
+            .setId("2")
+            .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"y\"}", XContentType.JSON)
+            .setOpType(DocWriteRequest.OpType.CREATE)
+            .get();
+        refresh(dataStreamName);
+
+        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index(dataStreamName)
+            .aliases("foo")
+            .filter(Map.of("term", Map.of("type", Map.of("value", "y"))));
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        aliasesAddRequest.addAliasAction(addAction);
+        assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
+        GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
+        assertThat(
+            response.getDataStreamAliases(),
+            equalTo(
+                Map.of(
+                    "logs-foobar",
+                    List.of(new DataStreamAlias("foo", List.of("logs-foobar"), null, Map.of("term", Map.of("type", Map.of("value", "y")))))
+                )
+            )
+        );
+
+        // Searching the data stream directly should return all hits:
+        SearchResponse searchResponse = client().prepareSearch("logs-foobar").get();
+        assertSearchHits(searchResponse, "1", "2");
+        // Search the alias should only return document 2, because it matches with the defined filter in the alias:
+        searchResponse = client().prepareSearch("foo").get();
+        assertSearchHits(searchResponse, "2");
+
+        // Update alias:
+        addAction = new AliasActions(AliasActions.Type.ADD).index(dataStreamName)
+            .aliases("foo")
+            .filter(Map.of("term", Map.of("type", Map.of("value", "x"))));
+        aliasesAddRequest = new IndicesAliasesRequest();
+        aliasesAddRequest.addAliasAction(addAction);
+        assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
+        response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
+        assertThat(
+            response.getDataStreamAliases(),
+            equalTo(
+                Map.of(
+                    "logs-foobar",
+                    List.of(new DataStreamAlias("foo", List.of("logs-foobar"), null, Map.of("term", Map.of("type", Map.of("value", "x")))))
+                )
+            )
+        );
+
+        // Searching the data stream directly should return all hits:
+        searchResponse = client().prepareSearch("logs-foobar").get();
+        assertSearchHits(searchResponse, "1", "2");
+        // Search the alias should only return document 1, because it matches with the defined filter in the alias:
+        searchResponse = client().prepareSearch("foo").get();
+        assertSearchHits(searchResponse, "1");
+    }
+
+    public void testRandomDataSteamAliasesUpdate() throws Exception {
+        putComposableIndexTemplate("id1", List.of("log-*"));
+
+        String alias = randomAlphaOfLength(4);
+        String[] dataStreams = Arrays.stream(generateRandomStringArray(16, 4, false, false))
+            .map(s -> "log-" + s.toLowerCase(Locale.ROOT))
+            .toArray(String[]::new);
+        for (String dataStream : dataStreams) {
+            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStream);
+            client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+        }
+        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias)
+            .indices(dataStreams)
+            .filter(Map.of("term", Map.of("type", Map.of("value", "y"))));
+        assertAcked(client().admin().indices().aliases(new IndicesAliasesRequest().addAliasAction(addAction)).actionGet());
+
+        addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias).indices(dataStreams[0]).writeIndex(true);
+        assertAcked(client().admin().indices().aliases(new IndicesAliasesRequest().addAliasAction(addAction)).actionGet());
+
+        GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
+        assertThat(response.getDataStreamAliases().size(), equalTo(dataStreams.length));
+        java.util.List<DataStreamAlias> result = response.getDataStreamAliases()
+            .values()
+            .stream()
+            .flatMap(Collection::stream)
+            .distinct()
+            .collect(Collectors.toList());
+        assertThat(result, hasSize(1));
+        assertThat(result.get(0).getName(), equalTo(alias));
+        assertThat(result.get(0).getDataStreams(), containsInAnyOrder(dataStreams));
+        assertThat(result.get(0).getWriteDataStream(), equalTo(dataStreams[0]));
+        assertThat(result.get(0).getFilter().string(), equalTo("{\"term\":{\"type\":{\"value\":\"y\"}}}"));
+    }
+
+    public void testDataSteamAliasWithMalformedFilter() throws Exception {
+        putComposableIndexTemplate("id1", List.of("log-*"));
+
+        String alias = randomAlphaOfLength(4);
+        String dataStream = "log-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStream);
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias).indices(dataStream);
+        if (randomBoolean()) {
+            // non existing attribute:
+            addAction.filter(Map.of("term", Map.of("foo", Map.of("value", "bar", "x", "y"))));
+        } else {
+            // Unknown query:
+            addAction.filter(Map.of("my_query", Map.of("x", "y")));
+        }
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().aliases(new IndicesAliasesRequest().addAliasAction(addAction)).actionGet()
+        );
+        assertThat(e.getMessage(), equalTo("failed to parse filter for alias [" + alias + "]"));
+        GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
+        assertThat(response.getDataStreamAliases(), anEmptyMap());
     }
 
     public void testAliasActionsFailOnDataStreamBackingIndices() throws Exception {
@@ -769,7 +894,7 @@ public class DataStreamIT extends ESIntegTestCase {
         GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
         assertThat(
             response.getDataStreamAliases(),
-            equalTo(Map.of("metrics-foo", List.of(new DataStreamAlias("my-alias1", List.of("metrics-foo"), null))))
+            equalTo(Map.of("metrics-foo", List.of(new DataStreamAlias("my-alias1", List.of("metrics-foo"), null, null))))
         );
         assertThat(response.getAliases().get("metrics-myindex"), equalTo(List.of(new AliasMetadata.Builder("my-alias2").build())));
 
@@ -803,8 +928,8 @@ public class DataStreamIT extends ESIntegTestCase {
             assertThat(
                 response.getDataStreamAliases().get("metrics-foo"),
                 containsInAnyOrder(
-                    new DataStreamAlias("my-alias1", List.of("metrics-foo"), null),
-                    new DataStreamAlias("my-alias2", List.of("metrics-foo"), null)
+                    new DataStreamAlias("my-alias1", List.of("metrics-foo"), null, null),
+                    new DataStreamAlias("my-alias2", List.of("metrics-foo"), null, null)
                 )
             );
             assertThat(response.getAliases().size(), equalTo(0));
@@ -835,17 +960,6 @@ public class DataStreamIT extends ESIntegTestCase {
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
-
-        {
-            AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index("metrics-*").aliases("my-alias").filter("[filter]");
-            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
-            aliasesAddRequest.addAliasAction(addAction);
-            Exception e = expectThrows(
-                IllegalArgumentException.class,
-                () -> client().admin().indices().aliases(aliasesAddRequest).actionGet()
-            );
-            assertThat(e.getMessage(), equalTo("aliases that point to data streams don't support filters"));
-        }
         {
             AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index("metrics-*").aliases("my-alias").routing("[routing]");
             IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();

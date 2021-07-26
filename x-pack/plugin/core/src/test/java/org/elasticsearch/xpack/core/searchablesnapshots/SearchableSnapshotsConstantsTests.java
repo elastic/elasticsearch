@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.searchablesnapshots;
 
 import org.elasticsearch.core.Map;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
@@ -17,7 +18,7 @@ public class SearchableSnapshotsConstantsTests extends ESTestCase {
 
     public void testIsPartialSearchableSnapshotIndex() {
         assertThat(SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(
-            Map.of(IndexModule.INDEX_STORE_TYPE_SETTING, SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY,
+            Map.of(IndexModule.INDEX_STORE_TYPE_SETTING, SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE,
                 SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING, false)),
             is(false));
 
@@ -27,7 +28,7 @@ public class SearchableSnapshotsConstantsTests extends ESTestCase {
             is(false));
 
         assertThat(SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(
-            Map.of(IndexModule.INDEX_STORE_TYPE_SETTING, SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY,
+            Map.of(IndexModule.INDEX_STORE_TYPE_SETTING, SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE,
                 SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING, true)),
             is(true));
     }

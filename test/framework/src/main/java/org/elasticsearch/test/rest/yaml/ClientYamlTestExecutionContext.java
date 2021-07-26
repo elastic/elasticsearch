@@ -122,6 +122,7 @@ public class ClientYamlTestExecutionContext {
      * This functionality is supported in 7.x, but is not supported in 6.x (or is not the default
      * behavior). Here we modify the request so that it will work against a 6.x node.
      */
+    @SuppressWarnings("unchecked")
     private void adaptRequestForOlderVersion(String apiName,
                                              List<Map<String, Object>> bodies,
                                              Map<String, String> requestParams) {

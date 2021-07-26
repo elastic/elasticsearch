@@ -34,7 +34,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 // TODO: in 8.0.0 remove all instances of MAX_OPEN_JOBS_NODE_ATTR from this file
-public class JobNodeLoadDetectorTests extends ESTestCase {
+public class NodeLoadDetectorTests extends ESTestCase {
 
     // To simplify the logic in this class all jobs have the same memory requirement
     private static final ByteSizeValue JOB_MEMORY_REQUIREMENT = ByteSizeValue.ofMb(10);

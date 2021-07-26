@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -62,6 +63,11 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
             IGNORE_INDEX_SETTINGS_FIELD, ObjectParser.ValueType.STRING_ARRAY);
     }
 
+    /**
+     * Searchable snapshots partial storage was introduced in 7.12.0
+     */
+    private static final Version SHARED_CACHE_VERSION = Version.V_7_12_0;
+
     private final String mountedIndexName;
     private final String repositoryName;
     private final String snapshotName;
@@ -102,7 +108,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         this.indexSettings = readSettingsFromStream(in);
         this.ignoredIndexSettings = in.readStringArray();
         this.waitForCompletion = in.readBoolean();
-        if (in.getVersion().onOrAfter(SearchableSnapshotsConstants.SHARED_CACHE_VERSION)) {
+        if (in.getVersion().onOrAfter(SHARED_CACHE_VERSION)) {
             this.storage = Storage.readFromStream(in);
         } else {
             this.storage = Storage.FULL_COPY;
@@ -119,7 +125,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoredIndexSettings);
         out.writeBoolean(waitForCompletion);
-        if (out.getVersion().onOrAfter(SearchableSnapshotsConstants.SHARED_CACHE_VERSION)) {
+        if (out.getVersion().onOrAfter(SHARED_CACHE_VERSION)) {
             storage.writeTo(out);
         } else if (storage != Storage.FULL_COPY) {
             throw new UnsupportedOperationException(

@@ -35,12 +35,12 @@ fi
 ES_HOME="/usr/share/elasticsearch"
 MAX_OPEN_FILES=65535
 MAX_MAP_COUNT=262144
-ES_PATH_CONF="${path.conf}"
+ES_PATH_CONF="@path.conf@"
 
 PID_DIR="/var/run/elasticsearch"
 
 # Source the default env file
-ES_ENV_FILE="${path.env}"
+ES_ENV_FILE="@path.env@"
 if [ -f "$ES_ENV_FILE" ]; then
     . "$ES_ENV_FILE"
 fi
@@ -102,7 +102,7 @@ start() {
 stop() {
     echo -n $"Stopping $prog: "
     # stop it here, often "killproc $prog"
-    killproc -p $pidfile -d ${stopping.timeout} $prog
+    killproc -p $pidfile -d @stopping.timeout@ $prog
     retval=$?
     echo
     [ $retval -eq 0 ] && rm -f $lockfile

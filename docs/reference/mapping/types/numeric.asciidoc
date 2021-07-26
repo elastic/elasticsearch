@@ -124,6 +124,11 @@ The following parameters are accepted by numeric types:
     Mapping field-level query time boosting. Accepts a floating point number, defaults
     to `1.0`.
 
+include::keyword.asciidoc[tag=dimension]
++
+Of the numeric field types, only `byte`, `short`, `integer`, and `long` fields
+support this parameter.
+
 <<doc-values,`doc_values`>>::
 
     Should the field be stored on disk in a column-stride fashion, so that it

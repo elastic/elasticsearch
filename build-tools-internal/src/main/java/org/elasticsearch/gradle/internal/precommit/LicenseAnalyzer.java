@@ -157,7 +157,7 @@ public class LicenseAnalyzer {
         new LicenseMatcher("GeoLite", false, false,
             Pattern.compile("The Elastic GeoIP Database Service uses the GeoLite2 Data created " +
                 "and licensed by MaxMind,\nwhich is governed by MaxMind’s GeoLite2 End User License Agreement, " +
-                "available at https://www.maxmind.com/en/geolite2/eula.\n", Pattern.DOTALL)),
+                "available at https://www.maxmind.com/en/geolite2/eula.\n?", Pattern.DOTALL)),
         new LicenseMatcher("GeoIp-Database-Service", false, false,
             Pattern.compile("By using the GeoIP Database Service, you agree to the Elastic GeoIP Database Service Agreement,\n" +
                 "available at www.elastic.co/elastic-geoip-database-service-terms.", Pattern.DOTALL))};

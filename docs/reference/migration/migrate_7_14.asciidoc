@@ -155,13 +155,13 @@ with a leading underscore.
 [%collapsible]
 ====
 *Details* +
-Currently, remote system indices matching an <<ccr-auto-follow,auto-follow pattern>>
+Currently, remote system indices matching an {ref}/ccr-auto-follow.html[auto-follow pattern]
 are configured as a follower index automatically, this behavior is deprecated.
 
 *Impact* +
-In 8.0.0, remote system indices matching an <<ccr-auto-follow,auto-follow pattern>>
-won't be configured as a follower index automatically. In order to adapt to this new
-behaviour it is advised to exclude patterns matching system indices such as `.tasks` and
-`kibana-*`.
+In 8.0.0, remote system indices matching an auto-follow pattern won't be
+configured as a follower index automatically. In order to adapt to this new
+behaviour it is advised to exclude patterns matching system indices such as
+`.tasks` and `kibana-*`.
 ====
 // end::notable-breaking-changes[]

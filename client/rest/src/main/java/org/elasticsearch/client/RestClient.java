@@ -111,7 +111,7 @@ public class RestClient implements Closeable {
     // These are package private for tests.
     final List<Header> defaultHeaders;
     private final String pathPrefix;
-    private final AtomicInteger lastNodeIndex = new AtomicInteger(0);
+    private static final AtomicInteger lastNodeIndex = new AtomicInteger(0);
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
     private final NodeSelector nodeSelector;

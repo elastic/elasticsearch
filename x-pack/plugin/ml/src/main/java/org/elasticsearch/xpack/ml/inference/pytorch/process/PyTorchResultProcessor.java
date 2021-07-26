@@ -129,7 +129,7 @@ public class PyTorchResultProcessor {
     }
 
     public static class PendingResult {
-        private AtomicReference<PyTorchResult> result;
+        private final AtomicReference<PyTorchResult> result = new AtomicReference<>();
         private final CountDownLatch latch = new CountDownLatch(1);
     }
 }

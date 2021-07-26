@@ -58,6 +58,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
@@ -953,7 +954,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             return builder.build(new IndexFieldDataCache.None(), null);
         };
         return new SearchExecutionContext(0, 0, idxSettings, bitsetFilterCache, indexFieldDataLookup,
-                null, null, null, null, xContentRegistry(), null, null, null,
+                null, MappingLookup.EMPTY, null, null, xContentRegistry(), null, null, null,
                 () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap()) {
             @Override
             public MappedFieldType getFieldType(String name) {

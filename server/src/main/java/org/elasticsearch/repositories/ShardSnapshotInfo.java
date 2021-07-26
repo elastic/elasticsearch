@@ -76,6 +76,14 @@ public class ShardSnapshotInfo implements Writeable {
         return snapshot.getRepository();
     }
 
+    public IndexId getIndexId() {
+        return indexId;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

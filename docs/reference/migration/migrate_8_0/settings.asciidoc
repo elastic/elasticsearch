@@ -6,8 +6,6 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-//end::notable-breaking-changes[]
-
 [[search-remote-settings-removed]]
 .The `search.remote.*` settings have been removed.
 [%collapsible]
@@ -267,6 +265,7 @@ Index settings:
 Discontinue use of the removed settings. Specifying any of these cluster settings in Elasticsearch
 configuration will result in an error on startup. Any indices using these settings will have the
 settings archived (and they will have no effect) when the index metadata is loaded.
+====
 
 [[shared-data-path-setting]]
 .Shared data path and per index data path settings deprecated
@@ -281,6 +280,7 @@ per index data path settings.
 
 *Impact* +
 Discontinue use of the deprecated settings.
+====
 
 [[single-data-node-watermark-setting]]
 .Single data node watermark setting only accept true and is deprecated
@@ -299,4 +299,4 @@ allocation can be disabled by setting
 *Impact* +
 Discontinue use of the deprecated setting.
 ====
-
+//end::notable-breaking-changes[]

@@ -13,7 +13,6 @@
 The `wildcard` function was deprecated in {es} 7.13.0 and has been removed.
 
 *Impact* +
-Use the <<eql-syntax-pattern-comparison-keywords,`like`>> or
-<<eql-syntax-pattern-comparison-keywords,`regex`>> keyword instead.
+Use the `like` or `regex` {ref}/eql-syntax.html#eql-syntax-pattern-comparison-keywords[keywords] instead.
 ====
 // end::notable-breaking-changes[]

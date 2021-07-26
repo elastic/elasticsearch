@@ -545,7 +545,7 @@ public class License implements ToXContentObject {
             builder.field(Fields.STATUS, status().label());
         }
         builder.field(Fields.UID, uid);
-        final String bwcType = hideEnterprise && "enterprise".equals(type) ? "platinum" : type;
+        final String bwcType = hideEnterprise && LicenseType.isEnterprise(type) ? LicenseType.PLATINUM.getTypeName() : type;
         builder.field(Fields.TYPE, bwcType);
         if (version == VERSION_START) {
             builder.field(Fields.SUBSCRIPTION_TYPE, subscriptionType);

@@ -765,7 +765,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             }
             return new StringTerms(name, reduceOrder, order, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(), metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
-                otherDocCount, Arrays.asList(topBuckets), 0);
+                otherDocCount, Arrays.asList(topBuckets), 0L);
         }
 
         @Override

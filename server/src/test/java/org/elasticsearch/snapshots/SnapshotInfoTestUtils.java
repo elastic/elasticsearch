@@ -34,7 +34,7 @@ import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
 public class SnapshotInfoTestUtils {
     private SnapshotInfoTestUtils() {}
 
-    static SnapshotInfo createRandomSnapshotInfo() {
+    public static SnapshotInfo createRandomSnapshotInfo() {
         final Snapshot snapshot = new Snapshot(randomAlphaOfLength(5), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
         final List<String> indices = Arrays.asList(randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(2, 20)));
 

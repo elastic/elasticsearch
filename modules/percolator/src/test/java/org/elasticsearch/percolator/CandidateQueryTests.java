@@ -807,7 +807,6 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         assertEquals(2, topDocs.scoreDocs[1].doc);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75592")
     public void testPercolateSmallAndLargeDocument() throws Exception {
         List<LuceneDocument> docs = new ArrayList<>();
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -869,10 +868,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
 
         // This will trigger using the TermsQuery instead of individual term query clauses in the CoveringQuery:
+        int origMaxClauseCount = BooleanQuery.getMaxClauseCount();
         try (Directory directory = new ByteBuffersDirectory()) {
+            final int maxClauseCount = 100;
+            BooleanQuery.setMaxClauseCount(maxClauseCount);
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
                 Document document = new Document();
-                for (int i = 0; i < 1024; i++) {
+                for (int i = 0; i < maxClauseCount; i++) {
                     int fieldNumber = 2 + i;
                     document.add(new StringField("field", "value" + fieldNumber, Field.Store.NO));
                 }
@@ -898,6 +900,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 assertEquals(1, topDocs.scoreDocs[0].doc);
                 assertEquals(2, topDocs.scoreDocs[1].doc);
             }
+        } finally {
+            BooleanQuery.setMaxClauseCount(origMaxClauseCount);
         }
     }
 

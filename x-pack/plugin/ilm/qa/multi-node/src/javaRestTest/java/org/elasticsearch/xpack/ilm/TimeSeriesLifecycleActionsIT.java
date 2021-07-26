@@ -220,7 +220,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
-
+        Thread.sleep(1000); //TODO: This is just here for troubleshooting!
         assertBusy(() -> {
             Step.StepKey stepKey = getStepKeyForIndex(client(), index);
             logger.info("step key for index {} is {}", index, stepKey);
@@ -270,7 +270,12 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 assertEquals(2, ((Map<?, ?>) ((Map<?, ?>) responseMap.get(slmPolicy)).get("stats")).get("snapshots_taken"));
             }
         }, slmPolicy);
-
+        Thread.sleep(1000); //TODO: This is just here for troubleshooting!
+        assertBusy(() -> {
+            Step.StepKey stepKey = getStepKeyForIndex(client(), index);
+            logger.info("stepKey for index {} is {}", index, stepKey);
+            assertThat(stepKey.getAction(), equalTo("complete"));
+        }, slmPolicy);
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getAction(), equalTo("complete")), slmPolicy);
     }
 

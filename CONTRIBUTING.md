@@ -625,11 +625,13 @@ failing persistently and silently by default and requiring the user to enable
 `DEBUG` logging to investigate the problem.
 
 If an exception occurs as a direct result of a request received from a client
-then you should usually include the exception in the response back to the
-client and not record it in the logs at `WARN` level. The person reading the
-logs is usually unable to address any problems caused by faulty client
-requests, and the person running the client is often forbidden from seeing the
-server logs.
+then it should only be logged as a `WARN` if the server administrator is the
+right person to address it. In most cases the server administrator cannot do
+anything about faulty client requests, and the person running the client is
+often unable to see the server logs, so you should include the exception in the
+response back to the client and not log a warning. Bear in mind that clients
+may submit requests at a high rate, so any per-request logging can easily flood
+the logs.
 
 ##### `ERROR`
 

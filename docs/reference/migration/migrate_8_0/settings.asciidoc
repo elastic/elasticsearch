@@ -197,8 +197,8 @@ operation explicitly name the indices it intends to modify.
 
 *Impact* +
 If you would like to use wildcard patterns for destructive actions, set
-`action.destructive_requires_name` to `false` using the <<cluster-update-settings,
-cluster settings>> API.
+`action.destructive_requires_name` to `false` using the
+{ref}/cluster-update-settings.html[] cluster settings API].
 ====
 
 .Legacy role settings have been removed.
@@ -249,9 +249,10 @@ configuration will result in an error on startup.
 ====
 *Details* +
 The cluster and index level settings ending in `._tier` used for filtering the allocation of a shard
-to a particular set of nodes have been removed. Instead, the <<tier-preference-allocation-filter,
-tier preference setting>>, `index.routing.allocation.include._tier_preference` should be used. The
-removed settings are:
+to a particular set of nodes have been removed. Instead, the
+{ref}/data-tier-shard-filtering.html#tier-preference-allocation-filter[tier
+preference setting], `index.routing.allocation.include._tier_preference` should
+be used. The removed settings are:
 
 Cluster level settings:
 - `cluster.routing.allocation.include._tier`

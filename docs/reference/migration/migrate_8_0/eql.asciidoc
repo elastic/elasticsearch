@@ -2,6 +2,9 @@
 [[breaking_80_eql_changes]]
 ==== EQL changes
 
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
 //tag::notable-breaking-changes[]
 .The `wildcard` function has been removed.
 [%collapsible]

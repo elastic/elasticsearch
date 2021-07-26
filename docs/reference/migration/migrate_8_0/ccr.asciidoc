@@ -6,17 +6,15 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-
-// end::notable-breaking-changes[]
-
 .Remote system indices are not followed automatically if they match an auto-follow pattern.
 [%collapsible]
 ====
 *Details* +
-Remote system indices matching an <<ccr-auto-follow,auto-follow pattern>>
-won't be configured as a follower index automatically.
+Remote system indices matching an {ref}/ccr-auto-follow.html[auto-follow
+pattern] won't be configured as a follower index automatically.
 
 *Impact* +
-Explicitly <<ccr-put-follow,create a follower index>> to follow a remote system
-index if that's the wanted behaviour.
+Explicitly {ref}/ccr-put-follow.html[create a follower index] to follow a remote
+system index if that's the wanted behaviour.
 ====
+// end::notable-breaking-changes[]

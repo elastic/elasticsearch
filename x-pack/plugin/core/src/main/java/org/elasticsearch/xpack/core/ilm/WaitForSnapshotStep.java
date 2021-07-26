@@ -70,12 +70,16 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
             }
             else {
                 logger.info("Not executing policy because snapshot start time {} is before phase time {}. Snapshot timestamp is {}",
-                    snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(), phaseTime, snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp());
+                    snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(),
+                    phaseTime,
+                    snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp());
             }
             return new Result(false, notExecutedMessage(phaseTime));
         }
         logger.info("Executing policy because snapshot start time {} is after phase time {}. Snapshot timestamp is {}",
-            snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(), phaseTime, snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp());
+            snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(),
+            phaseTime,
+            snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp());
         return new Result(true, null);
     }
 

@@ -1,10 +1,9 @@
 [role="xpack"]
 [[fleet-apis]]
+== Fleet APIs
 
 TIP: For the {kib} {fleet} APIs, see the
-{fleet-guide}/fleet-api-docs.html[`Fleet API Documentation`].
-
-== Fleet APIs
+{fleet-guide}/fleet-api-docs.html[Fleet API Documentation].
 
 The following APIs support {fleet}'s use of {es} as a data store for internal
 agent and action data. These APIs are experimental and for internal use by

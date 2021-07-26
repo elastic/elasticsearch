@@ -195,11 +195,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToRestartName));
 
         // Verify that the shard's allocation is delayed - but with a shorter wait than the reallocation timeout
-        assertBusy(
-            () -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); },
-            2,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); });
 
         {
             DeleteShutdownNodeAction.Request deleteShutdownRequest = new DeleteShutdownNodeAction.Request(nodeToRestartId);

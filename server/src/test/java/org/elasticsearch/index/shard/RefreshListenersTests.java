@@ -139,7 +139,8 @@ public class RefreshListenersTests extends ESTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 () -> RetentionLeases.EMPTY,
                 () -> primaryTerm,
-                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+                null);
         engine = new InternalEngine(config);
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);

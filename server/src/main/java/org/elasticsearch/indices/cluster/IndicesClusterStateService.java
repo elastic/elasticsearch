@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -576,6 +577,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         try {
             final long primaryTerm = state.metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
             logger.debug("{} creating shard with primary term [{}]", shardRouting.shardId(), primaryTerm);
+            IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(shardRouting.getIndexName());
+            final boolean isDataStreamIndex = (indexAbstraction != null) && (indexAbstraction.getParentDataStream() != null);
             indicesService.createShard(
                     shardRouting,
                     recoveryTargetService,
@@ -585,7 +588,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     this::updateGlobalCheckpointForShard,
                     retentionLeaseSyncer,
                     nodes.getLocalNode(),
-                    sourceNode);
+                    sourceNode,
+                    isDataStreamIndex);
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
         }
@@ -900,6 +904,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @param retentionLeaseSyncer   a callback when this shard syncs retention leases
          * @param targetNode             the node where this shard will be recovered
          * @param sourceNode             the source node to recover this shard from (it might be null)
+         * @param isDataStreamIndex      true if an shard belongs to an index that is a part of a data stream.
          * @return a new shard
          * @throws IOException if an I/O exception occurs when creating the shard
          */
@@ -912,7 +917,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 Consumer<ShardId> globalCheckpointSyncer,
                 RetentionLeaseSyncer retentionLeaseSyncer,
                 DiscoveryNode targetNode,
-                @Nullable DiscoveryNode sourceNode) throws IOException;
+                @Nullable DiscoveryNode sourceNode,
+                boolean isDataStreamIndex) throws IOException;
 
         /**
          * Returns shard for the specified id if it exists otherwise returns <code>null</code>.

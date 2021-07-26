@@ -62,6 +62,9 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
@@ -1099,10 +1102,6 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(metricsFooDataStream.getIlmPolicy(), is(nullValue()));
     }
 
-    private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping) {
-        assertBackingIndex(backingIndex, timestampFieldPathInMapping, Map.of("type", "date"));
-    }
-
     private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping, Map<?, ?> expectedMapping) {
         GetIndexResponse getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
@@ -1365,6 +1364,42 @@ public class DataStreamIT extends ESIntegTestCase {
             Exception.class,
             () -> client().admin().indices().prepareGetIndex().addIndices(DataStream.getDefaultBackingIndexName("potato-biscuit", 3)).get()
         );
+    }
+
+    // Test that datastream's segments by default are sorted on @timestamp desc
+    public void testSegmentsSortedOnTimestampDesc() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        // We index data in the increasing order of @timestamp field
+        int numDocs1 = randomIntBetween(2, 10);
+        indexDocs("metrics-foo", numDocs1); // 1st segment
+        int numDocs2 = randomIntBetween(2, 10);
+        indexDocs("metrics-foo", numDocs2); // 2nd segment
+        int numDocs3 = randomIntBetween(2, 10);
+        indexDocs("metrics-foo", numDocs3); // 3rd segment
+        int totalDocs = numDocs1 + numDocs2 + numDocs3;
+
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.fetchField(new FieldAndFormat(DEFAULT_TIMESTAMP_FIELD, "epoch_millis"));
+        source.size(totalDocs);
+        SearchRequest searchRequest = new SearchRequest(new String[] { "metrics-foo" }, source);
+        SearchResponse searchResponse = client().search(searchRequest).actionGet();
+        assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value);
+        SearchHit[] hits = searchResponse.getHits().getHits();
+        assertEquals(totalDocs, hits.length);
+
+        // Test that when we read data, segments come in the reverse order with a segment with the latest date first
+        long timestamp1 = Long.valueOf(hits[0].field(DEFAULT_TIMESTAMP_FIELD).getValue()); // 1st doc of 1st seg
+        long timestamp2 = Long.valueOf(hits[0 + numDocs3].field(DEFAULT_TIMESTAMP_FIELD).getValue()); // 1st doc of the 2nd seg
+        long timestamp3 = Long.valueOf(hits[0 + numDocs3 + numDocs2].field(DEFAULT_TIMESTAMP_FIELD).getValue());  // 1st doc of the 3rd seg
+        assertTrue(timestamp1 > timestamp2);
+        assertTrue(timestamp2 > timestamp3);
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {

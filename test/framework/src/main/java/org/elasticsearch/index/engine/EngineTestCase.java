@@ -239,7 +239,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
             config.getCircuitBreakerService(), globalCheckpointSupplier, config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier(), config.getLeafSorter());
     }
 
     public EngineConfig copy(EngineConfig config, Analyzer analyzer) {
@@ -249,7 +249,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier(), config.getLeafSorter());
     }
 
     public EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
@@ -259,7 +259,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
             config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier(), config.getLeafSorter());
     }
 
     @Override
@@ -672,7 +672,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 globalCheckpointSupplier,
                 retentionLeasesSupplier,
                 primaryTerm,
-                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+                null);
     }
 
     protected EngineConfig config(EngineConfig config, Store store, Path translogPath) {
@@ -686,7 +687,7 @@ public abstract class EngineTestCase extends ESTestCase {
             translogConfig, config.getFlushMergesAfter(), config.getExternalRefreshListener(),
             config.getInternalRefreshListener(), config.getIndexSort(), config.getCircuitBreakerService(),
             config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
+            config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier(), config.getLeafSorter());
     }
 
     protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath) {

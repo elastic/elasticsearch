@@ -60,8 +60,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MigrateToDataTiersIT extends ESRestTestCase {
-    private static final Logger logger = LogManager.getLogger(MigrateToDataTiersIT.class);
-
     private String index;
     private String policy;
     private String alias;

@@ -386,7 +386,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public synchronized IndexShard createShard(
             final ShardRouting routing,
             final Consumer<ShardId> globalCheckpointSyncer,
-            final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
+            final RetentionLeaseSyncer retentionLeaseSyncer,
+            final boolean isDataStreamIndex) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
@@ -478,7 +479,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     () -> globalCheckpointSyncer.accept(shardId),
                     retentionLeaseSyncer,
                     circuitBreakerService,
-                    snapshotCommitSupplier);
+                    snapshotCommitSupplier,
+                    isDataStreamIndex);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = Maps.copyMapWithAddedEntry(shards, shardId.id(), indexShard);

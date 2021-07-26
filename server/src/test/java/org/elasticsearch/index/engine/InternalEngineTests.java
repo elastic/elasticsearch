@@ -2946,7 +2946,8 @@ public class InternalEngineTests extends EngineTestCase {
                 () -> UNASSIGNED_SEQ_NO,
                 () -> RetentionLeases.EMPTY,
                 primaryTerm::get,
-                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+                null);
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
         engine = createEngine(store, primaryTranslogDir); // and recover again!
@@ -6020,7 +6021,7 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getQueryCachingPolicy(), translogConfig, config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier(), config.getLeafSorter());
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
                 assertThat(expectThrows(Throwable.class, () -> engine.acquireSearcher("test")).getMessage(),

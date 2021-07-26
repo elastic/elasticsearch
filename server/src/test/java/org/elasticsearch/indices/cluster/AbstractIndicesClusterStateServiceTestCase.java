@@ -228,7 +228,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 final Consumer<ShardId> globalCheckpointSyncer,
                 final RetentionLeaseSyncer retentionLeaseSyncer,
                 final DiscoveryNode targetNode,
-                final DiscoveryNode sourceNode) throws IOException {
+                final DiscoveryNode sourceNode,
+                final boolean isDataStreamIndex) throws IOException {
             failRandomly();
             RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());

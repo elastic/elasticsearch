@@ -185,6 +185,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.cluster.metadata.DataStream.DATASTREAM_LEAF_READERS_SORTER;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -283,6 +284,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
+    private final boolean isDataStreamIndex; // if a shard is a part of data stream
 
     public IndexShard(
             final ShardRouting shardRouting,
@@ -304,7 +306,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final Runnable globalCheckpointSyncer,
             final RetentionLeaseSyncer retentionLeaseSyncer,
             final CircuitBreakerService circuitBreakerService,
-            final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier) throws IOException {
+            final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
+            boolean isDataStreamIndex) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -387,6 +390,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
+        this.isDataStreamIndex = isDataStreamIndex;
     }
 
     public ThreadPool getThreadPool() {
@@ -2912,7 +2916,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 globalCheckpointSupplier,
                 replicationTracker::getRetentionLeases,
                 this::getOperationPrimaryTerm,
-                snapshotCommitSupplier);
+                snapshotCommitSupplier,
+                isDataStreamIndex ? DATASTREAM_LEAF_READERS_SORTER : null);
     }
 
     /**

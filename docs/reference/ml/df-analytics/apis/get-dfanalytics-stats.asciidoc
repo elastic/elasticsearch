@@ -528,7 +528,8 @@ values: `failed`, `started`, `starting`,`stopping`, `stopped`.
 == {api-examples-title}
 
 The following API retrieves usage information for the
-{ml-docs}/ml-dfa-finding-outliers.html#weblogs-outliers[{oldetection} {dfanalytics-job} example]:
+// {ml-docs}/ml-dfa-finding-outliers.html#weblogs-outliers[{oldetection} {dfanalytics-job} example]:
+{ml-docs}/ml-dfa-finding-outliers.html[{oldetection} {dfanalytics-job} example]:
 
 [source,console]
 --------------------------------------------------

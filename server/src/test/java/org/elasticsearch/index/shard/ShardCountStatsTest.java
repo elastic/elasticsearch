@@ -16,28 +16,28 @@ import org.junit.Assert;
 
 import static org.hamcrest.Matchers.equalTo;
 
-class SimpleShardStatsTest extends ESTestCase {
+class ShardCountStatsTest extends ESTestCase {
 
     public void testAdd() {
-        SimpleShardStats shardStats1 = new SimpleShardStats(5);
-        SimpleShardStats shardStats2 = new SimpleShardStats(8);
-        SimpleShardStats combinedShardStats = shardStats1.add(shardStats2);
+        ShardCountStats shardStats1 = new ShardCountStats(5);
+        ShardCountStats shardStats2 = new ShardCountStats(8);
+        ShardCountStats combinedShardStats = shardStats1.add(shardStats2);
         Assert.assertEquals(13, combinedShardStats.getTotalCount());
         Assert.assertEquals(5, shardStats1.getTotalCount());
         Assert.assertEquals(8, shardStats2.getTotalCount());
-        SimpleShardStats noCountGiven = new SimpleShardStats();
+        ShardCountStats noCountGiven = new ShardCountStats();
         Assert.assertEquals(0, noCountGiven.getTotalCount());
         Assert.assertEquals(8, shardStats2.add(null).getTotalCount());
         Assert.assertEquals(8, shardStats2.getTotalCount());
     }
 
     public void testSerialize() throws Exception {
-        SimpleShardStats originalStats = new SimpleShardStats(5);
+        ShardCountStats originalStats = new ShardCountStats(5);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalStats.writeTo(out);
             BytesReference bytes = out.bytes();
             try (StreamInput in = bytes.streamInput()) {
-                SimpleShardStats cloneStats = new SimpleShardStats(in);
+                ShardCountStats cloneStats = new ShardCountStats(in);
                 assertThat(cloneStats.getTotalCount(), equalTo(originalStats.getTotalCount()));
             }
         }

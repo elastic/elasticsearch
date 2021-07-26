@@ -17,19 +17,19 @@ import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
-public class SimpleShardStats implements Writeable, ToXContentFragment {
+public class ShardCountStats implements Writeable, ToXContentFragment {
 
     private final long totalCount;
 
-    public SimpleShardStats() {
+    public ShardCountStats() {
         totalCount = 0;
     }
 
-    public SimpleShardStats(StreamInput in) throws IOException {
+    public ShardCountStats(StreamInput in) throws IOException {
         totalCount = in.readVLong();
     }
 
-    public SimpleShardStats(long totalCount) {
+    public ShardCountStats(long totalCount) {
         this.totalCount = totalCount;
     }
 
@@ -37,8 +37,8 @@ public class SimpleShardStats implements Writeable, ToXContentFragment {
         return this.totalCount;
     }
 
-    public SimpleShardStats add(@Nullable SimpleShardStats other) {
-        return new SimpleShardStats(this.totalCount + (other == null ? 0 : other.totalCount));
+    public ShardCountStats add(@Nullable ShardCountStats other) {
+        return new ShardCountStats(this.totalCount + (other == null ? 0 : other.totalCount));
     }
 
     @Override

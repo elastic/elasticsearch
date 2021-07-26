@@ -32,7 +32,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingStats;
-import org.elasticsearch.index.shard.SimpleShardStats;
+import org.elasticsearch.index.shard.ShardCountStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -98,7 +98,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
     public BulkStats bulk;
 
     @Nullable
-    public SimpleShardStats shards;
+    public ShardCountStats shards;
 
     public CommonStats() {
         this(CommonStatsFlags.NONE);
@@ -161,7 +161,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     bulk = new BulkStats();
                     break;
                 case Shards:
-                    shards = new SimpleShardStats();
+                    shards = new ShardCountStats();
                     break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
@@ -227,7 +227,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                         break;
                     case Shards:
                         // Setting to 1 because the single IndexShard passed to this method implies 1 shard
-                        shards = new SimpleShardStats(1);
+                        shards = new ShardCountStats(1);
                         break;
                     default:
                         throw new IllegalStateException("Unknown Flag: " + flag);
@@ -257,7 +257,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             bulk = in.readOptionalWriteable(BulkStats::new);
-            shards = in.readOptionalWriteable(SimpleShardStats::new);
+            shards = in.readOptionalWriteable(ShardCountStats::new);
         }
     }
 
@@ -519,7 +519,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
     }
 
     @Nullable
-    public SimpleShardStats getShards() {
+    public ShardCountStats getShards() {
         return shards;
     }
 

@@ -49,7 +49,6 @@ public class RestApiCompatibleUpgradeIT extends AbstractFullClusterRestartTestCa
             assertTypeQueryHits("test_type_query_2", "_doc", 1);
             assertTypeQueryHits("test_type_query_2", "dog", 0);
             assertTypeQueryHits("test_type_query_2", "_default_", 0);
-
         }
     }
 
@@ -74,5 +73,4 @@ public class RestApiCompatibleUpgradeIT extends AbstractFullClusterRestartTestCa
         assertNoFailures(response);
         assertThat(extractTotalHits(response), equalTo(numHits));
     }
-
 }

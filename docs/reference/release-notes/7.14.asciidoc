@@ -19,4 +19,4 @@ Machine Learning::
 Machine Learning::
 * Make atomic operations safer for aarch64 {ml-pull}1893[#1893]
 
-* Ensure bucket event_count is calculated for jobs with 1 second bucket spans {ml-pull}1908[#1908]
+* Ensure bucket event_count is calculated for jobs with 1 second bucket spans {ml-pull}1909[#1909]

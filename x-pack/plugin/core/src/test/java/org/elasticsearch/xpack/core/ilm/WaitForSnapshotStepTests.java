@@ -135,8 +135,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         if (startTimeAfterPhaseTime) {
             assertTrue(result.isComplete());
             assertNull(result.getInfomationContext());
-        }
-        else {
+        } else {
             assertFalse(result.isComplete());
             assertTrue(getMessage(result).contains("to be executed"));
         }

@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.transport.Transports;
 

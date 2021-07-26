@@ -310,14 +310,6 @@ public class HeaderWarning {
             .orElse("");
     }
 
-    public static String getTraceId() {
-        return THREAD_CONTEXT.stream()
-            .filter(t -> t.getHeader(Task.TRACE_ID) != null)
-            .findFirst()
-            .map(t -> t.getHeader(Task.TRACE_ID))
-            .orElse("");
-    }
-
     public static void addWarning(String message, Object... params) {
         addWarning(THREAD_CONTEXT, message, params);
     }

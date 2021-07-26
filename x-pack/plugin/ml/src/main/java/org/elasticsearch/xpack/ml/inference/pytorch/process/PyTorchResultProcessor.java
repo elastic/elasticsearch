@@ -20,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class PyTorchResultProcessor {
 
@@ -55,7 +56,7 @@ public class PyTorchResultProcessor {
                 if (pendingResult == null) {
                     logger.warn(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, result.getRequestId()));
                 } else {
-                    pendingResult.result = result;
+                    pendingResult.result.set(result);
                     pendingResult.latch.countDown();
                 }
             }
@@ -65,25 +66,27 @@ public class PyTorchResultProcessor {
                 logger.error(new ParameterizedMessage("[{}] Error processing results", deploymentId), e);
             }
             pendingResults.forEach((id, pendingResults) -> {
-                pendingResults.result = new PyTorchResult(
+                if (pendingResults.result.compareAndSet(null, new PyTorchResult(
                     id,
                     null,
                     null,
                     isStopping ?
                         "inference canceled as process is stopping" :
-                        "inference native process died unexpectedly with failure [" + e.getMessage() + "]");
-                pendingResults.latch.countDown();
+                        "inference native process died unexpectedly with failure [" + e.getMessage() + "]"))) {
+                    pendingResults.latch.countDown();
+                }
             });
             pendingResults.clear();
         } finally {
             pendingResults.forEach((id, pendingResults) -> {
-                pendingResults.result = new PyTorchResult(
+                // Only set the result if it has not already been set
+                if (pendingResults.result.compareAndSet(null, new PyTorchResult(
                     id,
                     null,
                     null,
-                    "inference canceled as process is stopping"
-                );
-                pendingResults.latch.countDown();
+                    "inference canceled as process is stopping"))) {
+                    pendingResults.latch.countDown();
+                }
             });
             pendingResults.clear();
         }
@@ -110,13 +113,13 @@ public class PyTorchResultProcessor {
         TimeValue timeout
     ) throws InterruptedException {
         if (process == null || process.isProcessAliveAfterWaiting() == false) {
-            PyTorchResult storedResult = pendingResult.result;
+            PyTorchResult storedResult = pendingResult.result.get();
             return storedResult == null ?
                 new PyTorchResult(requestId, null, null, "native process no longer started") :
                 storedResult;
         }
         if (pendingResult.latch.await(timeout.millis(), TimeUnit.MILLISECONDS)) {
-            return pendingResult.result;
+            return pendingResult.result.get();
         }
         return null;
     }
@@ -126,7 +129,7 @@ public class PyTorchResultProcessor {
     }
 
     public static class PendingResult {
-        private volatile PyTorchResult result;
+        private AtomicReference<PyTorchResult> result;
         private final CountDownLatch latch = new CountDownLatch(1);
     }
 }

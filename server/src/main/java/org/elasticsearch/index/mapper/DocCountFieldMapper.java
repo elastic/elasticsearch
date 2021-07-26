@@ -45,6 +45,11 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean isMetadataField() {
+            return true;
+        }
+
+        @Override
         public Query existsQuery(SearchExecutionContext context) {
             throw new QueryShardException(context, "Field [" + name() + "] of type [" + typeName() + "] does not support exists queries");
         }

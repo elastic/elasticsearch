@@ -42,6 +42,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean isMetadataField() {
+            return true;
+        }
+
+        @Override
         protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
             if (caseInsensitive) {
                 // Thankfully, all index names are lower-cased so we don't have to pass a case_insensitive mode flag

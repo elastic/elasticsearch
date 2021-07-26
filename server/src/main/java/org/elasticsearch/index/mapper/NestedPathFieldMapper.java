@@ -67,6 +67,11 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean isMetadataField() {
+            return true;
+        }
+
+        @Override
         public Query existsQuery(SearchExecutionContext context) {
             throw new UnsupportedOperationException("Cannot run exists() query against the nested field path");
         }

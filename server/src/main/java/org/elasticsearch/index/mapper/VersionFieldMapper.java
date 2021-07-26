@@ -40,6 +40,11 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean isMetadataField() {
+            return true;
+        }
+
+        @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new QueryShardException(context, "The _version field is not searchable");
         }

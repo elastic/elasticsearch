@@ -29,6 +29,7 @@ import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
@@ -93,6 +94,14 @@ public abstract class MappedFieldType {
      * could cause a search retrieving multiple fields (like "fields": ["*"]) to fail.
      */
     public abstract ValueFetcher valueFetcher(SearchExecutionContext context, @Nullable String format);
+
+    public final IndexFieldCapabilities fieldCaps() {
+        return new IndexFieldCapabilities(name, familyTypeName(), isMetadataField(), isSearchable(), isAggregatable(), meta());
+    }
+
+    public boolean isMetadataField() {
+        return false;
+    }
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();

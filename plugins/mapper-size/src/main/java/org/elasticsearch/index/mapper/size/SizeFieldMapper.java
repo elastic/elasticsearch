@@ -55,6 +55,11 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean isMetadataField() {
+            return true;
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
                 return lookup -> List.of();

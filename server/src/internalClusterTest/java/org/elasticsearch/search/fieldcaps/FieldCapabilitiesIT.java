@@ -18,8 +18,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -400,16 +402,44 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         }
     }
 
+    private static final class TestMetadataFieldType extends MappedFieldType {
+
+        TestMetadataFieldType(String name) {
+            super(name, true, false, true, TextSearchInfo.NONE, Collections.emptyMap());
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isMetadataField() {
+            return true;
+        }
+
+        @Override
+        public String typeName() {
+            return "test";
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+    }
+
     private static final class TestMetadataMapper extends MetadataFieldMapper {
         private static final String CONTENT_TYPE = "_test";
         private static final String FIELD_NAME = "_test";
 
         protected TestMetadataMapper() {
-            super(new KeywordFieldMapper.KeywordFieldType(FIELD_NAME));
+            super(new TestMetadataFieldType(FIELD_NAME));
         }
 
         @Override
-        protected void parseCreateField(DocumentParserContext context) throws IOException {}
+        protected void parseCreateField(DocumentParserContext context) {}
 
         @Override
         protected String contentType() {

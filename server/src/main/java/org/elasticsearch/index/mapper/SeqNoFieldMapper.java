@@ -111,6 +111,11 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             return CONTENT_TYPE;
         }
 
+        @Override
+        public boolean isMetadataField() {
+            return true;
+        }
+
         private long parse(Object value) {
             if (value instanceof Number) {
                 double doubleValue = ((Number) value).doubleValue();

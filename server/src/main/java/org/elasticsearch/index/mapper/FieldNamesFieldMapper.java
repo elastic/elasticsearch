@@ -117,6 +117,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             return CONTENT_TYPE;
         }
 
+        @Override
+        public boolean isMetadataField() {
+            return true;
+        }
+
         public boolean isEnabled() {
             return enabled;
         }

@@ -35,7 +35,7 @@ public class IndexFieldCapabilities implements Writeable {
      * @param isAggregatable Whether this field can be aggregated on.
      * @param meta Metadata about the field.
      */
-    IndexFieldCapabilities(String name, String type,
+    public IndexFieldCapabilities(String name, String type,
                            boolean isMetadatafield,
                            boolean isSearchable, boolean isAggregatable,
                            Map<String, String> meta) {

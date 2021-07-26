@@ -56,6 +56,11 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean isMetadataField() {
+            return true;
+        }
+
+        @Override
         public Query existsQuery(SearchExecutionContext context) {
             // This query is not performance sensitive, it only helps assess
             // quality of the data, so we may use a slow query. It shouldn't

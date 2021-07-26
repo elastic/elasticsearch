@@ -341,10 +341,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
             for (String field : fieldNames) {
                 MappedFieldType ft = searchExecutionContext.getFieldType(field);
-                boolean isMetadataField = searchExecutionContext.isMetadataField(field);
-                if (isMetadataField || fieldPredicate.test(ft.name())) {
-                    IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field,
-                            ft.familyTypeName(), isMetadataField, ft.isSearchable(), ft.isAggregatable(), ft.meta());
+                IndexFieldCapabilities fieldCap = ft.fieldCaps();
+                if (fieldCap.isMetadatafield() || fieldPredicate.test(ft.name())) {
                     responseMap.put(field, fieldCap);
                 } else {
                     continue;
@@ -366,8 +364,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                             // no field type, it must be an object field
                             ObjectMapper mapper = searchExecutionContext.getObjectMapper(parentField);
                             String type = mapper.isNested() ? "nested" : "object";
-                            IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
-                                    false, false, false, Collections.emptyMap());
+                            fieldCap = new IndexFieldCapabilities(parentField, type, false, false, false, Collections.emptyMap());
                             responseMap.put(parentField, fieldCap);
                         }
                         dotIndex = parentField.lastIndexOf('.');

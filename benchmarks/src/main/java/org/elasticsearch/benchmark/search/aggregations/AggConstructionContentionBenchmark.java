@@ -27,9 +27,9 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -268,7 +268,7 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        public ObjectMapper getObjectMapper(String path) {
+        public NestedLookup nestedLookup() {
             throw new UnsupportedOperationException();
         }
 

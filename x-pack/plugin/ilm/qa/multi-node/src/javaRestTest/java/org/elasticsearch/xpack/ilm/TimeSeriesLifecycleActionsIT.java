@@ -221,7 +221,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getAction(), equalTo("complete")), slmPolicy);
+        assertBusy(() -> {
+            Step.StepKey stepKey = getStepKeyForIndex(client(), index);
+            logger.info("step key for index {} is {}", index, stepKey);
+            assertThat(stepKey.getAction(), equalTo("complete"));
+        }, slmPolicy);
     }
 
     public void testWaitForSnapshotSlmExecutedBefore() throws Exception {

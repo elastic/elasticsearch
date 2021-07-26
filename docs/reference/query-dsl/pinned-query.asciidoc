@@ -73,7 +73,9 @@ GET /_search
         }
       ],
       "organic": {
-        "match_all": {}
+        "match": {
+          "description": "iphone"
+        }
       }
     }
   }

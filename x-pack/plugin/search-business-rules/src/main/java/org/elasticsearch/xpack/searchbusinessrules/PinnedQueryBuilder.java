@@ -155,15 +155,15 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof Item) == false) return false;
+            if (this == o) {
+                return true;
+            }
+            if ((o instanceof Item) == false) {
+                return false;
+            }
             Item other = (Item) o;
             return Objects.equals(index, other.index) && Objects.equals(id, other.id);
         }
-    }
-
-    public PinnedQueryBuilder(QueryBuilder organicQuery) {
-        this(organicQuery, Collections.emptyList(), null);
     }
 
     public PinnedQueryBuilder(QueryBuilder organicQuery, String... ids) {
@@ -266,7 +266,9 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
      * Returns the pinned ids for the query.
      */
     public List<String> ids() {
-        if (this.ids == null) return Collections.emptyList();
+        if (this.ids == null) {
+            return Collections.emptyList();
+        }
         return Collections.unmodifiableList(this.ids);
     }
 
@@ -274,7 +276,9 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
      * @return the pinned docs for the query.
      */
     public List<Item> docs() {
-        if (this.docs == null) return Collections.emptyList();
+        if (this.docs == null) {
+            return Collections.emptyList();
+        }
         return Collections.unmodifiableList(this.docs);
     }
 

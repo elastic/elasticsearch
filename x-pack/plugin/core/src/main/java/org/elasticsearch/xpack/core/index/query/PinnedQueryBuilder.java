@@ -70,8 +70,8 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(INDEX_FIELD.getPreferredName(), this.index);
-            builder.field(ID_FIELD.getPreferredName(), this.id);
+            builder.field(INDEX_FIELD.getPreferredName(), index);
+            builder.field(ID_FIELD.getPreferredName(), id);
             return builder.endObject();
         }
     }
@@ -79,10 +79,6 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    public PinnedQueryBuilder(QueryBuilder organicQuery) {
-        this(organicQuery, Collections.emptyList(), null);
     }
 
     public PinnedQueryBuilder(QueryBuilder organicQuery, String... ids) {
@@ -135,7 +131,9 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
      * Returns the pinned ids for the query.
      */
     public List<String> ids() {
-        if (this.ids == null) return Collections.emptyList();
+        if (this.ids == null) {
+            return Collections.emptyList();
+        }
         return Collections.unmodifiableList(this.ids);
     }
 
@@ -143,7 +141,9 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
      * Returns the pinned docs for the query.
      */
     public List<Item> docs() {
-        if (this.docs == null) return Collections.emptyList();
+        if (this.docs == null) {
+            return Collections.emptyList();
+        }
         return Collections.unmodifiableList(this.docs);
     }
 

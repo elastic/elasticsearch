@@ -114,9 +114,7 @@ public class IndicesSegmentResponse extends BroadcastResponse {
                         builder.field(Fields.NUM_DOCS, segment.getNumDocs());
                         builder.field(Fields.DELETED_DOCS, segment.getDeletedDocs());
                         builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, segment.getSize());
-                        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                            builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, new ByteSizeValue(0));
-                        }
+                        builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, new ByteSizeValue(0));
                         builder.field(Fields.COMMITTED, segment.isCommitted());
                         builder.field(Fields.SEARCH, segment.isSearch());
                         if (segment.getVersion() != null) {

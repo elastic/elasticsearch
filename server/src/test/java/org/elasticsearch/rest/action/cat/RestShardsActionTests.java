@@ -103,8 +103,8 @@ public class RestShardsActionTests extends ESTestCase {
             assertThat(row.get(3).value, equalTo(shardRouting.state()));
             assertThat(row.get(6).value, equalTo(localNode.getHostAddress()));
             assertThat(row.get(7).value, equalTo(localNode.getId()));
-            assertThat(row.get(68).value, equalTo(shardStats.getDataPath()));
-            assertThat(row.get(69).value, equalTo(shardStats.getStatePath()));
+            assertThat(row.get(69).value, equalTo(shardStats.getDataPath()));
+            assertThat(row.get(70).value, equalTo(shardStats.getStatePath()));
         }
     }
 }

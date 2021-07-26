@@ -161,6 +161,7 @@ The API returns the following response:
                 "num_docs": 1,
                 "deleted_docs": 0,
                 "size_in_bytes": 3800,
+                "memory_in_bytes": 0,
                 "committed": false,
                 "search": true,
                 "version": "7.0.0",

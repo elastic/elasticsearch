@@ -102,6 +102,7 @@ public class RestSegmentsAction extends AbstractCatAction {
         table.addCell("docs.count", "default:true;alias:dc,docsCount;text-align:right;desc:number of docs in segment");
         table.addCell("docs.deleted", "default:true;alias:dd,docsDeleted;text-align:right;desc:number of deleted docs in segment");
         table.addCell("size", "default:true;alias:si;text-align:right;desc:segment size in bytes");
+        table.addCell("size.memory", "default:true;alias:sm,sizeMemory;text-align:right;desc:segment memory in bytes");
         table.addCell("committed", "default:true;alias:ic,isCommitted;desc:is segment committed");
         table.addCell("searchable", "default:true;alias:is,isSearchable;desc:is segment searched");
         table.addCell("version", "default:true;alias:v,ver;desc:version");
@@ -137,6 +138,7 @@ public class RestSegmentsAction extends AbstractCatAction {
                         table.addCell(segment.getNumDocs());
                         table.addCell(segment.getDeletedDocs());
                         table.addCell(segment.getSize());
+                        table.addCell(0L);
                         table.addCell(segment.isCommitted());
                         table.addCell(segment.isSearch());
                         table.addCell(segment.getVersion());

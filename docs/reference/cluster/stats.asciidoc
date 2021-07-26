@@ -362,6 +362,76 @@ Contains statistics about segments in selected nodes.
 (integer)
 Total number of segments across all shards assigned to selected nodes.
 
+`memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for segments across all shards assigned to selected
+nodes.
+
+`memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for segments across all shards assigned to
+selected nodes.
+
+`terms_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for terms across all shards assigned to selected
+nodes.
+
+`terms_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for terms across all shards assigned to
+selected nodes.
+
+`stored_fields_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for stored fields across all shards assigned to
+selected nodes.
+
+`stored_fields_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for stored fields across all shards
+assigned to selected nodes.
+
+`term_vectors_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for term vectors across all shards assigned to
+selected nodes.
+
+`term_vectors_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for term vectors across all shards
+assigned to selected nodes.
+
+`norms_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for normalization factors across all shards assigned
+to selected nodes.
+
+`norms_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for normalization factors across all
+shards assigned to selected nodes.
+
+`points_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for points across all shards assigned to selected
+nodes.
+
+`points_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for points across all shards assigned to
+selected nodes.
+
+`doc_values_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for doc values across all shards assigned to
+selected nodes.
+
+`doc_values_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for doc values across all shards assigned
+to selected nodes.
+
 `index_writer_memory`::
 (<<byte-units, byte units>>)
 Total amount of memory used by all index writers across all shards assigned to
@@ -1246,6 +1316,20 @@ The API returns the following response:
       },
       "segments": {
          "count": 4,
+         "memory": "8.6kb",
+         "memory_in_bytes": 0,
+         "terms_memory": "0b",
+         "terms_memory_in_bytes": 0,
+         "stored_fields_memory": "0b",
+         "stored_fields_memory_in_bytes": 0,
+         "term_vectors_memory": "0b",
+         "term_vectors_memory_in_bytes": 0,
+         "norms_memory": "0b",
+         "norms_memory_in_bytes": 0,
+         "points_memory" : "0b",
+         "points_memory_in_bytes" : 0,
+         "doc_values_memory": "0b",
+         "doc_values_memory_in_bytes": 0,
          "index_writer_memory": "0b",
          "index_writer_memory_in_bytes": 0,
          "version_map_memory": "0b",

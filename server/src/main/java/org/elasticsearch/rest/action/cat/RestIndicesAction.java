@@ -30,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestRequest;
@@ -435,6 +436,9 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("segments.count", "sibling:pri;alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("pri.segments.count", "default:false;text-align:right;desc:number of segments");
 
+        table.addCell("segments.memory", "sibling:pri;alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
+        table.addCell("pri.segments.memory", "default:false;text-align:right;desc:memory used by segments");
+
         table.addCell("segments.index_writer_memory",
             "sibling:pri;alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
         table.addCell("pri.segments.index_writer_memory", "default:false;text-align:right;desc:memory used by index writer");
@@ -718,6 +722,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getCount());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getCount());
+
+            table.addCell(totalStats.getSegments() == null ? null : new ByteSizeValue(0));
+            table.addCell(primaryStats.getSegments() == null ? null : new ByteSizeValue(0));
 
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getIndexWriterMemory());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getIndexWriterMemory());

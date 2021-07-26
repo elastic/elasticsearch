@@ -1,11 +1,11 @@
 {
   "index_patterns": [ ".monitoring-es-${monitoring.template.version}-*" ],
-  "version": 8000099,
+  "version": 7140099,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 0,
     "index.auto_expand_replicas": "0-1",
-    "index.format": 8,
+    "index.format": 7,
     "index.codec": "best_compression"
   },
   "mappings": {
@@ -258,6 +258,27 @@
                     "count": {
                       "type": "integer"
                     },
+                    "memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "terms_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "points_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "stored_fields_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "term_vectors_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "norms_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "doc_values_memory_in_bytes": {
+                      "type": "long"
+                    },
                     "index_writer_memory_in_bytes": {
                       "type": "long"
                     },
@@ -389,6 +410,27 @@
                   "properties": {
                     "count": {
                       "type": "integer"
+                    },
+                    "memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "terms_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "points_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "stored_fields_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "term_vectors_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "norms_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "doc_values_memory_in_bytes": {
+                      "type": "long"
                     },
                     "index_writer_memory_in_bytes": {
                       "type": "long"
@@ -555,6 +597,27 @@
                   "properties": {
                     "count": {
                       "type": "integer"
+                    },
+                    "memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "terms_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "points_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "stored_fields_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "term_vectors_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "norms_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "doc_values_memory_in_bytes": {
+                      "type": "long"
                     },
                     "index_writer_memory_in_bytes": {
                       "type": "long"

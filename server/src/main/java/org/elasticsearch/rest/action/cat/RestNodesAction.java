@@ -232,6 +232,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("search.scroll_total", "alias:scto,searchScrollTotal;default:false;text-align:right;desc:completed scroll contexts");
 
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
+        table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
         table.addCell("segments.index_writer_memory",
             "alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
         table.addCell("segments.version_map_memory",
@@ -420,6 +421,7 @@ public class RestNodesAction extends AbstractCatAction {
 
             SegmentsStats segmentsStats = indicesStats == null ? null : indicesStats.getSegments();
             table.addCell(segmentsStats == null ? null : segmentsStats.getCount());
+            table.addCell(segmentsStats == null ? null : new ByteSizeValue(0));
             table.addCell(segmentsStats == null ? null : segmentsStats.getIndexWriterMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getVersionMapMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getBitsetMemory());

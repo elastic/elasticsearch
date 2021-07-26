@@ -736,6 +736,74 @@ Contains statistics about segments across all shards assigned to the node.
 (integer)
 Number of segments.
 
+`memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used for segments across all shards assigned to the
+node.
+
+`memory_in_bytes`::
+(integer)
+Total amount of memory, in bytes, used for segments across all shards assigned
+to the node.
+
+`terms_memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used for terms across all shards assigned to the node.
+
+`terms_memory_in_bytes`::
+(integer)
+Total amount of memory, in bytes, used for terms across all shards assigned to
+the node.
+
+`stored_fields_memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used for stored fields across all shards assigned to
+the node.
+
+`stored_fields_memory_in_bytes`::
+(integer)
+Total amount of memory, in bytes, used for stored fields across all shards
+assigned to the node.
+
+`term_vectors_memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used for term vectors across all shards assigned to
+the node.
+
+`term_vectors_memory_in_bytes`::
+(integer)
+Total amount of memory, in bytes, used for term vectors across all shards
+assigned to the node.
+
+`norms_memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used for normalization factors across all shards assigned
+to the node.
+
+`norms_memory_in_bytes`::
+(integer)
+Total amount of memory, in bytes, used for normalization factors across all
+shards assigned to the node.
+
+`points_memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used for points across all shards assigned to the node.
+
+`points_memory_in_bytes`::
+(integer)
+Total amount of memory, in bytes, used for points across all shards assigned to
+the node.
+
+`doc_values_memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used for doc values across all shards assigned to
+the node.
+
+`doc_values_memory_in_bytes`::
+(integer)
+Total amount of memory, in bytes, used for doc values across all shards assigned
+to the node.
+
 `index_writer_memory`::
 (<<byte-units,byte value>>)
 Total amount of memory used by all index writers across all shards assigned to

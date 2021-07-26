@@ -389,12 +389,6 @@ Google normalized distance as described in https://arxiv.org/pdf/cs/0412098v3.pd
 [[p-value-score]]
 ===== p-value score
 
-[NOTE]
-====
-To use this heuristic, you must
-have the {subscriptions}[appropriate subscription] for {ml-features}.
-====
-
 The p-value is the probability of obtaining test results at least as extreme as 
 the results actually observed, under the assumption that the null hypothesis is 
 correct. The p-value is calculated assuming that the foreground set and the 

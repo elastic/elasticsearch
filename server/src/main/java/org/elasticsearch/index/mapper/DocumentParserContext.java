@@ -92,7 +92,7 @@ public abstract class DocumentParserContext {
     private final Set<String> newFieldsSeen;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final List<RuntimeField> dynamicRuntimeFields;
-    private final Set<String> shadowedPaths;
+    private final Set<String> shadowedFields;
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
 
@@ -108,7 +108,7 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = in.newFieldsSeen;
         this.dynamicObjectMappers = in.dynamicObjectMappers;
         this.dynamicRuntimeFields = in.dynamicRuntimeFields;
-        this.shadowedPaths = in.shadowedPaths;
+        this.shadowedFields = in.shadowedFields;
         this.version = in.version;
         this.seqID = in.seqID;
     }
@@ -129,17 +129,17 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = new HashSet<>();
         this.dynamicObjectMappers = new HashMap<>();
         this.dynamicRuntimeFields = new ArrayList<>();
-        this.shadowedPaths = buildShadowedPaths(mappingLookup);
+        this.shadowedFields = buildShadowedFields(mappingLookup);
     }
 
-    private static Set<String> buildShadowedPaths(MappingLookup lookup) {
-        Set<String> shadowedPaths = new HashSet<>();
+    private static Set<String> buildShadowedFields(MappingLookup lookup) {
+        Set<String> shadowedFields = new HashSet<>();
         for (RuntimeField runtimeField : lookup.getMapping().getRoot().runtimeFields()) {
-            for (MappedFieldType fieldtype : runtimeField.asMappedFieldTypes()) {
-                shadowedPaths.add(fieldtype.name());
+            for (MappedFieldType mft : runtimeField.asMappedFieldTypes()) {
+                shadowedFields.add(mft.name());
             }
         }
-        return shadowedPaths;
+        return shadowedFields;
     }
 
     public final IndexSettings indexSettings() {
@@ -242,16 +242,12 @@ public abstract class DocumentParserContext {
         return dynamicMappers;
     }
 
-    public final ObjectMapper getObjectMapper(String name) {
-        return dynamicObjectMappers.get(name);
+    public final boolean isShadowed(String field) {
+        return shadowedFields.contains(field);
     }
 
-    /**
-     * Returns {@code true} if this path would be shadowed by a runtime field, and so should not
-     * be indexed
-     */
-    public final boolean isShadowedPath(String path) {
-        return shadowedPaths.contains(path);
+    public final ObjectMapper getObjectMapper(String name) {
+        return dynamicObjectMappers.get(name);
     }
 
     /**

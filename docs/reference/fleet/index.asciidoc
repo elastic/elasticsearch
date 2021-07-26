@@ -1,5 +1,11 @@
 [role="xpack"]
 [[fleet-apis]]
+[TIP]
+====
+If you are looking for the {kib} {fleet} API Documentation, please see the 
+{ref}/fleet/{branch}/fleet-api-docs.html[`Fleet API Documentation`].
+====
+
 == Fleet APIs
 
 The following APIs support {fleet}'s use of {es} as a data store for internal

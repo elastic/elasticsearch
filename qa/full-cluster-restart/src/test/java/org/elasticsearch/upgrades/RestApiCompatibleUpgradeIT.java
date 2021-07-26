@@ -11,6 +11,7 @@ package org.elasticsearch.upgrades;
 import org.apache.http.entity.ContentType;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.xcontent.ParsedMediaType;
@@ -32,7 +33,9 @@ public class RestApiCompatibleUpgradeIT extends AbstractFullClusterRestartTestCa
         new BasicNameValuePair("compatible-with", String.valueOf(RestApiVersion.V_7.major)));
 
 
-    public void testTypeQuery() throws IOException {
+    public void testTypeQueryReturnsTypeWhen7xCreatedIndices() throws IOException {
+        assumeTrue("Old cluster has to be in 7.x", getOldClusterVersion().before(Version.V_8_0_0));
+
         if (isRunningAgainstOldCluster()) {
             String doc = "{\"foo\": \"bar\"}";
             createIndexAndPostDoc("/test_type_query_1/cat/1", doc, true);

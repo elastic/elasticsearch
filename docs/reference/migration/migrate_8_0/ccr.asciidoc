@@ -1,6 +1,6 @@
 [discrete]
 [[breaking_80_ccr_changes]]
-==== Cross Cluster Replication changes
+==== {ccr-cap} ({ccr-init}) changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

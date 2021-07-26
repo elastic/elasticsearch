@@ -17,10 +17,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Holds information about nested mappings
+ */
 public interface NestedLookup {
 
+    /**
+     * @return a map of all nested object mappers in the current mapping
+     */
     Map<String, NestedObjectMapper> getNestedMappers();
 
+    /**
+     * @return filters for nested objects that contain further nested mappers
+     */
     Map<String, Query> getNestedParentFilters();
 
     /**
@@ -34,6 +43,9 @@ public interface NestedLookup {
      */
     String getNestedParent(String path);
 
+    /**
+     * A NestedLookup for a mapping with no nested mappers
+     */
     NestedLookup EMPTY = new NestedLookup() {
         @Override
         public Map<String, NestedObjectMapper> getNestedMappers() {
@@ -51,6 +63,10 @@ public interface NestedLookup {
         }
     };
 
+    /**
+     * Construct a NestedLookup from a list of NestedObjectMappers
+     * @param mappers   the nested mappers to build a lookup over
+     */
     static NestedLookup build(List<NestedObjectMapper> mappers) {
         if (mappers == null || mappers.isEmpty()) {
             return NestedLookup.EMPTY;

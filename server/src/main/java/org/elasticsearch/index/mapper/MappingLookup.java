@@ -285,16 +285,6 @@ public final class MappingLookup {
         return objectMappers.containsKey(field);
     }
 
-    public String getNestedScope(String path) {
-        for (String parentPath = parentObject(path); parentPath != null; parentPath = parentObject(parentPath)) {
-            ObjectMapper objectMapper = objectMappers.get(parentPath);
-            if (objectMapper != null && objectMapper.isNested()) {
-                return parentPath;
-            }
-        }
-        return null;
-    }
-
     private static String parentObject(String field) {
         int lastDot = field.lastIndexOf('.');
         if (lastDot == -1) {

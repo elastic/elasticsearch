@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -71,8 +72,6 @@ public class JdbcAssert {
     private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
 
     private static final IntObjectHashMap<EsType> SQL_TO_TYPE = new IntObjectHashMap<>();
-
-    private static final WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
 
     private static final Map<Integer, Function<String, Object>> CSV_ARRAY_VALUES_CONVERTER_MAP = new HashMap<>() {
         {
@@ -383,7 +382,7 @@ public class JdbcAssert {
             if (actualObject instanceof Geometry) {
                 // We need to convert the expected object to libs/geo Geometry for comparision
                 try {
-                    expectedObject = WKT.fromWKT(expectedObject.toString());
+                    expectedObject = WellKnownText.fromWKT(StandardValidator.instance(true), true, expectedObject.toString());
                 } catch (IOException | ParseException ex) {
                     fail(ex.getMessage());
                 }

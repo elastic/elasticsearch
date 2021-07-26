@@ -21,6 +21,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DataStreamsRestIT extends ESRestTestCase {
 
@@ -82,14 +84,6 @@ public class DataStreamsRestIT extends ESRestTestCase {
         response = client().performRequest(searchRequest);
         Map<String, Object> results = entityAsMap(response);
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", results));
-    }
-
-    public void testAddingIndexTemplateWithAliasesAndDataStream() {
-        Request putComposableIndexTemplateRequest = new Request("PUT", "/_index_template/my-template");
-        String body = "{\"index_patterns\":[\"mypattern*\"],\"data_stream\":{},\"template\":{\"aliases\":{\"my-alias\":{}}}}";
-        putComposableIndexTemplateRequest.setJsonEntity(body);
-        Exception e = expectThrows(ResponseException.class, () -> client().performRequest(putComposableIndexTemplateRequest));
-        assertThat(e.getMessage(), containsString("template [my-template] has alias and data stream definitions"));
     }
 
     public void testDataStreamAliases() throws Exception {
@@ -234,6 +228,92 @@ public class DataStreamsRestIT extends ESRestTestCase {
         assertThat(getAliasesResponse.size(), equalTo(2));
         assertEquals("alias [wrong_name] missing", getAliasesResponse.get("error"));
         assertEquals(404, getAliasesResponse.get("status"));
+    }
+
+    public void testDataStreamWithAliasFromTemplate() throws IOException {
+        // Create a template
+        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
+        putComposableIndexTemplateRequest.setJsonEntity(
+            "{\"index_patterns\": [\"logs-*\"], \"template\": { \"aliases\": { \"logs\": {} } }, \"data_stream\": {}}");
+        assertOK(client().performRequest(putComposableIndexTemplateRequest));
+
+        Request createDocRequest = new Request("POST", "/logs-emea/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+
+        createDocRequest = new Request("POST", "/logs-nasa/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+
+        Request getAliasesRequest = new Request("GET", "/_aliases");
+        Map<String, Object> getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
+        assertThat(getAliasesResponse.size(), is(2));
+        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
+        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse));
+
+        Request searchRequest = new Request("GET", "/logs/_search");
+        Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
+        assertEquals(2, XContentMapValues.extractValue("hits.total.value", searchResponse));
+    }
+
+    public void testDataStreamWriteAlias() throws IOException {
+        // Create a template
+        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
+        putComposableIndexTemplateRequest.setJsonEntity("{\"index_patterns\": [\"logs-*\"], \"data_stream\": {}}");
+        assertOK(client().performRequest(putComposableIndexTemplateRequest));
+
+        Request createDocRequest = new Request("POST", "/logs-emea/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+
+        createDocRequest = new Request("POST", "/logs-nasa/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+
+        Request updateAliasesRequest = new Request("POST", "/_aliases");
+        updateAliasesRequest.setJsonEntity(
+            "{\"actions\":[{\"add\":{\"index\":\"logs-emea\",\"alias\":\"logs\",\"is_write_index\":true}}," +
+                "{\"add\":{\"index\":\"logs-nasa\",\"alias\":\"logs\"}}]}");
+        assertOK(client().performRequest(updateAliasesRequest));
+
+        Request getAliasesRequest = new Request("GET", "/_aliases");
+        Map<String, Object> getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
+        assertEquals(
+            Map.of("logs", Map.of("is_write_index", true)),
+            XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse)
+        );
+        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse));
+
+        Request searchRequest = new Request("GET", "/logs/_search");
+        Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
+        assertEquals(2, XContentMapValues.extractValue("hits.total.value", searchResponse));
+
+        createDocRequest = new Request("POST", "/logs/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        Response createDocResponse = client().performRequest(createDocRequest);
+        assertOK(createDocResponse);
+        assertThat((String) entityAsMap(createDocResponse).get("_index"), startsWith(".ds-logs-emea"));
+
+        updateAliasesRequest = new Request("POST", "/_aliases");
+        updateAliasesRequest.setJsonEntity("{\"actions\":[" +
+            "{\"add\":{\"index\":\"logs-emea\",\"alias\":\"logs\",\"is_write_index\":false}}," +
+            "{\"add\":{\"index\":\"logs-nasa\",\"alias\":\"logs\",\"is_write_index\":true}}" +
+            "]}");
+        assertOK(client().performRequest(updateAliasesRequest));
+
+        createDocRequest = new Request("POST", "/logs/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        createDocResponse = client().performRequest(createDocRequest);
+        assertOK(createDocResponse);
+        assertThat((String) entityAsMap(createDocResponse).get("_index"), startsWith(".ds-logs-nasa"));
+
+        getAliasesRequest = new Request("GET", "/_aliases");
+        getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
+        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
+        assertEquals(
+            Map.of("logs", Map.of("is_write_index", true)),
+            XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse)
+        );
     }
 
 }

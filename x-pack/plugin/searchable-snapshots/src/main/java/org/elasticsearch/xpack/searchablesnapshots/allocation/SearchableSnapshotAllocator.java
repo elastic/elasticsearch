@@ -13,7 +13,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -29,19 +32,20 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.ReplicaShardAllocator;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata;
@@ -59,10 +63,12 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 
@@ -103,7 +109,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         boolean hasPartialIndices = false;
         for (IndexMetadata indexMetadata : allocation.metadata()) {
             final Settings indexSettings = indexMetadata.getSettings();
-            if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings) && SNAPSHOT_PARTIAL_SETTING.get(indexSettings)) {
+            if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(indexSettings)) {
                 hasPartialIndices = true;
                 break;
             }
@@ -131,32 +137,61 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         UnassignedAllocationHandler unassignedAllocationHandler
     ) {
         // TODO: cancel and jump to better available allocations?
-        if (shardRouting.primary()
-            && (shardRouting.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE
-                || shardRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE)) {
-            // we always force snapshot recovery source to use the snapshot-based recovery process on the node
-            final Settings indexSettings = allocation.metadata().index(shardRouting.index()).getSettings();
-            final IndexId indexId = new IndexId(
-                SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings),
-                SNAPSHOT_INDEX_ID_SETTING.get(indexSettings)
-            );
-            final SnapshotId snapshotId = new SnapshotId(
-                SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings),
-                SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings)
-            );
-            final String repository = SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings);
-            final Snapshot snapshot = new Snapshot(repository, snapshotId);
+        if (shardRouting.primary()) {
+            final String recoveryUuid = getRecoverySourceRestoreUuid(shardRouting, allocation);
+            if (recoveryUuid != null) {
 
-            shardRouting = unassignedAllocationHandler.updateUnassigned(
-                shardRouting.unassignedInfo(),
-                new RecoverySource.SnapshotRecoverySource(
-                    RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID,
+                // we always force snapshot recovery source to use the snapshot-based recovery process on the node
+                final Settings indexSettings = allocation.metadata().index(shardRouting.index()).getSettings();
+                final IndexId indexId = new IndexId(
+                    SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings),
+                    SNAPSHOT_INDEX_ID_SETTING.get(indexSettings)
+                );
+                final SnapshotId snapshotId = new SnapshotId(
+                    SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings),
+                    SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings)
+                );
+
+                final String repositoryUuid = SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexSettings);
+                final String repositoryName;
+                if (Strings.hasLength(repositoryUuid) == false) {
+                    repositoryName = SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings);
+                } else {
+                    final RepositoriesMetadata repoMetadata = allocation.metadata().custom(RepositoriesMetadata.TYPE);
+                    final List<RepositoryMetadata> repositories = repoMetadata == null ? emptyList() : repoMetadata.repositories();
+                    repositoryName = repositories.stream()
+                        .filter(r -> repositoryUuid.equals(r.uuid()))
+                        .map(RepositoryMetadata::name)
+                        .findFirst()
+                        .orElse(null);
+                }
+
+                if (repositoryName == null) {
+                    unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.DECIDERS_NO, allocation.changes());
+                    return;
+                }
+
+                final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
+
+                final Version version = shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
+                    ? ((RecoverySource.SnapshotRecoverySource) shardRouting.recoverySource()).version()
+                    : Version.CURRENT;
+
+                final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
+                    recoveryUuid,
                     snapshot,
-                    Version.CURRENT,
+                    version,
                     indexId
-                ),
-                allocation.changes()
-            );
+                );
+
+                if (shardRouting.recoverySource().equals(recoverySource) == false) {
+                    shardRouting = unassignedAllocationHandler.updateUnassigned(
+                        shardRouting.unassignedInfo(),
+                        recoverySource,
+                        allocation.changes()
+                    );
+                }
+            }
         }
 
         final AllocateUnassignedDecision allocateUnassignedDecision = decideAllocation(allocation, shardRouting);
@@ -179,6 +214,60 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             } else {
                 unassignedAllocationHandler.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
             }
+        }
+    }
+
+    /**
+     * @return the restore UUID to use when adjusting the recovery source of the shard to be a snapshot recovery source from a
+     * repository of the correct name. Returns {@code null} if the recovery source should not be adjusted.
+     */
+    @Nullable
+    private static String getRecoverySourceRestoreUuid(ShardRouting shardRouting, RoutingAllocation allocation) {
+        switch (shardRouting.recoverySource().getType()) {
+            case EXISTING_STORE:
+            case EMPTY_STORE:
+                // this shard previously failed and/or was force-allocated, so the recovery source must be changed to reflect that it will
+                // be recovered from the snapshot again
+                return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
+            case SNAPSHOT:
+                // the recovery source may be correct, or we may be recovering it from a real snapshot (i.e. a backup)
+
+                final RecoverySource.SnapshotRecoverySource recoverySource = (RecoverySource.SnapshotRecoverySource) shardRouting
+                    .recoverySource();
+                if (recoverySource.restoreUUID().equals(RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID)) {
+                    // this shard already has the right recovery ID, but maybe the repository name is now different, so check if it needs
+                    // fixing up again
+                    return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
+                }
+
+                // else we're recovering from a real snapshot, in which case we can only fix up the recovery source once the "real"
+                // recovery attempt has completed. It might succeed, but if it doesn't then we replace it with a dummy restore to bypass
+                // the RestoreInProgressAllocationDecider
+
+                final RestoreInProgress restoreInProgress = allocation.custom(RestoreInProgress.TYPE);
+                if (restoreInProgress == null) {
+                    // no ongoing restores, so this shard definitely completed
+                    return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
+                }
+
+                final RestoreInProgress.Entry entry = restoreInProgress.get(recoverySource.restoreUUID());
+                if (entry == null) {
+                    // this specific restore is not ongoing, so this shard definitely completed
+                    return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
+                }
+
+                // else this specific restore is still ongoing, so check whether this shard has completed its attempt yet
+                final RestoreInProgress.ShardRestoreStatus shardRestoreStatus = entry.shards().get(shardRouting.shardId());
+                if (shardRestoreStatus == null || shardRestoreStatus.state().completed()) {
+                    // this shard is not still pending in its specific restore so we can fix up its restore UUID
+                    return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
+                } else {
+                    // this shard is still pending in its specific restore so we must preserve its restore UUID, but we can fix up
+                    // the repository name anyway
+                    return recoverySource.restoreUUID();
+                }
+            default:
+                return null;
         }
     }
 

@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -66,6 +66,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         INTERNAL_PARSER.declareString(Builder::setModelSnapshotMinVersion, Job.MODEL_SNAPSHOT_MIN_VERSION);
         INTERNAL_PARSER.declareString(Builder::setJobVersion, Job.JOB_VERSION);
         INTERNAL_PARSER.declareBoolean(Builder::setClearFinishTime, CLEAR_JOB_FINISH_TIME);
+        INTERNAL_PARSER.declareObject(Builder::setBlocked, Blocked.STRICT_PARSER, Job.BLOCKED);
     }
 
     private final String jobId;
@@ -87,6 +88,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
     private final Version jobVersion;
     private final Boolean clearJobFinishTime;
     private final Boolean allowLazyOpen;
+    private final Blocked blocked;
 
     private JobUpdate(String jobId, @Nullable List<String> groups, @Nullable String description,
                       @Nullable List<DetectorUpdate> detectorUpdates, @Nullable ModelPlotConfig modelPlotConfig,
@@ -97,7 +99,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                       @Nullable PerPartitionCategorizationConfig perPartitionCategorizationConfig,
                       @Nullable Map<String, Object> customSettings, @Nullable String modelSnapshotId,
                       @Nullable Version modelSnapshotMinVersion, @Nullable Version jobVersion, @Nullable Boolean clearJobFinishTime,
-                      @Nullable Boolean allowLazyOpen) {
+                      @Nullable Boolean allowLazyOpen, @Nullable Blocked blocked) {
         this.jobId = jobId;
         this.groups = groups;
         this.description = description;
@@ -117,6 +119,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         this.jobVersion = jobVersion;
         this.clearJobFinishTime = clearJobFinishTime;
         this.allowLazyOpen = allowLazyOpen;
+        this.blocked = blocked;
     }
 
     public JobUpdate(StreamInput in) throws IOException {
@@ -156,6 +159,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             modelSnapshotMinVersion = null;
         }
         allowLazyOpen = in.readOptionalBoolean();
+        blocked = in.readOptionalWriteable(Blocked::new);
     }
 
     @Override
@@ -196,6 +200,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(allowLazyOpen);
+        out.writeOptionalWriteable(blocked);
     }
 
     public String getJobId() {
@@ -278,6 +283,10 @@ public class JobUpdate implements Writeable, ToXContentObject {
         return modelPlotConfig != null || perPartitionCategorizationConfig != null || detectorUpdates != null || groups != null;
     }
 
+    public Blocked getBlocked() {
+        return blocked;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -335,6 +344,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         if (allowLazyOpen != null) {
             builder.field(Job.ALLOW_LAZY_OPEN.getPreferredName(), allowLazyOpen);
+        }
+        if (blocked != null) {
+            builder.field(Job.BLOCKED.getPreferredName(), blocked);
         }
         builder.endObject();
         return builder;
@@ -485,6 +497,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (allowLazyOpen != null) {
             builder.setAllowLazyOpen(allowLazyOpen);
         }
+        if (blocked != null) {
+            builder.setBlocked(blocked);
+        }
 
         builder.setAnalysisConfig(newAnalysisConfig);
         return builder.build();
@@ -511,7 +526,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && (modelSnapshotMinVersion == null || Objects.equals(modelSnapshotMinVersion, job.getModelSnapshotMinVersion()))
                 && (jobVersion == null || Objects.equals(jobVersion, job.getJobVersion()))
                 && (clearJobFinishTime == null || clearJobFinishTime == false || job.getFinishedTime() == null)
-                && (allowLazyOpen == null || Objects.equals(allowLazyOpen, job.allowLazyOpen()));
+                && (allowLazyOpen == null || Objects.equals(allowLazyOpen, job.allowLazyOpen()))
+                && (blocked == null || Objects.equals(blocked, job.getBlocked()));
     }
 
     boolean updatesDetectors(Job job) {
@@ -562,7 +578,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && Objects.equals(this.modelSnapshotMinVersion, that.modelSnapshotMinVersion)
                 && Objects.equals(this.jobVersion, that.jobVersion)
                 && Objects.equals(this.clearJobFinishTime, that.clearJobFinishTime)
-                && Objects.equals(this.allowLazyOpen, that.allowLazyOpen);
+                && Objects.equals(this.allowLazyOpen, that.allowLazyOpen)
+                && Objects.equals(this.blocked, that.blocked);
     }
 
     @Override
@@ -570,7 +587,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         return Objects.hash(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
                 categorizationFilters, perPartitionCategorizationConfig, customSettings, modelSnapshotId, modelSnapshotMinVersion,
-                jobVersion, clearJobFinishTime, allowLazyOpen);
+                jobVersion, clearJobFinishTime, allowLazyOpen, blocked);
     }
 
     public static class DetectorUpdate implements Writeable, ToXContentObject {
@@ -586,9 +603,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
                     DetectionRule.STRICT_PARSER.apply(parser, parseFieldMatcher).build(), Detector.CUSTOM_RULES_FIELD);
         }
 
-        private int detectorIndex;
-        private String description;
-        private List<DetectionRule> rules;
+        private final int detectorIndex;
+        private final String description;
+        private final List<DetectionRule> rules;
 
         public DetectorUpdate(int detectorIndex, String description, List<DetectionRule> rules) {
             this.detectorIndex = detectorIndex;
@@ -685,6 +702,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         private Version jobVersion;
         private Boolean clearJobFinishTime;
         private Boolean allowLazyOpen;
+        private Blocked blocked;
 
         public Builder(String jobId) {
             this.jobId = jobId;
@@ -795,11 +813,16 @@ public class JobUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
+        public Builder setBlocked(Blocked blocked) {
+            this.blocked = blocked;
+            return this;
+        }
+
         public JobUpdate build() {
             return new JobUpdate(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
                     renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays,
                     categorizationFilters, perPartitionCategorizationConfig, customSettings, modelSnapshotId, modelSnapshotMinVersion,
-                    jobVersion, clearJobFinishTime, allowLazyOpen);
+                    jobVersion, clearJobFinishTime, allowLazyOpen, blocked);
         }
     }
 }

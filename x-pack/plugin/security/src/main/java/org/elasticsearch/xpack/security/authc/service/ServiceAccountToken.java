@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -168,7 +168,7 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
         public ServiceAccountTokenId(ServiceAccountId accountId, String tokenName) {
             this.accountId = Objects.requireNonNull(accountId, "service account ID cannot be null");
             if (false == Validation.isValidServiceAccountTokenName(tokenName)) {
-                throw new IllegalArgumentException(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE);
+                throw new IllegalArgumentException(Validation.formatInvalidServiceTokenNameErrorMessage(tokenName));
             }
             this.tokenName = Objects.requireNonNull(tokenName, "service account token name cannot be null");
         }

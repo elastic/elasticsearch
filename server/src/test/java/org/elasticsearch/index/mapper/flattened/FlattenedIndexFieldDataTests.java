@@ -45,7 +45,7 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
             indicesService.getCircuitBreakerService(),
             indexService.mapperService());
 
-        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("json").build(new ContentPath(1));
+        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("flattened").build(new ContentPath(1));
         MappedFieldType fieldType1 = fieldMapper.fieldType().getChildFieldType("key");
 
         AtomicInteger onCacheCalled = new AtomicInteger();
@@ -63,7 +63,7 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
         IndexWriter writer = new IndexWriter(directory, config);
 
         Document doc = new Document();
-        doc.add(new SortedSetDocValuesField("json._keyed", new BytesRef("some_key\0some_value")));
+        doc.add(new SortedSetDocValuesField("flattened._keyed", new BytesRef("some_key\0some_value")));
         writer.addDocument(doc);
         writer.commit();
         writer.addDocument(doc);

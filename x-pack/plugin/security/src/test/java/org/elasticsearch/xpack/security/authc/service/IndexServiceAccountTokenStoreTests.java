@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -53,11 +53,13 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
@@ -110,6 +112,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         client = new FilterClient(mockClient) {
             @Override
+            @SuppressWarnings("unchecked")
             protected <Request extends ActionRequest, Response extends ActionResponse>
             void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 requestHolder.set(request);
@@ -133,12 +136,12 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         store = new IndexServiceAccountTokenStore(Settings.EMPTY,
             threadPool,
             Clock.systemUTC(),
@@ -154,25 +157,28 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
 
         // success
         responseProviderHolder.set((r, l) -> l.onResponse(getResponse1));
-        final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
+        final PlainActionFuture<StoreAuthenticationResult> future1 = new PlainActionFuture<>();
         store.doAuthenticate(serviceAccountToken, future1);
         final GetRequest getRequest = (GetRequest) requestHolder.get();
         assertThat(getRequest.id(), equalTo("service_account_token-" + serviceAccountToken.getQualifiedName()));
-        assertThat(future1.get(), is(true));
+        assertThat(future1.get().isSuccess(), is(true));
+        assertThat(future1.get().getTokenSource(), is(TokenSource.INDEX));
 
         // token mismatch
         final GetResponse getResponse2 = createGetResponse(ServiceAccountToken.newToken(accountId, randomAlphaOfLengthBetween(3, 8)), true);
         responseProviderHolder.set((r, l) -> l.onResponse(getResponse2));
-        final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
+        final PlainActionFuture<StoreAuthenticationResult> future2 = new PlainActionFuture<>();
         store.doAuthenticate(serviceAccountToken, future2);
-        assertThat(future2.get(), is(false));
+        assertThat(future2.get().isSuccess(), is(false));
+        assertThat(future2.get().getTokenSource(), is(TokenSource.INDEX));
 
         // token document not found
         final GetResponse getResponse3 = createGetResponse(serviceAccountToken, false);
         responseProviderHolder.set((r, l) -> l.onResponse(getResponse3));
-        final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
+        final PlainActionFuture<StoreAuthenticationResult> future3 = new PlainActionFuture<>();
         store.doAuthenticate(serviceAccountToken, future3);
-        assertThat(future3.get(), is(false));
+        assertThat(future3.get().isSuccess(), is(false));
+        assertThat(future3.get().getTokenSource(), is(TokenSource.INDEX));
     }
 
     public void testCreateToken() throws ExecutionException, InterruptedException {
@@ -264,7 +270,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         final PlainActionFuture<Collection<TokenInfo>> future = new PlainActionFuture<>();
         store.findTokensFor(accountId, future);
         final Collection<TokenInfo> tokenInfos = future.actionGet();
-        assertThat(tokenInfos.stream().map(TokenInfo::getSource).allMatch(TokenInfo.TokenSource.INDEX::equals), is(true));
+        assertThat(tokenInfos.stream().map(TokenInfo::getSource).allMatch(TokenSource.INDEX::equals), is(true));
         assertThat(tokenInfos.stream().map(TokenInfo::getName).collect(Collectors.toUnmodifiableSet()),
             equalTo(Set.of(tokenNames)));
     }
@@ -384,5 +390,10 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                 mock(ShardId.class), randomAlphaOfLengthBetween(3, 8), randomLong(), randomLong(), randomLong(), true
             ))
         }, randomLong());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Consumer<T> anyConsumer() {
+        return any(Consumer.class);
     }
 }

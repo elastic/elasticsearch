@@ -53,9 +53,11 @@ specified partition.
 == {api-request-body-title}
 
 `page`.`from`::
-(Optional, integer) Skips the specified number of categories.
+(Optional, integer) Skips the specified number of categories. Defaults to `0`.
+
 `page`.`size`::
-(Optional, integer) Specifies the maximum number of categories to obtain.
+(Optional, integer) Specifies the maximum number of categories to obtain. 
+Defaults to `100`.
 
 `partition_field_value`::
 (Optional, string) Only return categories for the specified partition.

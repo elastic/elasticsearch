@@ -69,7 +69,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -223,7 +222,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -242,7 +240,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -262,7 +259,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -282,7 +278,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -300,7 +295,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -321,7 +315,6 @@
                 "categorization_filters" : ["cat1.*", "cat2.*"]
             },
             "data_description" : {
-              "field_delimiter":","
             },
             "model_plot_config": {
               "enabled": true,
@@ -341,6 +334,12 @@
             }
           }
   - match: { job_id: "jobs-crud-update-job" }
+  - length: { analysis_config.categorization_analyzer.filter: 1 }
+  - match: { analysis_config.categorization_analyzer.tokenizer: "ml_standard" }
+  - length: { analysis_config.categorization_analyzer.char_filter: 3 }
+  - match: { analysis_config.categorization_analyzer.char_filter.0: "first_non_blank_line" }
+  - match: { analysis_config.categorization_analyzer.char_filter.1.pattern: "cat1.*" }
+  - match: { analysis_config.categorization_analyzer.char_filter.2.pattern: "cat2.*" }
 
   - do:
       ml.open_job:
@@ -381,7 +380,6 @@
             "background_persist_interval": "3h",
             "model_snapshot_retention_days": 30,
             "results_retention_days": 40,
-            "categorization_filters" : ["cat3.*"],
             "custom_settings": {
               "setting3": "custom3"
             }
@@ -392,7 +390,6 @@
   - match: { model_plot_config.enabled: false }
   - match: { model_plot_config.terms: "foobar" }
   - match: { model_plot_config.annotations_enabled: false }
-  - match: { analysis_config.categorization_filters: ["cat3.*"] }
   - match: { analysis_config.detectors.0.custom_rules.0.actions: ["skip_result"] }
   - length: { analysis_config.detectors.0.custom_rules.0.conditions: 1 }
   - match: { analysis_config.detectors.0.detector_index: 0 }
@@ -995,6 +992,113 @@
                 "time_field": "@timestamp"
             }
           }
+---
+"Test put job with datafeed":
+  - do:
+      ml.put_job:
+        job_id: jobs-crud-put-with-datafeed
+        body: >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
+            "data_description" : {
+                "format":"xcontent"
+            },
+            "datafeed_config": {
+              "indexes":["index-foo"]
+            }
+          }
+  - match: { job_id: "jobs-crud-put-with-datafeed" }
+  - is_true: datafeed_config
+  - match: { datafeed_config.job_id: "jobs-crud-put-with-datafeed" }
+  - match: { datafeed_config.datafeed_id: "jobs-crud-put-with-datafeed" }
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: "jobs-crud-put-with-datafeed"
+
+  - match: { count: 1 }
+  - match: { datafeeds.0.job_id: "jobs-crud-put-with-datafeed" }
+  - match: { datafeeds.0.datafeed_id: "jobs-crud-put-with-datafeed" }
+---
+"Test get job with datafeed":
+  - do:
+      ml.put_job:
+        job_id: jobs-crud-get-with-datafeed
+        body: >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
+            "data_description" : {
+                "format":"xcontent"
+            }
+          }
+  - match: { job_id: "jobs-crud-get-with-datafeed" }
+  - do:
+      ml.put_datafeed:
+        datafeed_id: jobs-crud-get-with-datafeed
+        body: >
+          {
+            "job_id":"jobs-crud-get-with-datafeed",
+            "indexes":["index-foo"]
+          }
+  - match: { datafeed_id: "jobs-crud-get-with-datafeed" }
+  - do:
+      ml.get_jobs:
+        job_id: jobs-crud-get-with-datafeed
+  - match: { count: 1 }
+  - match: { jobs.0.job_id: "jobs-crud-get-with-datafeed" }
+  - match: { jobs.0.datafeed_config.datafeed_id: "jobs-crud-get-with-datafeed" }
+
+# TODO in v8.0.0 adjust this test to handle exclude_generated behavior
+  - do:
+      ml.get_jobs:
+        job_id: jobs-crud-get-with-datafeed
+        exclude_generated: true
+  - match: { count: 1 }
+  - match: { jobs.0.job_id: "jobs-crud-get-with-datafeed" }
+  - is_false: jobs.0.datafeed_config
+---
+"Test put job with datafeed with indices options in params":
+  - do:
+      ml.put_job:
+        job_id: jobs-crud-put-with-datafeed-with-indices-options
+        ignore_throttled: false
+        body: >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
+            "data_description" : {
+                "format":"xcontent"
+            },
+            "datafeed_config": {
+              "indexes":["index-foo"]
+            }
+          }
+  - match: { job_id: "jobs-crud-put-with-datafeed-with-indices-options" }
+  - match: { datafeed_config.datafeed_id: "jobs-crud-put-with-datafeed-with-indices-options" }
+  - match: { datafeed_config.indices_options.ignore_throttled: false }
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: jobs-crud-put-with-datafeed-with-indices-options
+
+  - match: { datafeeds.0.indices_options.ignore_throttled: false }
 
 ---
 "Test max model memory limit":
@@ -1067,33 +1171,6 @@
           }
   - match: { job_id: "job-model-memory-limit-above-removed-global-max" }
   - match: { analysis_limits.model_memory_limit: "10240mb" }
-
----
-"Test create job with delimited format":
-
-  - skip:
-      features: "warnings"
-      reason: deprecation logging for delimited format was introduced in 5.4.0
-
-  - do:
-      warnings:
-          - Creating jobs with delimited data format is deprecated. Please use xcontent instead.
-      ml.put_job:
-        job_id: delimited-format-job
-        body:  >
-          {
-            "analysis_config" : {
-                "bucket_span": "1h",
-                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
-            },
-            "data_description" : {
-                "format":"delimited",
-                "field_delimiter":",",
-                "time_field":"time",
-                "time_format":"yyyy-MM-dd HH:mm:ssX"
-            }
-          }
-  - match: { job_id: "delimited-format-job" }
 
 ---
 "Test jobs with named and custom categorization_analyzer":

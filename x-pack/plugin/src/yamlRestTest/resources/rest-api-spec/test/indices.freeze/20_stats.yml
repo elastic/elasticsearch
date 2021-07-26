@@ -10,6 +10,7 @@ setup:
 ---
 "Translog stats on frozen indices":
   - skip:
+      features: warnings
       version: " - 7.3.99"
       reason:  "start ignoring translog retention policy with soft-deletes enabled in 7.4"
 
@@ -39,6 +40,8 @@ setup:
 
   # freeze index
   - do:
+      warnings:
+        - "Frozen indices are deprecated because they provide no benefit given improvements in heap memory utilization. They will be removed in a future release."
       indices.freeze:
         index: test
   - is_true: acknowledged
@@ -51,6 +54,8 @@ setup:
 
   # unfreeze index
   - do:
+      warnings:
+        - "Frozen indices are deprecated because they provide no benefit given improvements in heap memory utilization. They will be removed in a future release."
       indices.unfreeze:
         index: test
   - is_true: acknowledged

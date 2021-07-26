@@ -107,5 +107,6 @@ public class RestClearServiceAccountTokenStoreCacheActionTests extends RestActio
         final IllegalArgumentException e =
             expectThrows(IllegalArgumentException.class, () -> restAction.innerPrepareRequest(fakeRestRequest, mock(NodeClient.class)));
         assertThat(e.getMessage(), containsString(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE));
+        assertThat(e.getMessage(), containsString("invalid service token name [" + names[0] + "]"));
     }
 }

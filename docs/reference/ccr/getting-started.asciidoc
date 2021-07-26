@@ -99,7 +99,7 @@ image::images/ccr-tutorial-clusters.png[ClusterA contains the leader index and C
 To configure a remote cluster from Stack Management in {kib}:
 
 . Select *Remote Clusters* from the side navigation.
-. Specify the IP address or host name of the remote cluster (ClusterB),
+. Specify the IP address or host name of the remote cluster (`ClusterA`),
 followed by the transport port of the remote cluster (defaults to `9300`). For
 example, `192.168.1.1:9300`.
 

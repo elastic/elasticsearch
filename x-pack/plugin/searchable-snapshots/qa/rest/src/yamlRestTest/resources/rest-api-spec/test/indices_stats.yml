@@ -53,18 +53,6 @@ setup:
   - do:
       indices.delete:
         index: docs
----
-teardown:
-
-  - do:
-      snapshot.delete:
-        repository: repository-fs
-        snapshot: snapshot
-        ignore: 404
-
-  - do:
-      snapshot.delete_repository:
-        repository: repository-fs
 
 ---
 "Tests Indices Stats API for snapshot backed indices":

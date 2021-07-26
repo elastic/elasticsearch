@@ -14,6 +14,7 @@
 
   - do:
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -41,6 +42,7 @@
 
   - do:
       search:
+        index: test
         body:
           aggs:
             tm:
@@ -79,6 +81,7 @@
 
   - do:
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -93,6 +96,7 @@
 
   - do:
       search:
+        index: test
         body:
           aggs:
             tm:
@@ -129,6 +133,7 @@
 
   - do:
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -143,6 +148,7 @@
 
   - do:
       search:
+        index: test
         body:
           aggs:
             tm:
@@ -208,6 +214,7 @@
 
   - do:
       search:
+        index: test
         size: 0
         body:
           query:
@@ -234,6 +241,7 @@
 
   - do:
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -308,6 +316,7 @@
 
   - do:
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -323,6 +332,7 @@
 
   - do:
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -367,6 +377,7 @@
 
   - do:
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -390,6 +401,7 @@
 
   - do:
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -439,6 +451,7 @@
 
   - do:
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -469,6 +482,7 @@
           - '{"ip": "192.168.0.2", "date": "2020-01-01T03:01:01"}'
   - do:
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -514,6 +528,7 @@
   - do:
       catch: bad_request
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -534,6 +549,7 @@
 
   - do:
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -567,6 +583,7 @@
 
   - do:
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -601,6 +618,7 @@
   - do:
       catch: /top_metrics can only collect bytes that have segment ordinals but Field \[species\] of type \[keyword\] does not/
       search:
+        index: test
         size: 0
         body:
           runtime_mappings:
@@ -633,6 +651,7 @@
 
   - do:
       search:
+        index: test
         size: 0
         body:
           aggs:

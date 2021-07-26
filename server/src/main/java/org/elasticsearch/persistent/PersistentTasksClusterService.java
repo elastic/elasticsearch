@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -317,7 +317,8 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         Randomness.shuffle(candidateNodes);
 
         final Assignment assignment = persistentTasksExecutor.getAssignment(taskParams, candidateNodes, currentState);
-        assert (assignment == null || isNodeShuttingDown(currentState, assignment.getExecutorNode()) == false) :
+        assert assignment != null : "getAssignment() should always return an Assignment object, containing a node or a reason why not";
+        assert (assignment.getExecutorNode() == null || isNodeShuttingDown(currentState, assignment.getExecutorNode()) == false) :
             "expected task [" + taskName + "] to be assigned to a node that is not marked as shutting down, but " +
                 assignment.getExecutorNode() + " is currently marked as shutting down";
         return assignment;

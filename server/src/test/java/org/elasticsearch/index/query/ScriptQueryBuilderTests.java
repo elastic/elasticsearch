@@ -19,7 +19,6 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -103,10 +102,10 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     }
 
     @Override
-    protected Set<String> getObjectsHoldingArbitraryContent() {
-        //script_score.script.params can contain arbitrary parameters. no error is expected when
-        //adding additional objects within the params object.
-        return Collections.singleton(Script.PARAMS_PARSE_FIELD.getPreferredName());
+    protected Map<String, String> getObjectsHoldingArbitraryContent() {
+        // script_score.script.params can contain arbitrary parameters. no error is expected when
+        // adding additional objects within the params object.
+        return Collections.singletonMap(Script.PARAMS_PARSE_FIELD.getPreferredName(), null);
     }
 
     /**

@@ -7,12 +7,19 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DestConfigTests extends AbstractSerializingTransformTestCase<DestConfig> {
 
@@ -47,4 +54,15 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
         return DestConfig::new;
     }
 
+    public void testFailOnEmptyIndex() throws IOException {
+        boolean lenient = randomBoolean();
+        String json = "{ \"index\": \"\" }";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            DestConfig dest = DestConfig.fromXContent(parser, lenient);
+            assertThat(dest.getIndex(), is(emptyString()));
+            ValidationException validationException = dest.validate(null);
+            assertThat(validationException, is(notNullValue()));
+            assertThat(validationException.getMessage(), containsString("dest.index must not be empty"));
+        }
+    }
 }

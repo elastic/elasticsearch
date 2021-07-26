@@ -50,12 +50,15 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         boolean testPipeline = randomBoolean();
         boolean testScript = (testTemplate == false && testPipeline == false) || randomBoolean(); // At least something should be stored
 
-        if(testTemplate) {
+        if (testTemplate) {
             logger.info("-->  creating test template");
-            assertThat(client().admin().indices()
+            assertThat(
+                client().admin()
+                    .indices()
                     .preparePutTemplate("test-template")
                     .setPatterns(Collections.singletonList("te*"))
-                    .setMapping(XContentFactory.jsonBuilder()
+                    .setMapping(
+                        XContentFactory.jsonBuilder()
                             .startObject()
                             .startObject("_doc")
                             .startObject("properties")
@@ -69,13 +72,18 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
                             .endObject()
                             .endObject()
                             .endObject()
-                            .endObject())
-                    .get().isAcknowledged(), equalTo(true));
+                            .endObject()
+                    )
+                    .get()
+                    .isAcknowledged(),
+                equalTo(true)
+            );
         }
 
-        if(testPipeline) {
+        if (testPipeline) {
             logger.info("-->  creating test pipeline");
-            BytesReference pipelineSource = BytesReference.bytes(jsonBuilder().startObject()
+            BytesReference pipelineSource = BytesReference.bytes(
+                jsonBuilder().startObject()
                     .field("description", "my_pipeline")
                     .startArray("processors")
                     .startObject()
@@ -83,39 +91,49 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
                     .endObject()
                     .endObject()
                     .endArray()
-                    .endObject());
+                    .endObject()
+            );
             assertAcked(clusterAdmin().preparePutPipeline("barbaz", pipelineSource, XContentType.JSON).get());
         }
 
-        if(testScript) {
+        if (testScript) {
             logger.info("-->  creating test script");
-            assertAcked(clusterAdmin().preparePutStoredScript()
+            assertAcked(
+                clusterAdmin().preparePutStoredScript()
                     .setId("foobar")
-                    .setContent(new BytesArray(
-                            "{\"script\": { \"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"1\"} }"), XContentType.JSON));
+                    .setContent(
+                        new BytesArray("{\"script\": { \"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"1\"} }"),
+                        XContentType.JSON
+                    )
+            );
         }
 
         logger.info("--> snapshot without global state");
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin()
-                .prepareCreateSnapshot("test-repo", "test-snap-no-global-state").setIndices().setIncludeGlobalState(false)
-                .setWaitForCompletion(true).get();
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap-no-global-state")
+            .setIndices()
+            .setIncludeGlobalState(false)
+            .setWaitForCompletion(true)
+            .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
         assertThat(getSnapshot("test-repo", "test-snap-no-global-state").state(), equalTo(SnapshotState.SUCCESS));
         SnapshotsStatusResponse snapshotsStatusResponse = clusterAdmin().prepareSnapshotStatus("test-repo")
-                .addSnapshots("test-snap-no-global-state").get();
+            .addSnapshots("test-snap-no-global-state")
+            .get();
         assertThat(snapshotsStatusResponse.getSnapshots().size(), equalTo(1));
         SnapshotStatus snapshotStatus = snapshotsStatusResponse.getSnapshots().get(0);
         assertThat(snapshotStatus.includeGlobalState(), equalTo(false));
 
         logger.info("--> snapshot with global state");
         createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap-with-global-state")
-                .setIndices().setIncludeGlobalState(true).setWaitForCompletion(true).get();
+            .setIndices()
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
         assertThat(getSnapshot("test-repo", "test-snap-with-global-state").state(), equalTo(SnapshotState.SUCCESS));
-        snapshotsStatusResponse = clusterAdmin().prepareSnapshotStatus("test-repo")
-                .addSnapshots("test-snap-with-global-state").get();
+        snapshotsStatusResponse = clusterAdmin().prepareSnapshotStatus("test-repo").addSnapshots("test-snap-with-global-state").get();
         assertThat(snapshotsStatusResponse.getSnapshots().size(), equalTo(1));
         snapshotStatus = snapshotsStatusResponse.getSnapshots().get(0);
         assertThat(snapshotStatus.includeGlobalState(), equalTo(true));
@@ -138,9 +156,11 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         }
 
         logger.info("--> try restoring cluster state from snapshot without global state");
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin()
-                .prepareRestoreSnapshot("test-repo", "test-snap-no-global-state")
-                .setWaitForCompletion(true).setRestoreGlobalState(true).execute().actionGet();
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-no-global-state")
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(true)
+            .execute()
+            .actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
         logger.info("--> check that template wasn't restored");
@@ -149,7 +169,10 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> restore cluster state");
         restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-with-global-state")
-                .setWaitForCompletion(true).setRestoreGlobalState(true).execute().actionGet();
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(true)
+            .execute()
+            .actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
         if (testTemplate) {
@@ -174,10 +197,15 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> snapshot without global state but with indices");
         createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap-no-global-state-with-index")
-                .setIndices("test-idx").setIncludeGlobalState(false).setWaitForCompletion(true).get();
+            .setIndices("test-idx")
+            .setIncludeGlobalState(false)
+            .setWaitForCompletion(true)
+            .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-                equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        assertThat(
+            createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        );
         assertThat(getSnapshot("test-repo", "test-snap-no-global-state-with-index").state(), equalTo(SnapshotState.SUCCESS));
 
         logger.info("-->  delete global state and index ");
@@ -198,7 +226,10 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> try restoring index and cluster state from snapshot without global state");
         restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-no-global-state-with-index")
-                .setWaitForCompletion(true).setRestoreGlobalState(true).execute().actionGet();
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(true)
+            .execute()
+            .actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 

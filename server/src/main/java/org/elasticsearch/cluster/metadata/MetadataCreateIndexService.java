@@ -35,13 +35,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -49,8 +47,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -71,6 +72,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -99,6 +101,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
+import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * Service responsible for submitting create index requests
@@ -499,7 +504,8 @@ public class MetadataCreateIndexService {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
         ComposableIndexTemplate template = currentState.getMetadata().templatesV2().get(templateName);
-        if (request.dataStreamName() == null && template.getDataStreamTemplate() != null) {
+        final boolean isDataStream = template.getDataStreamTemplate() != null;
+        if (isDataStream && request.dataStreamName() == null) {
            throw new IllegalArgumentException("cannot create index with name [" + request.index() +
                "], because it matches with template [" + templateName + "] that creates data streams only, " +
                "use create data stream api instead");
@@ -514,14 +520,28 @@ public class MetadataCreateIndexService {
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
-        return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
-            indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
-                MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName), currentState.metadata(),
-                // the context is only used for validation so it's fine to pass fake values for the
-                // shard id and the current timestamp
-                aliasValidator, xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())),
-                Collections.singletonList(templateName), metadataTransformer);
+        return applyCreateIndexWithTemporaryService(
+            currentState,
+            request,
+            silent,
+            null,
+            tmpImd,
+            mappings,
+            indexService -> resolveAndValidateAliases(
+                request.index(),
+                // data stream aliases are created separately in MetadataCreateDataStreamService::createDataStream
+                isDataStream ? Set.of() : request.aliases(),
+                isDataStream ? List.of() : MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName),
+                currentState.metadata(),
+                aliasValidator,
+                xContentRegistry,
+                // the context is used ony for validation so it's fine to pass fake values for the shard id and the current timestamp
+                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())
+            ),
+            Collections.singletonList(templateName),
+            metadataTransformer
+        );
     }
 
     private ClusterState applyCreateIndexRequestForSystemDataStream(final ClusterState currentState,
@@ -775,6 +795,7 @@ public class MetadataCreateIndexService {
         shardLimitValidator.validateShardLimit(indexSettings, currentState);
         validateSoftDeleteSettings(indexSettings);
         validateTranslogRetentionSettings(indexSettings);
+        validateStoreTypeSetting(indexSettings);
         return indexSettings;
     }
 
@@ -1075,6 +1096,9 @@ public class MetadataCreateIndexService {
      */
     static List<String> validateShrinkIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
+        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+            throw new IllegalArgumentException("can't shrink searchable snapshot index [" + sourceIndex + ']');
+        }
         assert INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings);
         IndexMetadata.selectShrinkShards(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
 
@@ -1106,11 +1130,23 @@ public class MetadataCreateIndexService {
 
     static void validateSplitIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
+        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+            throw new IllegalArgumentException("can't split searchable snapshot index [" + sourceIndex + ']');
+        }
         IndexMetadata.selectSplitShard(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
     }
 
     static void validateCloneIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
+        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+            for (Setting<?> nonCloneableSetting : Arrays.asList(INDEX_STORE_TYPE_SETTING, INDEX_RECOVERY_TYPE_SETTING)) {
+                if (nonCloneableSetting.exists(targetIndexSettings) == false) {
+                    throw new IllegalArgumentException("can't clone searchable snapshot index [" + sourceIndex + "]; setting ["
+                        + nonCloneableSetting.getKey()
+                        + "] should be overridden");
+                }
+            }
+        }
         IndexMetadata.selectCloneShard(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
     }
 
@@ -1130,7 +1166,6 @@ public class MetadataCreateIndexService {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "cannot resize the write index [%s] for data stream [%s]",
                 sourceIndex, source.getParentDataStream().getName()));
         }
-
         // ensure index is read-only
         if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndex) == false) {
             throw new IllegalStateException("index " + sourceIndex + " must be read-only to resize index. use \"index.blocks.write=true\"");
@@ -1240,6 +1275,16 @@ public class MetadataCreateIndexService {
             deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "translog_retention",
                 "Translog retention settings [index.translog.retention.age] "
                 + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+        }
+    }
+
+    public static void validateStoreTypeSetting(Settings indexSettings) {
+        final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexSettings);
+        if (IndexModule.Type.SIMPLEFS.match(storeType)) {
+            deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "store_type_setting",
+                "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
+                    "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type as it offers superior " +
+                    "or equivalent performance to [simplefs].");
         }
     }
 }

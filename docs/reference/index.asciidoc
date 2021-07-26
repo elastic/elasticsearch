@@ -4,7 +4,7 @@
 :include-xpack:         true
 :es-test-dir:           {elasticsearch-root}/docs/src/test
 :plugins-examples-dir:  {elasticsearch-root}/plugins/examples
-:dependencies-dir:      {elasticsearch-root}/buildSrc
+:dependencies-dir:      {elasticsearch-root}/build-tools-internal
 :xes-repo-dir:          {elasticsearch-root}/x-pack/docs/{lang}
 :es-repo-dir:           {elasticsearch-root}/docs/reference
 
@@ -32,6 +32,8 @@ include::indices/index-templates.asciidoc[]
 include::data-streams/data-streams.asciidoc[]
 
 include::ingest.asciidoc[]
+
+include::alias.asciidoc[]
 
 include::search/search-your-data/search-your-data.asciidoc[]
 
@@ -66,8 +68,6 @@ include::{xes-repo-dir}/watcher/index.asciidoc[]
 include::commands/index.asciidoc[]
 
 include::how-to.asciidoc[]
-
-include::glossary.asciidoc[]
 
 include::rest-api/index.asciidoc[]
 

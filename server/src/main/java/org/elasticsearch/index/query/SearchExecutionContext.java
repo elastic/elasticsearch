@@ -19,7 +19,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -41,6 +41,8 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RuntimeField;
@@ -58,7 +60,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -296,7 +297,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mappingLookup.hasMappings();
     }
 
-    public List<ObjectMapper> nestedMappings() {
+    public List<NestedObjectMapper> nestedMappings() {
         return mappingLookup.getNestedMappers();
     }
 
@@ -328,49 +329,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
             }
         }
         return matches;
-    }
-
-    /**
-     * @return all mapped field types, including runtime fields defined in the request
-     */
-    public Collection<MappedFieldType> getAllFieldTypes() {
-        return getMatchingFieldTypes("*");
-    }
-
-    /**
-     * Returns all mapped field types that match a given pattern
-     *
-     * Includes any runtime fields that have been defined in the request. Note
-     * that a runtime field with the same name as a mapped field will override
-     * the mapped field.
-     *
-     * @param pattern the field name pattern
-     */
-    public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
-        Collection<MappedFieldType> mappedFieldTypes = mappingLookup.getMatchingFieldTypes(pattern);
-        if (runtimeMappings.isEmpty()) {
-            return mappedFieldTypes;
-        }
-
-        Map<String, MappedFieldType> mappedByName = new HashMap<>();
-        mappedFieldTypes.forEach(ft -> mappedByName.put(ft.name(), ft));
-
-        if ("*".equals(pattern)) {
-            mappedByName.putAll(runtimeMappings);
-        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcard
-            if (runtimeMappings.containsKey(pattern) == false) {
-                return mappedFieldTypes;
-            }
-            mappedByName.put(pattern, runtimeMappings.get(pattern));
-        } else {
-            for (String name : runtimeMappings.keySet()) {
-                if (Regex.simpleMatch(pattern, name)) {
-                    mappedByName.put(name, runtimeMappings.get(name));
-                }
-            }
-        }
-        return mappedByName.values();
     }
 
     /**
@@ -419,7 +377,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * Generally used to handle unmapped fields in the context of sorting.
      */
     public MappedFieldType buildAnonymousFieldType(String type) {
-        Mapper.TypeParser.ParserContext parserContext = mapperService.parserContext();
+        MappingParserContext parserContext = mapperService.parserContext();
         Mapper.TypeParser typeParser = parserContext.typeParser(type);
         if (typeParser == null) {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
@@ -666,12 +624,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         }
         Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
             mapperService.parserContext(), false);
-        Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
-        for (RuntimeField runtimeField : runtimeFields.values()) {
-            MappedFieldType fieldType = runtimeField.asMappedFieldType();
-            runtimeFieldTypes.put(fieldType.name(), fieldType);
-        }
-        return Collections.unmodifiableMap(runtimeFieldTypes);
+        return RuntimeField.collectFieldTypes(runtimeFields.values());
     }
 
     /**

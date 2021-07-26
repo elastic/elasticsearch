@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cli;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 /**
  * An exception representing a user fixable problem in {@link Command} usage.

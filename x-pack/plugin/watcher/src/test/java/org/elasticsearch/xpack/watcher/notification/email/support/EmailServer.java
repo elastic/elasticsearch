@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.notification.email.support;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.subethamail.smtp.auth.EasyAuthenticationHandlerFactory;
 import org.subethamail.smtp.helper.SimpleMessageListener;
 import org.subethamail.smtp.helper.SimpleMessageListenerAdapter;

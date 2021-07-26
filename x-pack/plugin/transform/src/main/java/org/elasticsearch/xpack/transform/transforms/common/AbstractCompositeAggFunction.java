@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms.common;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -16,7 +17,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
@@ -101,15 +103,16 @@ public abstract class AbstractCompositeAggFunction implements Function {
         SearchRequest searchRequest = buildSearchRequest(sourceConfig, null, TEST_QUERY_PAGE_SIZE);
         client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(response -> {
             if (response == null) {
-                listener.onFailure(
-                    new ElasticsearchStatusException("Unexpected null response from test query", RestStatus.SERVICE_UNAVAILABLE)
-                );
+                listener.onFailure(new ValidationException().addValidationError("Unexpected null response from test query"));
                 return;
             }
             if (response.status() != RestStatus.OK) {
                 listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Unexpected status from response of test query: {}", response.status(), response.status())
+                    new ValidationException()
+                        .addValidationError(
+                            new ParameterizedMessage("Unexpected status from response of test query: {}", response.status())
+                                .getFormattedMessage()
+                        )
                 );
                 return;
             }
@@ -119,7 +122,12 @@ public abstract class AbstractCompositeAggFunction implements Function {
             RestStatus status = unwrapped instanceof ElasticsearchException
                 ? ((ElasticsearchException) unwrapped).status()
                 : RestStatus.SERVICE_UNAVAILABLE;
-            listener.onFailure(new ElasticsearchStatusException("Failed to test query", status, unwrapped));
+            listener.onFailure(
+                new ValidationException(unwrapped)
+                    .addValidationError(
+                        new ParameterizedMessage("Failed to test query, received status: {}", status).getFormattedMessage()
+                    )
+            );
         }));
     }
 

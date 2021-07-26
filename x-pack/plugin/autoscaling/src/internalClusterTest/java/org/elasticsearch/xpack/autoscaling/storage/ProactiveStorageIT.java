@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
@@ -63,10 +63,7 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     .mapToObj(
                         unused -> client().prepareIndex(dsName)
                             .setCreate(true)
-                            .setSource(
-                                "@timestamp",
-                                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomLongBetween(1, Long.MAX_VALUE / 2))
-                            )
+                            .setSource("@timestamp", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomMillisUpToYear9999()))
                     )
                     .toArray(IndexRequestBuilder[]::new)
             );

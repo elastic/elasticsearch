@@ -129,46 +129,6 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals("node passes include/exclude/require filters", decision.getExplanation());
     }
 
-    public void testTierFilterIgnored() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        FilterAllocationDecider filterAllocationDecider = new FilterAllocationDecider(Settings.EMPTY, clusterSettings);
-        AllocationDeciders allocationDeciders = new AllocationDeciders(
-            Arrays.asList(filterAllocationDecider,
-                new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
-                new ReplicaAfterPrimaryActiveAllocationDecider()));
-        AllocationService service = new AllocationService(allocationDeciders,
-            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE);
-        ClusterState state = createInitialClusterState(service, Settings.builder()
-            .put("index.routing.allocation.require._tier", "data_cold")
-            .put("index.routing.allocation.include._tier", "data_cold")
-            .put("index.routing.allocation.include._tier_preference", "data_cold")
-            .put("index.routing.allocation.exclude._tier", "data_cold")
-            .build(),
-            Settings.builder()
-                .put("cluster.routing.allocation.require._tier", "data_cold")
-                .put("cluster.routing.allocation.include._tier", "data_cold")
-                .put("cluster.routing.allocation.exclude._tier", "data_cold")
-                .build());
-        RoutingTable routingTable = state.routingTable();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, null, 0);
-        allocation.debugDecision(true);
-        allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, null, 0);
-        allocation.debugDecision(true);
-        Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(
-            routingTable.index("idx").shard(0).shards().get(0),
-            state.getRoutingNodes().node("node2"), allocation);
-        assertEquals(decision.toString(), Type.YES, decision.type());
-        assertEquals("node passes include/exclude/require filters", decision.getExplanation());
-        decision = (Decision.Single) filterAllocationDecider.canAllocate(
-            routingTable.index("idx").shard(0).shards().get(0),
-            state.getRoutingNodes().node("node1"), allocation);
-        assertEquals(Type.YES, decision.type());
-        assertEquals("node passes include/exclude/require filters", decision.getExplanation());
-    }
-
     private ClusterState createInitialClusterState(AllocationService service, Settings indexSettings) {
         return createInitialClusterState(service, indexSettings, Settings.EMPTY);
     }

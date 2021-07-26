@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.lucene.codecs.CodecUtil;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESTestCase;
 

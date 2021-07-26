@@ -1,14 +1,14 @@
 ---
 - job:
-    name: "elastic+elasticsearch+%BRANCH%+pull-request/elastic+elasticsearch+%BRANCH%+pull-request+packaging-tests-unix"
-    display-name: "elastic / elasticsearch # %BRANCH% - pull request packaging-tests-unix"
+    name: "elastic+elasticsearch+pull-request+packaging-tests-unix"
+    display-name: "elastic / elasticsearch - pull request packaging-tests-unix"
     description: "Testing of Elasticsearch pull requests - packaging-tests-unix"
     project-type: matrix
     node: master
     scm:
       - git:
           refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
-          branches: 
+          branches:
             - "${ghprbActualCommit}"
     triggers:
       - github-pull-request:
@@ -19,8 +19,8 @@
           github-hooks: true
           status-context: elasticsearch-ci/packaging-tests-unix
           cancel-builds-on-update: true
-          white-list-target-branches:
-            - %BRANCH%
+          black-list-target-branches:
+            - 6.8
           excluded-regions:
             - ^docs/.*
           white-list-labels:
@@ -36,7 +36,6 @@
             - centos-8-packaging
             - debian-9-packaging
             - debian-10-packaging
-            - fedora-32-packaging
             - opensuse-15-1-packaging
             - oraclelinux-7-packaging
             - oraclelinux-8-packaging

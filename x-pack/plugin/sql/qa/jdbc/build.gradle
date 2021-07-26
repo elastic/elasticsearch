@@ -76,7 +76,10 @@ subprojects {
       if (bwcVersion.onOrAfter(Version.fromString("7.9.0")) && (bwcVersion.equals(VersionProperties.elasticsearchVersion) == false)) {
         String baseName = "v${bwcVersion}"
         UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
-        Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}")
+        Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}") {
+          // TODO: Temporary workaround for https://github.com/elastic/elasticsearch/issues/73433
+          transitive = false
+        }
         Object driverDependency = null
 
         if (unreleasedVersion) {

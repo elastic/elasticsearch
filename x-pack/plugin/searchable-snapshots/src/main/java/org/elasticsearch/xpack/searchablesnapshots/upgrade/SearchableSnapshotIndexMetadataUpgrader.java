@@ -19,8 +19,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -94,7 +94,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
         return StreamSupport.stream(state.metadata().spliterator(), false)
             .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_8_0_0))
             .map(IndexMetadata::getSettings)
-            .filter(SearchableSnapshotsConstants::isPartialSearchableSnapshotIndex)
+            .filter(SearchableSnapshotsSettings::isPartialSearchableSnapshotIndex)
             .anyMatch(SearchableSnapshotIndexMetadataUpgrader::notFrozenShardLimitGroup);
     }
 
@@ -106,7 +106,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
         StreamSupport.stream(currentState.metadata().spliterator(), false)
             .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_8_0_0))
             .filter(
-                imd -> SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(imd.getSettings())
+                imd -> SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(imd.getSettings())
                     && notFrozenShardLimitGroup(imd.getSettings())
             )
             .map(SearchableSnapshotIndexMetadataUpgrader::setShardLimitGroupFrozen)

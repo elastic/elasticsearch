@@ -12,7 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
@@ -507,8 +507,8 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             new Tuple<>("logs-foobar", 1), new Tuple<>("metrics-foobar", 1)), List.of());
 
         ClusterState result = service.applyAliasActions(state, List.of(
-            new AliasAction.AddDataStreamAlias("foobar", "logs-foobar"),
-            new AliasAction.AddDataStreamAlias("foobar", "metrics-foobar")
+            new AliasAction.AddDataStreamAlias("foobar", "logs-foobar", null, null),
+            new AliasAction.AddDataStreamAlias("foobar", "metrics-foobar", null, null)
         ));
         assertThat(result.metadata().dataStreamAliases().get("foobar"), notNullValue());
         assertThat(result.metadata().dataStreamAliases().get("foobar").getDataStreams(),
@@ -524,6 +524,41 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             new AliasAction.RemoveDataStreamAlias("foobar", "metrics-foobar", null)
         ));
         assertThat(result.metadata().dataStreamAliases().get("foobar"), nullValue());
+    }
+
+    public void testDataStreamAliasesWithWriteFlag() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(
+            new Tuple<>("logs-http-emea", 1), new Tuple<>("logs-http-nasa", 1)), List.of());
+
+        ClusterState result = service.applyAliasActions(state, List.of(
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-emea", true, null),
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-nasa", null, null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http"), notNullValue());
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getDataStreams(),
+            containsInAnyOrder("logs-http-nasa", "logs-http-emea"));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-emea"));
+
+        result = service.applyAliasActions(state, List.of(
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-emea", false, null),
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-nasa", true, null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http"), notNullValue());
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getDataStreams(),
+            containsInAnyOrder("logs-http-nasa", "logs-http-emea"));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-nasa"));
+
+        result = service.applyAliasActions(result, List.of(
+            new AliasAction.RemoveDataStreamAlias("logs-http", "logs-http-emea", null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http"), notNullValue());
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getDataStreams(), contains("logs-http-nasa"));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-nasa"));
+
+        result = service.applyAliasActions(result, List.of(
+            new AliasAction.RemoveDataStreamAlias("logs-http", "logs-http-nasa", null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http"), nullValue());
     }
 
     private ClusterState applyHiddenAliasMix(ClusterState before, Boolean isHidden1, Boolean isHidden2) {

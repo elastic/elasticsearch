@@ -79,7 +79,7 @@ you are restoring. Existing indices can only be restored if they are
 the snapshot. The restore operation automatically opens restored indices if
 they were closed and creates new indices if they do not exist in the cluster.
 
-If a data stream is restored, its backing indices are also restored.
+If a data stream is restored, its aliases and backing indices are also restored.
 Alternatively, you can restore individual backing indices without restoring an
 entire data stream. If you restore individual backing indices, they are not
 automatically added to any existing data stream. For example, if only the
@@ -99,6 +99,20 @@ Name of the repository to restore a snapshot from.
 (Required, string)
 Name of the snapshot to restore.
 
+[[restore-snapshot-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request returns a response when the restore
+operation completes. The operation is complete when it finishes all attempts to
+<<_monitoring_restore_operations,recover primary shards>> for restored indices.
+This applies even if one or more of the recovery attempts fail.
++
+If `false`, the request returns a response when the restore
+operation initializes. Defaults to `false`.
+
 [role="child_attributes"]
 [[restore-snapshot-api-request-body]]
 ==== {api-request-body-title}
@@ -115,11 +129,8 @@ A comma-separated list of index settings that should not be restored from a snap
 
 `include_aliases`::
 (Optional, Boolean)
-If `true`, index aliases from the original snapshot are restored.
-Defaults to `true`.
-+
-If `false`, prevents aliases from being restored together with associated
-indices.
+If `true`, the request restores aliases for any restored data streams and
+indices. If `false`, the request doesn't restore aliases. Defaults to `true`.
 
 [[restore-snapshot-api-include-global-state]]
 `include_global_state`::
@@ -203,14 +214,6 @@ include::{es-ref-dir}/snapshot-restore/restore-snapshot.asciidoc[tag=rename-rest
 `rename_replacement`::
 (Optional, string)
 Defines the rename replacement string. See <<restore-snapshot-api-rename-pattern,`rename_pattern`>> for more information.
-
-`wait_for_completion`::
-(Optional, Boolean)
-If `false`, the request returns a response when the restore operation initializes.
-Defaults to `false`.
-+
-If `true`, the request returns a response when the restore operation
-completes.
 
 [[restore-snapshot-api-example]]
 ==== {api-examples-title}

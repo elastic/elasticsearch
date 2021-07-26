@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
@@ -121,6 +122,11 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     protected AcknowledgedResponse deleteJob(String jobId) {
         DeleteJobAction.Request request = new DeleteJobAction.Request(jobId);
         return client().execute(DeleteJobAction.INSTANCE, request).actionGet();
+    }
+
+    protected AcknowledgedResponse resetJob(String jobId) {
+        ResetJobAction.Request request = new ResetJobAction.Request(jobId);
+        return client().execute(ResetJobAction.INSTANCE, request).actionGet();
     }
 
     protected PutDatafeedAction.Response putDatafeed(DatafeedConfig datafeed) {

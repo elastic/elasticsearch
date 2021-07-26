@@ -22,10 +22,20 @@ step-by-step example, see <<ecommerce-transforms>>.
 == Finding your best customers
 
 This example uses the eCommerce orders sample data set to find the customers who 
-spent the most in a hypothetical webshop. Let's transform the data such that the 
-destination index contains the number of orders, the total price of the orders, 
-the amount of unique products and the average price per order, and the total 
-amount of ordered products for each customer.
+spent the most in a hypothetical webshop. Let's use the `pivot` type of 
+{transform} such that the destination index contains the number of orders, the 
+total price of the orders, the amount of unique products and the average price 
+per order, and the total amount of ordered products for each customer.
+
+[role="screenshot"]
+image::images/transform-ex1-1.jpg["Finding your best customers with {transforms} in {kib}"]
+
+Alternatively, you can use the <<preview-transform, preview {transform}>> and 
+the <<put-transform, create {transform} API>>.
+
+.API example
+[%collapsible]
+====
 
 [source,console]
 ----------------------------------
@@ -84,6 +94,8 @@ advance, populated with some sample values. For example:
   }
 ----------------------------------
 // NOTCONSOLE
+
+====
 
 
 This {transform} makes it easier to answer questions such as:
@@ -235,9 +247,9 @@ PUT _transform/suspicious_client_ips
          "filter": { 
             "term": { "response" : "404"}}
         },
-      "error503" : {
-         "filter": { 
-            "term": { "response" : "503"}}
+      "error5xx" : {
+         "filter": {
+            "range": { "response" : { "gte": 500, "lt": 600}}}
         },
       "timestamp.min": { "min": { "field": "timestamp" }},
       "timestamp.max": { "max": { "field": "timestamp" }},
@@ -261,9 +273,10 @@ PUT _transform/suspicious_client_ips
 field to synchronize the source and destination indices. The worst case 
 ingestion delay is 60 seconds.
 <3> The data is grouped by the `clientip` field.
-<4> Filter aggregation that counts the occurrences of successful (`200`) 
-responses in the `response` field. The following two aggregations (`error404` 
-and `error503`) count the error responses by error codes.
+<4> Filter aggregation that counts the occurrences of successful (`200`)
+responses in the `response` field. The following two aggregations (`error404`
+and `error5xx`) count the error responses by error codes, matching an exact
+value or a range of response codes.
 <5> This `bucket_script` calculates the duration of the `clientip` access based
 on the results of the aggregation.
 
@@ -354,6 +367,9 @@ Select `timestamp` as the date field that sorts the data chronologically. For
 continuous mode, specify a date field that is used to identify new documents, 
 and an interval between checks for changes in the source index.
 
+[role="screenshot"]
+image::images/transform-ex4-1.jpg["Finding the last log event for each IP address with {transforms} in {kib}"]
+
 Let's assume that we're interested in retaining documents only for IP addresses 
 that appeared recently in the log. You can define a retention policy and specify 
 a date field that is used to calculate the age of a document. This example uses 
@@ -361,11 +377,19 @@ the same date field that is used to sort the data. Then set the maximum age of a
 document; documents that are older than the value you set will be removed from 
 the destination index.
 
+[role="screenshot"]
+image::images/transform-ex4-2.jpg["Defining retention policy for {transforms} in {kib}"]
+
 This {transform} creates the destination index that contains the latest login 
 date for each client IP. As the {transform} runs in continuous mode, the 
 destination index will be updated as new data that comes into the source index. 
 Finally, every document that is older than 30 days will be removed from the 
 destination index due to the applied retention policy.
+
+
+.API example
+[%collapsible]
+====
 
 [source,console]
 ----------------------------------
@@ -424,6 +448,7 @@ POST _transform/last-log-from-clientip/_start
 ----------------------------------
 // TEST[skip:setup kibana sample data]
 
+====
 
 After the {transform} processes the data, search the destination index:
 
@@ -483,6 +508,7 @@ The search result shows you data like this for each client IP:
 }
 ----------------------------------
 // NOTCONSOLE
+
 
 This {transform} makes it easier to answer questions such as:
 

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Map;
 

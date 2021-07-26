@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -54,12 +53,8 @@ public class QueryTranslatorSpecTests extends ESTestCase {
             planner = new Planner();
         }
 
-        LogicalPlan plan(String sql, ZoneId zoneId) {
-            return analyzer.analyze(parser.createStatement(sql, zoneId), true);
-        }
-
         LogicalPlan plan(String sql) {
-            return plan(sql, DateUtils.UTC);
+            return analyzer.analyze(parser.createStatement(sql, DateUtils.UTC), true);
         }
 
         PhysicalPlan optimizeAndPlan(String sql) {

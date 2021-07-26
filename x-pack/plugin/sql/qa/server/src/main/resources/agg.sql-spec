@@ -450,7 +450,7 @@ aggSumWithMultipleHavingOnAliasAndFunction
 SELECT gender g, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY g HAVING s > 10 AND SUM(emp_no) > 10000000 ORDER BY gender;
 aggSumWithHavingOnIntegralDivision
 SELECT SUM(salary)/100 AS sum FROM test_emp HAVING sum <= 48248;
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/45251
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/71582
 aggSumWithHavingOnNull-Ignore
 SELECT SUM(languages) AS sum FROM test_emp GROUP BY languages HAVING sum < 20 ORDER BY sum;
 

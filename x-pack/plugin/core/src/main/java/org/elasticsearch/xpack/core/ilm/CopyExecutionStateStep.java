@@ -78,17 +78,12 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         String phase = targetNextStepKey.getPhase();
         String action = targetNextStepKey.getAction();
         String step = targetNextStepKey.getName();
-        long lifecycleDate = lifecycleState.getLifecycleDate();
 
-        LifecycleExecutionState.Builder relevantTargetCustomData = LifecycleExecutionState.builder();
-        relevantTargetCustomData.setIndexCreationDate(lifecycleDate);
-        relevantTargetCustomData.setAction(action);
+        LifecycleExecutionState.Builder relevantTargetCustomData = LifecycleExecutionState.builder(lifecycleState);
+        // Override the phase, action, and step for the target next StepKey
         relevantTargetCustomData.setPhase(phase);
+        relevantTargetCustomData.setAction(action);
         relevantTargetCustomData.setStep(step);
-        relevantTargetCustomData.setSnapshotRepository(lifecycleState.getSnapshotRepository());
-        relevantTargetCustomData.setSnapshotName(lifecycleState.getSnapshotName());
-        relevantTargetCustomData.setSnapshotIndexName(lifecycleState.getSnapshotIndexName());
-        relevantTargetCustomData.setShrinkIndexName(lifecycleState.getShrinkIndexName());
 
         Metadata.Builder newMetadata = Metadata.builder(clusterState.getMetadata())
             .put(IndexMetadata.builder(targetIndexMetadata)

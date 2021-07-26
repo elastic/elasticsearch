@@ -89,10 +89,6 @@ public class ShardSnapshotResult implements Writeable {
 
     @Override
     public String toString() {
-        return "ShardSnapshotResult{" +
-                "generation='" + generation + '\'' +
-                ", size=" + size +
-                ", segmentCount=" + segmentCount +
-                '}';
+        return "ShardSnapshotResult{" + "generation='" + generation + '\'' + ", size=" + size + ", segmentCount=" + segmentCount + '}';
     }
 }

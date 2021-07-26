@@ -88,13 +88,29 @@ There are several thread pools, but the important ones include:
 
 `system_read`::
     For read operations on system indices.
-    Thread pool type is `fixed` and a default maximum size of
+    Thread pool type is `fixed` with a default maximum size of
     `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
 
 `system_write`::
     For write operations on system indices.
-    Thread pool type is `fixed` and a default maximum size of
+    Thread pool type is `fixed` with a default maximum size of
     `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
+
+`system_critical_read`::
+    For critical read operations on system indices.
+    Thread pool type is `fixed` with a default maximum size of
+    `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
+
+`system_critical_write`::
+    For critical write operations on system indices.
+    Thread pool type is `fixed` with a default maximum size of
+    `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
+
+`watcher`::
+    For <<xpack-alerting,watch executions>>.
+    Thread pool type is `fixed` with a default maximum size of
+    `min(5 * (`<<node.processors, `# of allocated processors`>>`), 50)`
+    and queue_size of `1000`.
 
 Changing a specific thread pool can be done by setting its type-specific
 parameters; for example, changing the number of threads in the `write` thread

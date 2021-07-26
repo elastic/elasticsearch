@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -983,7 +983,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     // This class is a workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
     // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes)
-    // and SUM(all nulls)
+    // and SUM(all nulls) (https://github.com/elastic/elasticsearch/issues/71582)
     // NOTE: this rule should always be applied AFTER the ReplaceAggsWithStats rule
     static class ReplaceSumWithStats extends OptimizerBasicRule {
 
@@ -1148,29 +1148,40 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static class SkipQueryIfFoldingProjection extends OptimizerRule<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            Holder<LocalRelation> optimizedPlan = new Holder<>();
-            plan.forEachDown(Project.class, p -> {
-                List<Object> values = extractConstants(p.projections());
-                if (values.size() == p.projections().size() && (p.child() instanceof EsRelation) == false &&
-                    isNotQueryWithFromClauseAndFilterFoldedToFalse(p)) {
-                    optimizedPlan.set(new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray())));
+            List<LogicalPlan> leaves = plan.collectLeaves();
+
+            List<LogicalPlan> projectOrAggregates = plan.collect(p ->
+                p instanceof Project || p instanceof Aggregate);
+
+            if (leaves.size() == 1 && projectOrAggregates.size() == 1) {
+                LogicalPlan leaf = leaves.get(0);
+                LogicalPlan projectOrAggregate = projectOrAggregates.get(0);
+
+                List<Object> foldedValues = null;
+
+                // exclude LocalRelations that have been introduced by earlier optimizations (skipped ESRelations)
+                boolean isNonSkippedLocalRelation = leaf instanceof LocalRelation
+                    && ((LocalRelation) leaf).executable() instanceof EmptyExecutable == false;
+
+                if (projectOrAggregate instanceof Project && isNonSkippedLocalRelation) {
+                    foldedValues = extractConstants(((Project) projectOrAggregate).projections());
+                } else if (projectOrAggregate instanceof Aggregate) {
+                    Aggregate a = (Aggregate) projectOrAggregate;
+                    List<Object> folded = extractConstants(a.aggregates());
+
+                    boolean onlyConstantAggregations = leaf instanceof EsRelation
+                        && folded.size() == a.aggregates().size()
+                        && a.groupings().isEmpty();
+
+                    if (isNonSkippedLocalRelation || onlyConstantAggregations) {
+                        foldedValues = folded;
+                    }
                 }
-            });
 
-            if (optimizedPlan.get() != null) {
-                return optimizedPlan.get();
-            }
-
-            plan.forEachDown(Aggregate.class, a -> {
-                List<Object> values = extractConstants(a.aggregates());
-                if (values.size() == a.aggregates().size() && a.groupings().isEmpty()
-                    && isNotQueryWithFromClauseAndFilterFoldedToFalse(a)) {
-                    optimizedPlan.set(new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray())));
+                if (foldedValues != null) {
+                    return new LocalRelation(projectOrAggregate.source(),
+                        new SingletonExecutable(projectOrAggregate.output(), foldedValues.toArray()));
                 }
-            });
-
-            if (optimizedPlan.get() != null) {
-                return optimizedPlan.get();
             }
 
             return plan;
@@ -1198,14 +1209,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return values;
         }
 
-        /**
-         * Check if the plan doesn't model a query with FROM clause on a table
-         * that its filter (WHERE clause) is folded to FALSE.
-         */
-        private static boolean isNotQueryWithFromClauseAndFilterFoldedToFalse(UnaryPlan plan) {
-            return ((plan.child() instanceof LocalRelation) == false || (plan.child() instanceof LocalRelation &&
-                (((LocalRelation) plan.child()).executable() instanceof EmptyExecutable) == false));
-        }
     }
 
     abstract static class OptimizerBasicRule extends Rule<LogicalPlan, LogicalPlan> {

@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedRunnerTests;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
@@ -103,9 +103,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
     public void testCreateDataExtractorFactoryGivenDefaultScroll() {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo").build();
+        DatafeedConfig datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo").build();
 
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
                 dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)),
@@ -119,9 +119,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
     public void testCreateDataExtractorFactoryGivenScrollWithAutoChunk() {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        DatafeedConfig.Builder datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setChunkingConfig(ChunkingConfig.newAuto());
 
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
@@ -136,9 +136,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
     public void testCreateDataExtractorFactoryGivenScrollWithOffChunk() {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        DatafeedConfig.Builder datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
 
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
@@ -153,9 +153,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
     public void testCreateDataExtractorFactoryGivenDefaultAggregation() {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        DatafeedConfig.Builder datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         datafeedConfig.setParsedAggregations(AggregatorFactories.builder().addAggregator(
                 AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
@@ -172,9 +172,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
     public void testCreateDataExtractorFactoryGivenAggregationWithOffChunk() {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        DatafeedConfig.Builder datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         datafeedConfig.setParsedAggregations(AggregatorFactories.builder().addAggregator(
@@ -192,9 +192,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
     public void testCreateDataExtractorFactoryGivenDefaultAggregationWithAutoChunk() {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        DatafeedConfig.Builder datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         datafeedConfig.setParsedAggregations(AggregatorFactories.builder().addAggregator(
                 AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
@@ -213,9 +213,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         givenAggregatableRollup("myField", "max", 5, "termField");
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        DatafeedConfig.Builder datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("myField");
@@ -251,9 +251,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         givenAggregatableRollup("myField", "max", 5, "termField");
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        DatafeedConfig.Builder datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("myField");
@@ -278,9 +278,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         givenAggregatableRollup("myField", "max", 5, "termField");
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        DatafeedConfig.Builder datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setIndices(Collections.singletonList("cluster_two:my_index"));
         datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
@@ -313,7 +313,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), timingStatsReporter, listener);
 
         // Test with remote index, no aggregation, and no chunking
-        datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setIndices(Collections.singletonList("cluster_two:my_index"));
         datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
 
@@ -339,9 +339,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         givenAggregatableRollup("myField", "max", 5, "termField");
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        DatafeedConfig.Builder datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setChunkingConfig(ChunkingConfig.newAuto());
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("myField");
@@ -366,9 +366,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         givenAggregatableRollup("myField", "max", 5);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        DatafeedConfig.Builder datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
 
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
@@ -387,9 +387,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         givenAggregatableRollup("myField", "max", 7, "termField");
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        DatafeedConfig.Builder datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("myField");
@@ -417,9 +417,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         givenAggregatableRollup("myField", "max", 5);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        DatafeedConfig.Builder datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("myField");
@@ -446,9 +446,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         givenAggregatableRollup("myField", "max", 5, "termField");
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        DatafeedConfig.Builder datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("otherField");

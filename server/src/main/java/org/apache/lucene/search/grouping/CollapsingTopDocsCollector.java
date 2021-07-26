@@ -16,7 +16,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -69,7 +69,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     public CollapseTopFieldDocs getTopDocs() throws IOException {
         Collection<SearchGroup<T>> groups = super.getTopGroups(0);
         if (groups == null) {
-            TotalHits totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
+            TotalHits totalHits = new TotalHits(totalHitCount, TotalHits.Relation.EQUAL_TO);
             return new CollapseTopFieldDocs(collapseField, totalHits, new ScoreDoc[0], sort.getSort(), new Object[0]);
         }
         FieldDoc[] docs = new FieldDoc[groups.size()];

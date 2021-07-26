@@ -57,6 +57,8 @@ public class CreateServiceAccountTokenRequestTests extends ESTestCase {
             new CreateServiceAccountTokenRequest(namespace, serviceName, ValidationTests.randomInvalidTokenName());
         final ActionRequestValidationException validation3 = request3.validate();
         assertThat(validation3.validationErrors(), contains(containsString(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE)));
+        assertThat(validation3.validationErrors(),
+            contains(containsString("invalid service token name [" + request3.getTokenName() + "]")));
 
         final CreateServiceAccountTokenRequest request4 = new CreateServiceAccountTokenRequest(namespace, serviceName, tokenName);
         final ActionRequestValidationException validation4 = request4.validate();

@@ -256,10 +256,10 @@ For an example, see <<data-stream-privileges>>.
 === Convert an index alias to a data stream
 
 // tag::time-series-alias-tip[]
-Prior to {es} 7.9, you would typically use an <<indices-aliases,index alias>>
-with a write index to manage time series data. Data streams replace this
-functionality, require less maintenance, and automatically integrate with
-<<data-tiers,data tiers>>.
+Prior to {es} 7.9, you'd typically use an
+<<manage-time-series-data-without-data-streams,index alias with a write index>>
+to manage time series data. Data streams replace this functionality, require
+less maintenance, and automatically integrate with <<data-tiers,data tiers>>.
 // end::time-series-alias-tip[]
 
 To convert an index alias with a write index to a data stream with the same

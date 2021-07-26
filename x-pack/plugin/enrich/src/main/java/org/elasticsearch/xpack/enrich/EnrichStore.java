@@ -37,7 +37,8 @@ public final class EnrichStore {
     private EnrichStore() {}
 
     /**
-     * Adds a new enrich policy or overwrites an existing policy if there is already a policy with the same name.
+     * Adds a new enrich policy. If a policy already exists with the same name then
+     * this method throws an {@link IllegalArgumentException}.
      * This method can only be invoked on the elected master node.
      *
      * @param name      The unique name of the policy
@@ -112,10 +113,10 @@ public final class EnrichStore {
             }
 
             final Map<String, EnrichPolicy> policies = getPolicies(current);
-            if (policies.get(name) != null) {
+            EnrichPolicy existing = policies.putIfAbsent(name, finalPolicy);
+            if (existing != null) {
                 throw new ResourceAlreadyExistsException("policy [{}] already exists", name);
             }
-            policies.put(name, finalPolicy);
             return policies;
         });
     }

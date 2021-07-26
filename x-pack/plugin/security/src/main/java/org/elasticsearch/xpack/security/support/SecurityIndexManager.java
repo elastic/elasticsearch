@@ -76,7 +76,7 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     private final List<BiConsumer<State, State>> stateChangeListeners = new CopyOnWriteArrayList<>();
 
-    private volatile State indexState;
+    private volatile State state;
 
     public static SecurityIndexManager buildSecurityIndexManager(
         Client client,
@@ -88,14 +88,14 @@ public class SecurityIndexManager implements ClusterStateListener {
         return securityIndexManager;
     }
 
-    private SecurityIndexManager(Client client, SystemIndexDescriptor descriptor, State indexState) {
+    private SecurityIndexManager(Client client, SystemIndexDescriptor descriptor, State state) {
         this.client = client;
-        this.indexState = indexState;
+        this.state = state;
         this.systemIndexDescriptor = descriptor;
     }
 
     public SecurityIndexManager freeze() {
-        return new SecurityIndexManager(null, systemIndexDescriptor, indexState);
+        return new SecurityIndexManager(null, systemIndexDescriptor, state);
     }
 
     public String aliasName() {
@@ -103,11 +103,11 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     public boolean indexExists() {
-        return this.indexState.indexExists();
+        return this.state.indexExists();
     }
 
     public Instant getCreationTime() {
-        return this.indexState.creationTime;
+        return this.state.creationTime;
     }
 
     /**
@@ -115,34 +115,34 @@ public class SecurityIndexManager implements ClusterStateListener {
      * we treat the index as up to date as we expect it to be created with the current format.
      */
     public boolean isIndexUpToDate() {
-        return this.indexState.isIndexUpToDate;
+        return this.state.isIndexUpToDate;
     }
 
     public boolean isAvailable() {
-        return this.indexState.indexAvailable;
+        return this.state.indexAvailable;
     }
 
     public boolean isMappingUpToDate() {
-        return this.indexState.mappingUpToDate;
+        return this.state.mappingUpToDate;
     }
 
     public boolean isStateRecovered() {
-        return this.indexState != State.UNRECOVERED_STATE;
+        return this.state != State.UNRECOVERED_STATE;
     }
 
     public ElasticsearchException getUnavailableReason() {
-        final State localState = this.indexState;
-        if (localState.indexAvailable) {
+        final State state = this.state; // use a local copy so all checks execute against the same state!
+        if (state.indexAvailable) {
             throw new IllegalStateException("caller must make sure to use a frozen state and check indexAvailable");
         }
 
-        if (localState.indexState == IndexMetadata.State.CLOSE) {
-            return new IndexClosedException(new Index(localState.concreteIndexName, ClusterState.UNKNOWN_UUID));
-        } else if (localState.indexExists()) {
+        if (state.indexState == IndexMetadata.State.CLOSE) {
+            return new IndexClosedException(new Index(state.concreteIndexName, ClusterState.UNKNOWN_UUID));
+        } else if (state.indexExists()) {
             return new UnavailableShardsException(null,
-                "at least one primary shard for the index [" + localState.concreteIndexName + "] is unavailable");
+                "at least one primary shard for the index [" + state.concreteIndexName + "] is unavailable");
         } else {
-            return new IndexNotFoundException(localState.concreteIndexName);
+            return new IndexNotFoundException(state.concreteIndexName);
         }
     }
 
@@ -151,7 +151,7 @@ public class SecurityIndexManager implements ClusterStateListener {
      *
      * The previous and current state are provided.
      */
-    public void addIndexStateListener(BiConsumer<State, State> listener) {
+    public void addStateListener(BiConsumer<State, State> listener) {
         stateChangeListeners.add(listener);
     }
 
@@ -163,7 +163,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             logger.debug("security index manager waiting until state has been recovered");
             return;
         }
-        final State previousState = indexState;
+        final State previousState = state;
         final IndexMetadata indexMetadata = resolveConcreteIndex(systemIndexDescriptor.getAliasName(), event.state().metadata());
         final Instant creationTime = indexMetadata != null ? Instant.ofEpochMilli(indexMetadata.getCreationDate()) : null;
         final boolean isIndexUpToDate = indexMetadata == null ||
@@ -192,7 +192,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         final String indexUUID = indexMetadata != null ? indexMetadata.getIndexUUID() : null;
         final State newState = new State(creationTime, isIndexUpToDate, indexAvailable, mappingIsUpToDate, mappingVersion,
                 concreteIndexName, indexHealth, indexState, event.state().nodes().getSmallestNonClientNodeVersion(), indexUUID);
-        this.indexState = newState;
+        this.state = newState;
 
         if (newState.equals(previousState) == false) {
             for (BiConsumer<State, State> listener : stateChangeListeners) {
@@ -283,6 +283,7 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     private static Version readMappingVersion(String indexName, MappingMetadata mappingMetadata, Logger logger) {
         try {
+            @SuppressWarnings("unchecked")
             Map<String, Object> meta =
                     (Map<String, Object>) mappingMetadata.sourceAsMap().get("_meta");
             if (meta == null) {
@@ -305,10 +306,10 @@ public class SecurityIndexManager implements ClusterStateListener {
      * is left to the caller so that this condition can be handled appropriately.
      */
     public void checkIndexVersionThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
-        final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
-        if (indexState.indexExists() && indexState.isIndexUpToDate == false) {
+        final State state = this.state; // use a local copy so all checks execute against the same state!
+        if (state.indexExists() && state.isIndexUpToDate == false) {
             consumer.accept(new IllegalStateException(
-                    "Index [" + indexState.concreteIndexName + "] is not on the current version. Security features relying on the index"
+                    "Index [" + state.concreteIndexName + "] is not on the current version. Security features relying on the index"
                             + " will not be available until the upgrade API is run on the index"));
         } else {
             andThen.run();
@@ -321,20 +322,20 @@ public class SecurityIndexManager implements ClusterStateListener {
      * @param andThen executed if the index exists or after preparation is performed successfully
      */
     public void prepareIndexIfNeededThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
-        final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
+        final State state = this.state; // use a local copy so all checks execute against the same state!
         try {
             // TODO we should improve this so we don't fire off a bunch of requests to do the same thing (create or update mappings)
-            if (indexState == State.UNRECOVERED_STATE) {
+            if (state == State.UNRECOVERED_STATE) {
                 throw new ElasticsearchStatusException(
-                        "Cluster state has not been recovered yet, cannot write to the [" + indexState.concreteIndexName + "] index",
+                        "Cluster state has not been recovered yet, cannot write to the [" + state.concreteIndexName + "] index",
                         RestStatus.SERVICE_UNAVAILABLE);
-            } else if (indexState.indexExists() && indexState.isIndexUpToDate == false) {
-                throw new IllegalStateException("Index [" + indexState.concreteIndexName + "] is not on the current version."
+            } else if (state.indexExists() && state.isIndexUpToDate == false) {
+                throw new IllegalStateException("Index [" + state.concreteIndexName + "] is not on the current version."
                         + "Security features relying on the index will not be available until the upgrade API is run on the index");
-            } else if (indexState.indexExists() == false) {
-                assert indexState.concreteIndexName != null;
+            } else if (state.indexExists() == false) {
+                assert state.concreteIndexName != null;
                 final SystemIndexDescriptor descriptorForVersion =
-                    systemIndexDescriptor.getDescriptorCompatibleWith(indexState.minimumNodeVersion);
+                    systemIndexDescriptor.getDescriptorCompatibleWith(state.minimumNodeVersion);
 
                 if (descriptorForVersion == null) {
                     final String error = systemIndexDescriptor.getMinimumNodeVersionMessage("create index");
@@ -342,12 +343,12 @@ public class SecurityIndexManager implements ClusterStateListener {
                 } else {
                     logger.info(
                         "security index does not exist, creating [{}] with alias [{}]",
-                        indexState.concreteIndexName,
+                        state.concreteIndexName,
                         descriptorForVersion.getAliasName()
                     );
                     // Although `TransportCreateIndexAction` is capable of automatically applying the right mappings, settings and aliases
                     // for system indices, we nonetheless specify them here so that the values from `descriptorForVersion` are used.
-                    CreateIndexRequest request = new CreateIndexRequest(indexState.concreteIndexName)
+                    CreateIndexRequest request = new CreateIndexRequest(state.concreteIndexName)
                         .origin(descriptorForVersion.getOrigin())
                         .mapping(descriptorForVersion.getMappings())
                         .settings(descriptorForVersion.getSettings())
@@ -379,19 +380,19 @@ public class SecurityIndexManager implements ClusterStateListener {
                         }, client.admin().indices()::create
                     );
                 }
-            } else if (indexState.mappingUpToDate == false) {
+            } else if (state.mappingUpToDate == false) {
                 final SystemIndexDescriptor descriptorForVersion =
-                    systemIndexDescriptor.getDescriptorCompatibleWith(indexState.minimumNodeVersion);
+                    systemIndexDescriptor.getDescriptorCompatibleWith(state.minimumNodeVersion);
                 if (descriptorForVersion == null) {
                     final String error = systemIndexDescriptor.getMinimumNodeVersionMessage("updating mapping");
                     consumer.accept(new IllegalStateException(error));
                 } else {
                     logger.info(
                         "Index [{}] (alias [{}]) is not up to date. Updating mapping",
-                        indexState.concreteIndexName,
+                        state.concreteIndexName,
                         descriptorForVersion.getAliasName()
                     );
-                    PutMappingRequest request = new PutMappingRequest(indexState.concreteIndexName).source(
+                    PutMappingRequest request = new PutMappingRequest(state.concreteIndexName).source(
                         descriptorForVersion.getMappings(),
                         XContentType.JSON
                     ).origin(descriptorForVersion.getOrigin());

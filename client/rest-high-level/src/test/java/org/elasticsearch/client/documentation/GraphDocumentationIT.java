@@ -13,7 +13,7 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.client.graph.Connection;
 import org.elasticsearch.client.graph.GraphExploreRequest;

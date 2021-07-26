@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -70,13 +70,12 @@ enum TextFormat implements MediaType {
                 }
                 // format with header
                 return formatter.formatWithHeader(response.columns(), response.rows());
-            }
-            else {
-                // should be initialized (wrapped by the cursor)
-                if (formatter != null) {
-                    // format without header
-                    return formatter.formatWithoutHeader(response.rows());
-                }
+            } else if (formatter != null) { // should be initialized (wrapped by the cursor)
+                // format without header
+                return formatter.formatWithoutHeader(response.rows());
+            } else if (response.hasId()) {
+                // an async request has no results yet
+                return StringUtils.EMPTY;
             }
             // if this code is reached, it means it's a next page without cursor wrapping
             throw new SqlIllegalArgumentException("Cannot find text formatter - this is likely a bug");

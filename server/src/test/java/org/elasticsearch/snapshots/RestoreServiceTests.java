@@ -146,11 +146,8 @@ public class RestoreServiceTests extends ESTestCase {
                     final Repository freshBlobStoreRepo = mock(BlobStoreRepository.class);
                     repositories.put(repositoryName, freshBlobStoreRepo);
                     when(freshBlobStoreRepo.getMetadata()).thenReturn(
-                            new RepositoryMetadata(
-                                    repositoryName,
-                                    randomAlphaOfLength(3),
-                                    Settings.EMPTY
-                            ).withUuid(UUIDs.randomBase64UUID()));
+                        new RepositoryMetadata(repositoryName, randomAlphaOfLength(3), Settings.EMPTY).withUuid(UUIDs.randomBase64UUID())
+                    );
                     doThrow(new AssertionError("repo UUID already known")).when(freshBlobStoreRepo).getRepositoryData(any());
                     break;
                 case 3:
@@ -158,16 +155,13 @@ public class RestoreServiceTests extends ESTestCase {
                     repositories.put(repositoryName, staleBlobStoreRepo);
                     pendingRefreshes.add(repositoryName);
                     when(staleBlobStoreRepo.getMetadata()).thenReturn(
-                            new RepositoryMetadata(
-                                    repositoryName,
-                                    randomAlphaOfLength(3),
-                                    Settings.EMPTY
-                            ));
+                        new RepositoryMetadata(repositoryName, randomAlphaOfLength(3), Settings.EMPTY)
+                    );
                     doAnswer(invocationOnMock -> {
                         assertTrue(pendingRefreshes.remove(repositoryName));
-                        //noinspection unchecked
-                        ActionListener<RepositoryData> repositoryDataListener
-                                = (ActionListener<RepositoryData>) invocationOnMock.getArguments()[0];
+                        // noinspection unchecked
+                        ActionListener<RepositoryData> repositoryDataListener = (ActionListener<RepositoryData>) invocationOnMock
+                            .getArguments()[0];
                         if (randomBoolean()) {
                             repositoryDataListener.onResponse(null);
                         } else {

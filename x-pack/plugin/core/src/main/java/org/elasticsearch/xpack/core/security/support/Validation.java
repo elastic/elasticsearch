@@ -73,6 +73,10 @@ public final class Validation {
         return name != null && VALID_SERVICE_ACCOUNT_TOKEN_NAME.matcher(name).matches();
     }
 
+    public static String formatInvalidServiceTokenNameErrorMessage(String name) {
+        return "invalid service token name [" + name + "]. " + INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE;
+    }
+
     public static final class Users {
 
         private static final int MIN_PASSWD_LENGTH = 6;

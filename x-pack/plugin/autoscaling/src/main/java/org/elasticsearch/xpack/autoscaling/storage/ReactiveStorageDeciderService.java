@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -28,6 +29,8 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -70,7 +73,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
     public ReactiveStorageDeciderService(Settings settings, ClusterSettings clusterSettings, AllocationDeciders allocationDeciders) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
-        this.dataTierAllocationDecider = new DataTierAllocationDecider(settings, clusterSettings);
+        this.dataTierAllocationDecider = new DataTierAllocationDecider();
         this.allocationDeciders = allocationDeciders;
     }
 
@@ -129,12 +132,42 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     }
 
     static boolean isDiskOnlyNoDecision(Decision decision) {
-        // we consider throttling==yes, throttling should be temporary.
+        return singleNoDecision(decision, single -> true).map(DiskThresholdDecider.NAME::equals).orElse(false);
+    }
+
+    static boolean isFilterTierOnlyDecision(Decision decision, IndexMetadata indexMetadata) {
+        // only primary shards are handled here, allowing us to disregard same shard allocation decider.
+        return singleNoDecision(decision, single -> SameShardAllocationDecider.NAME.equals(single.label()) == false).filter(
+            FilterAllocationDecider.NAME::equals
+        ).map(d -> filterLooksLikeTier(indexMetadata)).orElse(false);
+    }
+
+    static boolean filterLooksLikeTier(IndexMetadata indexMetadata) {
+        return isOnlyAttributeValueFilter(indexMetadata.requireFilters())
+            && isOnlyAttributeValueFilter(indexMetadata.includeFilters())
+            && isOnlyAttributeValueFilter(indexMetadata.excludeFilters());
+    }
+
+    private static boolean isOnlyAttributeValueFilter(DiscoveryNodeFilters filters) {
+        if (filters == null) {
+            return true;
+        } else {
+            return DiscoveryNodeFilters.trimTier(filters).isOnlyAttributeValueFilter();
+        }
+    }
+
+    static Optional<String> singleNoDecision(Decision decision, Predicate<Decision> predicate) {
         List<Decision> nos = decision.getDecisions()
             .stream()
             .filter(single -> single.type() == Decision.Type.NO)
+            .filter(predicate)
             .collect(Collectors.toList());
-        return nos.size() == 1 && DiskThresholdDecider.NAME.equals(nos.get(0).label());
+
+        if (nos.size() == 1) {
+            return Optional.ofNullable(nos.get(0).label());
+        } else {
+            return Optional.empty();
+        }
     }
 
     // todo: move this to top level class.
@@ -191,10 +224,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public long storagePreventsAllocation() {
-            RoutingNodes routingNodes = new RoutingNodes(state, false);
             RoutingAllocation allocation = new RoutingAllocation(
                 allocationDeciders,
-                routingNodes,
+                state.getRoutingNodes(),
                 state,
                 info,
                 shardSizeInfo,
@@ -208,10 +240,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public long storagePreventsRemainOrMove() {
-            RoutingNodes routingNodes = new RoutingNodes(state, false);
             RoutingAllocation allocation = new RoutingAllocation(
                 allocationDeciders,
-                routingNodes,
+                state.getRoutingNodes(),
                 state,
                 info,
                 shardSizeInfo,
@@ -279,7 +310,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
          * @return true if and only if a node exists in the tier where only disk decider prevents allocation
          */
         private boolean cannotAllocateDueToStorage(ShardRouting shard, RoutingAllocation allocation) {
-            if (nodeIds.isEmpty() && isAssignedToTier(shard, allocation)) {
+            if (nodeIds.isEmpty() && needsThisTier(shard, allocation)) {
                 return true;
             }
             assert allocation.debugDecision() == false;
@@ -314,6 +345,43 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return nodesInTier(allocation.routingNodes()).anyMatch(
                 node -> allocationDeciders.canAllocate(shard, node, allocation) != Decision.NO
             );
+        }
+
+        boolean needsThisTier(ShardRouting shard, RoutingAllocation allocation) {
+            if (isAssignedToTier(shard, allocation) == false) {
+                return false;
+            }
+            IndexMetadata indexMetadata = indexMetadata(shard, allocation);
+            Set<Decision.Type> decisionTypes = StreamSupport.stream(allocation.routingNodes().spliterator(), false)
+                .map(
+                    node -> dataTierAllocationDecider.shouldFilter(
+                        indexMetadata,
+                        node.node().getRoles(),
+                        this::highestPreferenceTier,
+                        allocation
+                    )
+                )
+                .map(Decision::type)
+                .collect(Collectors.toSet());
+            if (decisionTypes.contains(Decision.Type.NO)) {
+                // we know we have some filter and can respond. Only need this tier if ALL responses where NO.
+                return decisionTypes.size() == 1;
+            }
+
+            // check for using allocation filters for data tiers. For simplicity, only scale up new tier based on primary shard
+            if (shard.primary() == false) {
+                return false;
+            }
+            assert allocation.debugDecision() == false;
+            // enable debug decisions to see all decisions and preserve the allocation decision label
+            allocation.debugDecision(true);
+            try {
+                // check that it does not belong on any existing node, i.e., there must be only a tier like reason it cannot be allocated
+                return StreamSupport.stream(allocation.routingNodes().spliterator(), false)
+                    .anyMatch(node -> isFilterTierOnlyDecision(allocationDeciders.canAllocate(shard, node, allocation), indexMetadata));
+            } finally {
+                allocation.debugDecision(false);
+            }
         }
 
         private boolean isAssignedToTier(ShardRouting shard, RoutingAllocation allocation) {

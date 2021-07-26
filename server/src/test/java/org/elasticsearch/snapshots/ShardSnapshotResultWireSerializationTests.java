@@ -37,10 +37,14 @@ public class ShardSnapshotResultWireSerializationTests extends AbstractWireSeria
 
     public void testToString() {
         final ShardSnapshotResult testInstance = randomShardSnapshotResult();
-        assertThat(testInstance.toString(), allOf(
+        assertThat(
+            testInstance.toString(),
+            allOf(
                 containsString(testInstance.getGeneration()),
                 containsString(testInstance.getSize().toString()),
-                containsString(Integer.toString(testInstance.getSegmentCount()))));
+                containsString(Integer.toString(testInstance.getSegmentCount()))
+            )
+        );
     }
 
     static ShardSnapshotResult randomShardSnapshotResult() {
@@ -51,23 +55,25 @@ public class ShardSnapshotResultWireSerializationTests extends AbstractWireSeria
         switch (between(1, 3)) {
             case 1:
                 return new ShardSnapshotResult(
-                        randomAlphaOfLength(11 - instance.getGeneration().length()),
-                        instance.getSize(),
-                        instance.getSegmentCount());
+                    randomAlphaOfLength(11 - instance.getGeneration().length()),
+                    instance.getSize(),
+                    instance.getSegmentCount()
+                );
             case 2:
                 return new ShardSnapshotResult(
-                        instance.getGeneration(),
-                        randomValueOtherThan(instance.getSize(), () -> new ByteSizeValue(randomNonNegativeLong())),
-                        instance.getSegmentCount());
+                    instance.getGeneration(),
+                    randomValueOtherThan(instance.getSize(), () -> new ByteSizeValue(randomNonNegativeLong())),
+                    instance.getSegmentCount()
+                );
 
             case 3:
                 return new ShardSnapshotResult(
-                        instance.getGeneration(),
-                        instance.getSize(),
-                        randomValueOtherThan(instance.getSegmentCount(), () -> between(0, 1000)));
+                    instance.getGeneration(),
+                    instance.getSize(),
+                    randomValueOtherThan(instance.getSegmentCount(), () -> between(0, 1000))
+                );
         }
         throw new AssertionError("invalid mutation");
     }
 
 }
-

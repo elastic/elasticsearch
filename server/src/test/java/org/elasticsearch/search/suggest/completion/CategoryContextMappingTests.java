@@ -29,10 +29,10 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -716,7 +716,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
 
     public void testParsingContextFromDocument() throws Exception {
         CategoryContextMapping mapping = ContextBuilder.category("cat").field("category").build();
-        ParseContext.Document document = new ParseContext.Document();
+        LuceneDocument document = new LuceneDocument();
 
         KeywordFieldMapper.KeywordFieldType keyword = new KeywordFieldMapper.KeywordFieldType("category");
         document.add(new KeywordFieldMapper.KeywordField(keyword.name(), new BytesRef("category1"), new FieldType()));
@@ -727,7 +727,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         assertTrue(context.contains("category1"));
 
 
-        document = new ParseContext.Document();
+        document = new LuceneDocument();
         TextFieldMapper.TextFieldType text = new TextFieldMapper.TextFieldType("category");
         document.add(new Field(text.name(), "category1", TextFieldMapper.Defaults.FIELD_TYPE));
         // Ignore stored field
@@ -736,17 +736,17 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         assertThat(context.size(), equalTo(1));
         assertTrue(context.contains("category1"));
 
-        document = new ParseContext.Document();
+        document = new LuceneDocument();
         document.add(new SortedSetDocValuesField("category", new BytesRef("category")));
         context = mapping.parseContext(document);
         assertThat(context.size(), equalTo(0));
 
-        document = new ParseContext.Document();
+        document = new LuceneDocument();
         document.add(new SortedDocValuesField("category", new BytesRef("category")));
         context = mapping.parseContext(document);
         assertThat(context.size(), equalTo(0));
 
-        final ParseContext.Document doc = new ParseContext.Document();
+        final LuceneDocument doc = new LuceneDocument();
         doc.add(new IntPoint("category", 36));
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> mapping.parseContext(doc));
         assertThat(exc.getMessage(), containsString("Failed to parse context field [category]"));

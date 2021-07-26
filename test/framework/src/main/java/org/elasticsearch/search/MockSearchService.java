@@ -11,6 +11,7 @@ package org.elasticsearch.search;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.MockNode;
@@ -71,9 +72,10 @@ public class MockSearchService extends SearchService {
 
     public MockSearchService(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                              ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
-                             ResponseCollectorService responseCollectorService, CircuitBreakerService circuitBreakerService) {
+                             ResponseCollectorService responseCollectorService, CircuitBreakerService circuitBreakerService,
+                             ExecutorSelector executorSelector) {
         super(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase, responseCollectorService,
-            circuitBreakerService);
+            circuitBreakerService, executorSelector);
     }
 
     @Override

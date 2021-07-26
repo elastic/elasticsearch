@@ -267,9 +267,17 @@ _insert_zeros_::
                 This option will replace missing values with a zero (`0`) and pipeline aggregation computation will
                 proceed as normal.
 
+_keep_values_::
+                This option is similar to skip, except if the metric provides a non-null, non-NaN value this value is
+                used, otherwise the empty bucket is skipped.
+
 include::pipeline/avg-bucket-aggregation.asciidoc[]
 
 include::pipeline/bucket-script-aggregation.asciidoc[]
+
+include::pipeline/bucket-count-ks-test-aggregation.asciidoc[]
+
+include::pipeline/bucket-correlation-aggregation.asciidoc[]
 
 include::pipeline/bucket-selector-aggregation.asciidoc[]
 

@@ -858,8 +858,8 @@ Test nested field with sibling field resolving to DocValueFetcher:
 ---
 Test token_count inside nested field doesn't fail:
   - skip:
-      version: ' - 7.99.99'
-      reason:  'Added in 8.0 - change on backport'
+      version: ' - 7.11.99'
+      reason:  'fix introduced in 7.12.0'
   -  do:
         indices.create:
            index: test

@@ -38,7 +38,8 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -72,14 +73,17 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 
 import java.io.IOException;
@@ -110,9 +114,9 @@ public class TrainedModelProvider {
     public static final Set<String> MODELS_STORED_AS_RESOURCE = Collections.singleton("lang_ident_model_1");
     private static final String MODEL_RESOURCE_PATH = "/org/elasticsearch/xpack/ml/inference/persistence/";
     private static final String MODEL_RESOURCE_FILE_EXT = ".json";
-    private static final int COMPRESSED_STRING_CHUNK_SIZE = 16 * 1024 * 1024;
+    private static final int COMPRESSED_MODEL_CHUNK_SIZE = 16 * 1024 * 1024;
     private static final int MAX_NUM_DEFINITION_DOCS = 100;
-    private static final int MAX_COMPRESSED_STRING_SIZE = COMPRESSED_STRING_CHUNK_SIZE * MAX_NUM_DEFINITION_DOCS;
+    private static final int MAX_COMPRESSED_MODEL_SIZE = COMPRESSED_MODEL_CHUNK_SIZE * MAX_NUM_DEFINITION_DOCS;
 
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);
     private final Client client;
@@ -143,14 +147,20 @@ public class TrainedModelProvider {
         }
 
         TrainedModelDefinition definition = trainedModelConfig.getModelDefinition();
-        if (definition == null) {
-            listener.onFailure(ExceptionsHelper.badRequestException("Unable to store [{}]. [{}] is required",
+        TrainedModelLocation location = trainedModelConfig.getLocation();
+        if (definition == null && location == null) {
+            listener.onFailure(ExceptionsHelper.badRequestException("Unable to store [{}]. [{}] or [{}] is required",
                 trainedModelConfig.getModelId(),
-                TrainedModelConfig.DEFINITION.getPreferredName()));
+                TrainedModelConfig.DEFINITION.getPreferredName(),
+                TrainedModelConfig.LOCATION.getPreferredName()));
             return;
         }
 
-        storeTrainedModelAndDefinition(trainedModelConfig, listener);
+        if (definition != null) {
+            storeTrainedModelAndDefinition(trainedModelConfig, listener);
+        } else {
+            storeTrainedModelConfig(trainedModelConfig, listener);
+        }
     }
 
     public void storeTrainedModelConfig(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener) {
@@ -161,10 +171,14 @@ public class TrainedModelProvider {
         }
         assert trainedModelConfig.getModelDefinition() == null;
 
+        IndexRequest request =
+            createRequest(trainedModelConfig.getModelId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelConfig);
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
         executeAsyncWithOrigin(client,
             ML_ORIGIN,
             IndexAction.INSTANCE,
-            createRequest(trainedModelConfig.getModelId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelConfig),
+            request,
             ActionListener.wrap(
                 indexResponse -> listener.onResponse(true),
                 e -> {
@@ -173,10 +187,9 @@ public class TrainedModelProvider {
                             Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
                     } else {
                         listener.onFailure(
-                            new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL,
-                                RestStatus.INTERNAL_SERVER_ERROR,
-                                e,
-                                trainedModelConfig.getModelId()));
+                            new ElasticsearchStatusException(
+                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelConfig.getModelId()),
+                                RestStatus.INTERNAL_SERVER_ERROR, e));
                     }
                 }
             ));
@@ -203,10 +216,9 @@ public class TrainedModelProvider {
                                 trainedModelDefinitionDoc.getDocNum())));
                     } else {
                         listener.onFailure(
-                            new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL,
-                                RestStatus.INTERNAL_SERVER_ERROR,
-                                e,
-                                trainedModelDefinitionDoc.getModelId()));
+                            new ElasticsearchStatusException(
+                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelDefinitionDoc.getModelId()),
+                                RestStatus.INTERNAL_SERVER_ERROR, e));
                     }
                 }
             ));
@@ -231,10 +243,9 @@ public class TrainedModelProvider {
                                 trainedModelMetadata.getModelId())));
                     } else {
                         listener.onFailure(
-                            new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL_METADATA,
-                                RestStatus.INTERNAL_SERVER_ERROR,
-                                e,
-                                trainedModelMetadata.getModelId()));
+                            new ElasticsearchStatusException(
+                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL_METADATA, trainedModelMetadata.getModelId()),
+                                RestStatus.INTERNAL_SERVER_ERROR, e));
                     }
                 }
             ));
@@ -289,25 +300,25 @@ public class TrainedModelProvider {
 
         List<TrainedModelDefinitionDoc> trainedModelDefinitionDocs = new ArrayList<>();
         try {
-            String compressedString = trainedModelConfig.getCompressedDefinition();
-            if (compressedString.length() > MAX_COMPRESSED_STRING_SIZE) {
+            BytesReference compressedDefinition = trainedModelConfig.getCompressedDefinition();
+            if (compressedDefinition.length() > MAX_COMPRESSED_MODEL_SIZE) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
-                        "Unable to store model as compressed definition has length [{}] the limit is [{}]",
-                        compressedString.length(),
-                        MAX_COMPRESSED_STRING_SIZE));
+                        "Unable to store model as compressed definition of size [{}] bytes the limit is [{}] bytes",
+                        compressedDefinition.length(),
+                        MAX_COMPRESSED_MODEL_SIZE));
                 return;
             }
-            List<String> chunkedStrings = chunkStringWithSize(compressedString, COMPRESSED_STRING_CHUNK_SIZE);
-            for(int i = 0; i < chunkedStrings.size(); ++i) {
+            List<BytesReference> chunkedDefinition = chunkDefinitionWithSize(compressedDefinition, COMPRESSED_MODEL_CHUNK_SIZE);
+            for(int i = 0; i < chunkedDefinition.size(); ++i) {
                 trainedModelDefinitionDocs.add(new TrainedModelDefinitionDoc.Builder()
                     .setDocNum(i)
                     .setModelId(trainedModelConfig.getModelId())
-                    .setCompressedString(chunkedStrings.get(i))
+                    .setBinaryData(chunkedDefinition.get(i))
                     .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
-                    .setDefinitionLength(chunkedStrings.get(i).length())
+                    .setDefinitionLength(chunkedDefinition.get(i).length())
                     // If it is the last doc, it is the EOS
-                    .setEos(i == chunkedStrings.size() - 1)
+                    .setEos(i == chunkedDefinition.size() - 1)
                     .build());
             }
         } catch (IOException ex) {
@@ -332,10 +343,9 @@ public class TrainedModelProvider {
                         Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
                 } else {
                     listener.onFailure(
-                        new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL,
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            e,
-                            trainedModelConfig.getModelId()));
+                        new ElasticsearchStatusException(
+                            Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelConfig.getModelId()),
+                            RestStatus.INTERNAL_SERVER_ERROR, e));
                 }
             }
         );
@@ -374,12 +384,23 @@ public class TrainedModelProvider {
         executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequest.request(), bulkResponseActionListener);
     }
 
+    /**
+     * Get the model definition for inference.
+     *
+     * The caller should ensure the requested model has an InferenceDefinition,
+     * some models such as {@code  org.elasticsearch.xpack.core.ml.inference.trainedmodel.pytorch.PyTorchModel}
+     * do not.
+     *
+     * @param modelId The model tp get
+     * @param listener The listener
+     */
     public void getTrainedModelForInference(final String modelId, final ActionListener<InferenceDefinition> listener) {
         // TODO Change this when we get more than just langIdent stored
         if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
             try {
                 TrainedModelConfig config = loadModelFromResource(modelId, false).build().ensureParsedDefinition(xContentRegistry);
                 assert config.getModelDefinition().getTrainedModel() instanceof LangIdentNeuralNetwork;
+                assert config.getModelType() == TrainedModelType.LANG_IDENT;
                 listener.onResponse(
                     InferenceDefinition.builder()
                         .setPreProcessors(config.getModelDefinition().getPreProcessors())
@@ -392,53 +413,35 @@ public class TrainedModelProvider {
             }
         }
 
-        SearchRequest searchRequest = client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
-            .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders
-                .boolQuery()
-                .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
-                .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(),
-                    TrainedModelDefinitionDoc.NAME))))
-            .setSize(MAX_NUM_DEFINITION_DOCS)
-            // First find the latest index
-            .addSort("_index", SortOrder.DESC)
-            // Then, sort by doc_num
-            .addSort(SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName())
-                .order(SortOrder.ASC)
-                .unmappedType("long"))
-            .request();
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
-            // TODO how could we stream in the model definition WHILE parsing it?
-            // This would reduce the overall memory usage as we won't have to load the whole compressed string
-            // XContentParser supports streams.
-            searchResponse -> {
-                if (searchResponse.getHits().getHits().length == 0) {
-                    listener.onFailure(new ResourceNotFoundException(
-                        Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
-                    return;
-                }
-                List<TrainedModelDefinitionDoc> docs = handleHits(searchResponse.getHits().getHits(),
-                    modelId,
-                    this::parseModelDefinitionDocLenientlyFromSource);
+        List<TrainedModelDefinitionDoc> docs = new ArrayList<>();
+        ChunkedTrainedModelRestorer modelRestorer =
+            new ChunkedTrainedModelRestorer(modelId, client,
+                client.threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME), xContentRegistry);
+
+        // TODO how could we stream in the model definition WHILE parsing it?
+        // This would reduce the overall memory usage as we won't have to load the whole compressed string
+        // XContentParser supports streams.
+        modelRestorer.restoreModelDefinition(docs::add,
+            success -> {
                 try {
-                    String compressedString = getDefinitionFromDocs(docs, modelId);
+                    BytesReference compressedData = getDefinitionFromDocs(docs, modelId);
                     InferenceDefinition inferenceDefinition = InferenceToXContentCompressor.inflate(
-                        compressedString,
+                        compressedData,
                         InferenceDefinition::fromXContent,
                         xContentRegistry);
+
                     listener.onResponse(inferenceDefinition);
-                } catch (ElasticsearchException elasticsearchException) {
-                    listener.onFailure(elasticsearchException);
+                } catch (Exception e) {
+                    listener.onFailure(e);
                 }
             },
             e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     listener.onFailure(new ResourceNotFoundException(
                         Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
-                    return;
                 }
                 listener.onFailure(e);
-            }
-        ));
+            });
     }
 
     public void getTrainedModel(final String modelId,
@@ -513,30 +516,15 @@ public class TrainedModelProvider {
                 .request());
 
         if (includes.isIncludeModelDefinition()) {
-            multiSearchRequestBuilder.add(client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
-                .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders
-                    .boolQuery()
-                    .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
-                    .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelDefinitionDoc.NAME))))
-                // There should be AT MOST these many docs. There might be more if definitions have been reindex to newer indices
-                // If this ends up getting duplicate groups of definition documents, the parsing logic will throw away any doc that
-                // is in a different index than the first index seen.
-                .setSize(MAX_NUM_DEFINITION_DOCS)
-                // First find the latest index
-                .addSort("_index", SortOrder.DESC)
-                // Then, sort by doc_num
-                .addSort(SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName())
-                    .order(SortOrder.ASC)
-                    // We need this for the search not to fail when there are no mappings yet in the index
-                    .unmappedType("long"))
-                .request());
+            multiSearchRequestBuilder.add(
+                ChunkedTrainedModelRestorer.buildSearch(client, modelId, InferenceIndexConstants.INDEX_PATTERN, MAX_NUM_DEFINITION_DOCS));
         }
 
         ActionListener<MultiSearchResponse> multiSearchResponseActionListener = ActionListener.wrap(
             multiSearchResponse -> {
                 TrainedModelConfig.Builder builder;
                 try {
-                    builder = handleSearchItem(multiSearchResponse.getResponses()[0], modelId, this::parseInferenceDocLenientlyFromSource);
+                    builder = handleSearchItem(multiSearchResponse.getResponses()[0], modelId, this::parseModelConfigLenientlyFromSource);
                 } catch (ResourceNotFoundException ex) {
                     getTrainedModelListener.onFailure(new ResourceNotFoundException(
                         Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
@@ -550,10 +538,12 @@ public class TrainedModelProvider {
                     try {
                         List<TrainedModelDefinitionDoc> docs = handleSearchItems(multiSearchResponse.getResponses()[1],
                             modelId,
-                            this::parseModelDefinitionDocLenientlyFromSource);
+                            (bytes, resourceId) ->
+                                ChunkedTrainedModelRestorer.parseModelDefinitionDocLenientlyFromSource(
+                                    bytes, resourceId, xContentRegistry));
                         try {
-                            String compressedString = getDefinitionFromDocs(docs, modelId);
-                            builder.setDefinitionFromString(compressedString);
+                            BytesReference compressedData = getDefinitionFromDocs(docs, modelId);
+                            builder.setDefinitionFromBytes(compressedData);
                         } catch (ElasticsearchException elasticsearchException) {
                             getTrainedModelListener.onFailure(elasticsearchException);
                             return;
@@ -691,7 +681,7 @@ public class TrainedModelProvider {
                     try {
                         if (observedIds.contains(searchHit.getId()) == false) {
                             configs.add(
-                                parseInferenceDocLenientlyFromSource(searchHit.getSourceRef(), searchHit.getId())
+                                parseModelConfigLenientlyFromSource(searchHit.getSourceRef(), searchHit.getId())
                             );
                             observedIds.add(searchHit.getId());
                         }
@@ -706,7 +696,8 @@ public class TrainedModelProvider {
                 // Otherwise, treat it as if it was never expanded to begin with.
                 Set<String> missingConfigs = Sets.difference(modelIds.keySet(), observedIds);
                 if (missingConfigs.isEmpty() == false && allowNoResources == false) {
-                    getTrainedModelListener.onFailure(new ResourceNotFoundException(Messages.INFERENCE_NOT_FOUND_MULTIPLE, missingConfigs));
+                    getTrainedModelListener.onFailure(new ResourceNotFoundException(
+                        Messages.getMessage(Messages.INFERENCE_NOT_FOUND_MULTIPLE, missingConfigs)));
                     return;
                 }
                 // Ensure sorted even with the injection of locally resourced models
@@ -1104,52 +1095,55 @@ public class TrainedModelProvider {
         return results;
     }
 
-    private static String getDefinitionFromDocs(List<TrainedModelDefinitionDoc> docs, String modelId) throws ElasticsearchException {
-        String compressedString = docs.stream()
-            .map(TrainedModelDefinitionDoc::getCompressedString)
-            .collect(Collectors.joining());
-        // BWC for when we tracked the total definition length
-        // TODO: remove in 9
+    private static BytesReference getDefinitionFromDocs(List<TrainedModelDefinitionDoc> docs,
+                                                        String modelId) throws ElasticsearchException {
+
+        BytesReference[] bb = new BytesReference[docs.size()];
+        for (int i = 0; i < docs.size(); i++) {
+            bb[i] = docs.get(i).getBinaryData();
+        }
+        BytesReference bytes = CompositeBytesReference.of(bb);
+
         if (docs.get(0).getTotalDefinitionLength() != null) {
-            if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
-                throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
-            }
-        } else {
-            TrainedModelDefinitionDoc lastDoc = docs.get(docs.size() - 1);
-            // Either we are missing the last doc, or some previous doc
-            if(lastDoc.isEos() == false || lastDoc.getDocNum() != docs.size() - 1) {
+            if (bytes.length() != docs.get(0).getTotalDefinitionLength()) {
                 throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
             }
         }
-        return compressedString;
-    }
 
-    static List<String> chunkStringWithSize(String str, int chunkSize) {
-        List<String> subStrings = new ArrayList<>((int)Math.ceil(str.length()/(double)chunkSize));
-        for (int i = 0; i < str.length();i += chunkSize) {
-            subStrings.add(str.substring(i, Math.min(i + chunkSize, str.length())));
+        TrainedModelDefinitionDoc lastDoc = docs.get(docs.size() - 1);
+        // Either we are missing the last doc, or some previous doc
+        if (lastDoc.isEos() == false || lastDoc.getDocNum() != docs.size() - 1) {
+            throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
         }
-        return subStrings;
+        return bytes;
     }
 
-    private TrainedModelConfig.Builder parseInferenceDocLenientlyFromSource(BytesReference source, String modelId) throws IOException {
+    public static List<BytesReference> chunkDefinitionWithSize(BytesReference definition, int chunkSize) {
+        List<BytesReference> chunks = new ArrayList<>((int)Math.ceil(definition.length()/(double)chunkSize));
+        for (int i = 0; i < definition.length();i += chunkSize) {
+            BytesReference chunk = definition.slice(i, Math.min(chunkSize, definition.length() - i));
+            chunks.add(chunk);
+        }
+        return chunks;
+    }
+
+    private TrainedModelConfig.Builder parseModelConfigLenientlyFromSource(BytesReference source, String modelId) throws IOException {
         try (InputStream stream = source.streamInput();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                  .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return TrainedModelConfig.fromXContent(parser, true);
+            TrainedModelConfig.Builder builder = TrainedModelConfig.fromXContent(parser, true);
+
+            if (builder.getModelType() == null) {
+                // before TrainedModelConfig::modelType was added tree ensembles and the
+                // lang ident model were the only models supported. Models created after
+                // VERSION_3RD_PARTY_CONFIG_ADDED must have modelType set, if not set modelType
+                // is a tree ensemble
+                assert builder.getVersion().before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED);
+                builder.setModelType(TrainedModelType.TREE_ENSEMBLE);
+            }
+            return builder;
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] failed to parse model", modelId), e);
-            throw e;
-        }
-    }
-
-    private TrainedModelDefinitionDoc parseModelDefinitionDocLenientlyFromSource(BytesReference source, String modelId) throws IOException {
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return TrainedModelDefinitionDoc.fromXContent(parser, true).build();
-        } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] failed to parse model definition", modelId), e);
             throw e;
         }
     }

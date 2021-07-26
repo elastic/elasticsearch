@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
@@ -81,6 +81,10 @@ public final class AnomalyDetectorsIndex {
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
             masterNodeTimeout,
             finalListener);
+    }
+
+    public static String wrappedResultsMapping() {
+        return "{\n\"_doc\" : " + resultsMapping() + "\n}";
     }
 
     public static String resultsMapping() {

@@ -132,6 +132,56 @@ setup:
     - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
     - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
 
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                script_fields:
+                    centroid:
+                        script:
+                            source: "doc['geo_point'].getCentroid()"
+    - match: { hits.hits.0.fields.centroid.0.lat: 41.1199999647215 }
+    - match: { hits.hits.0.fields.centroid.0.lon: -71.34000004269183 }
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                script_fields:
+                    bbox:
+                        script:
+                            source: "doc['geo_point'].getBoundingBox()"
+    - match: { hits.hits.0.fields.bbox.0.top_left.lat: 41.1199999647215 }
+    - match: { hits.hits.0.fields.bbox.0.top_left.lon: -71.34000004269183 }
+    - match: { hits.hits.0.fields.bbox.0.bottom_right.lat: 41.1199999647215 }
+    - match: { hits.hits.0.fields.bbox.0.bottom_right.lon: -71.34000004269183 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            script_fields:
+                    topLeft:
+                        script:
+                            source: "doc['geo_point'].getBoundingBox().topLeft()"
+                    bottomRight:
+                        script:
+                            source: "doc['geo_point'].getBoundingBox().bottomRight()"
+    - match: { hits.hits.0.fields.topLeft.0.lat: 41.1199999647215 }
+    - match: { hits.hits.0.fields.topLeft.0.lon: -71.34000004269183 }
+    - match: { hits.hits.0.fields.bottomRight.0.lat: 41.1199999647215 }
+    - match: { hits.hits.0.fields.bottomRight.0.lon: -71.34000004269183 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            script_fields:
+                    type:
+                        script:
+                            source: "doc['geo_point'].getDimensionalType()"
+    - match: { hits.hits.0.fields.type.0: 0 }
+
 ---
 "ip":
     - do:

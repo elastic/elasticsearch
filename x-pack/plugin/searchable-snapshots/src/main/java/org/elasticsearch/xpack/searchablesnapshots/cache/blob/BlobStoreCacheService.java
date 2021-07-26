@@ -31,10 +31,10 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -260,7 +260,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
      */
     public ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
         final LuceneFilesExtensions fileExtension = LuceneFilesExtensions.fromExtension(IndexFileNames.getExtension(fileName));
-        assert fileExtension != null : "unknown Lucene file extension [" + fileName + "] - should it be considered a metadata file?";
 
         if (useLegacyCachedBlobSizes()) {
             if (fileLength <= ByteSizeUnit.KB.toBytes(8L)) {

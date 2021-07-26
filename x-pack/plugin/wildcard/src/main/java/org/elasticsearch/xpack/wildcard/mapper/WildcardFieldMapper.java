@@ -55,11 +55,11 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -953,7 +953,7 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value;
         XContentParser parser = context.parser();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
@@ -961,17 +961,20 @@ public class WildcardFieldMapper extends FieldMapper {
         } else {
             value =  parser.textOrNull();
         }
-        ParseContext.Document parseDoc = context.doc();
+        LuceneDocument parseDoc = context.doc();
 
         List<IndexableField> fields = new ArrayList<>();
-        createFields(value, parseDoc, fields);
+        if (value != null) {
+            if (value.length() <= ignoreAbove) {
+                createFields(value, parseDoc, fields);
+            } else {
+                context.addIgnoredField(name());
+            }
+        }
         parseDoc.addAll(fields);
     }
 
-    void createFields(String value, Document parseDoc, List<IndexableField>fields) {
-        if (value == null || value.length() > ignoreAbove) {
-            return;
-        }
+    void createFields(String value, LuceneDocument parseDoc, List<IndexableField>fields) {
         String ngramValue = addLineEndChars(value);
         Field ngramField = new Field(fieldType().name(), ngramValue, ngramFieldType);
         fields.add(ngramField);

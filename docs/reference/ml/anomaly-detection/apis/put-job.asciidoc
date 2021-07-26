@@ -16,7 +16,7 @@ Instantiates an {anomaly-job}.
 [[ml-put-job-prereqs]]
 == {api-prereq-title}
 
-Requires the `manage_ml` cluster privilege. This privilege is included in the 
+Requires the `manage_ml` cluster privilege. This privilege is included in the
 `machine_learning_admin` built-in role.
 
 [[ml-put-job-desc]]
@@ -70,7 +70,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=categorization-filters]
 `detectors`:::
 (array) An array of detector configuration objects. Detector configuration
 objects specify which data fields a job analyzes. They also specify which
-analytical functions are used. You can specify multiple detectors for a job. 
+analytical functions are used. You can specify multiple detectors for a job.
 +
 NOTE: If the `detectors` array does not contain at least one detector,
 no analysis can occur and an error is returned.
@@ -222,7 +222,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=analysis-limits]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=categorization-examples-limit]
 
 `model_memory_limit`:::
-(long or string) 
+(long or string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-ad]
 ====
 //End analysis_limits
@@ -235,15 +235,100 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-settings]
 
+`daily_model_snapshot_retention_after_days`::
+(Optional, long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-after-days]
+
 //Begin data_description
 [[put-datadescription]]`data_description`::
 (Required, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=data-description]
 //End data_description
 
-`daily_model_snapshot_retention_after_days`::
-(Optional, long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-after-days]
+`datafeed_config`::
+(object) The {dfeed} configured for the current {anomaly-job}.
++
+.Properties of `datafeed`
+[%collapsible%open]
+====
+`aggregations`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=aggregations]
+
+`chunking_config`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=chunking-config]
++
+.Properties of `chunking_config`
+[%collapsible%open]
+=====
+`mode`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=mode]
+
+`time_span`:::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-span]
+=====
+
+`datafeed_id`:::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
++
+Defaults to the same ID as the {anomaly-job}.
+
+`delayed_data_check_config`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
++
+.Properties of `delayed_data_check_config`
+[%collapsible%open]
+=====
+`check_window`::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-check-window]
+
+`enabled`::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-enabled]
+=====
+
+`frequency`:::
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=frequency]
+
+`indices`:::
+(Required, array)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices]
+
+`indices_options`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
+
+`max_empty_searches`:::
+(Optional,integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
+
+`query`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query]
+
+`query_delay`:::
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query-delay]
+
+`runtime_mappings`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=runtime-mappings]
+
+`script_fields`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=script-fields]
+
+`scroll_size`:::
+(Optional, unsigned integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
+====
 
 `description`::
   (Optional, string) A description of the job.

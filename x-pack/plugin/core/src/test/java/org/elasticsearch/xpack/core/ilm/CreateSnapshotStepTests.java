@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.is;
 
 public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshotStep> {

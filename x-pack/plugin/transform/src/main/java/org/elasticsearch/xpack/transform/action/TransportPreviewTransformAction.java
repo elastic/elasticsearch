@@ -188,7 +188,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                     config.getSource().getIndex(),
                     config.getDestination().getIndex(),
                     config.getDestination().getPipeline(),
-                    SourceDestValidations.getValidationsForPreview(config.getAdditionalValidations()),
+                    SourceDestValidations.getValidationsForPreview(config.getAdditionalSourceDestValidations()),
                     validateSourceDestListener
                 );
             },

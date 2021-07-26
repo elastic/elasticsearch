@@ -17,10 +17,10 @@ changes happening between searches are only visible to the more recent point in 
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or index alias.
+or alias.
 +
-To search a <<point-in-time-api,point in time (PIT)>> for an index alias, you
-must have the `read` index privilege for the alias's concrete indices.
+To search a <<point-in-time-api,point in time (PIT)>> for an alias, you
+must have the `read` index privilege for the alias's data streams or indices.
 
 [[point-in-time-api-example]]
 ==== {api-examples-title}
@@ -129,3 +129,63 @@ The API returns the following response:
 
 <1> If true, all search contexts associated with the point-in-time id are successfully closed
 <2> The number of search contexts have been successfully closed
+
+[discrete]
+[[search-slicing]]
+=== Search slicing
+
+When paging through a large number of documents, it can be helpful to split the search into multiple slices
+to consume them independently:
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "slice": {
+    "id": 0,                      <1>
+    "max": 2                      <2>
+  },
+  "query": {
+    "match": {
+      "message": "foo"
+    }
+  },
+  "pit": {
+    "id": "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="
+  }
+}
+
+GET /_search
+{
+  "slice": {
+    "id": 1,
+    "max": 2
+  },
+  "pit": {
+    "id": "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="
+  },
+  "query": {
+    "match": {
+      "message": "foo"
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:both calls will throw errors]
+
+<1> The id of the slice
+<2> The maximum number of slices
+
+The result from the first request returns documents belonging to the first slice (id: 0) and the
+result from the second request returns documents in the second slice. Since the maximum number of
+slices is set to 2 the union of the results of the two requests is equivalent to the results of a
+point-in-time search without slicing. By default the splitting is done first on the shards, then
+locally on each shard. The local splitting partitions the shard into contiguous ranges based on
+Lucene document IDs.
+
+For instance if the number of shards is equal to 2 and the user requested 4 slices then the slices
+0 and 2 are assigned to the first shard and the slices 1 and 3 are assigned to the second shard.
+
+IMPORTANT: The same point-in-time ID should be used for all slices. If different PIT IDs are used,
+then slices can overlap and miss documents. This is because the splitting criterion is based on
+Lucene document IDs, which are not stable across changes to the index.

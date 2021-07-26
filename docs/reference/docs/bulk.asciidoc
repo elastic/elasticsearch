@@ -89,9 +89,9 @@ has the same semantics as the standard delete API.
 [NOTE]
 ====
 The final line of data must end with a newline character `\n`. 
-Each newline character may be preceded by a carriage return `\r`. 
-When sending requests to the `_bulk` endpoint,
-the `Content-Type` header should be set to `application/x-ndjson`.
+Each newline character may be preceded by a carriage return `\r`.
+When sending NDJSON data to the `_bulk` endpoint, use a `Content-Type` header of
+`application/json` or `application/x-ndjson`.
 ====
 
 Because this format uses literal `\n`'s as delimiters, 
@@ -238,8 +238,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 `require_alias`::
-(Optional, Boolean)
-If `true`, the request's actions must target an <<indices-aliases,index alias>>.
+(Optional, Boolean) If `true`, the request's actions must target an index alias.
 Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]

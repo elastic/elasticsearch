@@ -98,7 +98,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
             Job.DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
         try {
             defaults.put(CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName(),
-                CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(Collections.emptyList())
+                CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(Collections.emptyList())
                     .asMap(xContentRegistry).get(CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName()));
         } catch (IOException e) {
             logger.error("failed to convert default categorization analyzer to map", e);

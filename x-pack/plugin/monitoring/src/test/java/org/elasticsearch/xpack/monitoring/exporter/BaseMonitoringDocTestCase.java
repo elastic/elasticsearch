@@ -6,10 +6,11 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -57,7 +58,7 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
     public void setUp() throws Exception {
         super.setUp();
         cluster = UUIDs.randomBase64UUID();
-        timestamp = frequently() ? randomNonNegativeLong() : 0L;
+        timestamp = frequently() ? randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999) : 0L;
         interval = randomNonNegativeLong();
         node = frequently() ? MonitoringTestUtils.randomMonitoringNode(random()) : null;
         system = randomFrom(MonitoredSystem.values());

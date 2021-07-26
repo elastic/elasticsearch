@@ -100,7 +100,6 @@ public class DatafeedJobTests extends ESTestCase {
     private String annotationDocId;
 
     private long currentTime;
-    private XContentType xContentType;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -117,7 +116,6 @@ public class DatafeedJobTests extends ESTestCase {
         resultsPersisterService =
             ResultsPersisterServiceTests.buildResultsPersisterService(new OriginSettingClient(client, ClientHelper.ML_ORIGIN));
         dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         postDataFuture = mock(ActionFuture.class);
         flushJobFuture = mock(ActionFuture.class);
         annotationDocId = "AnnotationDocId";
@@ -125,7 +123,6 @@ public class DatafeedJobTests extends ESTestCase {
         delayedDataDetector = mock(DelayedDataDetector.class);
         when(delayedDataDetector.getWindow()).thenReturn(DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS);
         currentTime = 0;
-        xContentType = XContentType.JSON;
 
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
@@ -136,7 +133,7 @@ public class DatafeedJobTests extends ESTestCase {
 
         PostDataAction.Request expectedRequest = new PostDataAction.Request(jobId);
         expectedRequest.setDataDescription(dataDescription.build());
-        expectedRequest.setContent(new BytesArray(contentBytes), xContentType);
+        expectedRequest.setContent(new BytesArray(contentBytes), XContentType.JSON);
         when(client.execute(same(PostDataAction.INSTANCE), eq(expectedRequest))).thenReturn(postDataFuture);
         when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
 
@@ -375,7 +372,7 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, atMost(2)).index(any());
     }
 
-    public void testEmptyDataCountGivenlookback() throws Exception {
+    public void testEmptyDataCountGivenlookback() {
         when(dataExtractor.hasNext()).thenReturn(false);
 
         DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);

@@ -8,10 +8,13 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.core.CheckedConsumer;
+
 import java.io.Closeable;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
@@ -101,6 +104,12 @@ public interface XContentGenerator extends Closeable, Flushable {
     void writeRawValue(InputStream value, XContentType xContentType) throws IOException;
 
     void copyCurrentStructure(XContentParser parser) throws IOException;
+
+    /**
+     * Write a field whose value is written directly to the output stream. As the content is copied as is,
+     * the writer must a valid XContent value (e.g., string is properly escaped and quoted)
+     */
+    void writeDirectField(String name, CheckedConsumer<OutputStream, IOException> writer) throws IOException;
 
     default void copyCurrentEvent(XContentParser parser) throws IOException {
         switch (parser.currentToken()) {

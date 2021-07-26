@@ -1,0 +1,28 @@
+{
+  "security.saml_complete_logout":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-saml-complete-logout.html",
+      "description":"Verifies the logout response sent from the SAML IdP"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/saml/complete_logout",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"The logout response to verify",
+      "required":true
+    }
+  }
+}

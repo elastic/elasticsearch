@@ -168,7 +168,7 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
 })
 
-def v7compatiblityNotSupportedTests = {
+def v7compatibilityNotSupportedTests = {
   return [
     'reindex/20_validation/reindex without source gives useful error message', // exception with a type. Not much benefit adding _doc there.
     'update_by_query/20_validation/update_by_query without source gives useful error message' // exception with a type. Not much benefit adding _doc there.
@@ -176,7 +176,7 @@ def v7compatiblityNotSupportedTests = {
 }
 
 tasks.named("yamlRestCompatTest").configure {
-      systemProperty 'tests.rest.blacklist', v7compatiblityNotSupportedTests().join(',')
+      systemProperty 'tests.rest.blacklist', v7compatibilityNotSupportedTests().join(',')
 }
 
 tasks.named('splitPackagesAudit').configure {

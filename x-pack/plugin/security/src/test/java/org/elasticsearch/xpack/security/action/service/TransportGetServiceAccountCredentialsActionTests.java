@@ -12,10 +12,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
@@ -74,9 +74,8 @@ public class TransportGetServiceAccountCredentialsActionTests extends ESTestCase
     public void testDoExecuteWillDelegate() {
         final GetServiceAccountCredentialsRequest request =
             new GetServiceAccountCredentialsRequest(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
-        @SuppressWarnings("rawtypes")
-        final ActionListener listener = mock(ActionListener.class);
-        //noinspection unchecked
+        @SuppressWarnings("unchecked")
+        final ActionListener<GetServiceAccountCredentialsResponse> listener = mock(ActionListener.class);
         transportGetServiceAccountCredentialsAction.doExecute(mock(Task.class), request, listener);
         verify(serviceAccountService).findTokensFor(
             eq(new ServiceAccount.ServiceAccountId(request.getNamespace(), request.getServiceName())),

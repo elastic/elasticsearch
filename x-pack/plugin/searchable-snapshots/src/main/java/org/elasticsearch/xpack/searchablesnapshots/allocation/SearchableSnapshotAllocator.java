@@ -43,9 +43,9 @@ import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.ReplicaShardAllocator;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata;
@@ -109,7 +109,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         boolean hasPartialIndices = false;
         for (IndexMetadata indexMetadata : allocation.metadata()) {
             final Settings indexSettings = indexMetadata.getSettings();
-            if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings) && SNAPSHOT_PARTIAL_SETTING.get(indexSettings)) {
+            if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(indexSettings)) {
                 hasPartialIndices = true;
                 break;
             }

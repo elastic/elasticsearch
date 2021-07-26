@@ -72,7 +72,7 @@ public final class Processors {
      *             contains the JSON string
      */
     public static void json(Map<String, Object> map, String field) {
-        JsonProcessor.apply(map, field, false);
+        JsonProcessor.apply(map, field, false, JsonProcessor.ConflictStrategy.REPLACE);
     }
 
     /**

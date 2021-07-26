@@ -37,7 +37,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 public class SnapshotsServiceTests extends ESTestCase {
@@ -382,6 +384,24 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertThat(startedSnapshot.state(), is(SnapshotsInProgress.State.STARTED));
         assertThat(startedSnapshot.clones().get(shardId1).state(), is(SnapshotsInProgress.ShardState.INIT));
         assertIsNoop(updatedClusterState, completeShardClone);
+    }
+
+    public void testSnapshottingIndicesExcludesClones() {
+        final String repoName = "test-repo";
+        final String indexName = "index";
+        final ClusterState clusterState = stateWithSnapshots(
+            stateWithUnassignedIndices(indexName),
+            cloneEntry(
+                snapshot(repoName, "target-snapshot"),
+                snapshot(repoName, "source-snapshot").getSnapshotId(),
+                clonesMap(new RepositoryShardId(indexId(indexName), 0), initShardStatus(uuid()))
+            )
+        );
+
+        assertThat(
+            SnapshotsService.snapshottingIndices(clusterState, singleton(clusterState.metadata().index(indexName).getIndex())),
+            empty()
+        );
     }
 
     private static DiscoveryNodes discoveryNodes(String localNodeId) {

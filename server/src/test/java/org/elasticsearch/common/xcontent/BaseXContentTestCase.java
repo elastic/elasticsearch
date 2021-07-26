@@ -1157,7 +1157,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                 .endObject();
         try (XContentParser xParser = createParser(builder)) {
             xParser.allowDuplicateKeys(true);
-            assertThat(xParser.map(), equalTo(Map.of("key", 2)));
+            assertThat(xParser.map(), equalTo(Collections.singletonMap("key", 2)));
         }
     }
 

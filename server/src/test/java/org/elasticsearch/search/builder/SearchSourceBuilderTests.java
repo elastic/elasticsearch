@@ -484,6 +484,14 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
             assertThat(ex.getMessage(), containsString(Integer.toString(randomSize)));
         }
+
+        restContent = "{\"size\" : -1}";
+        try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, restContent, RestApiVersion.V_7)) {
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+            assertEquals(-1, searchSourceBuilder.size());
+        }
+        assertWarnings("Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` "
+            + "parameter if you don't want to set it explicitly.");
     }
 
     public void testNegativeTerminateAfter() throws IOException {

@@ -228,7 +228,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
         final RuntimeField createRuntimeField(Factory scriptFactory) {
             AbstractScriptFieldType<?> fieldType = createFieldType(name, scriptFactory, getScript(), meta());
-            return new LeafRuntimeField(name, fieldType, this);
+            return new LeafRuntimeField(name, fieldType, getParameters());
         }
 
         abstract AbstractScriptFieldType<?> createFieldType(String name, Factory factory, Script script, Map<String, String> meta);

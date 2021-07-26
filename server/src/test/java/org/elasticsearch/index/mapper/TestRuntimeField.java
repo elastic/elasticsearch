@@ -17,6 +17,9 @@ import java.util.Collection;
 import java.util.Collections;
 
 public final class TestRuntimeField implements RuntimeField {
+
+    public static final String CONTENT_TYPE = "test-composite";
+
     private final String name;
     private final Collection<MappedFieldType> subfields;
 
@@ -35,23 +38,16 @@ public final class TestRuntimeField implements RuntimeField {
     }
 
     @Override
-    public String typeName() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public Collection<MappedFieldType> asMappedFieldTypes() {
         return subfields;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void doXContentBody(XContentBuilder builder, Params params) {
-        throw new UnsupportedOperationException();
+        builder.startObject(name);
+        builder.field("type", CONTENT_TYPE);
+        builder.endObject();
+        return builder;
     }
 
     public static class TestRuntimeFieldType extends MappedFieldType {

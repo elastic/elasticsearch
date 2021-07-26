@@ -1,7 +1,7 @@
 {
   "ml.start_trained_model_deployment":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-start-trained-model-deployment.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-df-analytics-apis.html",
       "description":"Start a trained model deployment."
     },
     "stability":"experimental",

@@ -21,7 +21,6 @@ import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetRolesResponse;
 import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.GetUsersResponse;
-import org.elasticsearch.client.security.NodeEnrollmentResponse;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -34,7 +33,6 @@ import org.elasticsearch.client.security.user.privileges.GlobalPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.Role;
-import org.elasticsearch.client.security.KibanaEnrollmentResponse;
 import org.elasticsearch.core.CharArrays;
 
 import java.io.IOException;
@@ -47,12 +45,10 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityIT extends ESRestHighLevelClientTestCase {
@@ -194,30 +190,6 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         final DeleteRoleResponse deleteRoleResponse = securityClient.deleteRole(deleteRoleRequest, RequestOptions.DEFAULT);
         // assert role deleted
         assertThat(deleteRoleResponse.isFound(), is(true));
-    }
-
-    @AwaitsFix(bugUrl = "Determine behavior for keystore with multiple keys")
-    public void testEnrollNode() throws Exception {
-        final NodeEnrollmentResponse nodeEnrollmentResponse =
-            execute(highLevelClient().security()::enrollNode, highLevelClient().security()::enrollNodeAsync, RequestOptions.DEFAULT);
-        assertThat(nodeEnrollmentResponse, notNullValue());
-        assertThat(nodeEnrollmentResponse.getHttpCaKey(), endsWith("ECAwGGoA=="));
-        assertThat(nodeEnrollmentResponse.getHttpCaCert(), endsWith("ECAwGGoA=="));
-        assertThat(nodeEnrollmentResponse.getTransportKey(), endsWith("fSI09on8AgMBhqA="));
-        assertThat(nodeEnrollmentResponse.getTransportCert(), endsWith("fSI09on8AgMBhqA="));
-        List<String> nodesAddresses = nodeEnrollmentResponse.getNodesAddresses();
-        assertThat(nodesAddresses.size(), equalTo(1));
-    }
-
-    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
-    public void testEnrollKibana() throws Exception {
-        KibanaEnrollmentResponse kibanaResponse =
-            execute(highLevelClient().security()::enrollKibana, highLevelClient().security()::enrollKibanaAsync, RequestOptions.DEFAULT);
-        assertThat(kibanaResponse, notNullValue());
-        assertThat(kibanaResponse.getHttpCa()
-            , endsWith("OWFyeGNmcwovSDJReE1tSG1leXJRaWxYbXJPdk9PUDFTNGRrSTFXbFJLOFdaN3c9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"));
-        assertNotNull(kibanaResponse.getPassword());
-        assertThat(kibanaResponse.getPassword().toString().length(), equalTo(14));
     }
 
     private void deleteUser(User user) throws IOException {

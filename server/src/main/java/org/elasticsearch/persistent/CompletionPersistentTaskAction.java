@@ -42,7 +42,7 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
     public static final CompletionPersistentTaskAction INSTANCE = new CompletionPersistentTaskAction();
     public static final String NAME = "cluster:admin/persistent/completion";
 
-    public static final Version LOCAL_ABORT_AVAILABLE_VERSION = Version.V_8_0_0;
+    public static final Version LOCAL_ABORT_AVAILABLE_VERSION = Version.V_7_15_0;
 
     private CompletionPersistentTaskAction() {
         super(NAME, PersistentTaskResponse::new);

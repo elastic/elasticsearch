@@ -31,7 +31,7 @@ public class TestDocumentParserContext extends DocumentParserContext {
      * Use with caution as it can cause {@link NullPointerException}s down the line.
      */
     public TestDocumentParserContext() {
-        super(null, null, null, null, null);
+        super(MappingLookup.EMPTY, null, null, null, null);
     }
 
     /**

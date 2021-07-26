@@ -182,9 +182,11 @@ public class FieldFetcher {
                 }
                 if (value instanceof Map) {
                     // one step deeper into source tree
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> objectMap = (Map<String, Object>) value;
                     collectUnmapped(
                         documentFields,
-                        (Map<String, Object>) value,
+                        objectMap,
                         currentPath + ".",
                         step(this.unmappedFieldsFetchAutomaton, ".", currentState)
                     );

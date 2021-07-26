@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -57,5 +58,20 @@ public class ShardCountStats implements Writeable, ToXContentFragment {
     static final class Fields {
         static final String SHARDS = "shards";
         static final String TOTAL_COUNT = "total_count";
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return (o instanceof ShardCountStats) && totalCount == ((ShardCountStats) o).totalCount;
+    }
+
+    @Override
+    public int hashCode() {
+        return Long.hashCode(totalCount);
     }
 }

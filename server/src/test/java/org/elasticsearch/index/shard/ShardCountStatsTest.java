@@ -8,15 +8,11 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.junit.Assert;
 
-import static org.hamcrest.Matchers.equalTo;
-
-class ShardCountStatsTest extends ESTestCase {
+public class ShardCountStatsTest extends AbstractWireSerializingTestCase<ShardCountStats> {
 
     public void testAdd() {
         ShardCountStats shardStats1 = new ShardCountStats(5);
@@ -31,15 +27,13 @@ class ShardCountStatsTest extends ESTestCase {
         Assert.assertEquals(8, shardStats2.getTotalCount());
     }
 
-    public void testSerialize() throws Exception {
-        ShardCountStats originalStats = new ShardCountStats(5);
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            originalStats.writeTo(out);
-            BytesReference bytes = out.bytes();
-            try (StreamInput in = bytes.streamInput()) {
-                ShardCountStats cloneStats = new ShardCountStats(in);
-                assertThat(cloneStats.getTotalCount(), equalTo(originalStats.getTotalCount()));
-            }
-        }
+    @Override
+    protected Writeable.Reader<ShardCountStats> instanceReader() {
+        return ShardCountStats::new;
+    }
+
+    @Override
+    protected ShardCountStats createTestInstance() {
+        return new ShardCountStats(randomIntBetween(0, Integer.MAX_VALUE));
     }
 }

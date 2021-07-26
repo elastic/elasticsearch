@@ -200,16 +200,15 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
         createNewSingletonPolicy(client(), policy, "delete", new WaitForSnapshotAction(slmPolicy));
         updatePolicy(client(), index, policy);
+        waitForPhaseTime();
         assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
             assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
         }, slmPolicy);
-
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createSlmPolicy(slmPolicy, snapshotRepo);
-
         assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
             //wait for step to notice that the slm policy is created and to get out of error
@@ -220,7 +219,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
-        Thread.sleep(1000); //TODO: This is just here for troubleshooting!
         assertBusy(() -> {
             Step.StepKey stepKey = getStepKeyForIndex(client(), index);
             logger.info("step key for index {} is {}", index, stepKey);
@@ -251,6 +249,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }, slmPolicy);
 
         updatePolicy(client(), index, policy);
+        waitForPhaseTime();
 
         assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
@@ -270,13 +269,32 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 assertEquals(2, ((Map<?, ?>) ((Map<?, ?>) responseMap.get(slmPolicy)).get("stats")).get("snapshots_taken"));
             }
         }, slmPolicy);
-        Thread.sleep(1000); //TODO: This is just here for troubleshooting!
+
         assertBusy(() -> {
             Step.StepKey stepKey = getStepKeyForIndex(client(), index);
             logger.info("stepKey for index {} is {}", index, stepKey);
             assertThat(stepKey.getAction(), equalTo("complete"));
         }, slmPolicy);
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getAction(), equalTo("complete")), slmPolicy);
+    }
+
+    /*
+     * This method waits until phase_time gets set in the state store. Otherwise we can wind up starting a snapshot before the ILM policy
+     *  is ready.
+     */
+    @SuppressWarnings("unchecked")
+    private void waitForPhaseTime() throws Exception {
+        assertBusy(() -> {
+            Request request = new Request("GET", "/_cluster/state/metadata/" + index);
+            Map<String, Object> response = entityAsMap(client().performRequest(request));
+            Map<String, Object> metadata = (Map<String, Object>) response.get("metadata");
+            Map<String, Object> indices = (Map<String, Object>) metadata.get("indices");
+            Map<String, Object> indexMap = (Map<String, Object>) indices.get(index);
+            Map<String, Object> ilm = (Map<String, Object>) indexMap.get("ilm");
+            assertNotNull(ilm);
+            Object phase_time = ilm.get("phase_time");
+            assertNotNull(phase_time);
+        });
     }
 
     public void testDelete() throws Exception {

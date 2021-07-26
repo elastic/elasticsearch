@@ -7,8 +7,12 @@
 package org.elasticsearch.xpack.ml.support;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -39,6 +43,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -76,6 +81,7 @@ import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
+import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -91,7 +97,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -125,6 +133,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         settings.put(MonitoringService.ENABLED.getKey(), false);
         settings.put(MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED.getKey(), false);
         settings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
+        // TODO: put this setting unconditionally once the shutdown API is not protected by a feature flag
+        if (Build.CURRENT.isSnapshot()) {
+            settings.put(ShutdownPlugin.SHUTDOWN_FEATURE_ENABLED_FLAG, true);
+        }
         return settings.build();
     }
 
@@ -145,6 +157,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             CommonAnalysisPlugin.class,
             IngestCommonPlugin.class,
             ReindexPlugin.class,
+            ShutdownPlugin.class,
             // To remove warnings about painless not being supported
             MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
@@ -225,6 +238,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static Job.Builder createScheduledJob(String jobId) {
+        return createScheduledJob(jobId, null);
+    }
+
+    public static Job.Builder createScheduledJob(String jobId, ByteSizeValue modelMemoryLimit) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         dataDescription.setTimeFormat("yyyy-MM-dd HH:mm:ss");
@@ -235,7 +252,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
         Job.Builder builder = new Job.Builder();
         builder.setId(jobId);
-
+        if (modelMemoryLimit != null) {
+            builder.setAnalysisLimits(new AnalysisLimits(modelMemoryLimit.getMb(), null));
+        }
         builder.setAnalysisConfig(analysisConfig);
         builder.setDataDescription(dataDescription);
         return builder;
@@ -262,11 +281,12 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     @After
-    public void cleanupWorkaround() throws Exception {
+    public void cleanup() throws Exception {
         logger.info("[{}#{}]: Cleaning up datafeeds and jobs after test", getTestClass().getSimpleName(), getTestName());
         deleteAllDatafeeds(logger, client());
         deleteAllJobs(logger, client());
         deleteAllDataFrameAnalytics(client());
+        waitForPendingTasks(client());
         assertBusy(() -> {
             RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries()
                     .setActiveOnly(true)
@@ -358,7 +378,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         final QueryPage<DatafeedConfig> datafeeds =
                 mlClient.getDatafeeds(new GetDatafeedsAction.Request(GetDatafeedsAction.ALL)).actionGet().getResponse();
         try {
-            logger.info("Closing all datafeeds (using _all)");
+            logger.info("Stopping all datafeeds (using _all)");
             StopDatafeedAction.Response stopResponse = client
                     .execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request("_all"))
                     .get();
@@ -373,8 +393,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             } catch (ExecutionException e2) {
                 logger.warn("Force-stopping datafeed with _all failed.", e2);
             }
-            throw new RuntimeException(
-                    "Had to resort to force-stopping datafeed, something went wrong?", e1);
+            throw new RuntimeException("Had to resort to force-stopping datafeed, something went wrong?", e1);
         }
 
         for (final DatafeedConfig datafeed : datafeeds.results()) {
@@ -422,7 +441,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         for (final Job job : jobs.results()) {
             assertBusy(() -> {
                 GetJobsStatsAction.Response statsResponse =
-                        client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
+                        client.execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
                 assertEquals(JobState.CLOSED, statsResponse.getResponse().results().get(0).getState());
             });
             AcknowledgedResponse response =
@@ -438,12 +457,25 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
         assertBusy(() -> {
             GetDataFrameAnalyticsStatsAction.Response statsResponse =
-                client().execute(GetDataFrameAnalyticsStatsAction.INSTANCE, new GetDataFrameAnalyticsStatsAction.Request("_all")).get();
+                client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, new GetDataFrameAnalyticsStatsAction.Request("_all")).get();
             assertTrue(statsResponse.getResponse().results().stream().allMatch(s -> s.getState().equals(DataFrameAnalyticsState.STOPPED)));
         });
         for (final DataFrameAnalyticsConfig config : analytics.results()) {
             client.execute(DeleteDataFrameAnalyticsAction.INSTANCE, new DeleteDataFrameAnalyticsAction.Request(config.getId())).actionGet();
         }
+    }
+
+    public static void waitForPendingTasks(Client client) throws Exception {
+        ListTasksRequest request = new ListTasksRequest().setDetailed(true);
+
+        assertBusy(() -> {
+            ListTasksResponse response = client.execute(ListTasksAction.INSTANCE, request).get();
+            List<String> activeTasks = response.getTasks().stream()
+                .filter(t -> t.getAction().startsWith(ListTasksAction.NAME) == false)
+                .map(TaskInfo::toString)
+                .collect(Collectors.toList());
+            assertThat(activeTasks, empty());
+        });
     }
 
     protected static <T> void blockingCall(Consumer<ActionListener<T>> function,

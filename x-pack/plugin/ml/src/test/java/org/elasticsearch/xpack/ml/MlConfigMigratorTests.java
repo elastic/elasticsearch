@@ -139,7 +139,7 @@ public class MlConfigMigratorTests extends ESTestCase {
                 .nodes(nodes)
                 .build();
 
-        assertThat(MlConfigMigrator.stopppedOrUnallocatedDatafeeds(clusterState),
+        assertThat(MlConfigMigrator.stoppedOrUnallocatedDatafeeds(clusterState),
                 containsInAnyOrder(stopppedDatafeed, datafeedWithoutAllocation));
     }
 

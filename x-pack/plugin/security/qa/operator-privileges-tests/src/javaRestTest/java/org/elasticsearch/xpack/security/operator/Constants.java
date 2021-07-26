@@ -396,6 +396,7 @@ public class Constants {
         "internal:admin/ccr/restore/file_chunk/get",
         "internal:admin/ccr/restore/session/clear",
         "internal:admin/ccr/restore/session/put",
+        "internal:admin/snapshot/get_shard",
         "internal:admin/xpack/searchable_snapshots/cache/store",
         "internal:admin/xpack/searchable_snapshots/frozen_cache_info",
         "internal:admin/xpack/searchable_snapshots/frozen_cache_info[n]",

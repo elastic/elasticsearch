@@ -64,7 +64,7 @@ public class FeatureFactoryTests extends ESTestCase {
     public void testMultiLine() {
         doTestGeometry(this::buildMultiLine, features -> {
             assertThat(features.size(), Matchers.equalTo(1));
-            assertThat(features.get(0), Matchers.equalTo(VectorTile.Tile.GeomType.LINESTRING));
+            assertThat(features.get(0).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.LINESTRING));
         });
     }
 

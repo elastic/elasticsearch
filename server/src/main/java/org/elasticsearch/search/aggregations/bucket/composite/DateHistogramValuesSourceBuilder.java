@@ -143,46 +143,6 @@ public class DateHistogramValuesSourceBuilder
     }
 
     /**
-     * Returns the interval in milliseconds that is set on this source
-     **/
-    @Deprecated
-    public long interval() {
-        return dateHistogramInterval.interval();
-    }
-
-    /**
-     * Sets the interval on this source.
-     * If both {@link #interval()} and {@link #dateHistogramInterval()} are set,
-     * then the {@link #dateHistogramInterval()} wins.
-     *
-     * @deprecated Use {@link #calendarInterval(DateHistogramInterval)} or {@link #fixedInterval(DateHistogramInterval)} instead
-     * @since 7.2.0
-     **/
-    @Deprecated
-    public DateHistogramValuesSourceBuilder interval(long interval) {
-        dateHistogramInterval.interval(interval);
-        return this;
-    }
-
-    /**
-     * Returns the date interval that is set on this source
-     **/
-    @Deprecated
-    public DateHistogramInterval dateHistogramInterval() {
-        return dateHistogramInterval.dateHistogramInterval();
-    }
-
-    /**
-     * @deprecated Use {@link #calendarInterval(DateHistogramInterval)} or {@link #fixedInterval(DateHistogramInterval)} instead
-     * @since 7.2.0
-     */
-    @Deprecated
-    public DateHistogramValuesSourceBuilder dateHistogramInterval(DateHistogramInterval interval) {
-        dateHistogramInterval.dateHistogramInterval(interval);
-        return this;
-    }
-
-    /**
      * Sets the interval of the DateHistogram using calendar units (`1d`, `1w`, `1M`, etc).  These units
      * are calendar-aware, meaning they respect leap additions, variable days per month, etc.
      *

@@ -9,7 +9,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeoFormatterFactory;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.core.CheckedConsumer;
@@ -52,13 +52,14 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             CheckedConsumer<T, IOException> consumer,
             Consumer<Exception> onMalformed) throws IOException;
 
-        private void fetchFromSource(Object sourceMap, Consumer<Object> consumer, Function<T, Object> formatter) {
+        private void fetchFromSource(Object sourceMap, Consumer<T> consumer) {
             try (XContentParser parser = MapXContentParser.wrapObject(sourceMap)) {
-                parse(parser, v -> consumer.accept(formatter.apply(v)), e -> {}); /* ignore malformed */
+                parse(parser, v -> consumer.accept(v), e -> {}); /* ignore malformed */
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         }
+
     }
 
     public abstract static class AbstractGeometryFieldType<T> extends MappedFieldType {
@@ -80,17 +81,17 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         /**
          * Gets the formatter by name.
          */
-        protected abstract Function<T, Object> getFormatter(String format);
+        protected abstract Function<List<T>, List<Object>> getFormatter(String format);
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            Function<T, Object> formatter = getFormatter(format != null ? format : GeoFormatterFactory.GEOJSON);
+            Function<List<T>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
             return new ArraySourceValueFetcher(name(), context) {
                 @Override
                 protected Object parseSourceValue(Object value) {
-                    List<Object> values = new ArrayList<>();
-                    geometryParser.fetchFromSource(value, values::add, formatter);
-                    return values;
+                    final List<T> values = new ArrayList<>();
+                    geometryParser.fetchFromSource(value, values::add);
+                    return formatter.apply(values);
                 }
             };
         }

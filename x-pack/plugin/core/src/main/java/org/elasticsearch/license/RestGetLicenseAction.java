@@ -66,6 +66,8 @@ public class RestGetLicenseAction extends BaseRestHandler {
         if (request.getRestApiVersion() == V_7) {
             // Hide enterprise licenses by default, there is an opt-in flag to show them
             final boolean hideEnterprise = request.paramAsBoolean("accept_enterprise", false) == false;
+            final int licenseVersion = hideEnterprise ? License.VERSION_CRYPTO_ALGORITHMS : License.VERSION_CURRENT;
+            overrideParams.put(License.LICENSE_VERSION_MODE, String.valueOf(licenseVersion));
             overrideParams.put(License.XCONTENT_HIDE_ENTERPRISE, String.valueOf(hideEnterprise));
         }
         // In 7.x, there was an opt-in flag to show "enterprise" licenses. In 8.0 the flag is deprecated and can only be true

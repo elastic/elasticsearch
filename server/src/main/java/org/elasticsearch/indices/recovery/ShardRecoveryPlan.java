@@ -27,32 +27,32 @@ class ShardRecoveryPlan {
     private final Store.MetadataSnapshot shardMetadataSnapshot;
     private final SnapshotFilesToRecover snapshotFilesToRecover;
     private final List<StoreFileMetadata> sourceFilesToRecover;
-    private final List<StoreFileMetadata> identicalFiles;
+    private final List<StoreFileMetadata> filesPresentInTarget;
 
     private final long startingSeqNo;
     private final int translogOps;
 
     ShardRecoveryPlan(SnapshotFilesToRecover snapshotFilesToRecover,
                       List<StoreFileMetadata> sourceFilesToRecover,
-                      List<StoreFileMetadata> identicalFiles,
+                      List<StoreFileMetadata> filesPresentInTarget,
                       long startingSeqNo,
                       int translogOps,
                       Store.MetadataSnapshot shardMetadataSnapshot) {
         this.snapshotFilesToRecover = snapshotFilesToRecover;
         this.sourceFilesToRecover = sourceFilesToRecover;
-        this.identicalFiles = identicalFiles;
+        this.filesPresentInTarget = filesPresentInTarget;
         this.shardMetadataSnapshot = shardMetadataSnapshot;
 
         this.startingSeqNo = startingSeqNo;
         this.translogOps = translogOps;
     }
 
-    List<String> getIdenticalFileNames() {
-        return identicalFiles.stream().map(StoreFileMetadata::name).collect(Collectors.toList());
+    List<String> getFilesPresentInTargetNames() {
+        return filesPresentInTarget.stream().map(StoreFileMetadata::name).collect(Collectors.toList());
     }
 
-    List<Long> getIdenticalFileSizes() {
-        return identicalFiles.stream().map(StoreFileMetadata::length).collect(Collectors.toList());
+    List<Long> getFilesPresentInTargetSizes() {
+        return filesPresentInTarget.stream().map(StoreFileMetadata::length).collect(Collectors.toList());
     }
 
     List<String> getFilesToRecoverNames() {
@@ -101,7 +101,7 @@ class ShardRecoveryPlan {
     }
 
     public List<StoreFileMetadata> getIdenticalFiles() {
-        return identicalFiles;
+        return filesPresentInTarget;
     }
 
     static class SnapshotFilesToRecover implements Iterable<BlobStoreIndexShardSnapshot.FileInfo> {

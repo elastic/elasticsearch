@@ -520,8 +520,8 @@ public class RecoverySourceHandler {
                                            ActionListener<SendFileResult> listener) {
         final List<String> filesToRecoverNames = shardRecoveryPlan.getFilesToRecoverNames();
         final List<Long> filesToRecoverSizes = shardRecoveryPlan.getFilesToRecoverSizes();
-        final List<String> phase1ExistingFileNames = shardRecoveryPlan.getIdenticalFileNames();
-        final List<Long> phase1ExistingFileSizes = shardRecoveryPlan.getIdenticalFileSizes();
+        final List<String> phase1ExistingFileNames = shardRecoveryPlan.getFilesPresentInTargetNames();
+        final List<Long> phase1ExistingFileSizes = shardRecoveryPlan.getFilesPresentInTargetSizes();
         final long totalSize = shardRecoveryPlan.getTotalSize();
         final long existingTotalSize = shardRecoveryPlan.getExistingSize();
 

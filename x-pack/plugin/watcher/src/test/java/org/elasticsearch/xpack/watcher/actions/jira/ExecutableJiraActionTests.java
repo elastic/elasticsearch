@@ -315,6 +315,7 @@ public class ExecutableJiraActionTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testMerge() {
         Map<String, Object> writeableMap = new HashMap<>();
         Map<String, Object> mergeNull = ExecutableJiraAction.merge(writeableMap, null, s -> s);

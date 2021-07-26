@@ -1349,4 +1349,28 @@ public class IndexNameExpressionResolver {
             return beforePlaceHolderSb.toString();
         }
     }
+
+    /**
+     * This is a context for the DateMathExpressionResolver which does not require {@code IndicesOptions} or {@code ClusterState}
+     * since it uses only the start time to resolve expressions.
+     */
+    public static final class ResolverContext extends Context {
+        public ResolverContext() {
+            this(System.currentTimeMillis());
+        }
+
+        public ResolverContext(long startTime) {
+            super(null, null, startTime, false, false, false, false, SystemIndexAccessLevel.ALL, name -> false, name -> false);
+        }
+
+        @Override
+        public ClusterState getState() {
+            throw new UnsupportedOperationException("should never be called");
+        }
+
+        @Override
+        public IndicesOptions getOptions() {
+            throw new UnsupportedOperationException("should never be called");
+        }
+    }
 }

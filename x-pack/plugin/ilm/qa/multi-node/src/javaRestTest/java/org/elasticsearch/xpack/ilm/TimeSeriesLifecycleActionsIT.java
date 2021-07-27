@@ -279,8 +279,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     /*
-     * This method waits until phase_time gets set in the state store. Otherwise we can wind up starting a snapshot before the ILM policy
-     *  is ready.
+     * This method waits until phase_time gets set in the state store for the delete phase. Otherwise we can wind up starting a snapshot
+     * before the ILM policy is ready.
      */
     @SuppressWarnings("unchecked")
     private void waitForPhaseTime() throws Exception {
@@ -292,8 +292,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Map<String, Object> indexMap = (Map<String, Object>) indices.get(index);
             Map<String, Object> ilm = (Map<String, Object>) indexMap.get("ilm");
             assertNotNull(ilm);
+            Object phase = ilm.get("phase");
+            assertEquals("delete", phase);
             Object phase_time = ilm.get("phase_time");
             assertNotNull(phase_time);
+            logger.info("Found phase time for delete phase: {}", phase_time);
         });
     }
 

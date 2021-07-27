@@ -169,15 +169,20 @@ public class DfsSearchResult extends SearchPhaseResult {
                 sumTotalTermFreq = subOne(in.readVLong());
                 sumDocFreq = subOne(in.readVLong());
                 if (sumTotalTermFreq == -1L) {
-                    // fallback used by Lucene in ES 6
+                    // fallback used by Lucene in ES 6 (LUCENE-8007)
                     sumTotalTermFreq = sumDocFreq;
                 }
                 if (maxDoc == 0L) {
-                    // fallback used by Lucene in ES 6
+                    // fallback used by Lucene in ES 6 (LUCENE-8007)
                     maxDoc = docCount;
                 }
                 if (docCount == 0L) {
-                    // wtf, can't handle this, just bail
+                    // empty stats object (LUCENE-8020)
+                    assert maxDoc == 0 && docCount == 0 && sumTotalTermFreq == 0 && sumDocFreq == 0:
+                        " maxDoc:" + maxDoc +
+                        " docCount:" + docCount +
+                        " sumTotalTermFreq:" + sumTotalTermFreq +
+                        " sumDocFreq:" + sumDocFreq;
                     continue;
                 }
             }

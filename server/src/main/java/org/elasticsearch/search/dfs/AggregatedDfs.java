@@ -40,7 +40,7 @@ public class AggregatedDfs implements Writeable {
             long totalTermFreq = DfsSearchResult.subOne(in.readVLong());
             if (in.getVersion().before(Version.V_7_0_0)) {
                 if (totalTermFreq == -1L) {
-                    // fallback used by Lucene in ES 6
+                    // fallback used by Lucene in ES 6 (LUCENE-8007)
                     totalTermFreq = docFreq;
                 }
             }

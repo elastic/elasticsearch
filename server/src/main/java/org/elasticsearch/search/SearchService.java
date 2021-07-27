@@ -624,9 +624,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     protected void checkCancelled(SearchShardTask task) {
         // check cancellation as early as possible, as it avoids opening up a Lucene reader on FrozenEngine
-        if (task.isCancelled()) {
+        try {
+            task.ensureNotCancelled();
+        } catch (TaskCancelledException e) {
             logger.trace("task cancelled [id: {}, action: {}]", task.getId(), task.getAction());
-            throw new TaskCancelledException("cancelled");
+            throw e;
         }
     }
 

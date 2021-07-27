@@ -106,6 +106,7 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -124,7 +125,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private String tomorrowSuffix;
 
     @Before
-    @SuppressWarnings("unchecked")
+//    @SuppressWarnings("unchecked")
     public void setup() {
         Settings settings = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -284,10 +285,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 );
             }
             return Void.TYPE;
-        }).when(rolesStore).roles(any(Set.class), anyActionListener());
+        }).when(rolesStore).roles(anySetOf(String.class), anyActionListener());
 
         doAnswer(i -> {
             User user = (User) i.getArguments()[0];
+            @SuppressWarnings("unchecked")
             ActionListener<Role> listener = (ActionListener<Role>) i.getArguments()[2];
             if (XPackUser.is(user)) {
                 listener.onResponse(Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES_AUTOMATON).build());

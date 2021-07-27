@@ -24,4 +24,4 @@ Machine Learning::
 Aggregations::
 
 * Only enable "filter by filter" optimization for `terms`, `date_histogram`,
-  `range`, and `fitlers` aggregation when we're sure it'll be faster {pull}74260[#74260]
+  `range`, and `fitlers` aggregation when we're sure it'll be faster {es-pull}74260[#74260]

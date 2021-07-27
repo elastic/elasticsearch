@@ -62,7 +62,7 @@ public class ShardCountStats implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toString(this);
     }
 
     @Override

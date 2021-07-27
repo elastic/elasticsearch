@@ -72,9 +72,10 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
     protected XPackLicenseState getLicenseState() {
         return XPackPlugin.getSharedLicenseState();
     }
-
     // register the vector tile factory from a different module
     private final SetOnce<VectorTileExtension> vectorTileExtension = new SetOnce<>();
+    // make sure extensions are loaded before calling the mappers
+    private boolean extensionsLoaded;
 
     @Override
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -86,10 +87,12 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
+        assert extensionsLoaded;
         Map<String, Mapper.TypeParser> mappers = new HashMap<>(super.getMappers());
         mappers.put(ShapeFieldMapper.CONTENT_TYPE, ShapeFieldMapper.PARSER);
         mappers.put(PointFieldMapper.CONTENT_TYPE, PointFieldMapper.PARSER);
-        mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, new GeoShapeWithDocValuesFieldMapper.TypeParser(vectorTileExtension));
+        mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE,
+            new GeoShapeWithDocValuesFieldMapper.TypeParser(vectorTileExtension.get()));
         return Collections.unmodifiableMap(mappers);
     }
 
@@ -213,6 +216,8 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
+        assert extensionsLoaded == false;
+        extensionsLoaded = true;
         // we only expect one vector tile extension that comes from the vector tile module.
         loader.loadExtensions(VectorTileExtension.class).forEach(vectorTileExtension::set);
     }

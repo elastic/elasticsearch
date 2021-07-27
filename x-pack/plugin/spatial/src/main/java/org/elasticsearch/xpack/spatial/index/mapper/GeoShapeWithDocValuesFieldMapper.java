@@ -13,7 +13,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
@@ -97,10 +96,10 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final Version version;
-        private final SetOnce<VectorTileExtension> vectorTileExtension;
+        private final VectorTileExtension vectorTileExtension;
 
         public Builder(String name, Version version, boolean ignoreMalformedByDefault, boolean coerceByDefault,
-                       SetOnce<VectorTileExtension> vectorTileExtension) {
+                      VectorTileExtension vectorTileExtension) {
             super(name);
             this.version = version;
             this.vectorTileExtension = vectorTileExtension;
@@ -146,10 +145,10 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     public static final class GeoShapeWithDocValuesFieldType extends AbstractShapeGeometryFieldType<Geometry> implements GeoShapeQueryable {
 
-        private final SetOnce<VectorTileExtension> vectorTileExtension;
+        private final VectorTileExtension vectorTileExtension;
         public GeoShapeWithDocValuesFieldType(String name, boolean indexed, boolean hasDocValues,
                                               Orientation orientation, GeoShapeParser parser,
-                                              SetOnce<VectorTileExtension> vectorTileExtension, Map<String, String> meta) {
+                                              VectorTileExtension vectorTileExtension, Map<String, String> meta) {
             super(name, indexed, false, hasDocValues, parser, orientation, meta);
             this.vectorTileExtension = vectorTileExtension;
         }
@@ -187,20 +186,19 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
             return GeoFormatterFactory.getFormatter(format, Function.identity(),
                 (z, x, y, extent) -> {
-                    final VectorTileExtension extension = vectorTileExtension.get();
-                    if (extension == null) {
+                    if (vectorTileExtension == null) {
                         throw new IllegalArgumentException("vector tile format is not supported");
                     }
-                    return extension.getVectorTileEngine().getFormatter(z, x, y, extent);
+                    return vectorTileExtension.getVectorTileEngine().getFormatter(z, x, y, extent);
                 });
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
 
-        private final SetOnce<VectorTileExtension> vectorTileExtension;
+        private final VectorTileExtension vectorTileExtension;
 
-        public TypeParser(SetOnce<VectorTileExtension> vectorTileExtension) {
+        public TypeParser(VectorTileExtension vectorTileExtension) {
             this.vectorTileExtension = vectorTileExtension;
         }
 

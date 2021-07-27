@@ -20,3 +20,8 @@ Machine Learning::
 * Make atomic operations safer for aarch64 {ml-pull}1893[#1893]
 
 * Ensure bucket event_count is calculated for jobs with 1 second bucket spans {ml-pull}1909[#1909]
+
+Aggregations::
+
+* Only enable "filter by filter" optimization for `terms`, `date_histogram`,
+  `range`, and `fitlers` aggregation when we're sure it'll be faster {pull}74260[#74260]

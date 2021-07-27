@@ -341,7 +341,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
             for (String field : fieldNames) {
                 MappedFieldType ft = searchExecutionContext.getFieldType(field);
-                IndexFieldCapabilities fieldCap = ft.fieldCaps();
+                IndexFieldCapabilities fieldCap = ft.fieldCaps(indexService.mapperService());
                 if (fieldCap.isMetadatafield() || fieldPredicate.test(ft.name())) {
                     responseMap.put(field, fieldCap);
                 } else {

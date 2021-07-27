@@ -45,11 +45,6 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public boolean isMetadataField() {
-            return true;
-        }
-
-        @Override
         public String familyTypeName() {
             return KeywordFieldMapper.CONTENT_TYPE;
         }

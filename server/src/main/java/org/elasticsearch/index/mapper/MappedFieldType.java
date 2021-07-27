@@ -95,12 +95,15 @@ public abstract class MappedFieldType {
      */
     public abstract ValueFetcher valueFetcher(SearchExecutionContext context, @Nullable String format);
 
-    public final IndexFieldCapabilities fieldCaps() {
-        return new IndexFieldCapabilities(name, familyTypeName(), isMetadataField(), isSearchable(), isAggregatable(), meta());
-    }
-
-    public boolean isMetadataField() {
-        return false;
+    public final IndexFieldCapabilities fieldCaps(MapperService mapperService) {
+        return new IndexFieldCapabilities(
+            name,
+            familyTypeName(),
+            mapperService.isMetadataField(name),
+            isSearchable(),
+            isAggregatable(),
+            meta()
+        );
     }
 
     /** Returns the name of this type, as would be specified in mapping properties */

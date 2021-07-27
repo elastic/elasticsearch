@@ -61,7 +61,7 @@ public class FeatureFactory {
     }
 
     public List<VectorTile.Tile.Feature> getFeatures(Geometry geometry, IUserDataConverter userData) {
-        TileGeomResult tileGeom = JtsAdapter.createTileGeom(
+        final TileGeomResult tileGeom = JtsAdapter.createTileGeom(
             JtsAdapter.flatFeatureList(geometry.visit(builder)),
             tileEnvelope,
             clipEnvelope,
@@ -92,8 +92,11 @@ public class FeatureFactory {
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(GeometryCollection<?> collection) {
-            // TODO: Geometry collections are not supported by the vector tile specification.
-            throw new IllegalArgumentException("GeometryCollection is not supported");
+            final org.locationtech.jts.geom.Geometry[] geometries = new org.locationtech.jts.geom.Geometry[collection.size()];
+            for (int i = 0; i < collection.size(); i++) {
+                geometries[i] = collection.get(i).visit(this);
+            }
+            return geomFactory.createGeometryCollection(geometries);
         }
 
         @Override
@@ -128,7 +131,7 @@ public class FeatureFactory {
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(MultiLine multiLine) throws RuntimeException {
-            LineString[] lineStrings = new LineString[multiLine.size()];
+            final LineString[] lineStrings = new LineString[multiLine.size()];
             for (int i = 0; i < multiLine.size(); i++) {
                 lineStrings[i] = buildLine(multiLine.get(i));
             }
@@ -152,7 +155,7 @@ public class FeatureFactory {
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(MultiPolygon multiPolygon) throws RuntimeException {
-            org.locationtech.jts.geom.Polygon[] polygons = new org.locationtech.jts.geom.Polygon[multiPolygon.size()];
+            final org.locationtech.jts.geom.Polygon[] polygons = new org.locationtech.jts.geom.Polygon[multiPolygon.size()];
             for (int i = 0; i < multiPolygon.size(); i++) {
                 polygons[i] = buildPolygon(multiPolygon.get(i));
             }
@@ -164,7 +167,7 @@ public class FeatureFactory {
             if (polygon.getNumberOfHoles() == 0) {
                 return geomFactory.createPolygon(outerShell);
             }
-            org.locationtech.jts.geom.LinearRing[] holes = new org.locationtech.jts.geom.LinearRing[polygon.getNumberOfHoles()];
+            final org.locationtech.jts.geom.LinearRing[] holes = new org.locationtech.jts.geom.LinearRing[polygon.getNumberOfHoles()];
             for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
                 holes[i] = buildLinearRing(polygon.getHole(i));
             }

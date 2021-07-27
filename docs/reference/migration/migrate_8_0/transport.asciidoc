@@ -2,6 +2,9 @@
 [[breaking_80_transport_changes]]
 ==== Transport changes
 
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
 //tag::notable-breaking-changes[]
 .Several `transport` settings have been replaced.
 [%collapsible]
@@ -26,8 +29,6 @@ Specifying the removed settings in `elasticsearch.yml` will result in an error
 on startup.
 ====
 
-// end::notable-breaking-changes[]
-
 .The `es.unsafely_permit_handshake_from_incompatible_builds` system property has been removed.
 [%collapsible]
 ====
@@ -45,3 +46,4 @@ system property, and ensure that all nodes of the same version are running
 exactly the same build. Setting this system property will result in an error
 on startup.
 ====
+// end::notable-breaking-changes[]

@@ -233,8 +233,7 @@ public class RestVectorTileAction extends BaseRestHandler {
             if (geoField == null) {
                 continue;
             }
-            final List<Object> bytesFeatures = geoField.getValues();
-            for (Object feature : bytesFeatures) {
+            for (Object feature : geoField) {
                 featureBuilder.clear();
                 featureBuilder.mergeFrom((byte[]) feature);
                 VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, ID_TAG, searchHit.getId());

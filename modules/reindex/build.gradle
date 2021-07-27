@@ -164,16 +164,19 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     }
   }
 }
+tasks.named("transformV7RestTests").configure({ task ->
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+})
+
+def v7compatibilityNotSupportedTests = {
+  return [
+    'reindex/20_validation/reindex without source gives useful error message', // exception with a type. Not much benefit adding _doc there.
+    'update_by_query/20_validation/update_by_query without source gives useful error message' // exception with a type. Not much benefit adding _doc there.
+  ]
+}
 
 tasks.named("yamlRestCompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
-    /*type related failures */
-    'reindex/20_validation/reindex without source gives useful error message',
-    'reindex/85_scripting/Reindex all docs with one doc deletion',
-    'delete_by_query/10_basic/Response for version conflict (seq no powered)',
-    'update_by_query/10_basic/Response for version conflict (seq no powered)',
-    'update_by_query/20_validation/update_by_query without source gives useful error message'
-  ].join(',')
+      systemProperty 'tests.rest.blacklist', v7compatibilityNotSupportedTests().join(',')
 }
 
 tasks.named('splitPackagesAudit').configure {

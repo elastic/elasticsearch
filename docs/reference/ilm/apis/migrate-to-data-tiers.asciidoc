@@ -41,6 +41,16 @@ Defaults to `data`.
 to stop {ilm-init} and <<ilm-get-status-request, get status API>> to wait until the
 reported operation mode is `STOPPED`.
 
+[[ilm-migrate-to-data-tiers-query-params]]
+==== {api-query-parms-title}
+
+`dry_run`::
+(Optional, Boolean)
+If `true`, simulates the migration from node attributes based allocation filters to data tiers, but does
+not perform the migration. This provides a way to retrieve the indices and ILM policies that need to be
+migrated.
+Defaults to `false`.
+
 [[ilm-migrate-to-data-tiers-example]]
 ==== {api-examples-title}
 
@@ -118,6 +128,7 @@ If the request succeeds, a response like the following will be received:
 [source,console-result]
 ------------------------------------------------------------------------------
 {
+  "dry_run": false,
   "removed_legacy_template":"global-template", <1>
   "migrated_ilm_policies":["policy_with_allocate_action"], <2>
   "migrated_indices":["warm-index-to-migrate-000001"] <3>

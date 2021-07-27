@@ -305,8 +305,7 @@ public class RBACEngine implements AuthorizationEngine {
                 listener.onFailure(new IllegalStateException("only scroll and async-search related requests are known indices " +
                     "api that don't support retrieving the indices they relate to"));
             }
-        } else if (request instanceof IndicesRequest &&
-            IndicesAndAliasesResolver.allowsRemoteIndices((IndicesRequest) request)) {
+        } else if (request instanceof IndicesRequest && ((IndicesRequest) request).allowsRemoteIndices()) {
             // remote indices are allowed
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 assert resolvedIndices.isEmpty() == false

@@ -377,6 +377,7 @@ public class SystemIndices {
                 .orElseThrow(() -> new IllegalStateException("system data stream descriptor not found for [" + dataStreamName + "]"));
             if (dataStreamDescriptor.isExternal()) {
                 final SystemIndexAccessLevel accessLevel = getSystemIndexAccessLevel(threadContext);
+                assert accessLevel != SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY : "BACKWARDS_COMPATIBLE access level is leaking";
                 if (accessLevel == SystemIndexAccessLevel.NONE) {
                     throw dataStreamAccessException(null, dataStreamName);
                 } else if (accessLevel == SystemIndexAccessLevel.RESTRICTED) {
@@ -388,7 +389,7 @@ public class SystemIndices {
                         return dataStreamDescriptor;
                     }
                 } else {
-                    assert accessLevel == SystemIndexAccessLevel.ALL;
+                    assert accessLevel == SystemIndexAccessLevel.ALL || accessLevel == SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY;
                     return dataStreamDescriptor;
                 }
             } else {
@@ -436,6 +437,8 @@ public class SystemIndices {
      * {@link SystemIndexAccessLevel#NONE} if no system index access should be allowed.
      */
     public SystemIndexAccessLevel getSystemIndexAccessLevel(ThreadContext threadContext) {
+        // This method intentionally cannot return BACKWARDS_COMPATIBLE_ONLY - that access level should only be used manually
+        // in known special cases.
         final String headerValue = threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
         final String productHeaderValue = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
 
@@ -454,7 +457,15 @@ public class SystemIndices {
     public enum SystemIndexAccessLevel {
         ALL,
         NONE,
-        RESTRICTED
+        RESTRICTED,
+        /**
+         * This value exists because there was a desire for "net-new" system indices to opt in to the post-8.0 behavior of having
+         * access blocked in most cases, but this caused problems with certain APIs
+         * (see https://github.com/elastic/elasticsearch/issues/74687), so this access level was added as a workaround. Once we no longer
+         * have to support accessing existing system indices, this can and should be removed, along with the net-new property of
+         * system indices in general.
+         */
+        BACKWARDS_COMPATIBLE_ONLY
     }
 
     /**

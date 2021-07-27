@@ -1928,7 +1928,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             .add(new TermQuery(new Term("k", "b")), Occur.SHOULD)
             .add(new TermQuery(new Term("k", "c")), Occur.SHOULD)
             .build();
-        debugTestCase(builder, topLevel, buildIndex, 
+        debugTestCase(builder, topLevel, buildIndex,
             (StringTerms terms, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(terms.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(List.of("b", "c")));
                 assertThat(terms.getBuckets().stream().map(StringTerms.Bucket::getDocCount).collect(toList()), equalTo(List.of(1L, 1L)));
@@ -2037,7 +2037,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             new BytesRef("stuff"), new BytesRef("more_stuff"), new BytesRef("other_stuff"),
         };
         MappedFieldType keywordFt = new KeywordFieldType("k", true, true, Collections.emptyMap());
-        MappedFieldType dummyFt = new KeywordScriptFieldType("dummy", scriptFactory, new Script("test"), Map.of(), null);
+        MappedFieldType dummyFt = new KeywordScriptFieldType("dummy", scriptFactory, new Script("test"), Map.of());
         debugTestCase(new TermsAggregationBuilder("t").field("dummy"), new MatchAllDocsQuery(), iw -> {
             for (int d = 0; d < totalDocs; d++) {
                 BytesRef value = values[d % values.length];

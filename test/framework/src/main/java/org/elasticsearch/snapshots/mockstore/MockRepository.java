@@ -24,6 +24,7 @@ import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -40,6 +41,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -127,6 +129,7 @@ public class MockRepository extends FsRepository {
 
     /** Allows blocking on writing the snapshot file at the end of snapshot creation to simulate a died master node */
     private volatile boolean blockAndFailOnWriteSnapFile;
+    private volatile String blockedIndexId;
 
     private volatile boolean blockOnWriteShardLevelMeta;
 
@@ -144,6 +147,10 @@ public class MockRepository extends FsRepository {
      */
     private volatile boolean failReadsAfterUnblock;
     private volatile boolean throwReadErrorAfterUnblock = false;
+
+    private volatile boolean blockAndFailOnReadSnapFile;
+
+    private volatile boolean blockAndFailOnReadIndexFile;
 
     private volatile boolean blocked = false;
 
@@ -211,10 +218,13 @@ public class MockRepository extends FsRepository {
         blockAndFailOnWriteIndexFile = false;
         blockOnWriteIndexFile = false;
         blockAndFailOnWriteSnapFile = false;
+        blockedIndexId = null;
         blockOnDeleteIndexN = false;
         blockOnWriteShardLevelMeta = false;
         blockOnReadIndexMeta = false;
         blockOnceOnReadSnapshotInfo.set(false);
+        blockAndFailOnReadSnapFile = false;
+        blockAndFailOnReadIndexFile = false;
         this.notifyAll();
     }
 
@@ -228,6 +238,10 @@ public class MockRepository extends FsRepository {
 
     public void setBlockAndFailOnWriteSnapFiles() {
         blockAndFailOnWriteSnapFile = true;
+    }
+
+    public void setBlockAndOnWriteShardLevelSnapFiles(String indexId) {
+        blockedIndexId = indexId;
     }
 
     public void setBlockAndFailOnWriteIndexFile() {
@@ -256,6 +270,14 @@ public class MockRepository extends FsRepository {
         this.failReadsAfterUnblock = failReadsAfterUnblock;
     }
 
+    public void setBlockAndFailOnReadSnapFiles() {
+        blockAndFailOnReadSnapFile = true;
+    }
+
+    public void setBlockAndFailOnReadIndexFiles() {
+        blockAndFailOnReadIndexFile = true;
+    }
+
     /**
      * Enable blocking a single read of {@link org.elasticsearch.snapshots.SnapshotInfo} in case the repo is already blocked on another
      * file. This allows testing very specific timing issues where a read of {@code SnapshotInfo} is much slower than another concurrent
@@ -279,7 +301,8 @@ public class MockRepository extends FsRepository {
         boolean wasBlocked = false;
         try {
             while (blockOnDataFiles || blockOnAnyFiles || blockAndFailOnWriteIndexFile || blockOnWriteIndexFile ||
-                blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta || blockOnReadIndexMeta) {
+                blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta || blockOnReadIndexMeta ||
+                blockAndFailOnReadSnapFile || blockAndFailOnReadIndexFile || blockedIndexId != null) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -366,8 +389,12 @@ public class MockRepository extends FsRepository {
                         throw new IOException("Random IOException");
                     } else if (blockOnAnyFiles) {
                         blockExecutionAndMaybeWait(blobName);
-                    } else if (blobName.startsWith("snap-") && blockAndFailOnWriteSnapFile) {
+                    } else if (blobName.startsWith("snap-") && (blockAndFailOnWriteSnapFile || blockAndFailOnReadSnapFile)) {
                         blockExecutionAndFail(blobName);
+                    } else if (blobName.startsWith(INDEX_FILE_PREFIX) && blockAndFailOnReadIndexFile) {
+                        blockExecutionAndFail(blobName);
+                    } else if (blockedIndexId != null && path().parts().contains(blockedIndexId) && blobName.startsWith("snap-")) {
+                        blockExecutionAndMaybeWait(blobName);
                     }
                 }
             }
@@ -488,11 +515,7 @@ public class MockRepository extends FsRepository {
             @Override
             public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
                 throws IOException {
-                maybeIOExceptionOrBlock(blobName);
-                if (blockOnWriteShardLevelMeta && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
-                        && path().equals(basePath()) == false) {
-                    blockExecutionAndMaybeWait(blobName);
-                }
+                beforeWrite(blobName);
                 super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
@@ -502,19 +525,35 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
+            public void writeBlob(String blobName,
+                                  boolean failIfAlreadyExists,
+                                  boolean atomic,
+                                  CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+                if (atomic) {
+                    beforeAtomicWrite(blobName);
+                } else {
+                    beforeWrite(blobName);
+                }
+                super.writeBlob(blobName, failIfAlreadyExists, atomic, writer);
+                if (RandomizedContext.current().getRandom().nextBoolean()) {
+                    // for network based repositories, the blob may have been written but we may still
+                    // get an error with the client connection, so an IOException here simulates this
+                    maybeIOExceptionOrBlock(blobName);
+                }
+            }
+
+            private void beforeWrite(String blobName) throws IOException {
+                maybeIOExceptionOrBlock(blobName);
+                if (blockOnWriteShardLevelMeta && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
+                        && path().equals(basePath()) == false) {
+                    blockExecutionAndMaybeWait(blobName);
+                }
+            }
+
+            @Override
             public void writeBlobAtomic(final String blobName, final BytesReference bytes,
                                         final boolean failIfAlreadyExists) throws IOException {
-                final Random random = RandomizedContext.current().getRandom();
-                if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
-                    throw new IOException("Random IOException");
-                }
-                if (blobName.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)) {
-                    if (blockAndFailOnWriteIndexFile) {
-                        blockExecutionAndFail(blobName);
-                    } else if (blockOnWriteIndexFile) {
-                        blockExecutionAndMaybeWait(blobName);
-                    }
-                }
+                final Random random = beforeAtomicWrite(blobName);
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer
                     final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
@@ -528,6 +567,21 @@ public class MockRepository extends FsRepository {
                     maybeIOExceptionOrBlock(blobName);
                     super.writeBlobAtomic(blobName, bytes, failIfAlreadyExists);
                 }
+            }
+
+            private Random beforeAtomicWrite(String blobName) throws IOException {
+                final Random random = RandomizedContext.current().getRandom();
+                if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
+                    throw new IOException("Random IOException");
+                }
+                if (blobName.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)) {
+                    if (blockAndFailOnWriteIndexFile) {
+                        blockExecutionAndFail(blobName);
+                    } else if (blockOnWriteIndexFile) {
+                        blockExecutionAndMaybeWait(blobName);
+                    }
+                }
+                return random;
             }
         }
     }

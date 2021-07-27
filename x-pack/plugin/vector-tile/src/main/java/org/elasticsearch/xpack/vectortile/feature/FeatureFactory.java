@@ -27,6 +27,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -49,8 +50,9 @@ public class FeatureFactory {
     private final Envelope clipEnvelope;
 
     public FeatureFactory(int z, int x, int y, int extent) {
-        this.tileEnvelope = FeatureFactoryUtils.getJTSTileBounds(z, x, y);
-        this.clipEnvelope = FeatureFactoryUtils.getJTSTileBounds(z, x, y);
+        final Rectangle r = SphericalMercatorUtils.recToSphericalMercator(GeoTileUtils.toBoundingBox(x, y, z));
+        this.tileEnvelope = new Envelope(r.getMinX(), r.getMaxX(), r.getMinY(), r.getMaxY());
+        this.clipEnvelope = new Envelope(tileEnvelope);
         this.clipEnvelope.expandBy(tileEnvelope.getWidth() * 0.1d, tileEnvelope.getHeight() * 0.1d);
         this.builder = new JTSGeometryBuilder(geomFactory);
         // TODO: Not sure what is the difference between extent and tile size?
@@ -89,7 +91,8 @@ public class FeatureFactory {
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(GeometryCollection<?> collection) {
-            throw new IllegalArgumentException("Circle is not supported");
+            // TODO: Geometry collections are not supported by the vector tile specification.
+            throw new IllegalArgumentException("GeometryCollection is not supported");
         }
 
         @Override
@@ -112,8 +115,8 @@ public class FeatureFactory {
         }
 
         private org.locationtech.jts.geom.Point buildPoint(Point point) {
-            final double x = FeatureFactoryUtils.lonToSphericalMercator(point.getX());
-            final double y = FeatureFactoryUtils.latToSphericalMercator(point.getY());
+            final double x = SphericalMercatorUtils.lonToSphericalMercator(point.getX());
+            final double y = SphericalMercatorUtils.latToSphericalMercator(point.getY());
             return geomFactory.createPoint(new Coordinate(x, y));
         }
 
@@ -134,8 +137,8 @@ public class FeatureFactory {
         private LineString buildLine(Line line) {
             final Coordinate[] coordinates = new Coordinate[line.length()];
             for (int i = 0; i < line.length(); i++) {
-                final double x = FeatureFactoryUtils.lonToSphericalMercator(line.getX(i));
-                final double y = FeatureFactoryUtils.latToSphericalMercator(line.getY(i));
+                final double x = SphericalMercatorUtils.lonToSphericalMercator(line.getX(i));
+                final double y = SphericalMercatorUtils.latToSphericalMercator(line.getY(i));
                 coordinates[i] = new Coordinate(x, y);
             }
             return geomFactory.createLineString(coordinates);
@@ -170,8 +173,8 @@ public class FeatureFactory {
         private org.locationtech.jts.geom.LinearRing buildLinearRing(LinearRing ring) throws RuntimeException {
             final Coordinate[] coordinates = new Coordinate[ring.length()];
             for (int i = 0; i < ring.length(); i++) {
-                final double x = FeatureFactoryUtils.lonToSphericalMercator(ring.getX(i));
-                final double y = FeatureFactoryUtils.latToSphericalMercator(ring.getY(i));
+                final double x = SphericalMercatorUtils.lonToSphericalMercator(ring.getX(i));
+                final double y = SphericalMercatorUtils.latToSphericalMercator(ring.getY(i));
                 coordinates[i] = new Coordinate(x, y);
             }
             return geomFactory.createLinearRing(coordinates);
@@ -180,10 +183,10 @@ public class FeatureFactory {
         @Override
         public org.locationtech.jts.geom.Geometry visit(Rectangle rectangle) throws RuntimeException {
             // TODO: handle degenerated rectangles?
-            final double xMin = FeatureFactoryUtils.lonToSphericalMercator(rectangle.getMinX());
-            final double yMin = FeatureFactoryUtils.latToSphericalMercator(rectangle.getMinY());
-            final double xMax = FeatureFactoryUtils.lonToSphericalMercator(rectangle.getMaxX());
-            final double yMax = FeatureFactoryUtils.latToSphericalMercator(rectangle.getMaxY());
+            final double xMin = SphericalMercatorUtils.lonToSphericalMercator(rectangle.getMinX());
+            final double yMin = SphericalMercatorUtils.latToSphericalMercator(rectangle.getMinY());
+            final double xMax = SphericalMercatorUtils.lonToSphericalMercator(rectangle.getMaxX());
+            final double yMax = SphericalMercatorUtils.latToSphericalMercator(rectangle.getMaxY());
             final Coordinate[] coordinates = new Coordinate[5];
             coordinates[0] = new Coordinate(xMin, yMin);
             coordinates[1] = new Coordinate(xMax, yMin);

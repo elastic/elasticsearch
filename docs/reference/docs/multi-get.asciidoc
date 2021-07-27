@@ -68,7 +68,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+`refresh`::
+(Optional, Boolean) If `true`, the request refreshes relevant shards before
+retrieving documents. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 

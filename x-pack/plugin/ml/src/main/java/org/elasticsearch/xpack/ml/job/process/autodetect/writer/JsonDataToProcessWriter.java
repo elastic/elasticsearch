@@ -61,9 +61,9 @@ public class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
             throws IOException {
         dataCountsReporter.startNewIncrementalCount();
 
-        if (xContentType.equals(XContentType.JSON)) {
+        if (xContentType.canonical() == XContentType.JSON) {
             writeJsonXContent(categorizationAnalyzer, inputStream);
-        } else if (xContentType.equals(XContentType.SMILE)) {
+        } else if (xContentType.canonical() == XContentType.SMILE) {
             writeSmileXContent(categorizationAnalyzer, inputStream);
         } else {
             throw new RuntimeException("XContentType [" + xContentType

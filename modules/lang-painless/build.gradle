@@ -51,18 +51,6 @@ tasks.named("test").configure {
 
 tasks.named("yamlRestCompatTest").configure {
     systemProperty 'tests.rest.blacklist', [
-            'painless/70_execute_painless_scripts/Execute with date field context (single-value)',
-            'painless/70_execute_painless_scripts/Execute with date field context (multi-value)',
-            'painless/70_execute_painless_scripts/Execute with double field context (single-value)',
-            'painless/70_execute_painless_scripts/Execute with double field context (multi-value)',
-            'painless/70_execute_painless_scripts/Execute with geo point field context (single-value)',
-            'painless/70_execute_painless_scripts/Execute with geo point field context (multi-value)',
-            'painless/70_execute_painless_scripts/Execute with ip field context (single-value)',
-            'painless/70_execute_painless_scripts/Execute with ip field context (multi-value)',
-            'painless/70_execute_painless_scripts/Execute with long field context (single-value)',
-            'painless/70_execute_painless_scripts/Execute with long field context (multi-value)',
-            'painless/70_execute_painless_scripts/Execute with keyword field context (single-value)',
-            'painless/70_execute_painless_scripts/Execute with keyword field context (multi-value)',
     ].join(',')
 }
 

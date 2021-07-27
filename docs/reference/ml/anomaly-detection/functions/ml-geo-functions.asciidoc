@@ -1,5 +1,4 @@
-[role="xpack"]
-[[ml-geo-functions]]
+["appendix",role="exclude",id="ml-geo-functions"]
 = Geographic functions
 
 The geographic functions detect anomalies in the geographic location of the

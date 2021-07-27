@@ -18,7 +18,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -38,8 +38,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
-
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -81,7 +79,7 @@ public class CancellationTests extends ESTestCase {
         ClusterService mockClusterService = mockClusterService();
 
         IndexResolver indexResolver = indexResolver(client);
-        PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
+        PlanExecutor planExecutor = planExecutor(client, indexResolver);
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().query("foo where blah"), "",
             transportService, mockClusterService, new ActionListener<>() {
@@ -143,8 +141,8 @@ public class CancellationTests extends ESTestCase {
         }).when(client).fieldCaps(any(), any());
 
 
-        IndexResolver indexResolver = indexResolver(client);
-        PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
+        IndexResolver indexResolver = new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
+        PlanExecutor planExecutor = planExecutor(client, indexResolver);
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().indices("endgame")
             .query("process where foo==3"), "", transportService, mockClusterService, new ActionListener<>() {
@@ -209,7 +207,7 @@ public class CancellationTests extends ESTestCase {
         }).when(client).execute(any(), searchRequestCaptor.capture(), any());
 
         IndexResolver indexResolver = indexResolver(client);
-        PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
+        PlanExecutor planExecutor = planExecutor(client, indexResolver);
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().indices("endgame")
             .query("process where foo==3"), "", transportService, mockClusterService, new ActionListener<>() {
@@ -234,6 +232,10 @@ public class CancellationTests extends ESTestCase {
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client, task);
+    }
+
+    private PlanExecutor planExecutor(Client client, IndexResolver indexResolver) {
+        return new PlanExecutor(client, indexResolver, new NoopCircuitBreaker("test"));
     }
 
     private ClusterService mockClusterService() {

@@ -24,6 +24,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersResponse;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
+import org.elasticsearch.xpack.core.ilm.AllocationRoutedStep;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -124,6 +125,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         // wait for the index to advance to the warm phase
         assertBusy(() ->
             assertThat(getStepKeyForIndex(client(), index).getPhase(), equalTo("warm")), 30, TimeUnit.SECONDS);
+        // let's wait for this index to have received the `require.data` configuration from the warm phase/allocate action
+        assertBusy(() ->
+            assertThat(getStepKeyForIndex(client(), index).getName(), equalTo(AllocationRoutedStep.NAME)), 30, TimeUnit.SECONDS);
 
         // let's also have a policy that doesn't need migrating
         String rolloverOnlyPolicyName = "rollover-policy";
@@ -205,6 +209,93 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         assertThat(cachedPhaseDefinition, containsString(ShrinkAction.NAME));
         assertThat(cachedPhaseDefinition, containsString(SetPriorityAction.NAME));
         assertThat(cachedPhaseDefinition, containsString(ForceMergeAction.NAME));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMigrationDryRun() throws Exception {
+        String templateName = randomAlphaOfLengthBetween(10, 15).toLowerCase(Locale.ROOT);
+        createLegacyTemplate(templateName);
+
+        Map<String, LifecycleAction> hotActions = new HashMap<>();
+        hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
+        Map<String, LifecycleAction> warmActions = new HashMap<>();
+        warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
+        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
+        warmActions.put(AllocateAction.NAME, new AllocateAction(null, singletonMap("data", "warm"), null, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
+        Map<String, LifecycleAction> coldActions = new HashMap<>();
+        coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, singletonMap("data", "cold")));
+
+        createPolicy(client(), policy,
+            new Phase("hot", TimeValue.ZERO, hotActions),
+            new Phase("warm", TimeValue.ZERO, warmActions),
+            new Phase("cold", TimeValue.timeValueDays(100), coldActions),
+            null,
+            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction()))
+        );
+
+        createIndexWithSettings(client(), index, alias, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            .putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER)
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+        );
+
+        // wait for the index to advance to the warm phase
+        assertBusy(() ->
+            assertThat(getStepKeyForIndex(client(), index).getPhase(), equalTo("warm")), 30, TimeUnit.SECONDS);
+        // let's wait for this index to have received the `require.data` configuration from the warm phase/allocate action
+        assertBusy(() ->
+            assertThat(getStepKeyForIndex(client(), index).getName(), equalTo(AllocationRoutedStep.NAME)), 30, TimeUnit.SECONDS);
+
+        // let's stop ILM so we can simulate the migration
+        client().performRequest(new Request("POST", "_ilm/stop"));
+        assertBusy(() -> {
+            Response response = client().performRequest(new Request("GET", "_ilm/status"));
+            assertThat(EntityUtils.toString(response.getEntity()), containsString(OperationMode.STOPPED.toString()));
+        });
+
+        String indexWithDataWarmRouting = "indexwithdatawarmrouting";
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "data", "warm");
+        createIndex(indexWithDataWarmRouting, settings.build());
+
+        Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
+        migrateRequest.addParameter("dry_run", "true");
+        migrateRequest.setJsonEntity(
+            "{\"legacy_template_to_delete\": \"" + templateName + "\", \"node_attribute\": \"data\"}"
+        );
+        Response migrateDeploymentResponse = client().performRequest(migrateRequest);
+        assertOK(migrateDeploymentResponse);
+
+        // response should contain the correct "to migrate" entities
+        Map<String, Object> migrateResponseAsMap = responseAsMap(migrateDeploymentResponse);
+        assertThat((ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
+            containsInAnyOrder(policy));
+        assertThat((ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
+            containsInAnyOrder(index, indexWithDataWarmRouting));
+        assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.REMOVED_LEGACY_TEMPLATE.getPreferredName()),
+            is(templateName));
+
+        // however the entities should NOT have been changed
+        // the index template should still exist
+        Request getTemplateRequest = new Request("HEAD", "_template/" + templateName);
+        assertThat(client().performRequest(getTemplateRequest).getStatusLine().getStatusCode(), is(RestStatus.OK.getStatus()));
+
+        // the index settings should not contain the _tier_preference
+        Map<String, Object> indexSettings = getOnlyIndexSettings(client(), indexWithDataWarmRouting);
+        assertThat(indexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER), nullValue());
+
+        // let's check the ILM policy was not migrated - ie. the warm phase still contains the allocate action
+        Request getPolicy = new Request("GET", "/_ilm/policy/" + policy);
+        Map<String, Object> policyAsMap = (Map<String, Object>) responseAsMap(client().performRequest(getPolicy)).get(policy);
+        Map<String, Object> warmActionsMap = getActionsForPhase(policyAsMap, "warm");
+        assertThat(warmActionsMap.size(), is(4));
+        assertThat(warmActionsMap.get(AllocateAction.NAME), notNullValue());
     }
 
     @SuppressWarnings("unchecked")

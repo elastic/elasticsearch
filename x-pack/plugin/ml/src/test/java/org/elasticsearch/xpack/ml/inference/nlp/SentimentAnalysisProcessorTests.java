@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -31,16 +30,16 @@ import static org.mockito.Mockito.mock;
 public class SentimentAnalysisProcessorTests extends ESTestCase {
 
     public void testInvalidResult() {
-        SentimentAnalysisProcessor processor = new SentimentAnalysisProcessor(mock(BertTokenizer.class), Collections.emptyList());
+        SentimentAnalysisProcessor processor = new SentimentAnalysisProcessor(mock(BertTokenizer.class), NlpTaskConfig.builder().build());
         {
-            PyTorchResult torchResult = new PyTorchResult("foo", new double[][]{}, null);
+            PyTorchResult torchResult = new PyTorchResult("foo", new double[][]{}, 0L, null);
             InferenceResults inferenceResults = processor.processResult(torchResult);
             assertThat(inferenceResults, instanceOf(WarningInferenceResults.class));
             assertEquals("Sentiment analysis result has no data",
                 ((WarningInferenceResults) inferenceResults).getWarning());
         }
         {
-            PyTorchResult torchResult = new PyTorchResult("foo", new double[][]{{1.0}}, null);
+            PyTorchResult torchResult = new PyTorchResult("foo", new double[][]{{1.0}}, 0L, null);
             InferenceResults inferenceResults = processor.processResult(torchResult);
             assertThat(inferenceResults, instanceOf(WarningInferenceResults.class));
             assertEquals("Expected 2 values in sentiment analysis result",
@@ -52,7 +51,7 @@ public class SentimentAnalysisProcessorTests extends ESTestCase {
         BertTokenizer tokenizer = BertTokenizer.builder(
             Arrays.asList("Elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN)).build();
 
-        SentimentAnalysisProcessor processor = new SentimentAnalysisProcessor(tokenizer, Collections.emptyList());
+        SentimentAnalysisProcessor processor = new SentimentAnalysisProcessor(tokenizer, NlpTaskConfig.builder().build());
 
         BytesReference bytesReference = processor.buildRequest("Elasticsearch fun", "request1");
 
@@ -65,8 +64,11 @@ public class SentimentAnalysisProcessorTests extends ESTestCase {
     }
 
     public void testValidate() {
+
+        NlpTaskConfig config = NlpTaskConfig.builder().setClassificationLabels(List.of("too", "many", "class", "labels")).build();
+
         ValidationException validationException = expectThrows(ValidationException.class,
-            () -> new SentimentAnalysisProcessor(mock(BertTokenizer.class), List.of("too", "many", "class", "labels")));
+            () -> new SentimentAnalysisProcessor(mock(BertTokenizer.class), config));
 
         assertThat(validationException.getMessage(),
             containsString("Sentiment analysis requires exactly 2 [classification_labels]. Invalid labels [too, many, class, labels]"));

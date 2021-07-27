@@ -20,7 +20,12 @@
         }
       ]
     },
-    "params":{},
+    "params": {
+      "dry_run": {
+        "type": "boolean",
+        "description": "If set to true it will simulate the migration, providing a way to retrieve the ILM policies and indices that need to be migrated. The default is false"
+      }
+    },
     "body":{
       "description":"Optionally specify a legacy index template name to delete and optionally specify a node attribute name used for index shard routing (defaults to \"data\")",
       "required":false

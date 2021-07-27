@@ -12,21 +12,23 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
 public final class TestRuntimeField implements RuntimeField {
+
+    public static final String CONTENT_TYPE = "test-composite";
+
     private final String name;
-    private final String type;
     private final Collection<MappedFieldType> subfields;
 
     public TestRuntimeField(String name, String type) {
-        this(name, type, Collections.singleton(new TestRuntimeFieldType(name, type)));
+        this(name, Collections.singleton(new TestRuntimeFieldType(name, type)));
     }
 
-    public TestRuntimeField(String name, String type, Collection<MappedFieldType> subfields) {
+    public TestRuntimeField(String name, Collection<MappedFieldType> subfields) {
         this.name = name;
-        this.type = type;
         this.subfields = subfields;
     }
 
@@ -36,18 +38,16 @@ public final class TestRuntimeField implements RuntimeField {
     }
 
     @Override
-    public String typeName() {
-        return type;
-    }
-
-    @Override
     public Collection<MappedFieldType> asMappedFieldTypes() {
         return subfields;
     }
 
     @Override
-    public void doXContentBody(XContentBuilder builder, Params params) {
-
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(name);
+        builder.field("type", CONTENT_TYPE);
+        builder.endObject();
+        return builder;
     }
 
     public static class TestRuntimeFieldType extends MappedFieldType {

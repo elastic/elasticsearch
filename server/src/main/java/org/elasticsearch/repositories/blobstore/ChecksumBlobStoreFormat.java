@@ -19,20 +19,17 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.gateway.CorruptStateException;
 
 import java.io.FilterInputStream;
@@ -112,6 +109,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                     .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, wrappedStream)
             ) {
                 result = reader.apply(repoName, parser);
+                XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
             }
             deserializeMetaBlobInputStream.verifyFooter();
             return result;
@@ -272,47 +270,38 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * @param name                blob name
      * @param compress            whether to use compression
      */
-    public void write(T obj, BlobContainer blobContainer, String name, boolean compress, BigArrays bigArrays) throws IOException {
+    public void write(T obj, BlobContainer blobContainer, String name, boolean compress) throws IOException {
         final String blobName = blobName(name);
-        serialize(obj, blobName, compress, bigArrays, bytes -> blobContainer.writeBlob(blobName, bytes, false));
+        blobContainer.writeBlob(blobName, false, false, out -> serialize(obj, blobName, compress, out));
     }
 
-    public void serialize(
-        final T obj,
-        final String blobName,
-        final boolean compress,
-        BigArrays bigArrays,
-        CheckedConsumer<BytesReference, IOException> consumer
-    ) throws IOException {
-        try (ReleasableBytesStreamOutput outputStream = new ReleasableBytesStreamOutput(bigArrays)) {
-            try (
-                OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
-                    "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")",
-                    blobName,
-                    org.elasticsearch.common.io.Streams.noCloseStream(outputStream),
-                    BUFFER_SIZE
+    public void serialize(final T obj, final String blobName, final boolean compress, OutputStream outputStream) throws IOException {
+        try (
+            OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
+                "ChecksumBlobStoreFormat.serialize(blob=\"" + blobName + "\")",
+                blobName,
+                org.elasticsearch.common.io.Streams.noCloseStream(outputStream),
+                BUFFER_SIZE
+            )
+        ) {
+            CodecUtil.writeHeader(indexOutput, codec, VERSION);
+            try (OutputStream indexOutputOutputStream = new IndexOutputOutputStream(indexOutput) {
+                @Override
+                public void close() {
+                    // this is important since some of the XContentBuilders write bytes on close.
+                    // in order to write the footer we need to prevent closing the actual index input.
+                }
+            };
+                XContentBuilder builder = XContentFactory.contentBuilder(
+                    XContentType.SMILE,
+                    compress ? CompressorFactory.COMPRESSOR.threadLocalOutputStream(indexOutputOutputStream) : indexOutputOutputStream
                 )
             ) {
-                CodecUtil.writeHeader(indexOutput, codec, VERSION);
-                try (OutputStream indexOutputOutputStream = new IndexOutputOutputStream(indexOutput) {
-                    @Override
-                    public void close() {
-                        // this is important since some of the XContentBuilders write bytes on close.
-                        // in order to write the footer we need to prevent closing the actual index input.
-                    }
-                };
-                    XContentBuilder builder = XContentFactory.contentBuilder(
-                        XContentType.SMILE,
-                        compress ? CompressorFactory.COMPRESSOR.threadLocalOutputStream(indexOutputOutputStream) : indexOutputOutputStream
-                    )
-                ) {
-                    builder.startObject();
-                    obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);
-                    builder.endObject();
-                }
-                CodecUtil.writeFooter(indexOutput);
+                builder.startObject();
+                obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);
+                builder.endObject();
             }
-            consumer.accept(outputStream.bytes());
+            CodecUtil.writeFooter(indexOutput);
         }
     }
 }

@@ -2,7 +2,9 @@
 == Updating node security certificates
 You might need to update your TLS certificates if your current node
 certificates expire soon, you're adding new nodes to your secured cluster, or
-a security breach has broken the trust of your certificate chain.
+a security breach has broken the trust of your certificate chain. Use the 
+<<security-api-ssl,SSL certificate>> API to check when your certificates are
+expiring.
 
 In instances where you have access to the original Certificate Authority (CA) key and certificate that you used to sign your existing node certificates (and where you can still trust your CA), you can
 <<update-node-certs-same,use that CA to sign the new certificates>>.
@@ -88,9 +90,9 @@ TIP: If your CA has changed, complete the steps in
 The following examples use PKCS#12 files, but the same steps apply to JKS
 keystores.
 
-. Open the `ES_PATH_CONF/elasticsearch.yml` file and check the names of the
-keystores that are currently in use. You'll use the same names for your new
-certificate.
+. Open the `ES_PATH_CONF/elasticsearch.yml` file and check the names and
+locations of the keystores that are currently in use. You'll use the same names
+for your new certificate.
 +
 In this example, the keystore and truststore are pointing to different files.
 Your configuration might use the same file that contains the certificate and CA.
@@ -247,7 +249,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 
 . Unzip the generated `elasticsearch-ssl-http.zip` file. This compressed file
    contains two directories; one each for {es} and {kib}. Within the `/elasticsearch`
-   directory is a directory for each node that you specified with it's own
+   directory is a directory for each node that you specified with its own
    `http.p12` file. For example:
 +
 --
@@ -311,14 +313,26 @@ to the secure settings in {es}.
 ./bin/elasticsearch-keystore add xpack.security.http.ssl.keystore.secure_password
 ----
 
-. Start the node where you updated the keystore, and then complete the remaining
-steps for a <<restart-cluster-rolling,rolling restart>>.
+. Start the node where you updated the keystore.
++
+--
+Submit a `_cat/nodes` request to confirm that the node joined the cluster:
+
+[source,console]
+----
+GET _cat/nodes
+----
+
+--
 
 . [[verify-keystore-http,step 10]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
 {es} loaded the new keystore.
 
 . One node at a time, complete <<start-rolling-restart-http>> through
 <<verify-keystore-http>> until you've updated all keystores in your cluster.
+
+. Complete the remaining steps for a <<restart-cluster-rolling,rolling restart>>,
+beginning with the step to *Reenable shard allocation*.
 
 [[update-node-certs-different]]
 === Update security certificates with a different CA
@@ -336,8 +350,8 @@ certificate from your truststore (but not before!).
 NOTE: The following examples use PKCS#12 files, but the same steps apply to JKS
 keystores.
 
-. Open the `ES_PATH_CONF/elasticsearch.yml` file and check the names of the
-keystores that are currently in use. You'll use the same names
+. Open the `ES_PATH_CONF/elasticsearch.yml` file and check the names and
+locations of the keystores that are currently in use. You'll use the same names
 for your new keystores.
 +
 In this example, the keystore and truststore are using different files.
@@ -361,7 +375,8 @@ xpack.security.transport.ssl.verification_mode: certificate
 ----
 
 . On *any* node in your cluster, generate a new CA certificate. You only need
-to complete this step one time.
+to complete this step one time. If you're using the CA certificate of your
+organization, then skip this step.
 +
 [source,shell]
 ----
@@ -496,7 +511,7 @@ in your cluster. You can then complete the remaining steps for a
 Otherwise, do not complete a rolling restart. Instead, proceed to the steps for
 generating a new certificate for the HTTP layer.
 
-. (Optional) After rotating keystores on each node in your cluster,
+. (Optional) After replacing keystores on each node in your cluster,
 <<check-ca-truststore,list the certificates in your truststore>> and then remove
 the old CA certificate.
 +
@@ -540,12 +555,14 @@ generates.
 .Update clients to trust the new CA
 ****
 After generating (but before using) new certificates for the HTTP layer, you
-need to go to all the clients that connect to {es} (such as {kib}, {beats},
-{ls}, and any language clients) and configure them to also trust the new CA
-(`ca.crt`) that you generated.
+need to go to all the clients that connect to {es} (such as {beats}, {ls}, and
+any language clients) and configure them to also trust the new CA (`ca.crt`)
+that you generated.
 
 This process is different for each client, so refer to your client's
-documentation for trusting certificates.
+documentation for trusting certificates. You'll
+<<node-certs-different-kibana,update HTTP encryption between {kib} and {es}>>
+after generating the necessary certificates in this procedure.
 ****
 
 . On any node in your cluster where {es} is installed, run the {es} HTTP
@@ -597,7 +614,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 
 . Unzip the generated `elasticsearch-ssl-http.zip` file. This compressed file
    contains one directory for both {es} and {kib}. Within the `/elasticsearch`
-   directory is a directory for each node that you specified with it's own
+   directory is a directory for each node that you specified with its own
    `http.p12` file. For example:
 +
 --
@@ -661,14 +678,26 @@ to the secure settings in {es}.
 ./bin/elasticsearch-keystore add xpack.security.http.ssl.keystore.secure_password
 ----
 
-. Start the node where you updated the keystore, and then complete the remaining
-steps for a <<restart-cluster-rolling,rolling restart>>.
+. Start the node where you updated the keystore.
++
+--
+Submit a `_cat/nodes` request to confirm that the node joined the cluster:
+
+[source,console]
+----
+GET _cat/nodes
+----
+
+--
 
 . [[verify-keystore-http-newca,step 12]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
 {es} loaded the new keystore.
 
 . One node at a time, complete <<start-rolling-restart-http-newca>> through
 <<verify-keystore-http-newca>> until you've updated all keystores in your cluster.
+
+. Complete the remaining steps for a <<restart-cluster-rolling,rolling restart>>,
+beginning with the step to *Reenable shard allocation*.
 
 [discrete]
 [[http-kibana-newca-whatsnext]]

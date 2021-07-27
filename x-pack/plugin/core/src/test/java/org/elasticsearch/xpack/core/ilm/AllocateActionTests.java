@@ -55,7 +55,8 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
             requires = randomBoolean() ? null : Collections.emptyMap();
         }
         Integer numberOfReplicas = randomBoolean() ? null : randomIntBetween(0, 10);
-        return new AllocateAction(numberOfReplicas, includes, excludes, requires);
+        Integer totalShardsPerNode = randomBoolean() ? null : randomIntBetween(0, 300);
+        return new AllocateAction(numberOfReplicas, totalShardsPerNode, includes, excludes, requires);
     }
 
 
@@ -70,6 +71,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Map<String, String> exclude = instance.getExclude();
         Map<String, String> require = instance.getRequire();
         Integer numberOfReplicas = instance.getNumberOfReplicas();
+        Integer totalShardsPerNode = instance.getTotalShardsPerNode();
         switch (randomIntBetween(0, 3)) {
         case 0:
             include = new HashMap<>(include);
@@ -89,7 +91,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new AllocateAction(numberOfReplicas, include, exclude, require);
+        return new AllocateAction(numberOfReplicas, totalShardsPerNode, include, exclude, require);
     }
 
     public void testAllMapsNullOrEmpty() {
@@ -97,7 +99,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
         Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new AllocateAction(null, include, exclude, require));
+                () -> new AllocateAction(null, null, include, exclude, require));
         assertEquals("At least one of " + AllocateAction.INCLUDE_FIELD.getPreferredName() + ", "
                 + AllocateAction.EXCLUDE_FIELD.getPreferredName() + " or " + AllocateAction.REQUIRE_FIELD.getPreferredName()
                 + "must contain attributes for action " + AllocateAction.NAME, exception.getMessage());
@@ -108,7 +110,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
         Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> new AllocateAction(randomIntBetween(-1000, -1), include, exclude, require));
+            () -> new AllocateAction(randomIntBetween(-1000, -1), randomIntBetween(0, 300), include, exclude, require));
         assertEquals("[" + AllocateAction.NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0", exception.getMessage());
     }
 

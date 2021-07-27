@@ -192,13 +192,13 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
             ++processOps;
             if (processOps == 5) {
-                return new IterationResult<>(Collections.singletonList(new IndexRequest()).stream(), processOps, true);
+                return new IterationResult<>(Stream.of(new IndexRequest()), processOps, true);
             }
             else if (processOps % 2 == 0) {
                 return new IterationResult<>(Stream.empty(), processOps, false);
             }
 
-            return new IterationResult<>(Collections.singletonList(new IndexRequest()).stream(), processOps, false);
+            return new IterationResult<>(Stream.of(new IndexRequest()), processOps, false);
         }
 
         @Override

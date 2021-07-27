@@ -146,8 +146,9 @@ public class RoutingAllocation {
         return shardSizeInfo;
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends ClusterState.Custom> T custom(String key) {
-        return (T)customs.get(key);
+        return (T) customs.get(key);
     }
 
     public ImmutableOpenMap<String, ClusterState.Custom> getCustoms() {

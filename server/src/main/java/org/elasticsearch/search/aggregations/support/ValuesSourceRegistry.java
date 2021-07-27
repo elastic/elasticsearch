@@ -45,7 +45,7 @@ public class ValuesSourceRegistry {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            RegistryKey that = (RegistryKey) o;
+            RegistryKey<?> that = (RegistryKey<?>) o;
             return name.equals(that.name) && supplierType.equals(that.supplierType);
         }
 
@@ -55,7 +55,8 @@ public class ValuesSourceRegistry {
         }
     }
 
-    public static final RegistryKey UNREGISTERED_KEY = new RegistryKey("unregistered", RegistryKey.class);
+    @SuppressWarnings("rawtypes")
+    public static final RegistryKey UNREGISTERED_KEY = new RegistryKey<>("unregistered", RegistryKey.class);
 
     public static class Builder {
         private final AggregationUsageService.Builder usageServiceBuilder;
@@ -129,7 +130,7 @@ public class ValuesSourceRegistry {
         Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> mutableMap
     ) {
         /*
-         Make an immutatble copy of our input map. Since this is write once, read many, we'll spend a bit of extra time to shape this
+         Make an immutable copy of our input map. Since this is write once, read many, we'll spend a bit of extra time to shape this
          into a Map.of(), which is more read optimized than just using a hash map.
          */
         Map<RegistryKey<?>, Map<ValuesSourceType, ?>> tmp = new HashMap<>();

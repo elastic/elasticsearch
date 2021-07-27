@@ -40,6 +40,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
+// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
+@SuppressWarnings("unchecked")
 public class MultiGetRequest extends ActionRequest
         implements Iterable<MultiGetRequest.Item>, CompositeIndicesRequest, RealtimeRequest, ToXContentObject {
 

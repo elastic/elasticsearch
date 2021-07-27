@@ -520,7 +520,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     // package-private for test visibility
     static <T> T createExtension(Class<? extends T> extensionClass, Class<T> extensionPointType, Plugin plugin) {
-        //noinspection unchecked
+        @SuppressWarnings("unchecked")
         Constructor<T>[] constructors = (Constructor<T>[]) extensionClass.getConstructors();
         if (constructors.length == 0) {
             throw new IllegalStateException("no public " + extensionConstructorMessage(extensionClass, extensionPointType));

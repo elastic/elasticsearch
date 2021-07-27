@@ -171,7 +171,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             for (StringTerms.Bucket tb: terms.getBuckets()) {
                 InternalGeoGrid<?> gg = tb.getAggregations().get("gg");
                 Map<String, Long> sub = new TreeMap<>();
-                for (InternalGeoGridBucket<?> ggb : gg.getBuckets()) {
+                for (InternalGeoGridBucket ggb : gg.getBuckets()) {
                     sub.put(ggb.getKeyAsString(), ggb.getDocCount());
                 }
                 actual.put(tb.getKeyAsString(), sub);

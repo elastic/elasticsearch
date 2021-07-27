@@ -698,6 +698,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     // All fields on the root level of the parsed SearhHit are interpreted as metadata fields
     // public because we use it in a completion suggestion option
+    @SuppressWarnings("unchecked")
     public static final ObjectParser.UnknownFieldConsumer<Map<String, Object>> unknownMetaFieldConsumer = (map, fieldName, fieldValue) -> {
         Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(
             METADATA_FIELDS, v -> new HashMap<String, DocumentField>());

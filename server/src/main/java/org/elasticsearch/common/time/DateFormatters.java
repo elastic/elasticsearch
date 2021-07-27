@@ -52,7 +52,7 @@ public class DateFormatters {
     // it results in errors sent to status logger and startup to fail.
     // Hence a lazy initialization.
     private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger =
-        new LazyInitializable(() -> DeprecationLogger.getLogger(FormatNames.class));
+        new LazyInitializable<>(() -> DeprecationLogger.getLogger(FormatNames.class));
 
     private static final DateTimeFormatter TIME_ZONE_FORMATTER_NO_COLON = new DateTimeFormatterBuilder()
         .appendOffset("+HHmm", "Z")

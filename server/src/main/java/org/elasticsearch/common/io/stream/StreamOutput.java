@@ -657,10 +657,10 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private static final Map<Class<?>, Writer> WRITERS;
+    private static final Map<Class<?>, Writer<?>> WRITERS;
 
     static {
-        Map<Class<?>, Writer> writers = new HashMap<>();
+        Map<Class<?>, Writer<?>> writers = new HashMap<>();
         writers.put(String.class, (o, v) -> {
             o.writeByte((byte) 0);
             o.writeString((String) v);
@@ -693,7 +693,7 @@ public abstract class StreamOutput extends OutputStream {
         });
         writers.put(List.class, (o, v) -> {
             o.writeByte((byte) 7);
-            final List list = (List) v;
+            final List<?> list = (List<?>) v;
             o.writeVInt(list.size());
             for (Object item : list) {
                 o.writeGenericValue(item);
@@ -837,7 +837,8 @@ public abstract class StreamOutput extends OutputStream {
             return;
         }
         final Class<?> type = getGenericType(value);
-        final Writer writer = WRITERS.get(type);
+        @SuppressWarnings("unchecked")
+        final Writer<Object> writer = (Writer<Object>) WRITERS.get(type);
         if (writer != null) {
             writer.write(this, value);
         } else {

@@ -105,7 +105,7 @@ final class SystemCallFilter {
         LinuxLibrary lib = null;
         if (Constants.LINUX) {
             try {
-                lib = (LinuxLibrary) Native.loadLibrary("c", LinuxLibrary.class);
+                lib = Native.loadLibrary("c", LinuxLibrary.class);
             } catch (UnsatisfiedLinkError e) {
                 logger.warn("unable to link C library. native methods (seccomp) will be disabled.", e);
             }
@@ -424,7 +424,7 @@ final class SystemCallFilter {
         MacLibrary lib = null;
         if (Constants.MAC_OS_X) {
             try {
-                lib = (MacLibrary) Native.loadLibrary("c", MacLibrary.class);
+                lib = Native.loadLibrary("c", MacLibrary.class);
             } catch (UnsatisfiedLinkError e) {
                 logger.warn("unable to link C library. native methods (seatbelt) will be disabled.", e);
             }
@@ -493,7 +493,7 @@ final class SystemCallFilter {
         SolarisLibrary lib = null;
         if (Constants.SUN_OS) {
             try {
-                lib = (SolarisLibrary) Native.loadLibrary("c", SolarisLibrary.class);
+                lib = Native.loadLibrary("c", SolarisLibrary.class);
             } catch (UnsatisfiedLinkError e) {
                 logger.warn("unable to link C library. native methods (priv_set) will be disabled.", e);
             }

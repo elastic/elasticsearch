@@ -258,7 +258,7 @@ public class RestVectorTileAction extends BaseRestHandler {
         final VectorTile.Tile.Layer.Builder aggLayerBuilder = VectorTileUtils.createLayerBuilder(AGGS_LAYER, request.getExtent());
         final MvtLayerProps layerProps = new MvtLayerProps();
         final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
-        for (InternalGeoGridBucket<?> bucket : grid.getBuckets()) {
+        for (InternalGeoGridBucket bucket : grid.getBuckets()) {
             featureBuilder.clear();
             // Add geometry
             if (request.getGridType() == VectorTileRequest.GRID_TYPE.GRID) {

@@ -18,6 +18,7 @@ import java.util.Map;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
@@ -61,34 +62,39 @@ public class RestTermsEnumActionTests extends ESTestCase {
      * This lower level of execution is out of the scope of this test.
      */
     @BeforeClass
-    @SuppressWarnings("rawtypes")
     public static void stubTermEnumAction() {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 
-        final TransportAction transportAction = new TransportAction(TermsEnumAction.NAME,
-                new ActionFilters(Collections.emptySet()), mock(Transport.Connection.class), taskManager) {
-                @Override
-                protected void doExecute(Task task, ActionRequest request, ActionListener listener) {
-                }
-            };
-        final Map<ActionType, TransportAction> actions = new HashMap<>();
+        final TransportAction<? extends ActionRequest, ? extends ActionResponse> transportAction = new TransportAction<
+            ActionRequest,
+            ActionResponse>(
+                TermsEnumAction.NAME,
+                new ActionFilters(Collections.emptySet()),
+                mock(Transport.Connection.class),
+                taskManager
+            ) {
+            @Override
+            protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {}
+        };
+        final Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
+            new HashMap<>();
         actions.put(TermsEnumAction.INSTANCE, transportAction);
 
         client.initialize(actions, () -> "local", null, new NamedWriteableRegistry(Collections.emptyList()));
         controller.registerHandler(action);
     }
-    
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
-    }       
-    
+    }
+
     @Before
     public void ensureCleanContext() {
         // Make sure we have a clean context for each test
         threadPool.getThreadContext().stashContext();
-    }    
+    }
 
     @AfterClass
     public static void terminateThreadPool() {
@@ -121,7 +127,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
         assertThat(channel.errors().get(), equalTo(0));
         assertNull(channel.capturedResponse());
     }
-    
+
     public void testRestTermEnumActionMissingField() throws Exception {
         // GIVEN an invalid query
         final String content = "{"
@@ -139,9 +145,9 @@ public class RestTermsEnumActionTests extends ESTestCase {
         assertThat(channel.responses().get(), equalTo(0));
         assertThat(channel.errors().get(), equalTo(1));
         assertThat(channel.capturedResponse().content().utf8ToString(), containsString("field cannot be null"));
-    }    
-    
-    
+    }
+
+
     private RestRequest createRestRequest(String content) {
         return new FakeRestRequest.Builder(xContentRegistry())
             .withPath("index1/_terms_enum")

@@ -332,12 +332,9 @@ public class SystemIndices {
 
     private static Automaton buildDataStreamAutomaton(Map<String, Feature> descriptors) {
         Optional<Automaton> automaton = descriptors.values().stream()
-            .map(feature ->
-                feature.getDataStreamDescriptors().stream()
-                    .map(SystemDataStreamDescriptor::getDataStreamName)
-                    .map(dsName -> SystemIndexDescriptor.buildAutomaton(dsName, null))
-                    .reduce(Operations::union)
-                    .orElse(EMPTY))
+            .flatMap(feature -> feature.getDataStreamDescriptors().stream())
+            .map(SystemDataStreamDescriptor::getDataStreamName)
+            .map(dsName -> SystemIndexDescriptor.buildAutomaton(dsName, null))
             .reduce(Operations::union);
 
         return automaton.isPresent() ? MinimizationOperations.minimize(automaton.get(), Integer.MAX_VALUE) : EMPTY;

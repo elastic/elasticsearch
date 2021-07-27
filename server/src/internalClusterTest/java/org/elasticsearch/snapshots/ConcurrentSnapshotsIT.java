@@ -23,7 +23,6 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
@@ -1412,12 +1411,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
 
         // make deletes and clones complete concurrently
-        if (cloneFutures.isEmpty() == false) {
-            awaitNumberOfSnapshotsInProgress(cloneFutures.size());
-        }
-        if (restoreFutures.isEmpty() == false) {
-            awaitClusterState(state -> state.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY).isEmpty() == false);
-        }
         final List<ActionFuture<AcknowledgedResponse>> deleteFutures = new ArrayList<>(nbIndices);
         for (int i = 0; i < nbIndices; i++) {
             deleteFutures.add(startDeleteSnapshot(repository, "snapshot-" + i));

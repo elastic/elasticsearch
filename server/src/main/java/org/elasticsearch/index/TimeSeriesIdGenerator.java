@@ -135,11 +135,13 @@ public final class TimeSeriesIdGenerator {
 
     public TimeSeriesIdGenerator(ObjectComponent root) {
         if (root == null) {
-            throw new IllegalArgumentException(
-                "Index configured with ["
-                    + IndexSettings.TIME_SERIES_MODE.getKey()
-                    + "] requires at least one field configured with [dimension:true]"
-            );
+            /*
+             * This can happen if an index is configured in time series mode
+             * without any mapping. It's fine - we'll add dimensions later.
+             * For now it'll make a generator that will fail to index any
+             * documents. Which is totally ok.
+             */
+            root = new ObjectComponent(Map.of());
         }
         root.collectDimensionNames("", name -> {
             int bytes = UnicodeUtil.calcUTF16toUTF8Length(name, 0, name.length());
@@ -167,6 +169,9 @@ public final class TimeSeriesIdGenerator {
         if (values.isEmpty()) {
             List<String> dimensionNames = new ArrayList<>();
             root.collectDimensionNames("", dimensionNames::add);
+            if (dimensionNames.isEmpty()) {
+                throw new IllegalArgumentException("There aren't any mapped dimensions");
+            }
             Collections.sort(dimensionNames);
             throw new IllegalArgumentException("Document must contain one of the dimensions " + dimensionNames);
         }

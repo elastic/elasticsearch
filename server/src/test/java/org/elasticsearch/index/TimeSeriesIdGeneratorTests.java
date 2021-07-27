@@ -456,6 +456,14 @@ public class TimeSeriesIdGeneratorTests extends ESTestCase {
         assertThat(gen.generate(parser(modified)), not(equalTo(gen.generate(parser(orig)))));
     }
 
+    public void testEmpty() throws IOException {
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TimeSeriesIdGenerator(null).generate(parser(Map.of())).streamInput()
+        );
+        assertThat(e.getMessage(), equalTo("There aren't any mapped dimensions"));
+    }
+
     /**
      * Removes one of the dimensions from a document.
      */

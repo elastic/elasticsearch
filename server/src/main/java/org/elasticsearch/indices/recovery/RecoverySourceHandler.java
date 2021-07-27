@@ -501,7 +501,7 @@ public class RecoverySourceHandler {
                              long startingSeqNo,
                              int translogOps,
                              ActionListener<ShardRecoveryPlan> listener) {
-        ShardRecoveryIndexPlanner shardRecoveryIndexPlanner = new ShardRecoveryIndexPlanner(shard.shardId(),
+        ShardRecoveryPlanner shardRecoveryPlanner = new ShardRecoveryPlanner(shard.shardId(),
             shardStateIdentifier,
             recoverySourceMetadata,
             request.metadataSnapshot(),
@@ -511,7 +511,7 @@ public class RecoverySourceHandler {
             useSnapshots
         );
 
-        shardRecoveryIndexPlanner.computeRecoveryPlan(listener);
+        shardRecoveryPlanner.computeRecoveryPlan(listener);
     }
 
     void recoverFilesFromSnapshotAndTarget(ShardRecoveryPlan shardRecoveryPlan,

@@ -15,6 +15,7 @@ import org.elasticsearch.repositories.IndexId;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -119,6 +120,10 @@ class ShardRecoveryPlan {
             return indexId;
         }
 
+        List<BlobStoreIndexShardSnapshot.FileInfo> getFiles() {
+            return snapshotFiles;
+        }
+
         boolean isEmpty() {
             return snapshotFiles.isEmpty();
         }
@@ -126,6 +131,21 @@ class ShardRecoveryPlan {
         @Override
         public Iterator<BlobStoreIndexShardSnapshot.FileInfo> iterator() {
             return snapshotFiles.iterator();
+        }
+
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SnapshotFilesToRecover that = (SnapshotFilesToRecover) o;
+            return Objects.equals(indexId, that.indexId) &&
+                Objects.equals(snapshotFiles, that.snapshotFiles);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(indexId, snapshotFiles);
         }
     }
 }

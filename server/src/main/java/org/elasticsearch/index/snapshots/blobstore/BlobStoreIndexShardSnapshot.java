@@ -21,6 +21,7 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.IntStream;
 
 /**
@@ -327,6 +328,23 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 + ", metadata: "
                 + metadata
                 + "]";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FileInfo fileInfo = (FileInfo) o;
+            return partBytes == fileInfo.partBytes
+                && numberOfParts == fileInfo.numberOfParts
+                && Objects.equals(name, fileInfo.name)
+                && Objects.equals(partSize, fileInfo.partSize)
+                && Objects.equals(metadata, fileInfo.metadata);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, partSize, partBytes, numberOfParts, metadata);
         }
     }
 

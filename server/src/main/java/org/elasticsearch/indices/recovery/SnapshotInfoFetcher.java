@@ -59,6 +59,7 @@ class SnapshotInfoFetcher {
 
     List<ShardSnapshotData> fetchSnapshotFiles(GetShardSnapshotResponse shardSnapshotResponse) {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+
         if (shardSnapshotResponse.getRepositoryShardSnapshots().isEmpty()) {
           return Collections.emptyList();
         }

@@ -23,8 +23,8 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.util.Collection;
@@ -74,7 +75,6 @@ class ClientTransformIndexer extends TransformIndexer {
         TransformAuditor auditor,
         TransformIndexerStats initialStats,
         TransformConfig transformConfig,
-        Map<String, String> fieldMappings,
         TransformProgress transformProgress,
         TransformCheckpoint lastCheckpoint,
         TransformCheckpoint nextCheckpoint,
@@ -88,7 +88,6 @@ class ClientTransformIndexer extends TransformIndexer {
             checkpointProvider,
             auditor,
             transformConfig,
-            fieldMappings,
             ExceptionsHelper.requireNonNull(initialState, "initialState"),
             initialPosition,
             initialStats == null ? new TransformIndexerStats() : initialStats,
@@ -236,6 +235,15 @@ class ClientTransformIndexer extends TransformIndexer {
             SearchAction.INSTANCE,
             request,
             responseListener
+        );
+    }
+
+    @Override
+    void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener) {
+        SchemaUtil.getDestinationFieldMappings(
+            client,
+            getConfig().getDestination().getIndex(),
+            fieldMappingsListener
         );
     }
 

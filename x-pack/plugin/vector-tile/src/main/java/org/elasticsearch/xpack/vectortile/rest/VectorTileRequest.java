@@ -328,11 +328,16 @@ class VectorTileRequest {
         if (sortBuilders == null) {
             if (size == 0) {
                 // no need to add sorting
-                return List.of();
+                return org.elasticsearch.core.List.of();
             }
-            return List.of(
+            return org.elasticsearch.core.List.of(
                 new ScriptSortBuilder(
-                    new Script(Script.DEFAULT_SCRIPT_TYPE, Script.DEFAULT_SCRIPT_LANG, SCRIPT, Map.of(FIELD_PARAM, getField())),
+                    new Script(
+                        Script.DEFAULT_SCRIPT_TYPE,
+                        Script.DEFAULT_SCRIPT_LANG,
+                        SCRIPT,
+                        org.elasticsearch.core.Map.of(FIELD_PARAM, getField())
+                    ),
                     ScriptSortBuilder.ScriptSortType.NUMBER
                 ).order(SortOrder.DESC)
             );

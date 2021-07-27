@@ -62,6 +62,29 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
     }
 
+    public void testNotStartedBugOnDedicatedMaster() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
+        final String nodeToShutDownName = internalCluster().startMasterOnlyNode();
+        internalCluster().startMasterOnlyNode(); // Just to have at least one other node
+        final String nodeToRestartId = getNodeId(nodeToShutDownName);
+
+        // Mark the node for shutdown
+        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            nodeToRestartId,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            this.getTestName()
+        );
+        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
+        assertTrue(putShutdownResponse.isAcknowledged());
+
+        GetShutdownStatusAction.Response getResp = client().execute(
+            GetShutdownStatusAction.INSTANCE,
+            new GetShutdownStatusAction.Request(nodeToRestartId)
+        ).get();
+
+        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+    }
+
     private String getNodeId(String nodeName) throws Exception {
         NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
         return nodes.getNodes()

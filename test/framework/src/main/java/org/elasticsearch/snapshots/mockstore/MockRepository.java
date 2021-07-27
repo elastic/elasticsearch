@@ -114,6 +114,8 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blockOnDataFiles;
 
+    private volatile boolean blockAndFailOnDataFiles;
+
     private volatile boolean blockOnDeleteIndexN;
 
     /**
@@ -214,6 +216,7 @@ public class MockRepository extends FsRepository {
         blocked = false;
         // Clean blocking flags, so we wouldn't try to block again
         blockOnDataFiles = false;
+        blockAndFailOnDataFiles = false;
         blockOnAnyFiles = false;
         blockAndFailOnWriteIndexFile = false;
         blockOnWriteIndexFile = false;
@@ -229,7 +232,13 @@ public class MockRepository extends FsRepository {
     }
 
     public void blockOnDataFiles() {
+        assert blockAndFailOnDataFiles == false : "Either fail or wait after data file, not both";
         blockOnDataFiles = true;
+    }
+
+    public void blockAndFailOnDataFiles() {
+        assert blockOnDataFiles == false : "Either fail or wait after data file, not both";
+        blockAndFailOnDataFiles = true;
     }
 
     public void setBlockOnAnyFiles() {
@@ -300,9 +309,9 @@ public class MockRepository extends FsRepository {
         logger.debug("[{}] Blocking execution", metadata.name());
         boolean wasBlocked = false;
         try {
-            while (blockOnDataFiles || blockOnAnyFiles || blockAndFailOnWriteIndexFile || blockOnWriteIndexFile ||
-                blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta || blockOnReadIndexMeta ||
-                blockAndFailOnReadSnapFile || blockAndFailOnReadIndexFile || blockedIndexId != null) {
+            while (blockAndFailOnDataFiles || blockOnDataFiles || blockOnAnyFiles || blockAndFailOnWriteIndexFile || blockOnWriteIndexFile
+                    || blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta || blockOnReadIndexMeta
+                    || blockAndFailOnReadSnapFile || blockAndFailOnReadIndexFile || blockedIndexId != null) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -382,6 +391,8 @@ public class MockRepository extends FsRepository {
                         }
                     } else if (blockOnDataFiles) {
                         blockExecutionAndMaybeWait(blobName);
+                    } else if (blockAndFailOnDataFiles) {
+                        blockExecutionAndFail(blobName);
                     }
                 } else {
                     if (shouldFail(blobName, randomControlIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {

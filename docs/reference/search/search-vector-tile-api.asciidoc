@@ -291,8 +291,10 @@ include::search-vector-tile-api.asciidoc[tag=size]
 
 `sort`::
 (Optional, array of <<sort-search-results,sort objects>>) Sorts features in the
-`hits` layer. By default, the `hits` layer sorts features by geometry size,
-from largest to smallest.
+`hits` layer.
++
+By default, the API calculates a bounding box for each feature. It sorts
+features based on this box's diagonal length, from longest to shortest.
 
 [role="child_attributes"]
 [[search-vector-tile-api-response]]

@@ -6,8 +6,6 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-//end::notable-breaking-changes[]
-
 [[search-remote-settings-removed]]
 .The `search.remote.*` settings have been removed.
 [%collapsible]
@@ -197,8 +195,8 @@ operation explicitly name the indices it intends to modify.
 
 *Impact* +
 If you would like to use wildcard patterns for destructive actions, set
-`action.destructive_requires_name` to `false` using the <<cluster-update-settings,
-cluster settings>> API.
+`action.destructive_requires_name` to `false` using the
+{ref}/cluster-update-settings.html[] cluster settings API].
 ====
 
 .Legacy role settings have been removed.
@@ -226,7 +224,7 @@ Discontinue use of the removed settings. Specifying these settings in
 ====
 
 [[system-call-filter-setting]]
-.System call filter setting removed
+.The system call filter setting has been removed.
 [%collapsible]
 ====
 *Details* +
@@ -244,14 +242,15 @@ configuration will result in an error on startup.
 ====
 
 [[tier-filter-setting]]
-.Tier filtering settings removed
+.Tier filtering settings have been removed.
 [%collapsible]
 ====
 *Details* +
 The cluster and index level settings ending in `._tier` used for filtering the allocation of a shard
-to a particular set of nodes have been removed. Instead, the <<tier-preference-allocation-filter,
-tier preference setting>>, `index.routing.allocation.include._tier_preference` should be used. The
-removed settings are:
+to a particular set of nodes have been removed. Instead, the
+{ref}/data-tier-shard-filtering.html#tier-preference-allocation-filter[tier
+preference setting], `index.routing.allocation.include._tier_preference` should
+be used. The removed settings are:
 
 Cluster level settings:
 - `cluster.routing.allocation.include._tier`
@@ -266,9 +265,10 @@ Index settings:
 Discontinue use of the removed settings. Specifying any of these cluster settings in Elasticsearch
 configuration will result in an error on startup. Any indices using these settings will have the
 settings archived (and they will have no effect) when the index metadata is loaded.
+====
 
 [[shared-data-path-setting]]
-.Shared data path and per index data path settings deprecated
+.Shared data path and per index data path settings are deprecated.
 [%collapsible]
 ====
 *Details* +
@@ -280,9 +280,10 @@ per index data path settings.
 
 *Impact* +
 Discontinue use of the deprecated settings.
+====
 
 [[single-data-node-watermark-setting]]
-.Single data node watermark setting only accept true and is deprecated
+.The single data node watermark setting is deprecated and now only accepts `true`.
 [%collapsible]
 ====
 *Details* +
@@ -298,4 +299,4 @@ allocation can be disabled by setting
 *Impact* +
 Discontinue use of the deprecated setting.
 ====
-
+//end::notable-breaking-changes[]

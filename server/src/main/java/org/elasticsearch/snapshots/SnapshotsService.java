@@ -740,7 +740,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         new ShardSnapshotUpdate(
                             target,
                             repoShardId,
-                            new ShardSnapshotStatus(localNodeId, ShardState.FAILED, "failed to clone shard snapshot", null)
+                            new ShardSnapshotStatus(
+                                localNodeId,
+                                ShardState.FAILED,
+                                "failed to clone shard snapshot",
+                                shardStatusBefore.generation()
+                            )
                         ),
                         ActionListener.runBefore(
                             ActionListener.wrap(

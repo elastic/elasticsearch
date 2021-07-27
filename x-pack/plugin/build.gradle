@@ -139,6 +139,19 @@ def v7compatibilityNotSupportedTests = {
     'ml/datafeeds_crud/Test update datafeed to point to missing job',
     'ml/datafeeds_crud/Test update datafeed to point to different job',
     'ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed',
+    //rollup was an experimental feature
+    //https://github.com/elastic/elasticsearch/pull/41227.
+    'rollup/delete_job/Test basic delete_job',
+    'rollup/delete_job/Test delete job twice',
+    'rollup/delete_job/Test delete running job',
+    'rollup/get_jobs/Test basic get_jobs',
+    'rollup/put_job/Test basic put_job',
+    //https://github.com/elastic/elasticsearch/pull/41502
+    'rollup/start_job/Test start job twice',
+
+    // a type field was added to cat.ml_trained_models #73660, this is a backwards compatible change.
+    // still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)
+    'ml/trained_model_cat_apis/Test cat trained models'
   ]
 }
 
@@ -149,23 +162,7 @@ tasks.named("yamlRestCompatTest").configure {
    */
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
 
-  //TODO: blacklist specific to REST API compatibility
-  restTestBlacklist.addAll([
-    'license/30_enterprise_license/Installing enterprise license',
-    //https://github.com/elastic/elasticsearch/pull/41227.
-    'rollup/delete_job/Test basic delete_job',
-    'rollup/delete_job/Test delete job twice',
-    'rollup/delete_job/Test delete running job',
-    'rollup/get_jobs/Test basic get_jobs',
-    'rollup/put_job/Test basic put_job',
-    //https://github.com/elastic/elasticsearch/pull/41502
-    'rollup/start_job/Test start job twice',
-    // a type field was added to cat.ml_trained_models #73660, this might need some work
-    'ml/trained_model_cat_apis/Test cat trained models'
-    ] + v7compatibilityNotSupportedTests())
-
-
-  systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
+  systemProperty 'tests.rest.blacklist', v7compatibilityNotSupportedTests().join(',')
   dependsOn "copyExtraResources"
 }
 
@@ -220,4 +217,5 @@ tasks.named("precommit").configure {
 tasks.named("transformV7RestTests").configure({ task ->
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
+  task.addAllowedWarningRegexForTest("Including \\[accept_enterprise\\] in get license.*", "Installing enterprise license")
 })

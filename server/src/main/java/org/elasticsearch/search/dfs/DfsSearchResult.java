@@ -155,8 +155,8 @@ public class DfsSearchResult extends SearchPhaseResult {
         for (int i = 0; i < numFieldStatistics; i++) {
             final String field = in.readString();
             assert field != null;
-            long maxDoc = in.readVLong();
-            final long docCount;
+            final long maxDoc = in.readVLong();
+            long docCount;
             long sumTotalTermFreq;
             final long sumDocFreq;
             if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
@@ -169,12 +169,15 @@ public class DfsSearchResult extends SearchPhaseResult {
                 sumTotalTermFreq = subOne(in.readVLong());
                 sumDocFreq = subOne(in.readVLong());
                 if (sumTotalTermFreq == -1L) {
-                    // fallback used by Lucene in ES 6 (LUCENE-8007)
+                    // Lucene 7 and earlier used -1 to denote that this information wasn't stored by the codec
+                    // or that this field omitted term frequencies and positions. It used docFreq as fallback in that case
+                    // when calculating similarities. See LUCENE-8007 for more information.
                     sumTotalTermFreq = sumDocFreq;
                 }
-                if (maxDoc == 0L) {
-                    // fallback used by Lucene in ES 6 (LUCENE-8007)
-                    maxDoc = docCount;
+                if (docCount == -1L) {
+                    // Lucene 7 and earlier used -1 to denote that this information wasn't stored by the codec
+                    // It used maxDoc as fallback in that case when calculating similarities. See LUCENE-8007 for more information.
+                    docCount = maxDoc;
                 }
                 if (docCount == 0L) {
                     // empty stats object (LUCENE-8020)
@@ -210,7 +213,9 @@ public class DfsSearchResult extends SearchPhaseResult {
                 }
                 if (in.getVersion().before(Version.V_7_0_0)) {
                     if (totalTermFreq == -1L) {
-                        // fallback used by Lucene in ES 6
+                        // Lucene 7 and earlier used -1 to denote that this information isn't stored by the codec
+                        // or that this field omits term frequencies and positions. It used docFreq as fallback in that case
+                        // when calculating similarities. See LUCENE-8007 for more information.
                         totalTermFreq = docFreq;
                     }
                 }

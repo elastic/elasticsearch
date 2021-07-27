@@ -231,6 +231,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
         createNewSingletonPolicy(client(), policy, "delete", new WaitForSnapshotAction(slmPolicy));
+        waitForPhaseTime();
 
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
@@ -249,7 +250,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }, slmPolicy);
 
         updatePolicy(client(), index, policy);
-        waitForPhaseTime();
 
         assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);

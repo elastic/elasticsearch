@@ -116,7 +116,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         for (ObjectObjectCursor<String, CollectionStatistics> c : fieldStatistics) {
             out.writeString(c.key);
             CollectionStatistics statistics = c.value;
-            assert statistics.maxDoc() >= 0;
+            assert statistics.maxDoc() > 0;
             out.writeVLong(statistics.maxDoc());
             if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 // stats are always positive numbers
@@ -155,9 +155,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         for (int i = 0; i < numFieldStatistics; i++) {
             final String field = in.readString();
             assert field != null;
-            final long maxDoc = in.readVLong();
+            long maxDoc = in.readVLong();
             final long docCount;
-            final long sumTotalTermFreq;
+            long sumTotalTermFreq;
             final long sumDocFreq;
             if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
                 // stats are always positive numbers
@@ -168,6 +168,18 @@ public class DfsSearchResult extends SearchPhaseResult {
                 docCount = subOne(in.readVLong());
                 sumTotalTermFreq = subOne(in.readVLong());
                 sumDocFreq = subOne(in.readVLong());
+                if (sumTotalTermFreq == -1L) {
+                    // fallback used by Lucene in ES 6
+                    sumTotalTermFreq = sumDocFreq;
+                }
+                if (maxDoc == 0L) {
+                    // fallback used by Lucene in ES 6
+                    maxDoc = docCount;
+                }
+                if (docCount == 0L) {
+                    // wtf, can't handle this, just bail
+                    continue;
+                }
             }
             CollectionStatistics stats = new CollectionStatistics(field, maxDoc, docCount, sumTotalTermFreq, sumDocFreq);
             fieldStatistics.put(field, stats);
@@ -187,9 +199,15 @@ public class DfsSearchResult extends SearchPhaseResult {
                 BytesRef term = terms[i].bytes();
                 final long docFreq = in.readVLong();
                 assert docFreq >= 0;
-                final long totalTermFreq = subOne(in.readVLong());
+                long totalTermFreq = subOne(in.readVLong());
                 if (docFreq == 0) {
                     continue;
+                }
+                if (in.getVersion().before(Version.V_7_0_0)) {
+                    if (totalTermFreq == -1L) {
+                        // fallback used by Lucene in ES 6
+                        totalTermFreq = docFreq;
+                    }
                 }
                 termStatistics[i] = new TermStatistics(term, docFreq, totalTermFreq);
             }

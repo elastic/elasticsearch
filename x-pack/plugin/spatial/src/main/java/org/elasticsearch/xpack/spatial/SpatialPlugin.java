@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.spatial;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.xcontent.ContextParser;
@@ -15,6 +16,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -63,13 +65,16 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.singletonList;
 
-public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlugin, SearchPlugin, IngestPlugin {
+public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlugin, SearchPlugin, IngestPlugin, ExtensiblePlugin {
    private final SpatialUsage usage = new SpatialUsage();
 
     // to be overriden by tests
     protected XPackLicenseState getLicenseState() {
         return XPackPlugin.getSharedLicenseState();
     }
+
+    // register the vector tile factory from a different module
+    private final SetOnce<VectorTileExtension> vectorTileExtension = new SetOnce<>();
 
     @Override
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -84,7 +89,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
         Map<String, Mapper.TypeParser> mappers = new HashMap<>(super.getMappers());
         mappers.put(ShapeFieldMapper.CONTENT_TYPE, ShapeFieldMapper.PARSER);
         mappers.put(PointFieldMapper.CONTENT_TYPE, PointFieldMapper.PARSER);
-        mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, GeoShapeWithDocValuesFieldMapper.PARSER);
+        mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, new GeoShapeWithDocValuesFieldMapper.TypeParser(vectorTileExtension));
         return Collections.unmodifiableMap(mappers);
     }
 
@@ -204,5 +209,11 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
             }
             return realParser.parse(parser, name);
         };
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        // we only expect one vector tile extension that comes from the vector tile module.
+        loader.loadExtensions(VectorTileExtension.class).forEach(vectorTileExtension::set);
     }
 }

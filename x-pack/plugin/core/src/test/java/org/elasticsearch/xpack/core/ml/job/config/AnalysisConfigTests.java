@@ -100,6 +100,9 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         if (randomBoolean()) {
             builder.setMultivariateByFields(randomBoolean());
         }
+        if (randomBoolean()) {
+            builder.setModelPruneWindow(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
+        }
 
         builder.setInfluencers(Arrays.asList(generateRandomStringArray(10, 10, false)));
 
@@ -419,6 +422,19 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertFalse(config2.equals(config1));
     }
 
+    public void testEquals_GivenDifferentModelPruneWindow() {
+        AnalysisConfig.Builder builder = createConfigBuilder();
+        builder.setModelPruneWindow(TimeValue.timeValueDays(14));
+        AnalysisConfig config1 = builder.build();
+
+        builder = createConfigBuilder();
+        builder.setModelPruneWindow(TimeValue.timeValueDays(28));
+        AnalysisConfig config2 = builder.build();
+
+        assertFalse(config1.equals(config2));
+        assertFalse(config2.equals(config1));
+    }
+
     public void testEquals_GivenSummaryCountField() {
         AnalysisConfig.Builder builder = createConfigBuilder();
         builder.setSummaryCountFieldName("foo");
@@ -483,6 +499,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
                 CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(Collections.singletonList("foo")));
         builder.setInfluencers(Collections.singletonList("myInfluencer"));
         builder.setLatency(TimeValue.timeValueSeconds(3600));
+        builder.setModelPruneWindow(TimeValue.timeValueDays(30));
         builder.setSummaryCountFieldName("sumCount");
         return builder.build();
     }
@@ -701,6 +718,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
         analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
         analysisConfig.setLatency(TimeValue.ZERO);
+        analysisConfig.setModelPruneWindow(TimeValue.ZERO);
         return analysisConfig;
     }
 
@@ -710,6 +728,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
         analysisConfig.setLatency(TimeValue.ZERO);
+        analysisConfig.setModelPruneWindow(TimeValue.ZERO);
         analysisConfig.setCategorizationFieldName("msg");
         return analysisConfig;
     }
@@ -717,7 +736,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     @Override
     protected AnalysisConfig mutateInstance(AnalysisConfig instance) {
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(instance);
-        switch (between(0, 8)) {
+        switch (between(0, 9)) {
         case 0:
             List<Detector> detectors = new ArrayList<>(instance.getDetectors());
             Detector.Builder detector = new Detector.Builder();
@@ -799,6 +818,13 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
                 builder.setMultivariateByFields(instance.getMultivariateByFields() == false);
             }
             break;
+        case 9:
+                if (instance.getModelPruneWindow() == null) {
+                    builder.setModelPruneWindow(TimeValue.timeValueDays(between(1, 10) * 10));
+                } else {
+                    builder.setModelPruneWindow( TimeValue.timeValueDays(instance.getModelPruneWindow().days() + (between(1, 10) * 10)));
+                }
+                break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }

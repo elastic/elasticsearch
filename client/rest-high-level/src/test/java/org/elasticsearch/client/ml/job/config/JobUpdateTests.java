@@ -74,6 +74,9 @@ public class JobUpdateTests extends AbstractXContentTestCase<JobUpdate> {
         if (randomBoolean()) {
             update.setAllowLazyOpen(randomBoolean());
         }
+        if (randomBoolean()) {
+            update.setModelPruneWindow(TimeValue.timeValueDays(randomIntBetween(1, 100)));
+        }
 
         return update.build();
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -36,10 +37,15 @@ public class BertRequestBuilderTests extends ESTestCase {
 
         assertThat(jsonDocAsMap.keySet(), hasSize(5));
         assertEquals("request1", jsonDocAsMap.get("request_id"));
-        assertEquals(Arrays.asList(3, 0, 1, 2, 4), jsonDocAsMap.get("tokens"));
-        assertEquals(Arrays.asList(1, 1, 1, 1, 1), jsonDocAsMap.get("arg_1"));
-        assertEquals(Arrays.asList(0, 0, 0, 0, 0), jsonDocAsMap.get("arg_2"));
-        assertEquals(Arrays.asList(0, 1, 2, 3, 4), jsonDocAsMap.get("arg_3"));
+        assertEquals(Arrays.asList(3, 0, 1, 2, 4), firstListItemFromMap("tokens", jsonDocAsMap));
+        assertEquals(Arrays.asList(1, 1, 1, 1, 1), firstListItemFromMap("arg_1", jsonDocAsMap));
+        assertEquals(Arrays.asList(0, 0, 0, 0, 0), firstListItemFromMap("arg_2", jsonDocAsMap));
+        assertEquals(Arrays.asList(0, 1, 2, 3, 4), firstListItemFromMap("arg_3", jsonDocAsMap));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Integer> firstListItemFromMap(String name, Map<String, Object> jsonDocAsMap) {
+        return ((List<List<Integer>>)jsonDocAsMap.get(name)).get(0);
     }
 
     public void testInputTooLarge() throws IOException {

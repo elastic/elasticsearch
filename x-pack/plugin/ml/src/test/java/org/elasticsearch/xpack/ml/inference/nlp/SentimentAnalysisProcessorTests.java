@@ -35,14 +35,14 @@ public class SentimentAnalysisProcessorTests extends ESTestCase {
         SentimentAnalysisConfig config = new SentimentAnalysisConfig(new VocabularyConfig("test-index", "vocab"), null, null);
         SentimentAnalysisProcessor processor = new SentimentAnalysisProcessor(mock(BertTokenizer.class), config);
         {
-            PyTorchResult torchResult = new PyTorchResult("foo", new double[][]{}, 0L, null);
+            PyTorchResult torchResult = new PyTorchResult("foo", new double[][][]{}, 0L, null);
             InferenceResults inferenceResults = processor.processResult(null, torchResult);
             assertThat(inferenceResults, instanceOf(WarningInferenceResults.class));
             assertEquals("Sentiment analysis result has no data",
                 ((WarningInferenceResults) inferenceResults).getWarning());
         }
         {
-            PyTorchResult torchResult = new PyTorchResult("foo", new double[][]{{1.0}}, 0L, null);
+            PyTorchResult torchResult = new PyTorchResult("foo", new double[][][]{{{1.0}}}, 0L, null);
             InferenceResults inferenceResults = processor.processResult(null, torchResult);
             assertThat(inferenceResults, instanceOf(WarningInferenceResults.class));
             assertEquals("Expected 2 values in sentiment analysis result",

@@ -151,7 +151,7 @@ public class NerProcessor implements NlpTask.Processor {
             // and -5 for "astic". Averaging after softmax would produce a prediction
             // of maybe (1 + 0) / 2 = 0.5 while before softmax it'd be exp(10 - 5) / normalization
             // which could easily be close to 1.
-            double[][] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult());
+            double[][] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0]);
             List<TaggedToken> taggedTokens = tagTokens(tokenization, normalizedScores);
             List<NerResults.EntityGroup> entities = groupTaggedTokens(taggedTokens);
             return new NerResults(entities);

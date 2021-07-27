@@ -29,14 +29,14 @@ public class FillMaskProcessorTests extends ESTestCase {
     public void testProcessResults() {
         // only the scores of the MASK index array
         // are used the rest is filler
-        double[][] scores = {
+        double[][][] scores = {{
             { 0, 0, 0, 0, 0, 0, 0}, // The
             { 0, 0, 0, 0, 0, 0, 0}, // capital
             { 0, 0, 0, 0, 0, 0, 0}, // of
             { 0.01, 0.01, 0.3, 0.1, 0.01, 0.2, 1.2}, // MASK
             { 0, 0, 0, 0, 0, 0, 0}, // is
             { 0, 0, 0, 0, 0, 0, 0} // paris
-        };
+        }};
 
         String input = "The capital of " + BertTokenizer.MASK_TOKEN + " is Paris";
 
@@ -72,8 +72,7 @@ public class FillMaskProcessorTests extends ESTestCase {
 
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
-        PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][]{{}}, 0L, null);
-
+        PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][][]{{{}}}, 0L, null);
         FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, pyTorchResult);
 
         assertThat(result.getPredictions(), empty());

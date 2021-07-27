@@ -63,7 +63,7 @@ public class FillMaskProcessor implements NlpTask.Processor {
         }
 
         int maskTokenIndex = tokenization.getTokens().indexOf(BertTokenizer.MASK_TOKEN);
-        double[] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[maskTokenIndex]);
+        double[] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0][maskTokenIndex]);
 
         NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topK(NUM_RESULTS, normalizedScores);
         List<FillMaskResults.Prediction> results = new ArrayList<>(NUM_RESULTS);

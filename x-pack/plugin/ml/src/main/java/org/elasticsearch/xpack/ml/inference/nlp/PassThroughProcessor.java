@@ -42,6 +42,6 @@ public class PassThroughProcessor implements NlpTask.Processor {
     }
 
     private static InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
-        return new PyTorchPassThroughResults(pyTorchResult.getInferenceResult());
+        return new PyTorchPassThroughResults(pyTorchResult.getInferenceResult()[0]);
     }
 }

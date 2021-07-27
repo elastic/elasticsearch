@@ -97,9 +97,6 @@ deleted indices directly from the file system and free up resources.
 time-based backing indices. You can use <<index-lifecycle-management,{ilm}
 ({ilm-init})>> to automatically manage these backing indices.
 
-[role="screenshot"]
-image:images/ilm/index-lifecycle-policies.png[]
-
 One advantage of this setup is
 <<getting-started-index-lifecycle-management,automatic rollover>>, which creates
 a new write index when the current one meets a defined `max_primary_shard_size`,

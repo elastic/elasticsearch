@@ -36,11 +36,11 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -59,7 +59,6 @@ import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -103,8 +102,8 @@ public class QueryPhase {
         if (context.lowLevelCancellation()) {
             cancellation = context.searcher().addQueryCancellation(() -> {
                 SearchShardTask task = context.getTask();
-                if (task != null && task.isCancelled()) {
-                    throw new TaskCancelledException("cancelled");
+                if (task != null) {
+                    task.ensureNotCancelled();
                 }
             });
         } else {
@@ -272,8 +271,8 @@ public class QueryPhase {
             if (searchContext.lowLevelCancellation()) {
                 searcher.addQueryCancellation(() -> {
                     SearchShardTask task = searchContext.getTask();
-                    if (task != null && task.isCancelled()) {
-                        throw new TaskCancelledException("cancelled");
+                    if (task != null) {
+                        task.ensureNotCancelled();
                     }
                 });
             }

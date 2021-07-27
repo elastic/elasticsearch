@@ -114,7 +114,6 @@ public class TransformIndexerStateTests extends ESTestCase {
             TransformServices transformServices,
             CheckpointProvider checkpointProvider,
             TransformConfig transformConfig,
-            Map<String, String> fieldMappings,
             AtomicReference<IndexerState> initialState,
             TransformIndexerPosition initialPosition,
             TransformIndexerStats jobStats,
@@ -125,7 +124,6 @@ public class TransformIndexerStateTests extends ESTestCase {
                 transformServices,
                 checkpointProvider,
                 transformConfig,
-                fieldMappings,
                 initialState,
                 initialPosition,
                 jobStats,
@@ -247,6 +245,11 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         public TransformState getPersistedState() {
             return persistedState;
+        }
+
+        @Override
+        void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener) {
+            fieldMappingsListener.onResponse(Collections.emptyMap());
         }
     }
 
@@ -606,7 +609,6 @@ public class TransformIndexerStateTests extends ESTestCase {
             transformServices,
             checkpointProvider,
             config,
-            Collections.emptyMap(),
             state,
             null,
             jobStats,

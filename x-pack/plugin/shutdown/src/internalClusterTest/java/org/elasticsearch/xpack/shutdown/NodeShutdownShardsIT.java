@@ -35,7 +35,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         final String nodeToRestartName = internalCluster().startNode();
         final String nodeToRestartId = getNodeId(nodeToRestartName);
-        Settings nodeToRestartDataPathSettings = internalCluster().dataPathSettings(nodeToRestartName);
         internalCluster().startNode();
 
         // Mark the node for shutdown
@@ -49,10 +48,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         internalCluster().stopNode(nodeToRestartName);
 
-        assertBusy(() -> {
-            NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
-            assertThat(nodes.getNodes().size(), equalTo(1));
-        });
+        NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
+        assertThat(nodes.getNodes().size(), equalTo(1));
 
         GetShutdownStatusAction.Response getResp = client().execute(
             GetShutdownStatusAction.INSTANCE,

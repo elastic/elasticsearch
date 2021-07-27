@@ -57,9 +57,10 @@ tasks.named("bundlePlugin").configure {
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('autoscaling'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('ilm'))
-  compileOnly project(path: xpackModule('autoscaling'))
+  testImplementation project(path: xpackModule('shutdown'))
   testImplementation project(path: xpackModule('data-streams'))
   testImplementation project(':modules:ingest-common')
   // This should not be here

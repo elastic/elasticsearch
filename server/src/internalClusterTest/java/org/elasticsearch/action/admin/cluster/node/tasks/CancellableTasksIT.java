@@ -66,7 +66,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -260,7 +259,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         beforeSendLatches.get(subRequest).countDown();
         mainAction.startSubTask(taskId, subRequest, future);
         TaskCancelledException te = expectThrows(TaskCancelledException.class, future::actionGet);
-        assertThat(te.getMessage(), equalTo("The parent task was cancelled, shouldn't start any child tasks"));
+        assertThat(te.getMessage(), equalTo("parent task was cancelled [by user request]"));
         allowEntireRequest(rootRequest);
         waitForRootTask(rootTaskFuture);
         ensureAllBansRemoved();
@@ -330,7 +329,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                 TaskManager taskManager = internalCluster().getInstance(TransportService.class, node.getName()).getTaskManager();
                 for (TaskId bannedParent : bannedParents) {
                     if (bannedParent.getNodeId().equals(node.getId()) && randomBoolean()) {
-                        Collection<Transport.Connection> childConns = taskManager.startBanOnChildTasks(bannedParent.getId(), () -> {});
+                        Collection<Transport.Connection> childConns = taskManager.startBanOnChildTasks(bannedParent.getId(), "", () -> {});
                         for (Transport.Connection connection : randomSubsetOf(childConns)) {
                             connection.close();
                         }
@@ -365,9 +364,9 @@ public class CancellableTasksIT extends ESIntegTestCase {
             final Throwable cause = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
             assertNotNull(cause);
             assertThat(cause.getMessage(), anyOf(
-                equalTo("The parent task was cancelled, shouldn't start any child tasks"),
-                containsString("Task cancelled before it started:"),
-                equalTo("Task was cancelled while executing")));
+                equalTo("parent task was cancelled [by user request]"),
+                equalTo("task cancelled before starting [by user request]"),
+                equalTo("task cancelled [by user request]")));
         }
     }
 
@@ -475,9 +474,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                 new GroupedActionListener<>(listener.map(r -> new TestResponse()), subRequests.size() + 1);
             transportService.getThreadPool().generic().execute(ActionRunnable.supply(groupedListener, () -> {
                 assertTrue(beforeExecuteLatches.get(request).await(60, TimeUnit.SECONDS));
-                if (((CancellableTask) task).isCancelled()) {
-                    throw new TaskCancelledException("Task was cancelled while executing");
-                }
+                ((CancellableTask)task).ensureNotCancelled();
                 return new TestResponse();
             }));
             for (TestRequest subRequest : subRequests) {

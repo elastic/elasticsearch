@@ -106,7 +106,7 @@ public class RestCancellableNodeClient extends FilterClient {
     private void cancelTask(TaskId taskId) {
         CancelTasksRequest req = new CancelTasksRequest()
             .setTaskId(taskId)
-            .setReason("channel closed");
+            .setReason("http channel [" + httpChannel + "] closed");
         // force the origin to execute the cancellation as a system user
         new OriginSettingClient(client, TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.wrap(() -> {}));
     }

@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.zip.GZIPInputStream;
 
 public class FeatureFactoryTests extends ESTestCase {
 
@@ -129,38 +130,6 @@ public class FeatureFactoryTests extends ESTestCase {
         return new MultiPoint(points);
     }
 
-    public void testStackOverflowError() throws Exception {
-        InputStream is = getClass().getResourceAsStream("polygon.wkt");
-        BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-        String wkt = reader.readLine();
-        {
-            // creates a very small feature
-            FeatureFactory builder = new FeatureFactory(0, 0, 0, 512);
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(
-                WellKnownText.fromWKT(StandardValidator.instance(true), true, wkt),
-                new UserDataIgnoreConverter()
-            );
-            assertThat(features.size(), Matchers.greaterThan(0));
-        }
-        {
-            // Polygon is smaller than the tile precision, ignored
-            FeatureFactory builder = new FeatureFactory(0, 0, 0, 128);
-            List<VectorTile.Tile.Feature> features = builder.getFeatures(
-                WellKnownText.fromWKT(StandardValidator.instance(true), true, wkt),
-                new UserDataIgnoreConverter()
-            );
-            assertThat(features.size(), Matchers.equalTo(0));
-        }
-        {
-            // Polygon size is just over the precision of the tile. In this case the algorithm fails
-            FeatureFactory builder = new FeatureFactory(0, 0, 0, 256);
-            expectThrows(
-                StackOverflowError.class,
-                () -> builder.getFeatures(WellKnownText.fromWKT(StandardValidator.instance(true), true, wkt), new UserDataIgnoreConverter())
-            );
-        }
-    }
-
     private Line buildLine(Rectangle r) {
         return new Line(new double[] { r.getMinX(), r.getMaxX() }, new double[] { r.getMinY(), r.getMaxY() });
     }
@@ -183,5 +152,16 @@ public class FeatureFactoryTests extends ESTestCase {
 
     private GeometryCollection<Geometry> buildGeometryCollection(Rectangle r) {
         return new GeometryCollection<>(List.of(buildPolygon(r), buildLine(r)));
+    }
+
+    public void testStackOverflowError() throws Exception {
+        final InputStream is = new GZIPInputStream(getClass().getResourceAsStream("polygon.wkt.gz"));
+        final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+        final Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, reader.readLine());
+        // just make sure we don't blow
+        for (int i = 0; i < 10; i++) {
+            final FeatureFactory builder = new FeatureFactory(0, 0, 0, randomIntBetween(128, 8012));
+            builder.getFeatures(geometry, new UserDataIgnoreConverter());
+        }
     }
 }

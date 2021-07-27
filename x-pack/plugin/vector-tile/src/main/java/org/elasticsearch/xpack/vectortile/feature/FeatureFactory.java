@@ -49,12 +49,15 @@ public class FeatureFactory {
     private final Envelope tileEnvelope;
     private final Envelope clipEnvelope;
 
+    private static final double MERCATOR_BOUDS = 20037508.34;
+
     public FeatureFactory(int z, int x, int y, int extent) {
         final Rectangle r = SphericalMercatorUtils.recToSphericalMercator(GeoTileUtils.toBoundingBox(x, y, z));
         this.tileEnvelope = new Envelope(r.getMinX(), r.getMaxX(), r.getMinY(), r.getMaxY());
         this.clipEnvelope = new Envelope(tileEnvelope);
         this.clipEnvelope.expandBy(tileEnvelope.getWidth() * 0.1d, tileEnvelope.getHeight() * 0.1d);
-        this.builder = new JTSGeometryBuilder(geomFactory);
+        final double pixelPrecision = 2 * MERCATOR_BOUDS / ((1L << z) * extent);
+        this.builder = new JTSGeometryBuilder(geomFactory, pixelPrecision);
         // TODO: Not sure what is the difference between extent and tile size?
         this.layerParams = new MvtLayerParams(extent, extent);
     }
@@ -79,8 +82,10 @@ public class FeatureFactory {
     private static class JTSGeometryBuilder implements GeometryVisitor<org.locationtech.jts.geom.Geometry, IllegalArgumentException> {
 
         private final GeometryFactory geomFactory;
+        double pixelPrecision;
 
-        JTSGeometryBuilder(GeometryFactory geomFactory) {
+        JTSGeometryBuilder(GeometryFactory geomFactory, double pixelPrecision) {
+            this.pixelPrecision = pixelPrecision;
             this.geomFactory = geomFactory;
         }
 
@@ -163,6 +168,9 @@ public class FeatureFactory {
 
         private org.locationtech.jts.geom.Polygon buildPolygon(Polygon polygon) {
             final org.locationtech.jts.geom.LinearRing outerShell = buildLinearRing(polygon.getPolygon());
+            if (isValidPolygon(outerShell) == false) {
+                return geomFactory.createPolygon(); // empty polygon
+            }
             if (polygon.getNumberOfHoles() == 0) {
                 return geomFactory.createPolygon(outerShell);
             }
@@ -171,6 +179,12 @@ public class FeatureFactory {
                 holes[i] = buildLinearRing(polygon.getHole(i));
             }
             return geomFactory.createPolygon(outerShell, holes);
+        }
+
+        private boolean isValidPolygon(org.locationtech.jts.geom.LinearRing outerShell) {
+            final Envelope envelope = outerShell.getEnvelopeInternal();
+            final double polMinimumSize = pixelPrecision * outerShell.getNumPoints() / 1000;
+            return envelope.getMaxX() - envelope.getMinX() >= polMinimumSize && envelope.getMaxY() - envelope.getMinY() >= polMinimumSize;
         }
 
         private org.locationtech.jts.geom.LinearRing buildLinearRing(LinearRing ring) throws RuntimeException {

@@ -114,7 +114,6 @@ public class TransformIndexerTests extends ESTestCase {
             CheckpointProvider checkpointProvider,
             TransformAuditor auditor,
             TransformConfig transformConfig,
-            Map<String, String> fieldMappings,
             AtomicReference<IndexerState> initialState,
             TransformIndexerPosition initialPosition,
             TransformIndexerStats jobStats,
@@ -126,7 +125,6 @@ public class TransformIndexerTests extends ESTestCase {
                 checkpointProvider,
                 auditor,
                 transformConfig,
-                fieldMappings,
                 initialState,
                 initialPosition,
                 jobStats,
@@ -252,6 +250,11 @@ public class TransformIndexerTests extends ESTestCase {
                 new TransformIndexerPosition(null, null),
                 numberOfLoops == 0
             );
+        }
+
+        @Override
+        void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener) {
+            fieldMappingsListener.onResponse(Collections.emptyMap());
         }
 
         public boolean waitingForNextSearch() {
@@ -440,7 +443,6 @@ public class TransformIndexerTests extends ESTestCase {
             checkpointProvider,
             auditor,
             config,
-            Collections.emptyMap(),
             state,
             null,
             jobStats,

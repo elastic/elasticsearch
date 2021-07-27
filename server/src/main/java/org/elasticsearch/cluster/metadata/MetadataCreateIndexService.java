@@ -504,7 +504,8 @@ public class MetadataCreateIndexService {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
         ComposableIndexTemplate template = currentState.getMetadata().templatesV2().get(templateName);
-        if (request.dataStreamName() == null && template.getDataStreamTemplate() != null) {
+        final boolean isDataStream = template.getDataStreamTemplate() != null;
+        if (isDataStream && request.dataStreamName() == null) {
            throw new IllegalArgumentException("cannot create index with name [" + request.index() +
                "], because it matches with template [" + templateName + "] that creates data streams only, " +
                "use create data stream api instead");
@@ -519,14 +520,28 @@ public class MetadataCreateIndexService {
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
-        return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
-            indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
-                MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName), currentState.metadata(),
-                // the context is only used for validation so it's fine to pass fake values for the
-                // shard id and the current timestamp
-                aliasValidator, xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())),
-                Collections.singletonList(templateName), metadataTransformer);
+        return applyCreateIndexWithTemporaryService(
+            currentState,
+            request,
+            silent,
+            null,
+            tmpImd,
+            mappings,
+            indexService -> resolveAndValidateAliases(
+                request.index(),
+                // data stream aliases are created separately in MetadataCreateDataStreamService::createDataStream
+                isDataStream ? Set.of() : request.aliases(),
+                isDataStream ? List.of() : MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName),
+                currentState.metadata(),
+                aliasValidator,
+                xContentRegistry,
+                // the context is used ony for validation so it's fine to pass fake values for the shard id and the current timestamp
+                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())
+            ),
+            Collections.singletonList(templateName),
+            metadataTransformer
+        );
     }
 
     private ClusterState applyCreateIndexRequestForSystemDataStream(final ClusterState currentState,

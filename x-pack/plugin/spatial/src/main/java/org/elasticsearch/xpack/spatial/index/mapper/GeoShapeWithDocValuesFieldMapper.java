@@ -180,11 +180,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 (z, x, y, extent) -> {
                     final FeatureFactory featureFactory = new FeatureFactory(z, x, y, extent);
                     return geometries -> {
-                        if (geometries.size() == 1) {
-                            return List.of(featureFactory.getFeature(geometries.get(0)));
-                        } else {
-                            return List.of(featureFactory.getFeature(new GeometryCollection<>(geometries)));
-                        }
+                        final Geometry geometry = (geometries.size() == 1) ? geometries.get(0) : new GeometryCollection<>(geometries);
+                        return featureFactory.getFeatures(geometry);
                     };
                 });
         }

@@ -232,19 +232,21 @@ public class RestVectorTileAction extends BaseRestHandler {
             if (geoField == null) {
                 continue;
             }
-            featureBuilder.clear();
-            final byte[] bytes = geoField.getValue();
-            featureBuilder.mergeFrom(bytes);
-            VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, ID_TAG, searchHit.getId());
-            if (fields != null) {
-                for (FieldAndFormat field : fields) {
-                    final DocumentField documentField = searchHit.field(field.field);
-                    if (documentField != null) {
-                        VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, field.field, documentField.getValue());
+            final List<Object> bytesFeatures = geoField.getValues();
+            for (Object feature : bytesFeatures) {
+                featureBuilder.clear();
+                featureBuilder.mergeFrom((byte[]) feature);
+                VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, ID_TAG, searchHit.getId());
+                if (fields != null) {
+                    for (FieldAndFormat field : fields) {
+                        final DocumentField documentField = searchHit.field(field.field);
+                        if (documentField != null) {
+                            VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, field.field, documentField.getValue());
+                        }
                     }
                 }
+                hitsLayerBuilder.addFeatures(featureBuilder);
             }
-            hitsLayerBuilder.addFeatures(featureBuilder);
         }
         VectorTileUtils.addPropertiesToLayer(hitsLayerBuilder, layerProps);
         return hitsLayerBuilder;

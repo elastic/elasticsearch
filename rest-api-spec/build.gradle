@@ -89,8 +89,6 @@ tasks.named("yamlRestCompatTest").configure {
     OS.current() != OS.WINDOWS
   }
   systemProperty 'tests.rest.blacklist', ([
-    'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion and specifying both node_ids and node_names',
-    'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion without specifying nodes',
     'indices.flush/10_basic/Index synced flush rest test',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
     'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
@@ -222,6 +220,13 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.removeWarningForTest("the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; " +
     "specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
     , "?wait_for_active_shards default is deprecated")
+
+  // override for exception message change in #55291 tests cluster.voting_config_exclusions/10_basic/
+  // 'Throw exception when adding voting config exclusion and specifying both node_ids and node_names',
+  // 'Throw exception when adding voting config exclusion without specifying nodes',
+  task.replaceValueTextByKeyValue("catch",
+    '/Please set node identifiers correctly. One and only one of \\[node_name\\], \\[node_names\\] and \\[node_ids\\] has to be set/',
+    '/You must set \\[node_names\\] or \\[node_ids\\] but not both/')
 })
 
 tasks.register('enforceYamlTestConvention').configure {

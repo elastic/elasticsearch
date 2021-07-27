@@ -105,7 +105,12 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         }
 
         List<?> sourceValue = fetchSourceValue(mapper, WellKnownText.toWKT(geometry), mvtString);
-        assertThat(sourceValue.size(), Matchers.equalTo(1));
-        assertThat(sourceValue.get(0), Matchers.equalTo(featureFactory.getFeature(geometry)));
+        List<Object> features = featureFactory.getFeatures(geometry);
+        if (sourceValue.size() == 0) {
+            assertThat(features.size(), Matchers.equalTo(0));
+        } else {
+            assertThat(sourceValue.size(), Matchers.equalTo(1));
+            assertThat(sourceValue.get(0), Matchers.equalTo(features.get(0)));
+        }
     }
 }

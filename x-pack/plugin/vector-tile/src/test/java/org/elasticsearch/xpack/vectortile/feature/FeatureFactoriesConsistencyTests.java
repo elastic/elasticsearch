@@ -42,13 +42,13 @@ public class FeatureFactoriesConsistencyTests extends ESTestCase {
             double lon = randomValueOtherThanMany((l) -> rectangle.getMinX() > l || rectangle.getMaxX() < l, GeoTestUtil::nextLongitude);
             byte[] b1 = builder.point(lon, lat);
             Point point = new Point(lon, lat);
-            byte[] b2 = factory.getFeature(point);
+            byte[] b2 = (byte[]) factory.getFeatures(point).get(0);
             assertArrayEquals(b1, b2);
             points.add(point);
             geoPoints.add(new GeoPoint(lat, lon));
         }
         byte[] b1 = builder.points(geoPoints);
-        byte[] b2 = factory.getFeature(new MultiPoint(points));
+        byte[] b2 = (byte[]) factory.getFeatures(new MultiPoint(points)).get(0);
         assertArrayEquals(b1, b2);
     }
 
@@ -65,7 +65,7 @@ public class FeatureFactoriesConsistencyTests extends ESTestCase {
         FeatureFactory factory = new FeatureFactory(z, x, y, extent);
         byte[] b1 = builder.point(lon, lat);
         Point point = new Point(lon, lat);
-        byte[] b2 = factory.getFeature(point);
+        byte[] b2 = (byte[]) factory.getFeatures(point).get(0);
         assertThat(Arrays.equals(b1, b2), Matchers.equalTo(false));
     }
 
@@ -86,7 +86,7 @@ public class FeatureFactoriesConsistencyTests extends ESTestCase {
         Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
         for (int i = 0; i < extent; i++) {
             byte[] b1 = builder.box(r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat());
-            byte[] b2 = factory.getFeature(r);
+            byte[] b2 = (byte[]) factory.getFeatures(r).get(0);
             assertArrayEquals(extent + "", b1, b2);
         }
     }

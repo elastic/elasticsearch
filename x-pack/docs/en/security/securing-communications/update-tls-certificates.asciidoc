@@ -177,6 +177,15 @@ xpack.security.transport.ssl.truststore.type: PKCS12
 . [[verify-keystore,step 8]](Optional) Use the
 <<security-api-ssl,SSL certificate API>> to verify that {es} loaded the new
 keystore.
++
+--
+
+[source, console]
+----
+GET /_ssl/certificates
+----
+
+--
 
 . If you're only updating certificates for the transport layer (and not the HTTP layer), then complete <<start-rolling-restart>> through <<verify-keystore>> one node at a time until you've updated all keystores in your cluster. You can then
 complete the remaining steps for a <<restart-cluster-rolling,rolling restart>>.
@@ -316,7 +325,7 @@ to the secure settings in {es}.
 . Start the node where you updated the keystore.
 +
 --
-Submit a `_cat/nodes` request to confirm that the node joined the cluster:
+Use the <<cat-nodes,cat nodes API>> to confirm that the node joined the cluster:
 
 [source,console]
 ----
@@ -325,8 +334,16 @@ GET _cat/nodes
 
 --
 
-. [[verify-keystore-http,step 10]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
-{es} loaded the new keystore.
+. [[verify-keystore-http,step 10]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that {es} loaded the new keystore.
++
+--
+
+[source, console]
+----
+GET /_ssl/certificates
+----
+
+--
 
 . One node at a time, complete <<start-rolling-restart-http>> through
 <<verify-keystore-http>> until you've updated all keystores in your cluster.
@@ -501,6 +518,15 @@ xpack.security.transport.ssl.truststore.type: PKCS12
 . Start the node where you updated the keystore.
 
 . [[verify-keystore-newca,step 6]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that {es} loaded the new keystore.
++
+--
+
+[source, console]
+----
+GET /_ssl/certificates
+----
+
+--
 
 . If you're only updating certificates for the transport layer (and not the HTTP
 layer), then complete <<start-rolling-restart-newca>> through
@@ -646,7 +672,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 . If necessary, rename each `http.p12` file to match the name of your existing
 certificate for HTTP client communications. For example, `node1-http.p12`.
 
-. [[start-rolling-restart-http-newca,step 7]]On the current node in your cluster where you're updating the keystore,
+. [[start-rolling-restart-http-newca,step 5]]On the current node in your cluster where you're updating the keystore,
 start a <<restart-cluster-rolling,rolling restart>>.
 +
 Stop at the step indicating *Perform any needed changes*, and then proceed to
@@ -681,7 +707,7 @@ to the secure settings in {es}.
 . Start the node where you updated the keystore.
 +
 --
-Submit a `_cat/nodes` request to confirm that the node joined the cluster:
+Use the <<cat-nodes,cat nodes API>> to confirm that the node joined the cluster:
 
 [source,console]
 ----
@@ -690,8 +716,17 @@ GET _cat/nodes
 
 --
 
-. [[verify-keystore-http-newca,step 12]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
+. [[verify-keystore-http-newca,step 10]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
 {es} loaded the new keystore.
++
+--
+
+[source, console]
+----
+GET /_ssl/certificates
+----
+
+--
 
 . One node at a time, complete <<start-rolling-restart-http-newca>> through
 <<verify-keystore-http-newca>> until you've updated all keystores in your cluster.

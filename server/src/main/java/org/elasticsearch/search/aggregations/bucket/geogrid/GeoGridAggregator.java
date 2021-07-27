@@ -31,7 +31,7 @@ import java.util.Map;
 /**
  * Aggregates data expressed as longs (for efficiency's sake) but formats results as aggregation-specific strings.
  */
-public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends BucketsAggregator {
+public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends BucketsAggregator {
 
     protected final int requiredSize;
     protected final int shardSize;
@@ -130,7 +130,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     }
 
     @Override
-    public InternalGeoGrid buildEmptyAggregation() {
+    public InternalAggregation buildEmptyAggregation() {
         return buildAggregation(name, requiredSize, Collections.emptyList(), metadata());
     }
 

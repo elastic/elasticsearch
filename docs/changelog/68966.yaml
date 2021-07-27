@@ -1,7 +1,0 @@
-pr: 68966
-issues: []
-area: SQL
-type: enhancement
-summary: Add xDBC and CLI support. QA CSV specs
-versions:
-  - v8.0.0

@@ -1,8 +1,0 @@
-pr: 69774
-issues:
-  - 51816
-area: Infra/REST API
-type: enhancement
-summary: Allow for field declaration for future compatible versions
-versions:
-  - v8.0.0

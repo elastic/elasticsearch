@@ -1,8 +1,0 @@
-pr: 69131
-issues:
-  - 54160
-area: Infra/REST API
-type: enhancement
-summary: Typed endpoints for Index and Get APIs
-versions:
-  - v8.0.0

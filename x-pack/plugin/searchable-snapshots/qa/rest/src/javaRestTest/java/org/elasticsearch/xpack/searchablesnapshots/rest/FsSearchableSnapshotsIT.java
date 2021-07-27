@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.rest;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsRestTestCase;
 
@@ -20,5 +22,13 @@ public class FsSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTest
     @Override
     protected Settings writeRepositorySettings() {
         return Settings.builder().put("location", System.getProperty("tests.path.repo")).build();
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
     }
 }

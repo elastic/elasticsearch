@@ -338,6 +338,16 @@ MULTIPLE AREA LABELS::
 
 Machine Learning::
 * Change version in serialization code in `TimingStats.java` to 7.4.0 {es-pull}44905[#44905] (issue: {es-issue}29857[#29857])
+* Limit the input sequence length for NLP processors {es-pull}74905[#74905]
+* Merge the pytorch-inference feature branch {es-pull}73660[#73660] (issues: {es-issue}70713[#70713], {es-issue}71035[#71035], {es-issue}71177[#71177], {es-issue}71323[#71323], {es-issue}71679[#71679], {es-issue}72218[#72218], {es-issue}73523[#73523])
+* Parse time from inference result {es-pull}75570[#75570] (issue: {es-issue}75268[#75268])
+* Use configurable class labels for SA and NER results {es-pull}74473[#74473] (issues: {es-issue}74361[#74361], {es-issue}74401[#74401])
+* `PyTorch` Sequence Classification (Sentiment Analysis) task {es-pull}73764[#73764]
+* The Windows build platform for the {ml} C++ code now uses Visual Studio 2019 {ml-pull}1352[#1352]
+* The macOS build platform for the {ml} C++ code is now Mojave running Xcode 11.3.1,
+  or Ubuntu 20.04 running clang 8 for cross compilation {ml-pull}1429[#1429]
+* The Linux build platform for the {ml} C++ code is now CentOS 7 running gcc 9.3 {ml-pull}1170[#1170]
+* Add a new application for evaluating PyTorch models. The app depends on LibTorch - the C++ front end to PyTorch and performs inference on models stored in the TorchScript format {ml-pull}1902[#1902]
 
 Mapping::
 * Sparse vector to throw exception consistently {es-pull}62646[#62646]
@@ -452,8 +462,8 @@ MULTIPLE AREA LABELS::
 
 Machine Learning::
 * Checking if p-tasks metadata is null before updating state (#41091) {es-pull}41124[#41124] (issues: {es-issue}41090[#41090], {es-issue}41091[#41091])
-* Fix Typo Korean HANGUL_JAMO {es-pull}74462[#74462]
-* Handle null value of `FieldCapabilitiesResponse` {es-pull}64327[#64327] (issue: {es-issue}868[#868])
+* Fix typo Korean HANGUL_JAMO {es-pull}74462[#74462]
+* Handle null value of `FieldCapabilitiesResponse` {es-pull}64327[#64327]
 * Relax the test assertion so that the test always passes {es-pull}44133[#44133] (issue: {es-issue}44132[#44132])
 * Remove erroneous licence {es-pull}58732[#58732] (issue: {es-issue}58682[#58682])
 
@@ -477,7 +487,7 @@ Snapshot/Restore::
 * Fix GET /_snapshot/_all/_all if there are no repos {es-pull}43558[#43558] (issue: {es-issue}43547[#43547])
 
 Transform::
-* [ML][DataFrame] Fix compile error in `DataFrameTransformProgressIT` {es-pull}43099[#43099]
+* Fix compile error in `DataFrameTransformProgressIT` {es-pull}43099[#43099]
 
 
 
@@ -501,13 +511,6 @@ Infra/Scripting::
 MULTIPLE AREA LABELS::
 * [Rest Api Compatibility] Indicies boost in object format {es-pull}74422[#74422] (issues: {es-issue}51816[#51816], {es-issue}55078[#55078])
 * [Rest Api Compatibility] Typed endpoints for search and related endpoints {es-pull}72155[#72155] (issues: {es-issue}51816[#51816], {es-issue}54160[#54160])
-
-Machine Learning::
-* Limit the input sequence length for NLP processors {es-pull}74905[#74905]
-* Merge the pytorch-inference feature branch {es-pull}73660[#73660] (issues: {es-issue}70713[#70713], {es-issue}71035[#71035], {es-issue}71177[#71177], {es-issue}71323[#71323], {es-issue}71679[#71679], {es-issue}72218[#72218], {es-issue}73523[#73523])
-* Parse time from inference result {es-pull}75570[#75570] (issue: {es-issue}75268[#75268])
-* Use configurable class labels for SA and NER results {es-pull}74473[#74473] (issues: {es-issue}74361[#74361], {es-issue}74401[#74401])
-* `PyTorch` Sequence Classification (Sentiment Analysis) task {es-pull}73764[#73764]
 
 SQL::
 * Reference relevant issue in `ReplaceSumWithStats` {es-pull}74396[#74396] (issues: {es-issue}45251[#45251], {es-issue}71582[#71582])

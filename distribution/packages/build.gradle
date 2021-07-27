@@ -55,7 +55,7 @@ buildscript {
   configurations.all {
     resolutionStrategy {
         dependencySubstitution {
-          substitute module('org.redline-rpm:redline') using module('com.github.breskeby:redline:caa0ede')
+          substitute module('org.redline-rpm:redline') using module('com.github.breskeby:redline:9c85270')
         }
     }
   }

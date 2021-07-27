@@ -208,8 +208,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             builder.startObject();
             builder.field("uid", uid);
 
-            final boolean acceptEnterprise = params.paramAsBoolean("accept_enterprise", false);
-            if (builder.getRestApiVersion() == RestApiVersion.V_7 && acceptEnterprise == false) {
+            if (builder.getRestApiVersion() == RestApiVersion.V_7 && params.paramAsBoolean("accept_enterprise", false) == false) {
                 if (License.LicenseType.ENTERPRISE.getTypeName().equals(type)) {
                     builder.field("type", License.LicenseType.PLATINUM.getTypeName());
                 } else {

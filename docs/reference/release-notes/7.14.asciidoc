@@ -1,0 +1,22 @@
+[[release-notes-7.14.0]]
+== {es} version 7.14.0
+
+coming::[7.14.0]
+
+Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
+
+[discrete]
+[[enhancement-7.14.0]]
+=== Enhancements
+
+Machine Learning::
+* Give higher weight to multiple adjacent dictionary words when performing categorization {ml-pull}1903[#1903]
+
+[discrete]
+[[bug-7.14.0]]
+=== Bug fixes
+
+Machine Learning::
+* Make atomic operations safer for aarch64 {ml-pull}1893[#1893]
+
+* Ensure bucket event_count is calculated for jobs with 1 second bucket spans {ml-pull}1909[#1909]

@@ -69,10 +69,6 @@ public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder>
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        final String typeName = context.getMappingLookup().getMapping().getRoot().name();
-        if (value.equals(typeName)) {
-            return new MatchAllDocsQuery();
-        }
         return new MatchNoDocsQuery();
     }
 

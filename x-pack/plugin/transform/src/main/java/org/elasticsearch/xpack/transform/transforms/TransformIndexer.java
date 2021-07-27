@@ -100,7 +100,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     protected final AtomicReference<Collection<ActionListener<Void>>> saveStateListeners = new AtomicReference<>();
 
-    private final Map<String, String> fieldMappings;
+    private volatile Map<String, String> fieldMappings;
 
     // the function of the transform, e.g. pivot or latest
     private Function function;
@@ -132,7 +132,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformServices transformServices,
         CheckpointProvider checkpointProvider,
         TransformConfig transformConfig,
-        Map<String, String> fieldMappings,
         AtomicReference<IndexerState> initialState,
         TransformIndexerPosition initialPosition,
         TransformIndexerStats jobStats,
@@ -147,7 +146,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
         this.auditor = transformServices.getAuditor();
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
-        this.fieldMappings = ExceptionsHelper.requireNonNull(fieldMappings, "fieldMappings");
         this.progress = transformProgress;
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
         this.nextCheckpoint = ExceptionsHelper.requireNonNull(nextCheckpoint, "nextCheckpoint");
@@ -161,6 +159,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     abstract void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener);
+
+    abstract void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener);
 
     abstract void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener);
 
@@ -272,7 +272,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // On each run, we need to get the total number of docs and reset the count of processed docs
         // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
         // the progress here, and not in the executor.
-        ActionListener<Void> updateConfigListener = ActionListener.wrap(updateConfigResponse -> {
+        ActionListener<Void> configurationReadyListener = ActionListener.wrap(r -> {
             initializeFunction();
 
             if (initialRun()) {
@@ -318,27 +318,42 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
         }, listener::onFailure);
 
+        ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(fieldMappings -> {
+            this.fieldMappings = fieldMappings;
+            configurationReadyListener.onResponse(null);
+        }, listener::onFailure);
+
+        ActionListener<Void> reLoadFieldMappingsListener = ActionListener.wrap(
+            updateConfigResponse -> { doGetFieldMappings(fieldMappingsListener); },
+            listener::onFailure
+        );
+
         // If we are continuous, we will want to verify we have the latest stored configuration
         ActionListener<Void> changedSourceListener = ActionListener.wrap(r -> {
             if (isContinuous()) {
                 transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(config -> {
-                    transformConfig = config;
-                    logger.debug("[{}] successfully refreshed transform config from index.", getJobId());
-                    updateConfigListener.onResponse(null);
+                    if (transformConfig.equals(config) && fieldMappings != null) {
+                        logger.trace("[{}] transform config has not changed.", getJobId());
+                        configurationReadyListener.onResponse(null);
+                    } else {
+                        transformConfig = config;
+                        logger.debug("[{}] successfully refreshed transform config from index.", getJobId());
+                        reLoadFieldMappingsListener.onResponse(null);
+                    }
                 }, failure -> {
                     String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION, getJobId());
                     logger.error(msg, failure);
                     // If the transform config index or the transform config is gone, something serious occurred
                     // We are in an unknown state and should fail out
                     if (failure instanceof ResourceNotFoundException) {
-                        updateConfigListener.onFailure(new TransformConfigLostOnReloadException(msg, failure));
+                        reLoadFieldMappingsListener.onFailure(new TransformConfigLostOnReloadException(msg, failure));
                     } else {
                         auditor.warning(getJobId(), msg);
-                        updateConfigListener.onResponse(null);
+                        reLoadFieldMappingsListener.onResponse(null);
                     }
                 }));
             } else {
-                updateConfigListener.onResponse(null);
+                reLoadFieldMappingsListener.onResponse(null);
             }
         }, listener::onFailure);
 

@@ -38,5 +38,4 @@ the `date_histogram` composite source will now generate an error.  Instead
 please use the more specific `fixed_interval` or `calendar_interval`
 parameters.
 ====
-
 // end::notable-breaking-changes[]

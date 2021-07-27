@@ -51,7 +51,6 @@ to use the new names and to possibly account for gzip archives instead of plaint
 The Docker build of Elasticsearch is not affected since it logs on stdout where
 rollover is not performed.
 ====
-// end::notable-breaking-changes[]
 
 [[accept-default-password-removed]]
 .The `accept_default_password` setting has been removed.
@@ -115,7 +114,7 @@ result in an error on startup.
 
 [discrete]
 [[ssl-validation-changes]]
-==== SSL/TLS configuration validation
+===== SSL/TLS configuration validation
 
 .The `xpack.security.transport.ssl.enabled` setting is now required to configure `xpack.security.transport.ssl` settings.
 [%collapsible]
@@ -235,7 +234,7 @@ on startup.
 
 [discrete]
 [[builtin-users-changes]]
-==== Changes to built-in users
+===== Changes to built-in users
 
 .The `kibana` user has been replaced by `kibana_system`.
 [%collapsible]
@@ -268,7 +267,7 @@ user password. You must explicitly set a password for the `kibana_system` user.
 
 [discrete]
 [[builtin-roles-changes]]
-==== Changes to built-in roles
+===== Changes to built-in roles
 
 .The `kibana_user` role has been renamed `kibana_admin`.
 [%collapsible]
@@ -282,3 +281,4 @@ renamed to better reflect its intended use.
 Assign users with the `kibana_user` role to the `kibana_admin` role.
 Discontinue use of the `kibana_user` role.
 ====
+// end::notable-breaking-changes[]

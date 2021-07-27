@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,12 +19,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transport.Connection;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor.AsyncSender;
 import org.elasticsearch.transport.TransportRequest;
@@ -42,7 +46,9 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.After;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -51,6 +57,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -422,6 +429,51 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
         assertEquals("bar", threadContext.getTransient("foo"));
         assertEquals("value", threadContext.getHeader("key"));
+    }
+
+    public void testProfileSecuredRequestHandlerDecrementsRefCountOnFailure() throws IOException {
+        final String profileName = "some-profile";
+        final DestructiveOperations destructiveOperations = new DestructiveOperations(Settings.EMPTY, clusterService.getClusterSettings());
+        final SecurityServerTransportInterceptor.ProfileSecuredRequestHandler<DeleteIndexRequest> requestHandler =
+                new SecurityServerTransportInterceptor.ProfileSecuredRequestHandler<>(
+                    logger,
+                    DeleteIndexAction.NAME,
+                    randomBoolean(),
+                    randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC,
+                    (request, channel, task) -> fail("should fail at destructive operations check to trigger listener failure"),
+                    Map.of(
+                        profileName,
+                        new ServerTransportFilter(
+                            null,
+                            null,
+                            threadContext,
+                            randomBoolean(),
+                            destructiveOperations,
+                            securityContext,
+                            xPackLicenseState
+                        )
+                    ),
+                    xPackLicenseState,
+                    threadPool
+                );
+        final TransportChannel channel = mock(TransportChannel.class);
+        when(channel.getProfileName()).thenReturn(profileName);
+        final AtomicBoolean exceptionSent = new AtomicBoolean(false);
+        doAnswer(invocationOnMock -> {
+            assertTrue(exceptionSent.compareAndSet(false, true));
+            return null;
+        }).when(channel).sendResponse(any(Exception.class));
+        final AtomicBoolean decRefCalled = new AtomicBoolean(false);
+        final DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest() {
+            @Override
+            public boolean decRef() {
+                assertTrue(decRefCalled.compareAndSet(false, true));
+                return super.decRef();
+            }
+        };
+        requestHandler.messageReceived(deleteIndexRequest, channel, mock(Task.class));
+        assertTrue(decRefCalled.get());
+        assertTrue(exceptionSent.get());
     }
 
     private String[] randomRoles() {

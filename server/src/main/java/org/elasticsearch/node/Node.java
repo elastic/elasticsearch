@@ -18,6 +18,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
@@ -718,8 +720,15 @@ public class Node implements Closeable {
             resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
-            client.initialize(injector.getInstance(new Key<Map<ActionType<?>, TransportAction<?, ?>>>() {
-                }),
+
+            // Due to Java's type erasure with generics, the injector can't give us exactly what we need, and we have
+            // to resort to some evil casting.
+            @SuppressWarnings("rawtypes")
+            Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
+                forciblyCast(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
+                }));
+
+            client.initialize(actions,
                 transportService.getTaskManager(),
                 () -> clusterService.localNode().getId(),
                 transportService.getLocalNodeConnection(),
@@ -1226,5 +1235,10 @@ public class Node implements Closeable {
             assert localNode.get() != null;
             return localNode.get();
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T forciblyCast(Object argument) {
+        return (T) argument;
     }
 }

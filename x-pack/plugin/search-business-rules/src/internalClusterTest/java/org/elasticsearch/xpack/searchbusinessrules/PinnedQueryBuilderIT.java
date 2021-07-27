@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -238,21 +239,23 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
     public void testMultiIndexDocs() throws Exception {
         assertAcked(prepareCreate("test1")
-            .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
-                .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
+            .addMapping(MapperService.SINGLE_MAPPING_NAME,
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
+                    .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
             .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5))));
 
         assertAcked(prepareCreate("test2")
-            .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
-                .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
+            .addMapping(MapperService.SINGLE_MAPPING_NAME,
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
+                    .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
             .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5))));
 
-        client().prepareIndex("test1").setId("a").setSource("field1", "1a bar").get();
-        client().prepareIndex("test1").setId("b").setSource("field1", "1b bar").get();
-        client().prepareIndex("test1").setId("c").setSource("field1", "1c bar").get();
-        client().prepareIndex("test2").setId("a").setSource("field1", "2a bar").get();
-        client().prepareIndex("test2").setId("b").setSource("field1", "2b bar").get();
-        client().prepareIndex("test2").setId("c").setSource("field1", "2c foo").get();
+        client().prepareIndex("test1", MapperService.SINGLE_MAPPING_NAME).setId("a").setSource("field1", "1a bar").get();
+        client().prepareIndex("test1", MapperService.SINGLE_MAPPING_NAME).setId("b").setSource("field1", "1b bar").get();
+        client().prepareIndex("test1", MapperService.SINGLE_MAPPING_NAME).setId("c").setSource("field1", "1c bar").get();
+        client().prepareIndex("test2", MapperService.SINGLE_MAPPING_NAME).setId("a").setSource("field1", "2a bar").get();
+        client().prepareIndex("test2", MapperService.SINGLE_MAPPING_NAME).setId("b").setSource("field1", "2b bar").get();
+        client().prepareIndex("test2", MapperService.SINGLE_MAPPING_NAME).setId("c").setSource("field1", "2c foo").get();
 
         refresh();
 
@@ -275,14 +278,15 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
     public void testMultiIndexWithAliases() throws Exception {
         assertAcked(prepareCreate("test")
-            .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
-                .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
+            .addMapping(MapperService.SINGLE_MAPPING_NAME,
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
+                    .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
             .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5)))
             .addAlias(new Alias("test-alias")));
 
-        client().prepareIndex("test").setId("a").setSource("field1", "document a").get();
-        client().prepareIndex("test").setId("b").setSource("field1", "document b").get();
-        client().prepareIndex("test").setId("c").setSource("field1", "document c").get();
+        client().prepareIndex("test", MapperService.SINGLE_MAPPING_NAME).setId("a").setSource("field1", "document a").get();
+        client().prepareIndex("test", MapperService.SINGLE_MAPPING_NAME).setId("b").setSource("field1", "document b").get();
+        client().prepareIndex("test", MapperService.SINGLE_MAPPING_NAME).setId("c").setSource("field1", "document c").get();
 
         refresh();
 

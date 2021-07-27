@@ -177,7 +177,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     /**
      * Creates a new PinnedQueryBuilder
      */
-    public PinnedQueryBuilder(QueryBuilder organicQuery, List<String> ids, List<Item> docs) {
+    private PinnedQueryBuilder(QueryBuilder organicQuery, List<String> ids, List<Item> docs) {
         if (organicQuery == null) {
             throw new IllegalArgumentException("[" + NAME + "] organicQuery cannot be null");
         }

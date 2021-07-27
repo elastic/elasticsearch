@@ -43,7 +43,7 @@ You can specify the following attributes for each document:
 (Required, string) The unique <<mapping-id-field, document ID>>.
 
 `_index`::
-(Required, string) The <<mapping-index-field, index>> that contains the document.
+(Required, string) The index that contains the document.
 --
 `organic`::
 Any choice of query used to rank documents which will be ranked below the "pinned" documents.

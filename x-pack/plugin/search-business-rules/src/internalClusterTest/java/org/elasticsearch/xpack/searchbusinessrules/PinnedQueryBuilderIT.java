@@ -272,7 +272,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         assertFourthHit(searchResponse, both(hasIndex("test2")).and(hasId("c")));
     }
 
-    public void testAliasedDocs() throws Exception {
+    public void testMultiIndexWithAliases() throws Exception {
         assertAcked(prepareCreate("test")
             .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
                 .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
@@ -287,9 +287,9 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
         PinnedQueryBuilder pqb = new PinnedQueryBuilder(
             QueryBuilders.queryStringQuery("document"),
-            new Item("test-alias", "b"),
-            new Item("test", "a"),
-            new Item("test", "b")
+            new Item("test", "b"),
+            new Item("test-alias", "a"),
+            new Item("test", "a")
         );
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(pqb).setTrackTotalHits(true)

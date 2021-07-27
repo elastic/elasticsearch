@@ -31,6 +31,7 @@ public class SnapshotFeatureInfo implements Writeable, ToXContentObject {
         true,
         (a, name) -> {
             String pluginName = (String) a[0];
+            @SuppressWarnings("unchecked")
             List<String> indices = (List<String>) a[1];
             return new SnapshotFeatureInfo(pluginName, indices);
         }

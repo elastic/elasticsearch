@@ -227,7 +227,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         } else if (dateHistogram instanceof DateHistogramGroupConfig.CalendarInterval) {
             dateHistogramBuilder.calendarInterval(dateHistogram.getInterval());
         } else {
-            dateHistogramBuilder.dateHistogramInterval(dateHistogram.getInterval());
+            throw new IllegalStateException("[date_histogram] must use either [fixed_interval] or [calendar_interval]");
         }
         dateHistogramBuilder.field(dateHistogramField);
         dateHistogramBuilder.timeZone(ZoneId.of(dateHistogram.getTimeZone()));

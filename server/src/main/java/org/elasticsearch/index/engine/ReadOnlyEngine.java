@@ -566,7 +566,7 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
         final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope);
-        return new SearcherSupplier(Function.identity()) {
+        return new SearcherSupplier(wrapper) {
             @Override
             protected void doClose() {
                 delegate.close();

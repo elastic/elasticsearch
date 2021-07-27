@@ -1,7 +1,7 @@
 {
   "security.enroll_kibana":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-enroll-kibana.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-kibana-enrollment.html",
       "description":"Allows a kibana instance to configure itself to communicate with a secured elasticsearch cluster."
     },
     "stability":"stable",

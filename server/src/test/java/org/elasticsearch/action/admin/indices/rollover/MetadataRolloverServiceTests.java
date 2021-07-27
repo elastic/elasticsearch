@@ -578,7 +578,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             AllocationService allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
             MetadataFieldMapper[] metadataFieldMappers = {new MetadataIndexTemplateServiceTests.MetadataTimestampFieldMapper(true)};
-            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", Version.CURRENT);
+            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc");
             root.add(new DateFieldMapper.Builder(dataStream.getTimeStampField().getName(), DateFieldMapper.Resolution.MILLISECONDS,
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ScriptCompiler.NONE, true, Version.CURRENT));
             Mapping mapping = new Mapping(root.build(new ContentPath("")), metadataFieldMappers, Collections.emptyMap());
@@ -630,82 +630,6 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             assertThat(info.getTime(), greaterThanOrEqualTo(before));
             assertThat(info.getMetConditions(), hasSize(1));
             assertThat(info.getMetConditions().get(0).value(), equalTo(condition.value()));
-        } finally {
-            testThreadPool.shutdown();
-        }
-    }
-
-    public void testRolloverDataStreamWorksWithTemplateThatAlsoCreatesAliases() throws Exception {
-        final DataStream dataStream = DataStreamTestHelper.randomInstance()
-            // ensure no replicate data stream
-            .promoteDataStream();
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
-            .template(new Template(null, null, Map.of("my-alias", AliasMetadata.newAliasMetadataBuilder("my-alias").build())))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate()).build();
-        Metadata.Builder builder = Metadata.builder();
-        builder.put("template", template);
-        for (Index index : dataStream.getIndices()) {
-            builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
-        }
-        builder.put(dataStream);
-        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
-
-        ThreadPool testThreadPool = new TestThreadPool(getTestName());
-        try {
-            DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
-                "@timestamp",
-                DateFieldMapper.Resolution.MILLISECONDS,
-                null,
-                ScriptCompiler.NONE,
-                false,
-                Version.CURRENT).build(new ContentPath());
-            MappedFieldType mockedTimestampFieldType = mock(MappedFieldType.class);
-            when(mockedTimestampFieldType.name()).thenReturn("_data_stream_timestamp");
-            MetadataFieldMapper mockedTimestampField = new MetadataFieldMapper(mockedTimestampFieldType) {
-                @Override
-                protected String contentType() {
-                    return null;
-                }
-            };
-            MetadataFieldMapper[] metadataFieldMappers = {new MetadataIndexTemplateServiceTests.MetadataTimestampFieldMapper(true)};
-            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", Version.CURRENT);
-            root.add(new DateFieldMapper.Builder(dataStream.getTimeStampField().getName(), DateFieldMapper.Resolution.MILLISECONDS,
-                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ScriptCompiler.NONE, true, Version.CURRENT));
-            Mapping mapping = new Mapping(root.build(new ContentPath("")), metadataFieldMappers, Collections.emptyMap());
-            MappingLookup mappingLookup = MappingLookup.fromMappers(
-                mapping,
-                List.of(mockedTimestampField, dateFieldMapper),
-                List.of(),
-                List.of());
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
-            Environment env = mock(Environment.class);
-            when(env.sharedDataFile()).thenReturn(null);
-            AllocationService allocationService = mock(AllocationService.class);
-            when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
-            IndicesService indicesService = mockIndicesServices(mappingLookup);
-            IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-            when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
-
-            ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
-            MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
-                clusterService, indicesService, allocationService, new AliasValidator(), shardLimitValidator, env,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, EmptySystemIndices.INSTANCE, false);
-            MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
-                new AliasValidator(), null, xContentRegistry());
-            MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
-                mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
-
-            MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
-            List<Condition<?>> metConditions = Collections.singletonList(condition);
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
-
-            // Ensure that a warning header is emitted
-            Exception e = expectThrows(
-                IllegalArgumentException.class,
-                () -> rolloverService.rolloverClusterState(clusterState, dataStream.getName(), null, createIndexRequest, metConditions,
-                    randomBoolean(), false)
-            );
-            assertThat(e.getMessage(), equalTo("template [template] has alias and data stream definitions"));
         } finally {
             testThreadPool.shutdown();
         }

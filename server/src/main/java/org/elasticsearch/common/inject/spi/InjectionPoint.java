@@ -53,6 +53,7 @@ import static org.elasticsearch.common.inject.internal.MoreTypes.getRawType;
  * @author crazybob@google.com (Bob Lee)
  * @since 2.0
  */
+@SuppressWarnings("rawtypes")
 public final class InjectionPoint {
 
     private final boolean optional;

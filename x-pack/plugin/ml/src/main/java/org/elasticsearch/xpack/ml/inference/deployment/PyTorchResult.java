@@ -7,21 +7,20 @@
 
 package org.elasticsearch.xpack.ml.inference.deployment;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.utils.MlParserUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -37,21 +36,13 @@ public class PyTorchResult implements ToXContentObject, Writeable {
     private static final ParseField TIME_MS = new ParseField("time_ms");
 
     public static final ConstructingObjectParser<PyTorchResult, Void> PARSER = new ConstructingObjectParser<>("pytorch_result",
-        a -> new PyTorchResult((String) a[0], (double[][]) a[1], (Long) a[2], (String) a[3]));
+        a -> new PyTorchResult((String) a[0], (double[][][]) a[1], (Long) a[2], (String) a[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REQUEST_ID);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> {
-                List<List<Double>> listOfListOfDoubles = MlParserUtils.parseArrayOfArrays(
-                    INFERENCE.getPreferredName(), XContentParser::doubleValue, p);
-                double[][] primitiveDoubles = new double[listOfListOfDoubles.size()][];
-                for (int i = 0; i < listOfListOfDoubles.size(); i++) {
-                    List<Double> row = listOfListOfDoubles.get(i);
-                    primitiveDoubles[i] = row.stream().mapToDouble(d -> d).toArray();
-                }
-                return primitiveDoubles;
-            },
+            (p, c) ->
+                MlParserUtils.parseArrayOfArraysOfArrays(INFERENCE.getPreferredName(), p),
             INFERENCE,
             ObjectParser.ValueType.VALUE_ARRAY
         );
@@ -64,12 +55,12 @@ public class PyTorchResult implements ToXContentObject, Writeable {
     }
 
     private final String requestId;
-    private final double[][] inference;
+    private final double[][][] inference;
     private final Long timeMs;
     private final String error;
 
     public PyTorchResult(String requestId,
-                         @Nullable double[][] inference,
+                         @Nullable double[][][] inference,
                          @Nullable Long timeMs,
                          @Nullable String error) {
         this.requestId = Objects.requireNonNull(requestId);
@@ -82,7 +73,7 @@ public class PyTorchResult implements ToXContentObject, Writeable {
         requestId = in.readString();
         boolean hasInference = in.readBoolean();
         if (hasInference) {
-            inference = in.readArray(StreamInput::readDoubleArray, double[][]::new);
+            inference = in.readArray(in2 -> in2.readArray(StreamInput::readDoubleArray, double[][]::new), double[][][]::new);
         } else {
             inference = null;
         }
@@ -102,7 +93,7 @@ public class PyTorchResult implements ToXContentObject, Writeable {
         return error;
     }
 
-    public double[][] getInferenceResult() {
+    public double[][][] getInferenceResult() {
         return inference;
     }
 
@@ -115,7 +106,20 @@ public class PyTorchResult implements ToXContentObject, Writeable {
         builder.startObject();
         builder.field(REQUEST_ID.getPreferredName(), requestId);
         if (inference != null) {
-            builder.field(INFERENCE.getPreferredName(), inference);
+            builder.startArray(INFERENCE.getPreferredName());
+            for (int i=0; i<inference.length; i++) {
+                builder.startArray();
+                for (int j=0; j<inference[0].length; j++)
+                {
+                    builder.startArray();
+                    for (int k=0; k< inference[0][0].length; k++) {
+                        builder.value(inference[i][j][k]);
+                    }
+                    builder.endArray();
+                }
+                builder.endArray();
+            }
+            builder.endArray();
         }
         if (timeMs != null) {
             builder.field(TIME_MS.getPreferredName(), timeMs);
@@ -129,12 +133,15 @@ public class PyTorchResult implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+
         out.writeString(requestId);
         if (inference == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeArray(StreamOutput::writeDoubleArray, inference);
+            out.writeArray(
+                (out2, arr) -> out2.writeArray(StreamOutput::writeDoubleArray, arr),
+                inference);
         }
         out.writeOptionalLong(timeMs);
         out.writeOptionalString(error);

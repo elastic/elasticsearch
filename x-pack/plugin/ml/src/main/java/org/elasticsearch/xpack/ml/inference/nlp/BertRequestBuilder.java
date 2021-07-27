@@ -40,7 +40,7 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field(REQUEST_ID, requestId);
-        builder.array(TOKENS, tokens);
+        write1DArrayAs2D(TOKENS, tokens, builder);
 
         int[] inputMask = new int[tokens.length];
         Arrays.fill(inputMask, 1);
@@ -49,12 +49,22 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
         int[] positionalIds = new int[tokens.length];
         Arrays.setAll(positionalIds, i -> i);
 
-        builder.array(ARG1, inputMask);
-        builder.array(ARG2, segmentMask);
-        builder.array(ARG3, positionalIds);
+        write1DArrayAs2D(ARG1, inputMask, builder);
+        write1DArrayAs2D(ARG2, segmentMask, builder);
+        write1DArrayAs2D(ARG3, positionalIds, builder);
         builder.endObject();
 
         // BytesReference.bytes closes the builder
         return BytesReference.bytes(builder);
+    }
+
+    private static void write1DArrayAs2D(String fieldName, int[] values, XContentBuilder builder) throws IOException {
+        builder.startArray(fieldName);
+        builder.startArray();
+        for (var t : values) {
+            builder.value(t);
+        }
+        builder.endArray();
+        builder.endArray();
     }
 }

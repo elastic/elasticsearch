@@ -12,7 +12,10 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.NoMergeScheduler;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
@@ -22,7 +25,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -43,30 +45,40 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ShardRecoveryPlannerTests extends ESTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
-    private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
+    private static final ByteSizeValue PART_SIZE = new ByteSizeValue(Long.MAX_VALUE);
+    private static final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
 
-    public void testSimpleRecovery() throws Exception {
-        runTest(store -> {
+    public void testOnlyUsesSourceFilesWhenUseSnapshotsFlagIsFalse() throws Exception {
+        createStore(store -> {
+            Store.MetadataSnapshot targetMetadataSnapshot = generateRandomTargetState(store, true);
+
             writeRandomDocs(store, randomIntBetween(10, 100));
-            final Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
+            Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
 
+            long startingSeqNo = randomNonNegativeLong();
+            int translogOps = randomIntBetween(1, 100);
             final ShardRecoveryPlanner shardRecoveryPlanner = new ShardRecoveryPlanner(shardId,
-                null,
+                randomBoolean() ? randomAlphaOfLength(10) : null,
                 sourceMetadata,
-                Store.MetadataSnapshot.EMPTY,
-                0,
-                0,
-                new SnapshotInfoFetcher(null, null, null) {
+                targetMetadataSnapshot,
+                startingSeqNo,
+                translogOps,
+                new ShardSnapshotsService(null, null, null) {
                     @Override
                     protected void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshotData>> listener) {
                         assert false: "Unexpected call";
@@ -75,256 +87,106 @@ public class ShardRecoveryPlannerTests extends ESTestCase {
                 false
             );
 
-            PlainActionFuture<ShardRecoveryPlan> planFuture = PlainActionFuture.newFuture();
-            shardRecoveryPlanner.computeRecoveryPlan(planFuture);
-            final ShardRecoveryPlan shardRecoveryPlan = planFuture.get();
-            assertThat(shardRecoveryPlan, notNullValue());
+            final ShardRecoveryPlan shardRecoveryPlan = computeShardRecoveryPlan(shardRecoveryPlanner);
+            assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
 
-            List<StoreFileMetadata> missingAndDifferent = sourceMetadata.recoveryDiff(Store.MetadataSnapshot.EMPTY).missingAndDifferent;
-            assertThat(shardRecoveryPlan.getSourceFilesToRecover(), is(equalTo(missingAndDifferent)));
+            final Store.RecoveryDiff recoveryDiff = sourceMetadata.recoveryDiff(targetMetadataSnapshot);
+            assertThat(shardRecoveryPlan.getSourceFilesToRecover(), is(not(empty())));
+            assertThat(shardRecoveryPlan.getSourceFilesToRecover(), is(equalTo(recoveryDiff.missingAndDifferent)));
+
+            assertThat(shardRecoveryPlan.getIdenticalFiles(), is(equalTo(recoveryDiff.identical)));
+
             assertThat(shardRecoveryPlan.getSnapshotFilesToRecover(), is(equalTo(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY)));
-            assertThat(shardRecoveryPlan.getIdenticalFiles(), is(empty()));
-            assertThat(shardRecoveryPlan.getExistingSize(), equalTo(0L));
+
             assertThat(shardRecoveryPlan.getMetadataSnapshot(), equalTo(sourceMetadata));
 
-            assertThat(shardRecoveryPlan.getStartingSeqNo(), equalTo(0L));
-            assertThat(shardRecoveryPlan.getTranslogOps(), equalTo(0));
+            assertThat(shardRecoveryPlan.getStartingSeqNo(), equalTo(startingSeqNo));
+            assertThat(shardRecoveryPlan.getTranslogOps(), equalTo(translogOps));
         });
     }
 
-    public void testFallbacksToRegularPlanIfThereAreNotAvailableSnapshots() throws Exception {
-        runTest(store -> {
+    public void testFallbacksToRegularPlanIfThereAreNotAvailableSnapshotsOrThereIsAFailureDuringFetch() throws Exception {
+        createStore(store -> {
+            Store.MetadataSnapshot targetMetadataSnapshot = generateRandomTargetState(store, true);
+
             writeRandomDocs(store, randomIntBetween(10, 100));
             final Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
 
+            long startingSeqNo = randomNonNegativeLong();
+            int translogOps = randomIntBetween(1, 100);
             final ShardRecoveryPlanner shardRecoveryPlanner = new ShardRecoveryPlanner(shardId,
                 null,
                 sourceMetadata,
-                Store.MetadataSnapshot.EMPTY,
-                0,
-                0,
-                new SnapshotInfoFetcher(null, null, null) {
+                targetMetadataSnapshot,
+                startingSeqNo,
+                translogOps,
+                new ShardSnapshotsService(null, null, null) {
                     @Override
                     protected void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshotData>> listener) {
-                        listener.onResponse(Collections.emptyList());
+                        if (randomBoolean()) {
+                            listener.onResponse(Collections.emptyList());
+                        } else {
+                            listener.onFailure(new IOException("Boom!"));
+                        }
                     }
                 },
                 true
             );
 
-            PlainActionFuture<ShardRecoveryPlan> planFuture = PlainActionFuture.newFuture();
-            shardRecoveryPlanner.computeRecoveryPlan(planFuture);
-            final ShardRecoveryPlan shardRecoveryPlan = planFuture.get();
-            assertThat(shardRecoveryPlan, notNullValue());
+            final ShardRecoveryPlan shardRecoveryPlan = computeShardRecoveryPlan(shardRecoveryPlanner);
+            assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
 
-            List<StoreFileMetadata> missingAndDifferent = sourceMetadata.recoveryDiff(Store.MetadataSnapshot.EMPTY).missingAndDifferent;
-            assertThat(shardRecoveryPlan.getSourceFilesToRecover(), is(equalTo(missingAndDifferent)));
+            final Store.RecoveryDiff recoveryDiff = sourceMetadata.recoveryDiff(targetMetadataSnapshot);
+            assertThat(shardRecoveryPlan.getSourceFilesToRecover(), is(not(empty())));
+            assertThat(shardRecoveryPlan.getSourceFilesToRecover(), is(equalTo(recoveryDiff.missingAndDifferent)));
+
+            assertThat(shardRecoveryPlan.getIdenticalFiles(), is(equalTo(recoveryDiff.identical)));
+
             assertThat(shardRecoveryPlan.getSnapshotFilesToRecover(), is(equalTo(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY)));
-            assertThat(shardRecoveryPlan.getIdenticalFiles(), is(empty()));
-        });
-    }
 
-    public void testFallbacksToRegularPlanIfThereIsAFailureWhileFetchingTheSnapshots() throws Exception {
-        runTest(store -> {
-            writeRandomDocs(store, randomIntBetween(10, 100));
-            Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
+            assertThat(shardRecoveryPlan.getMetadataSnapshot(), equalTo(sourceMetadata));
 
-            ShardRecoveryPlanner shardRecoveryPlanner = new ShardRecoveryPlanner(shardId,
-                null,
-                sourceMetadata,
-                Store.MetadataSnapshot.EMPTY,
-                0,
-                0,
-                new SnapshotInfoFetcher(null, null, null) {
-                    @Override
-                    protected void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshotData>> listener) {
-                        listener.onFailure(new IOException("Unable to fetch the snapshots"));
-                    }
-                },
-                true
-            );
-
-            PlainActionFuture<ShardRecoveryPlan> planFuture = PlainActionFuture.newFuture();
-            shardRecoveryPlanner.computeRecoveryPlan(planFuture);
-            final ShardRecoveryPlan shardRecoveryPlan = planFuture.get();
-            assertThat(shardRecoveryPlan, notNullValue());
-
-            List<StoreFileMetadata> missingAndDifferent = sourceMetadata.recoveryDiff(Store.MetadataSnapshot.EMPTY).missingAndDifferent;
-            assertThat(shardRecoveryPlan.getSourceFilesToRecover(), is(equalTo(missingAndDifferent)));
-
-            assertEqualSnapshotFiles(shardRecoveryPlan.getSnapshotFilesToRecover(), ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY);
-            assertThat(shardRecoveryPlan.getIdenticalFiles(), is(empty()));
+            assertThat(shardRecoveryPlan.getStartingSeqNo(), equalTo(startingSeqNo));
+            assertThat(shardRecoveryPlan.getTranslogOps(), equalTo(translogOps));
         });
     }
 
     public void testLogicallyEquivalentSnapshotIsUsed() throws Exception {
-        runTest(store -> {
-            writeRandomDocs(store, randomIntBetween(10, 100));
-            final String shardIdentifier = randomAlphaOfLength(10);
-            Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
-            List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = new ArrayList<>(sourceMetadata.size());
-            for (StoreFileMetadata storeFileMetadata : sourceMetadata) {
-                snapshotFiles.add(new BlobStoreIndexShardSnapshot.FileInfo(randomAlphaOfLength(10), storeFileMetadata,
-                    new ByteSizeValue(Long.MAX_VALUE)));
-            }
-            IndexId indexId = new IndexId(randomAlphaOfLength(10), randomAlphaOfLength(10));
-            Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", UUIDs.randomBase64UUID(random())));
-            ShardSnapshotInfo shardSnapshotInfo =
-                new ShardSnapshotInfo(indexId, shardId, snapshot, randomAlphaOfLength(10), shardIdentifier);
-            SnapshotInfoFetcher.ShardSnapshotData shardSnapshotData =
-                new SnapshotInfoFetcher.ShardSnapshotData(shardSnapshotInfo, snapshotFiles);
-
-            ShardRecoveryPlanner shardRecoveryPlanner = new ShardRecoveryPlanner(shardId,
-                shardIdentifier,
-                sourceMetadata,
-                Store.MetadataSnapshot.EMPTY,
-                0,
-                0,
-                new SnapshotInfoFetcher(null, null, null) {
-                    @Override
-                    protected void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshotData>> listener) {
-                        listener.onResponse(Collections.singletonList(shardSnapshotData));
-                    }
-                },
-                true
-            );
-
-            PlainActionFuture<ShardRecoveryPlan> planFuture = PlainActionFuture.newFuture();
-            shardRecoveryPlanner.computeRecoveryPlan(planFuture);
-            final ShardRecoveryPlan shardRecoveryPlan = planFuture.get();
-            assertThat(shardRecoveryPlan, notNullValue());
-
-            ShardRecoveryPlan.SnapshotFilesToRecover expectedSnapshotFilesToRecover = new ShardRecoveryPlan.SnapshotFilesToRecover(
-                indexId,
-                snapshotFiles
-            );
-
-            assertThat(shardRecoveryPlan.getSourceFilesToRecover(), is(empty()));
-            assertEqualSnapshotFiles(expectedSnapshotFilesToRecover, shardRecoveryPlan.getSnapshotFilesToRecover());
-
-            assertThat(shardRecoveryPlan.getIdenticalFiles(), is(empty()));
-            assertThat(shardRecoveryPlan.getExistingSize(), equalTo(0L));
-
-            assertThat(shardRecoveryPlan.getMetadataSnapshot(), equalTo(sourceMetadata));
-
-            assertThat(shardRecoveryPlan.getStartingSeqNo(), equalTo(0L));
-            assertThat(shardRecoveryPlan.getTranslogOps(), equalTo(0));
-        });
-    }
-
-    public void testPlannerTriesToUseMostFilesFromSnapshots() throws Exception {
-        runTest(store -> {
-            writeRandomDocs(store, randomIntBetween(10, 100));
-            final String shardIdentifier = randomAlphaOfLength(10);
-            Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
-            List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = new ArrayList<>(sourceMetadata.size());
-            final StoreFileMetadata segmentsFile = sourceMetadata.getSegmentsFile();
-            for (StoreFileMetadata storeFileMetadata : sourceMetadata) {
-                if (storeFileMetadata.equals(segmentsFile)) {
-                    continue;
-                }
-                snapshotFiles.add(new BlobStoreIndexShardSnapshot.FileInfo(randomAlphaOfLength(10), storeFileMetadata,
-                    new ByteSizeValue(Long.MAX_VALUE)));
-            }
-            IndexId indexId = new IndexId(randomAlphaOfLength(10), randomAlphaOfLength(10));
-            Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", UUIDs.randomBase64UUID(random())));
-            ShardSnapshotInfo shardSnapshotInfo =
-                new ShardSnapshotInfo(indexId, shardId, snapshot, randomAlphaOfLength(10), shardIdentifier);
-            SnapshotInfoFetcher.ShardSnapshotData shardSnapshotData =
-                new SnapshotInfoFetcher.ShardSnapshotData(shardSnapshotInfo, snapshotFiles);
-
-            writeRandomDocs(store, randomIntBetween(20, 50));
-            Store.MetadataSnapshot latestSourceMetadata = store.getMetadata(null);
-            String latestShardIdentifier = randomAlphaOfLength(10);
-
-            ShardRecoveryPlanner shardRecoveryPlanner = new ShardRecoveryPlanner(shardId,
-                latestShardIdentifier,
-                latestSourceMetadata,
-                Store.MetadataSnapshot.EMPTY,
-                0,
-                0,
-                new SnapshotInfoFetcher(null, null, null) {
-                    @Override
-                    protected void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshotData>> listener) {
-                        listener.onResponse(Collections.singletonList(shardSnapshotData));
-                    }
-                },
-                true
-            );
-
-            PlainActionFuture<ShardRecoveryPlan> planFuture = PlainActionFuture.newFuture();
-            shardRecoveryPlanner.computeRecoveryPlan(planFuture);
-            final ShardRecoveryPlan shardRecoveryPlan = planFuture.get();
-            assertThat(shardRecoveryPlan, notNullValue());
-
-            ShardRecoveryPlan.SnapshotFilesToRecover expectedSnapshotFilesToRecover = new ShardRecoveryPlan.SnapshotFilesToRecover(
-                indexId,
-                snapshotFiles
-            );
-
-            final Store.RecoveryDiff recoveryDiff = latestSourceMetadata.recoveryDiff(sourceMetadata);
-            assertThat(shardRecoveryPlan.getSourceFilesToRecover(), is(equalTo(recoveryDiff.missingAndDifferent)));
-            assertEqualSnapshotFiles(expectedSnapshotFilesToRecover, shardRecoveryPlan.getSnapshotFilesToRecover());
-
-            assertThat(shardRecoveryPlan.getIdenticalFiles(), is(empty()));
-            assertThat(shardRecoveryPlan.getExistingSize(), equalTo(0L));
-
-            assertThat(shardRecoveryPlan.getMetadataSnapshot(), equalTo(latestSourceMetadata));
-
-            assertThat(shardRecoveryPlan.getStartingSeqNo(), equalTo(0L));
-            assertThat(shardRecoveryPlan.getTranslogOps(), equalTo(0));
-        });
-    }
-
-    public void testPlannerTriesToUseMostFilesFromSnapshots2() throws Exception {
-        runTest(store -> {
-            int numberOfAvailableSnapshots = randomIntBetween(1, 10);
-            List<SnapshotInfoFetcher.ShardSnapshotData> availableSnapshots = new ArrayList<>(numberOfAvailableSnapshots);
-            for (int i = 0; i < numberOfAvailableSnapshots; i++) {
-                String shardIdentifier = randomAlphaOfLength(10);
-                IndexId indexId = new IndexId(randomAlphaOfLength(10), randomAlphaOfLength(10));
-                List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = randomList(randomIntBetween(10, 20), () -> {
-                    StoreFileMetadata storeFileMetadata = new StoreFileMetadata(randomAlphaOfLength(10), randomLongBetween(1, 100),
-                        randomAlphaOfLength(10), Version.CURRENT.toString());
-                    return new BlobStoreIndexShardSnapshot.FileInfo(randomAlphaOfLength(10), storeFileMetadata,
-                        new ByteSizeValue(Long.MAX_VALUE));
-                });
-
-                Snapshot snapshot = new Snapshot("repo" + i, new SnapshotId("snap", UUIDs.randomBase64UUID(random())));
-                ShardSnapshotInfo shardSnapshotInfo =
-                    new ShardSnapshotInfo(indexId, shardId, snapshot, randomAlphaOfLength(10), shardIdentifier);
-                availableSnapshots.add(new SnapshotInfoFetcher.ShardSnapshotData(shardSnapshotInfo, snapshotFiles));
-            }
-
+        createStore(store -> {
             writeRandomDocs(store, randomIntBetween(10, 100));
             Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
-            String latestShardIdentifier = randomAlphaOfLength(10);
 
-            long startingSeqNo = randomLongBetween(0, 100);
-            int translogOps = randomIntBetween(0, 100);
+            ShardSnapshotsService.ShardSnapshotData shardSnapshotData = createSnapshotThatSharesSegmentFiles(store, "repo");
+            String shardStateIdentifier = shardSnapshotData.getShardStateIdentifier();
+
+            long startingSeqNo = randomNonNegativeLong();
+            int translogOps = randomIntBetween(1, 100);
             ShardRecoveryPlanner shardRecoveryPlanner = new ShardRecoveryPlanner(shardId,
-                latestShardIdentifier,
+                shardStateIdentifier,
                 sourceMetadata,
                 Store.MetadataSnapshot.EMPTY,
                 startingSeqNo,
                 translogOps,
-                new SnapshotInfoFetcher(null, null, null) {
+                new ShardSnapshotsService(null, null, null) {
                     @Override
                     protected void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshotData>> listener) {
-                        listener.onResponse(availableSnapshots);
+                        listener.onResponse(Collections.singletonList(shardSnapshotData));
                     }
                 },
                 true
             );
 
-            PlainActionFuture<ShardRecoveryPlan> planFuture = PlainActionFuture.newFuture();
-            shardRecoveryPlanner.computeRecoveryPlan(planFuture);
-            final ShardRecoveryPlan shardRecoveryPlan = planFuture.get();
-            assertThat(shardRecoveryPlan, notNullValue());
+            final ShardRecoveryPlan shardRecoveryPlan = computeShardRecoveryPlan(shardRecoveryPlanner);
+            assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
 
-            assertThat(Set.copyOf(shardRecoveryPlan.getSourceFilesToRecover()),
-                is(equalTo(Set.copyOf(CollectionUtils.iterableAsArrayList(sourceMetadata)))));
-            assertEqualSnapshotFiles(shardRecoveryPlan.getSnapshotFilesToRecover(), ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY);
+            final Store.RecoveryDiff recoveryDiff = sourceMetadata.recoveryDiff(shardSnapshotData.getMetadataSnapshot());
+
+            ShardRecoveryPlan.SnapshotFilesToRecover expectedSnapshotFilesToRecover =
+                new ShardRecoveryPlan.SnapshotFilesToRecover(shardSnapshotData.getIndexId(),
+                    shardSnapshotData.getSnapshotFiles(recoveryDiff.identical));
+
+            assertThat(shardRecoveryPlan.getSourceFilesToRecover(), is(empty()));
+            assertEqualSnapshotFiles(expectedSnapshotFilesToRecover, shardRecoveryPlan.getSnapshotFilesToRecover());
 
             assertThat(shardRecoveryPlan.getIdenticalFiles(), is(empty()));
             assertThat(shardRecoveryPlan.getExistingSize(), equalTo(0L));
@@ -336,19 +198,224 @@ public class ShardRecoveryPlannerTests extends ESTestCase {
         });
     }
 
-    public void testExistingFilesInTarget() {
-        fail();
+    public void testLogicallyEquivalentSnapshotIsSkippedIfUnderlyingFilesAreDifferent() throws Exception {
+        createStore(store -> {
+            writeRandomDocs(store, randomIntBetween(10, 100));
+            Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
+
+            ShardSnapshotsService.ShardSnapshotData shardSnapshotData = createSnapshotThatDoNotShareSegmentFiles("repo");
+            String shardStateIdentifier = shardSnapshotData.getShardStateIdentifier();
+
+            long startingSeqNo = randomNonNegativeLong();
+            int translogOps = randomIntBetween(1, 100);
+            ShardRecoveryPlanner shardRecoveryPlanner = new ShardRecoveryPlanner(shardId,
+                shardStateIdentifier,
+                sourceMetadata,
+                Store.MetadataSnapshot.EMPTY,
+                startingSeqNo,
+                translogOps,
+                new ShardSnapshotsService(null, null, null) {
+                    @Override
+                    protected void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshotData>> listener) {
+                        listener.onResponse(Collections.singletonList(shardSnapshotData));
+                    }
+                },
+                true
+            );
+
+            final ShardRecoveryPlan shardRecoveryPlan = computeShardRecoveryPlan(shardRecoveryPlanner);
+            assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
+
+            assertThat(shardRecoveryPlan.getSourceFilesToRecover(), is(not(empty())));
+            assertThat(shardRecoveryPlan.getSnapshotFilesToRecover(), is(equalTo(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY)));
+            assertThat(shardRecoveryPlan.getIdenticalFiles(), is(empty()));
+
+            assertThat(shardRecoveryPlan.getMetadataSnapshot(), equalTo(sourceMetadata));
+
+            assertThat(shardRecoveryPlan.getStartingSeqNo(), equalTo(startingSeqNo));
+            assertThat(shardRecoveryPlan.getTranslogOps(), equalTo(translogOps));
+        });
+    }
+
+    public void testPlannerTriesToUseMostFilesFromSnapshots() throws Exception {
+        createStore(store -> {
+            Store.MetadataSnapshot targetMetadataSnapshot = generateRandomTargetState(store, true);
+
+            List<ShardSnapshotsService.ShardSnapshotData> availableSnapshots = new ArrayList<>();
+
+            int numberOfStaleSnapshots = randomIntBetween(0, 5);
+            for (int i = 0; i < numberOfStaleSnapshots; i++) {
+                availableSnapshots.add(createSnapshotThatDoNotShareSegmentFiles("stale-repo-" + i));
+            }
+
+            int numberOfValidSnapshots = randomIntBetween(0, 10);
+            for (int i = 0; i < numberOfValidSnapshots; i++) {
+                writeRandomDocs(store, randomIntBetween(10, 100));
+                availableSnapshots.add(createSnapshotThatSharesSegmentFiles(store, "repo-" + i));
+            }
+
+            // Write new segments
+            writeRandomDocs(store, randomIntBetween(20, 50));
+            Store.MetadataSnapshot latestSourceMetadata = store.getMetadata(null);
+            String latestShardIdentifier = randomAlphaOfLength(10);
+
+            long startingSeqNo = randomNonNegativeLong();
+            int translogOps = randomIntBetween(0, 100);
+            ShardRecoveryPlanner shardRecoveryPlanner = new ShardRecoveryPlanner(shardId,
+                latestShardIdentifier,
+                latestSourceMetadata,
+                targetMetadataSnapshot,
+                startingSeqNo,
+                translogOps,
+                new ShardSnapshotsService(null, null, null) {
+                    @Override
+                    protected void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshotData>> listener) {
+                        listener.onResponse(availableSnapshots);
+                    }
+                },
+                true
+            );
+
+            final ShardRecoveryPlan shardRecoveryPlan = computeShardRecoveryPlan(shardRecoveryPlanner);
+            assertPlanIsValid(shardRecoveryPlan, latestSourceMetadata);
+
+            if (numberOfValidSnapshots > 0) {
+                ShardSnapshotsService.ShardSnapshotData latestValidSnapshot =
+                    availableSnapshots.get(availableSnapshots.size() - 1);
+
+                final Store.RecoveryDiff recoveryDiff = latestSourceMetadata.recoveryDiff(latestValidSnapshot.getMetadataSnapshot());
+
+                ShardRecoveryPlan.SnapshotFilesToRecover expectedSnapshotFilesToRecover =
+                    new ShardRecoveryPlan.SnapshotFilesToRecover(latestValidSnapshot.getIndexId(),
+                        latestValidSnapshot.getSnapshotFiles(recoveryDiff.identical));
+
+                assertThat(shardRecoveryPlan.getSourceFilesToRecover(), is(equalTo(recoveryDiff.missingAndDifferent)));
+                assertEqualSnapshotFiles(expectedSnapshotFilesToRecover, shardRecoveryPlan.getSnapshotFilesToRecover());
+            } else {
+                List<StoreFileMetadata> sourceFiles = iterableAsArrayList(latestSourceMetadata);
+                assertThat(shardRecoveryPlan.getSourceFilesToRecover(), is(equalTo(sourceFiles)));
+                assertEqualSnapshotFiles(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY, shardRecoveryPlan.getSnapshotFilesToRecover());
+            }
+
+            assertThat(shardRecoveryPlan.getIdenticalFiles(), is(empty()));
+            assertThat(shardRecoveryPlan.getExistingSize(), equalTo(0L));
+
+            assertThat(shardRecoveryPlan.getMetadataSnapshot(), equalTo(latestSourceMetadata));
+
+            assertThat(shardRecoveryPlan.getStartingSeqNo(), equalTo(startingSeqNo));
+            assertThat(shardRecoveryPlan.getTranslogOps(), equalTo(translogOps));
+        });
+    }
+
+    private void assertPlanIsValid(ShardRecoveryPlan shardRecoveryPlan, Store.MetadataSnapshot expectedMetadataSnapshot) {
+        List<StoreFileMetadata> planFiles = new ArrayList<>();
+        planFiles.addAll(shardRecoveryPlan.getIdenticalFiles());
+        planFiles.addAll(shardRecoveryPlan.getSourceFilesToRecover());
+        for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : shardRecoveryPlan.getSnapshotFilesToRecover()) {
+            planFiles.add(fileInfo.metadata());
+        }
+
+        List<StoreFileMetadata> missingFiles = iterableAsArrayList(expectedMetadataSnapshot)
+            .stream()
+            .filter(f -> planFiles.contains(f) == false)
+            .collect(Collectors.toList());
+
+        List<StoreFileMetadata> unexpectedFiles = planFiles.stream()
+            .filter(f -> expectedMetadataSnapshot.get(f.name()) == null)
+            .collect(Collectors.toList());
+
+        assertThat(missingFiles, is(empty()));
+        assertThat(unexpectedFiles, is(empty()));
+        assertThat(planFiles.size(), is(equalTo(expectedMetadataSnapshot.size())));
+        assertThat(shardRecoveryPlan.getMetadataSnapshot(), is(equalTo(expectedMetadataSnapshot)));
     }
 
     private void assertEqualSnapshotFiles(ShardRecoveryPlan.SnapshotFilesToRecover expected,
                                           ShardRecoveryPlan.SnapshotFilesToRecover actual) {
-        assertThat(expected.getIndexId(), is(equalTo(actual.getIndexId())));
-        assertThat(Set.copyOf(expected.getFiles()), is(equalTo(Set.copyOf(actual.getFiles()))));
+        assertThat(actual.getIndexId(), is(equalTo(expected.getIndexId())));
+
+        final List<BlobStoreIndexShardSnapshot.FileInfo> missingSnapshotFiles = expected.getFiles()
+            .stream()
+            .filter(f -> actual.getFiles().contains(f) == false)
+            .collect(Collectors.toList());
+
+        final List<BlobStoreIndexShardSnapshot.FileInfo> unexpectedSnapshotFiles = actual.getFiles()
+            .stream()
+            .filter(f -> expected.getFiles().contains(f) == false)
+            .collect(Collectors.toList());
+
+        assertThat(missingSnapshotFiles, is(empty()));
+        assertThat(unexpectedSnapshotFiles, is(empty()));
+    }
+
+    private Store.MetadataSnapshot generateRandomTargetState(Store store, boolean canShareFilesWithSource) throws IOException {
+        final Store.MetadataSnapshot targetMetadataSnapshot;
+        if (canShareFilesWithSource && randomBoolean()) {
+            writeRandomDocs(store, randomIntBetween(20, 50));
+            targetMetadataSnapshot = store.getMetadata(null);
+        } else {
+            if (randomBoolean()) {
+                targetMetadataSnapshot = Store.MetadataSnapshot.EMPTY;
+            } else {
+                // None of the files in the target would match
+                final int filesInTargetCount = randomIntBetween(1, 20);
+                Map<String, StoreFileMetadata> filesInTarget = IntStream.range(0, filesInTargetCount)
+                    .mapToObj(i -> randomStoreFileMetadata())
+                    .collect(Collectors.toMap(StoreFileMetadata::name, Function.identity()));
+                targetMetadataSnapshot = new Store.MetadataSnapshot(filesInTarget, Collections.emptyMap(), 0);
+            }
+        }
+        return targetMetadataSnapshot;
+    }
+
+    private ShardSnapshotsService.ShardSnapshotData createSnapshotThatDoNotShareSegmentFiles(String repoName) {
+        List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = randomList(randomIntBetween(10, 20), () -> {
+            StoreFileMetadata storeFileMetadata = randomStoreFileMetadata();
+            return new BlobStoreIndexShardSnapshot.FileInfo(randomAlphaOfLength(10), storeFileMetadata, PART_SIZE);
+        });
+
+        return createSnapshotData(repoName, snapshotFiles);
+    }
+
+    private ShardSnapshotsService.ShardSnapshotData createSnapshotThatSharesSegmentFiles(Store store, String repository) throws Exception {
+        Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
+        List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = new ArrayList<>(sourceMetadata.size());
+        for (StoreFileMetadata storeFileMetadata : sourceMetadata) {
+            BlobStoreIndexShardSnapshot.FileInfo fileInfo =
+                new BlobStoreIndexShardSnapshot.FileInfo(randomAlphaOfLength(10), storeFileMetadata, PART_SIZE);
+            snapshotFiles.add(fileInfo);
+        }
+        return createSnapshotData(repository, snapshotFiles);
+    }
+
+    private ShardSnapshotsService.ShardSnapshotData createSnapshotData(String repoName,
+                                                                       List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles) {
+        String shardIdentifier = randomAlphaOfLength(10);
+
+        Snapshot snapshot = new Snapshot(repoName, new SnapshotId("snap", UUIDs.randomBase64UUID(random())));
+        IndexId indexId = randomIndexId();
+        ShardSnapshotInfo shardSnapshotInfo =
+            new ShardSnapshotInfo(indexId, shardId, snapshot, randomAlphaOfLength(10), shardIdentifier);
+
+        return new ShardSnapshotsService.ShardSnapshotData(shardSnapshotInfo, snapshotFiles);
+    }
+
+    private ShardRecoveryPlan computeShardRecoveryPlan(ShardRecoveryPlanner shardRecoveryPlanner) throws Exception {
+        PlainActionFuture<ShardRecoveryPlan> planFuture = PlainActionFuture.newFuture();
+        shardRecoveryPlanner.computeRecoveryPlan(planFuture);
+        final ShardRecoveryPlan shardRecoveryPlan = planFuture.get();
+        assertThat(shardRecoveryPlan, notNullValue());
+        return shardRecoveryPlan;
     }
 
     private void writeRandomDocs(Store store, int numDocs) throws IOException {
         Directory dir = store.directory();
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
+
+        // Disable merges to control the files that are used in this tests
+        IndexWriterConfig indexWriterConfig = new IndexWriterConfig()
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setMergeScheduler(NoMergeScheduler.INSTANCE);
+        IndexWriter writer = new IndexWriter(dir, indexWriterConfig);
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
             document.add(new StringField("id", Integer.toString(i), Field.Store.YES));
@@ -359,7 +426,7 @@ public class ShardRecoveryPlannerTests extends ESTestCase {
         writer.close();
     }
 
-    private void runTest(CheckedConsumer<Store, Exception> testBody) throws Exception {
+    private void createStore(CheckedConsumer<Store, Exception> testBody) throws Exception {
         final Store store = newStore(createTempDir());
         try {
             testBody.accept(store);
@@ -371,5 +438,14 @@ public class ShardRecoveryPlannerTests extends ESTestCase {
     private Store newStore(Path path) {
         BaseDirectoryWrapper baseDirectoryWrapper = RecoverySourceHandlerTests.newFSDirectory(path);
         return new Store(shardId, INDEX_SETTINGS, baseDirectoryWrapper, new DummyShardLock(shardId));
+    }
+
+    private StoreFileMetadata randomStoreFileMetadata() {
+        return new StoreFileMetadata(randomAlphaOfLength(10), randomLongBetween(1, 100),
+            randomAlphaOfLength(10), Version.CURRENT.toString());
+    }
+
+    private IndexId randomIndexId() {
+        return new IndexId(shardId.getIndexName(), randomAlphaOfLength(10));
     }
 }

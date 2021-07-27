@@ -78,7 +78,7 @@ class ShardRecoveryPlan {
     }
 
     long getExistingSize() {
-        return 0;
+        return filesPresentInTarget.stream().mapToLong(StoreFileMetadata::length).sum();
     }
 
     long getStartingSeqNo() {

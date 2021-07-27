@@ -106,7 +106,7 @@ public class RecoverySourceHandler {
     private final int maxConcurrentFileChunks;
     private final int maxConcurrentOperations;
     private final ThreadPool threadPool;
-    private final SnapshotInfoFetcher snapshotInfoFetcher;
+    private final ShardSnapshotsService shardSnapshotsService;
     private final boolean useSnapshots;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
@@ -118,7 +118,7 @@ public class RecoverySourceHandler {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.threadPool = threadPool;
-        this.snapshotInfoFetcher = new SnapshotInfoFetcher(null, null, threadPool);
+        this.shardSnapshotsService = new ShardSnapshotsService(null, null, threadPool);
         this.useSnapshots = false;
         this.request = request;
         this.shardId = this.request.shardId().id();
@@ -507,7 +507,7 @@ public class RecoverySourceHandler {
             request.metadataSnapshot(),
             startingSeqNo,
             translogOps,
-            snapshotInfoFetcher,
+            shardSnapshotsService,
             useSnapshots
         );
 

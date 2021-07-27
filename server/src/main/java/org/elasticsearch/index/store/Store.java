@@ -83,6 +83,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1068,6 +1069,21 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          */
         public String getSyncId() {
             return commitUserData.get(Engine.SYNC_COMMIT_ID);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            MetadataSnapshot metadata1 = (MetadataSnapshot) o;
+            return numDocs == metadata1.numDocs &&
+                Objects.equals(metadata, metadata1.metadata) &&
+                Objects.equals(commitUserData, metadata1.commitUserData);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(metadata, commitUserData, numDocs);
         }
     }
 

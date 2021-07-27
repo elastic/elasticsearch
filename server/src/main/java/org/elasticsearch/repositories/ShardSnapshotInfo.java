@@ -100,4 +100,22 @@ public class ShardSnapshotInfo implements Writeable {
     public int hashCode() {
         return Objects.hash(indexId, snapshot, shardId, indexMetadataIdentifier, shardStateIdentifier);
     }
+
+    @Override
+    public String toString() {
+        return "ShardSnapshotInfo{"
+            + "indexId="
+            + indexId
+            + ", snapshot="
+            + snapshot
+            + ", shardId="
+            + shardId
+            + ", indexMetadataIdentifier='"
+            + indexMetadataIdentifier
+            + '\''
+            + ", shardStateIdentifier='"
+            + shardStateIdentifier
+            + '\''
+            + '}';
+    }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotRequest;
@@ -36,14 +37,14 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-class SnapshotInfoFetcher {
-    private final Logger logger = LogManager.getLogger(SnapshotInfoFetcher.class);
+class ShardSnapshotsService {
+    private final Logger logger = LogManager.getLogger(ShardSnapshotsService.class);
 
     private final Client client;
     private final RepositoriesService repositoriesService;
     private final ThreadPool threadPool;
 
-    SnapshotInfoFetcher(Client client, RepositoriesService repositoriesService, ThreadPool threadPool) {
+    ShardSnapshotsService(Client client, RepositoriesService repositoriesService, ThreadPool threadPool) {
         this.client = client;
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
@@ -57,7 +58,7 @@ class SnapshotInfoFetcher {
         );
     }
 
-    List<ShardSnapshotData> fetchSnapshotFiles(GetShardSnapshotResponse shardSnapshotResponse) {
+    private List<ShardSnapshotData> fetchSnapshotFiles(GetShardSnapshotResponse shardSnapshotResponse) {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
 
         if (shardSnapshotResponse.getRepositoryShardSnapshots().isEmpty()) {
@@ -86,7 +87,7 @@ class SnapshotInfoFetcher {
 
             return blobStoreIndexShardSnapshot.indexFiles();
         } catch (Exception e) {
-            // TODO: Add a log message here.
+            logger.warn(new ParameterizedMessage("Unable to fetch shard snapshot files for {}", shardSnapshotInfo), e);
             return Collections.emptyList();
         }
     }

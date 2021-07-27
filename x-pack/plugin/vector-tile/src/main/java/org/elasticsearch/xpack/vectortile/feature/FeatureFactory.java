@@ -63,7 +63,7 @@ public class FeatureFactory {
         this.layerParams = new MvtLayerParams(extent, extent);
     }
 
-    public List<Object> getFeatures(Geometry geometry) {
+    public List<byte[]> getFeatures(Geometry geometry) {
         final TileGeomResult tileGeom = JtsAdapter.createTileGeom(
             JtsAdapter.flatFeatureList(geometry.visit(builder)),
             tileEnvelope,
@@ -74,7 +74,7 @@ public class FeatureFactory {
         );
         // MVT tile geometry to MVT features
         final List<VectorTile.Tile.Feature> features = JtsAdapter.toFeatures(tileGeom.mvtGeoms, layerProps, userDataIgnoreConverter);
-        final List<Object> byteFeatures = new ArrayList<>(features.size());
+        final List<byte[]> byteFeatures = new ArrayList<>(features.size());
         features.forEach(f -> byteFeatures.add(f.toByteArray()));
         return byteFeatures;
     }

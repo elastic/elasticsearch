@@ -110,13 +110,11 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             featureFactory = new FeatureFactory(z, x, y, 4096);
         }
 
-        List<?> sourceValue = fetchSourceValue(mapper, WellKnownText.toWKT(geometry), mvtString);
-        List<Object> features = featureFactory.getFeatures(geometry);
-        if (sourceValue.size() == 0) {
-            assertThat(features.size(), Matchers.equalTo(0));
-        } else {
-            assertThat(sourceValue.size(), Matchers.equalTo(1));
-            assertThat(sourceValue.get(0), Matchers.equalTo(features.get(0)));
+        final List<?> sourceValue = fetchSourceValue(mapper, WellKnownText.toWKT(geometry), mvtString);
+        final List<byte[]> features = featureFactory.getFeatures(geometry);
+        assertThat(features.size(), Matchers.equalTo(sourceValue.size()));
+        for (int i = 0; i < features.size(); i++) {
+            assertThat(sourceValue.get(i), Matchers.equalTo(features.get(i)));
         }
     }
 }

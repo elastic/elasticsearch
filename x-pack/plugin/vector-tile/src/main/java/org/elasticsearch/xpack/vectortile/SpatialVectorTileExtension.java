@@ -13,6 +13,8 @@ import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.xpack.spatial.VectorTileExtension;
 import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
 
+import java.util.ArrayList;
+
 /**
  * Unique implementation of VectorTileExtension so we can transform geometries
  * into its vector tile representation from the spatial module.
@@ -25,7 +27,7 @@ public class SpatialVectorTileExtension implements VectorTileExtension {
             final FeatureFactory featureFactory = new FeatureFactory(z, x, y, extent);
             return geometries -> {
                 final Geometry geometry = (geometries.size() == 1) ? geometries.get(0) : new GeometryCollection<>(geometries);
-                return featureFactory.getFeatures(geometry);
+                return new ArrayList<>(featureFactory.getFeatures(geometry));
             };
         };
     }

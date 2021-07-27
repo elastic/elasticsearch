@@ -99,16 +99,16 @@ public class FeatureFactoryTests extends ESTestCase {
         final FeatureFactory builder = new FeatureFactory(z, x, y, extent);
         {
             final Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
-            final List<Object> byteFeatures = builder.getFeatures(provider.apply(r));
+            final List<byte[]> byteFeatures = builder.getFeatures(provider.apply(r));
             final List<VectorTile.Tile.Feature> features = new ArrayList<>(byteFeatures.size());
-            for (Object byteFeature : byteFeatures) {
-                features.add(VectorTile.Tile.Feature.parseFrom((byte[]) byteFeature));
+            for (byte[] byteFeature : byteFeatures) {
+                features.add(VectorTile.Tile.Feature.parseFrom(byteFeature));
             }
             consumer.accept(features);
         }
         {
             final Rectangle r = GeoTileUtils.toBoundingBox(x - 2, y, z);
-            final List<Object> byteFeatures = builder.getFeatures(provider.apply(r));
+            final List<byte[]> byteFeatures = builder.getFeatures(provider.apply(r));
             assertThat(byteFeatures.size(), Matchers.equalTo(0));
         }
     }

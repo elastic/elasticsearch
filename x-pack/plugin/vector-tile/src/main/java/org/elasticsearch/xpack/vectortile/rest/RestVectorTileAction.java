@@ -222,6 +222,7 @@ public class RestVectorTileAction extends BaseRestHandler {
         return searchRequestBuilder;
     }
 
+    @SuppressWarnings("unchecked")
     private static VectorTile.Tile.Layer.Builder buildHitsLayer(SearchHit[] hits, VectorTileRequest request) throws IOException {
         final VectorTile.Tile.Layer.Builder hitsLayerBuilder = VectorTileUtils.createLayerBuilder(HITS_LAYER, request.getExtent());
         final List<FieldAndFormat> fields = request.getFieldAndFormats();

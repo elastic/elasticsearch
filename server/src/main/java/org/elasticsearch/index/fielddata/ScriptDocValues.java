@@ -255,6 +255,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public abstract GeoBoundingBox getBoundingBox();
         /** Returns the centroid of this geometry  */
         public abstract GeoPoint getCentroid();
+        /** Returns the width of the bounding box diagonal in the spherical Mercator projection (meters)  */
+        public abstract double getMercatorWidth();
+        /** Returns the height of the bounding box diagonal in the spherical Mercator projection (meters) */
+        public abstract double getMercatorHeight();
     }
 
     public static final class GeoPoints extends Geometry<GeoPoint> {
@@ -416,6 +420,16 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public GeoPoint getCentroid() {
             return size() == 0 ? null : centroid;
+        }
+
+        @Override
+        public double getMercatorWidth() {
+            return 0;
+        }
+
+        @Override
+        public double getMercatorHeight() {
+            return 0;
         }
 
         @Override

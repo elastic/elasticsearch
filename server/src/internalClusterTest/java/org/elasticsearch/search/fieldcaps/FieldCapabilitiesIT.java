@@ -270,7 +270,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
             assertTrue(testField.containsKey("keyword"));
             assertEquals(
-                new FieldCapabilities("_test", "keyword", true, true, true, null, null, null, Collections.emptyMap()),
+                new FieldCapabilities("_test", "keyword", true, true, false, null, null, null, Collections.emptyMap()),
                 testField.get("keyword"));
         }
     }
@@ -420,7 +420,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         @Override
         public String typeName() {
-            return "test";
+            return "keyword";
         }
 
         @Override

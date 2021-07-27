@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.vectortile.feature;
 
 import org.apache.lucene.util.BitUtil;
+import org.elasticsearch.common.geo.SphericalMercatorUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;

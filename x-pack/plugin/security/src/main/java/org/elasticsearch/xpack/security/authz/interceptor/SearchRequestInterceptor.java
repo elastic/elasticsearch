@@ -64,7 +64,8 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
 
     @Override
     public boolean supports(IndicesRequest request) {
-        return request instanceof SearchRequest;
+        // unfortunately we have to skip these
+        return request instanceof SearchRequest && ((SearchRequest) request).pointInTimeBuilder() == null;
     }
 
     // package private for test

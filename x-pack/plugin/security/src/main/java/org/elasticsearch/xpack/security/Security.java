@@ -364,6 +364,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
     private final SetOnce<SecurityIndexManager> securityIndex = new SetOnce<>();
+    private final SetOnce<Supplier<SecuritySearchOperationListener>> securitySearchOperationListenerSupplier = new SetOnce<>();
     private final SetOnce<SharedGroupFactory> sharedGroupFactory = new SetOnce<>();
     private final SetOnce<NioGroupFactory> nioGroupFactory = new SetOnce<>();
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
@@ -521,6 +522,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         for (SecurityExtension extension : securityExtensions) {
             rolesProviders.addAll(extension.getRolesProviders(extensionComponents));
         }
+
+        securitySearchOperationListenerSupplier.set(() -> new SecuritySearchOperationListener(securityContext.get(), getLicenseState(),
+                auditTrailService, fieldPermissionsCache, () -> clusterService.state().metadata().getIndicesLookup()));
 
         final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, getLicenseState(), securityIndex.get(),
             clusterService, cacheInvalidatorRegistry, threadPool);
@@ -843,8 +847,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             // in order to prevent scroll ids from being maliciously crafted and/or guessed, a listener is added that
             // attaches information to the scroll context so that we can validate the user that created the scroll against
             // the user that is executing a scroll operation
-            module.addSearchOperationListener(
-                    new SecuritySearchOperationListener(securityContext.get(), getLicenseState(), auditTrailService.get()));
+            module.addSearchOperationListener(securitySearchOperationListenerSupplier.get().get());
         }
     }
 

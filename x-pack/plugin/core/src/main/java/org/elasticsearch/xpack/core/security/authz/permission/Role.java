@@ -183,7 +183,7 @@ public class Role {
                 break;
             }
         }
-        return new IndicesAccessControl(granted, indexPermissions);
+        return new IndicesAccessControl(granted, requestedIndicesOrAliases, indexPermissions);
     }
 
     public static class Builder {

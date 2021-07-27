@@ -87,6 +87,12 @@ public interface SearchOperationListener {
     default void onNewScrollContext(ReaderContext readerContext) {}
 
     /**
+     * Executed when a new PIT search {@link ReaderContext} was created
+     * @param readerContext the created reader context
+     */
+    default void onNewPITContext(ReaderContext readerContext) {}
+
+    /**
      * Executed when a scroll search {@link SearchContext} is freed.
      * This happens either when the scroll search execution finishes, if the
      * execution failed or if the search context as idle for and needs to be
@@ -222,6 +228,16 @@ public interface SearchOperationListener {
                     listener.onFreeScrollContext(readerContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onFreeScrollContext listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        public void onNewPITContext(ReaderContext readerContext) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onNewPITContext(readerContext);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onNewPITContext listener [{}] failed", listener), e);
                 }
             }
         }

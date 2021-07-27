@@ -24,6 +24,8 @@ import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -34,6 +36,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
@@ -307,39 +310,49 @@ public class RBACEngine implements AuthorizationEngine {
             }
         } else if (request instanceof IndicesRequest && ((IndicesRequest) request).allowsRemoteIndices()) {
             // remote indices are allowed
-            indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
-                assert resolvedIndices.isEmpty() == false
-                    : "every indices request needs to have its indices set thus the resolved indices must not be empty";
-                //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
-                //'-*' matches no indices so we allow the request to go through, which will yield an empty response
-                if (resolvedIndices.isNoIndicesPlaceholder()) {
-                    // check action name
-                    authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES, listener);
-                } else {
-                    buildIndicesAccessControl(authentication, action, authorizationInfo,
-                        Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup, listener);
-                }
-            }, listener::onFailure));
-        } else {
-            authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES,
-                ActionListener.wrap(indexAuthorizationResult -> {
-                    if (indexAuthorizationResult.isGranted()) {
-                        indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
-                            assert resolvedIndices.isEmpty() == false
-                                : "every indices request needs to have its indices set thus the resolved indices must not be empty";
-                            //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
-                            //'-*' matches no indices so we allow the request to go through, which will yield an empty response
-                            if (resolvedIndices.isNoIndicesPlaceholder()) {
-                                listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
-                            } else {
-                                buildIndicesAccessControl(authentication, action, authorizationInfo,
-                                    Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup, listener);
-                            }
-                        }, listener::onFailure));
+            if (request instanceof SearchRequest && ((SearchRequest)request).pointInTimeBuilder() != null) {
+                // PITs have special authz in {@code SecuritySearchOperationListener}
+                listener.onResponse(new IndexAuthorizationResult(true, null));
+            } else {
+                indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
+                    assert resolvedIndices.isEmpty() == false
+                            : "every indices request needs to have its indices set thus the resolved indices must not be empty";
+                    //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
+                    //'-*' matches no indices so we allow the request to go through, which will yield an empty response
+                    if (resolvedIndices.isNoIndicesPlaceholder()) {
+                        // check action name
+                        authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES, listener);
                     } else {
-                        listener.onResponse(indexAuthorizationResult);
+                        buildIndicesAccessControl(authentication, action, authorizationInfo,
+                                Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup, listener);
                     }
                 }, listener::onFailure));
+            }
+        } else {
+            // PITs have special authz in {@code SecuritySearchOperationListener}
+            if (request instanceof ShardSearchRequest && ((ShardSearchRequest)request).readerId() != null) {
+                listener.onResponse(new IndexAuthorizationResult(true, null));
+            } else {
+                authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES,
+                        ActionListener.wrap(indexAuthorizationResult -> {
+                            if (indexAuthorizationResult.isGranted()) {
+                                indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
+                                    assert resolvedIndices.isEmpty() == false : "every indices request needs to have its indices set thus" +
+                                            " the resolved indices must not be empty";
+                                    //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
+                                    //'-*' matches no indices so we allow the request to go through, which will yield an empty response
+                                    if (resolvedIndices.isNoIndicesPlaceholder()) {
+                                        listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                                    } else {
+                                        buildIndicesAccessControl(authentication, action, authorizationInfo,
+                                                Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup, listener);
+                                    }
+                                }, listener::onFailure));
+                            } else {
+                                listener.onResponse(indexAuthorizationResult);
+                            }
+                        }, listener::onFailure));
+            }
         }
     }
 

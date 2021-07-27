@@ -7,25 +7,35 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 
+import java.util.Map;
+import java.util.function.Supplier;
+
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
 
 /**
@@ -42,11 +52,34 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
     private final SecurityContext securityContext;
     private final XPackLicenseState licenseState;
     private final AuditTrailService auditTrailService;
+    private final FieldPermissionsCache fieldPermissionsCache;
+    private final Supplier<Map<String, IndexAbstraction>> aliasAndIndexLookupSupplier;
 
     public SecuritySearchOperationListener(SecurityContext securityContext, XPackLicenseState licenseState, AuditTrailService auditTrail) {
+        this(securityContext, licenseState, auditTrail, null, null);
+    }
+
+    public SecuritySearchOperationListener(SecurityContext securityContext, XPackLicenseState licenseState, AuditTrailService auditTrail,
+                                           FieldPermissionsCache fieldPermissionsCache,
+                                           Supplier<Map<String, IndexAbstraction>> aliasAndIndexLookupSupplier) {
         this.securityContext = securityContext;
         this.licenseState = licenseState;
         this.auditTrailService = auditTrail;
+        this.fieldPermissionsCache = fieldPermissionsCache;
+        this.aliasAndIndexLookupSupplier = aliasAndIndexLookupSupplier;
+    }
+
+    @Override
+    public void onNewPITContext(ReaderContext readerContext) {
+        if (licenseState.isSecurityEnabled()) {
+            IndicesAccessControl indicesAccessControl =
+                    securityContext.getThreadContext().getTransient(INDICES_PERMISSIONS_KEY);
+            assert indicesAccessControl != null : "thread context does not contain index access control";
+            readerContext.putInContext(INDICES_PERMISSIONS_KEY, indicesAccessControl);
+            AuthorizationInfo authorizationInfo = securityContext.getThreadContext().getTransient(AUTHORIZATION_INFO_KEY);
+            assert authorizationInfo != null : "thread context does not contain authorization info";
+            readerContext.putInContext(AUTHORIZATION_INFO_KEY, authorizationInfo);
+        }
     }
 
     /**
@@ -59,9 +92,9 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
             // store the DLS and FLS permissions of the initial search request that created the scroll
             // this is then used to assert the DLS/FLS permission for the scroll search action
             IndicesAccessControl indicesAccessControl =
-                    securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                    securityContext.getThreadContext().getTransient(INDICES_PERMISSIONS_KEY);
             assert indicesAccessControl != null : "thread context does not contain index access control";
-            readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+            readerContext.putInContext(INDICES_PERMISSIONS_KEY, indicesAccessControl);
         }
     }
 
@@ -80,13 +113,39 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
                 ensureAuthenticatedUserIsSame(originalAuth, current, auditTrailService, readerContext.id(), action, request,
                         AuditUtil.extractRequestId(threadContext), threadContext.getTransient(AUTHORIZATION_INFO_KEY));
                 // piggyback on context validation to assert the DLS/FLS permissions on the thread context of the scroll search handler
-                if (null == securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY)) {
+                if (null == securityContext.getThreadContext().getTransient(INDICES_PERMISSIONS_KEY)) {
                     // fill in the DLS and FLS permissions for the scroll search action from the scroll context
                     IndicesAccessControl scrollIndicesAccessControl =
-                            readerContext.getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                            readerContext.getFromContext(INDICES_PERMISSIONS_KEY);
                     assert scrollIndicesAccessControl != null : "scroll does not contain index access control";
-                    securityContext.getThreadContext().putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
+                    securityContext.getThreadContext().putTransient(INDICES_PERMISSIONS_KEY,
                             scrollIndicesAccessControl);
+                }
+            } else if (request instanceof ShardSearchRequest || request instanceof ShardFetchRequest) {
+                AuthorizationInfo authorizationInfo = readerContext.getFromContext(AUTHORIZATION_INFO_KEY);
+                final Role role = ((RBACEngine.RBACAuthorizationInfo) authorizationInfo).getRole();
+                IndicesAccessControl pitIndicesAccessControl = readerContext.getFromContext(INDICES_PERMISSIONS_KEY);
+                // TODO auditing
+                // TODO search request interceptor
+                final IndicesAccessControl accessControl = role.authorize(SearchAction.NAME,
+                        pitIndicesAccessControl.getRequestedIndicesOrAliases(),
+                        aliasAndIndexLookupSupplier.get(), fieldPermissionsCache);
+                if (false == accessControl.isGranted()) {
+                    throw new ElasticsearchSecurityException("PIT contains unauthorized indices", RestStatus.FORBIDDEN);
+                } else {
+                    securityContext.getThreadContext().putTransient(INDICES_PERMISSIONS_KEY, accessControl);
+
+//                    // copied from request interceptors
+//                    final SearchSourceBuilder source = ((SearchRequest) request).source();
+//                    if (accessControl.hasDocumentLevelPermissions()) {
+//                        if (source != null && source.suggest() != null) {
+//                            throw new ElasticsearchSecurityException("Suggest isn't supported if document level security is enabled",
+//                                    RestStatus.BAD_REQUEST);
+//                        } else if (source != null && source.profile()) {
+//                            throw new ElasticsearchSecurityException("A search request cannot be profiled if document level security " +
+//                                    "is enabled", RestStatus.BAD_REQUEST);
+//                        }
+//                    }
                 }
             }
         }
@@ -105,7 +164,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
     void ensureIndicesAccessControlForScrollThreadContext(SearchContext searchContext) {
         if (licenseState.isSecurityEnabled() && searchContext.readerContext().scrollContext() != null) {
             IndicesAccessControl threadIndicesAccessControl =
-                    securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                    securityContext.getThreadContext().getTransient(INDICES_PERMISSIONS_KEY);
             if (null == threadIndicesAccessControl) {
                 throw new ElasticsearchSecurityException("Unexpected null indices access control for search context [" +
                         searchContext.id() + "] for request [" + searchContext.request().getDescription() + "] with source [" +

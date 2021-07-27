@@ -29,17 +29,23 @@ import java.util.stream.Collectors;
  */
 public class IndicesAccessControl {
 
-    public static final IndicesAccessControl ALLOW_ALL = new IndicesAccessControl(true, Collections.emptyMap());
-    public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(true,
+    public static final IndicesAccessControl ALLOW_ALL = new IndicesAccessControl(true, null, Collections.emptyMap());
+    public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(true, null,
             Collections.singletonMap(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER,
                     new IndicesAccessControl.IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
-    public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, Collections.emptyMap());
+    public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, null, Collections.emptyMap());
 
     private final boolean granted;
+    private final Set<String> requestedIndicesOrAliases;
     private final Map<String, IndexAccessControl> indexPermissions;
 
     public IndicesAccessControl(boolean granted, Map<String, IndexAccessControl> indexPermissions) {
+        this(granted, null, indexPermissions);
+    }
+
+    public IndicesAccessControl(boolean granted, Set<String> requestedIndicesOrAliases, Map<String, IndexAccessControl> indexPermissions) {
         this.granted = granted;
+        this.requestedIndicesOrAliases = requestedIndicesOrAliases;
         this.indexPermissions = indexPermissions;
     }
 
@@ -49,6 +55,9 @@ public class IndicesAccessControl {
      */
     @Nullable
     public IndexAccessControl getIndexPermissions(String index) {
+        if (indexPermissions == null) {
+            return null;
+        }
         return indexPermissions.get(index);
     }
 
@@ -64,6 +73,14 @@ public class IndicesAccessControl {
             .filter(e -> e.getValue().granted == false)
             .map(Map.Entry::getKey)
             .collect(Collectors.toUnmodifiableSet());
+    }
+
+    public Set<String> getRequestedIndicesOrAliases() {
+        return this.requestedIndicesOrAliases;
+    }
+
+    public boolean hasDocumentLevelPermissions() {
+        return indexPermissions.values().stream().anyMatch(iac -> iac.getDocumentPermissions().hasDocumentLevelPermissions());
     }
 
     /**
@@ -195,7 +212,7 @@ public class IndicesAccessControl {
             IndexAccessControl limitedByIndexAccessControl = limitedByIndicesAccessControl.getIndexPermissions(index);
             indexPermissions.put(index, indexAccessControl.limitIndexAccessControl(limitedByIndexAccessControl));
         }
-        return new IndicesAccessControl(granted, indexPermissions);
+        return new IndicesAccessControl(granted, requestedIndicesOrAliases, indexPermissions);
     }
 
     @Override

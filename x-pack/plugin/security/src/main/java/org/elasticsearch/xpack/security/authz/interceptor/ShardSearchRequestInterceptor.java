@@ -59,7 +59,7 @@ public class ShardSearchRequestInterceptor extends FieldAndDocumentLevelSecurity
 
     @Override
     public boolean supports(IndicesRequest request) {
-        return request instanceof ShardSearchRequest;
+        return request instanceof ShardSearchRequest && ((ShardSearchRequest)request).readerId() == null;
     }
 
     boolean dlsUsesStoredScripts(ShardSearchRequest request,

@@ -745,6 +745,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final ReaderContext finalReaderContext = readerContext;
                 searcherSupplier = null; // transfer ownership to reader context
                 searchOperationListener.onNewReaderContext(readerContext);
+                searchOperationListener.onNewPITContext(readerContext);
                 readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
                 putReaderContext(readerContext);
                 readerContext = null;

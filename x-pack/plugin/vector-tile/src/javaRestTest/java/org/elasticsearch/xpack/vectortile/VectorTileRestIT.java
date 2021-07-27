@@ -248,7 +248,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         // 33 points, 1 polygon and two from geometry collection
         assertLayer(tile, HITS_LAYER, 4096, 36, 1);
         assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 1);
-        assertLayer(tile, META_LAYER, 4096, 1, 14);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
     }
 
     public void testExtent() throws Exception {
@@ -421,7 +421,7 @@ public class VectorTileRestIT extends ESRestTestCase {
 
     public void testDefaultSort() throws Exception {
         {
-            final Request mvtRequest = new Request(getHttpMethod(), INDEX_ALL + "/_mvt/location/" + z + "/" + x + "/" + y);
+            final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
             mvtRequest.setJsonEntity("{\"size\": 100 }");
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
@@ -432,7 +432,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             assertLayer(tile, META_LAYER, 4096, 1, 13);
         }
         {
-            final Request mvtRequest = new Request(getHttpMethod(), INDEX_ALL + "/_mvt/location/" + z + "/" + x + "/" + y);
+            final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
             mvtRequest.setJsonEntity("{\"size\": 100, \"sort\" : []}"); // override default sort
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));

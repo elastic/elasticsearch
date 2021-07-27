@@ -161,6 +161,14 @@ class VectorTileRequest {
         return request;
     }
 
+    private static final String SCRIPT = ""
+        + "ScriptDocValues.Geometry geometry = doc[params."
+        + FIELD_PARAM
+        + "];"
+        + "double w = geometry.getMercatorWidth();"
+        + "double h = geometry.getMercatorHeight();"
+        + "return h * h + w * w;";
+
     private final String[] indexes;
     private final String field;
     private final int x;
@@ -324,15 +332,7 @@ class VectorTileRequest {
             }
             return List.of(
                 new ScriptSortBuilder(
-                    new Script(
-                        "double w = doc[\""
-                            + getField()
-                            + "\"].getMercatorWidth();"
-                            + "double h = doc[\""
-                            + getField()
-                            + "\"].getMercatorHeight();"
-                            + "return h * h + w * w;"
-                    ),
+                    new Script(Script.DEFAULT_SCRIPT_TYPE, Script.DEFAULT_SCRIPT_LANG, SCRIPT, Map.of(FIELD_PARAM, getField())),
                     ScriptSortBuilder.ScriptSortType.NUMBER
                 ).order(SortOrder.DESC)
             );

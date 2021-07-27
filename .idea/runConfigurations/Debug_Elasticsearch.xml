@@ -1,15 +1,12 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Debug Elasticsearch" type="Remote">
     <option name="USE_SOCKET_TRANSPORT" value="true" />
-    <option name="SERVER_MODE" value="false" />
+    <option name="SERVER_MODE" value="true" />
     <option name="SHMEM_ADDRESS" />
     <option name="HOST" value="localhost" />
-    <option name="PORT" value="5057" />
-    <option name="AUTO_RESTART" value="false" />
-    <RunnerSettings RunnerId="Debug">
-      <option name="DEBUG_PORT" value="5057" />
-      <option name="LOCAL" value="false" />
-    </RunnerSettings>
+    <option name="PORT" value="5005" />
+    <option name="AUTO_RESTART" value="true" />
     <method v="2" />
   </configuration>
 </component>
+

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.index.mapper;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
@@ -16,7 +15,6 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.xpack.spatial.VectorTileExtension;
 import org.elasticsearch.xpack.vectortile.SpatialVectorTileExtension;
 import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
 import org.hamcrest.Matchers;
@@ -91,10 +89,8 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
     }
 
     private void fetchVectorTile(Geometry geometry) throws IOException {
-        final SetOnce<VectorTileExtension> vectorTileExtension = new SetOnce<>();
-        vectorTileExtension.set(new SpatialVectorTileExtension());
         final MappedFieldType mapper
-            = new GeoShapeWithDocValuesFieldMapper.Builder("field", Version.CURRENT, false, false, vectorTileExtension)
+            = new GeoShapeWithDocValuesFieldMapper.Builder("field", Version.CURRENT, false, false, new SpatialVectorTileExtension())
             .build(new ContentPath()).fieldType();
         final int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);

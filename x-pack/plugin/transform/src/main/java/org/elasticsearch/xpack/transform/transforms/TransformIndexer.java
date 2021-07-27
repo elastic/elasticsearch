@@ -144,7 +144,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
         this.auditor = transformServices.getAuditor();
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
-        this.progress = transformProgress;
+        this.progress = progress != null ? progress : new TransformProgress();
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
         this.nextCheckpoint = ExceptionsHelper.requireNonNull(nextCheckpoint, "nextCheckpoint");
         this.context = ExceptionsHelper.requireNonNull(context, "context");
@@ -295,10 +295,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     doGetInitialProgress(request, ActionListener.wrap(response -> {
                         function.getInitialProgressFromResponse(response, ActionListener.wrap(newProgress -> {
                             logger.trace("[{}] reset the progress from [{}] to [{}].", getJobId(), progress, newProgress);
-                            progress = newProgress;
+                            progress = newProgress != null ? newProgress : new TransformProgress();
                             finalListener.onResponse(null);
                         }, failure -> {
-                            progress = null;
+                            progress = new TransformProgress();
                             logger.warn(
                                 new ParameterizedMessage("[{}] unable to load progress information for task.", getJobId()),
                                 failure
@@ -306,7 +306,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                             finalListener.onResponse(null);
                         }));
                     }, failure -> {
-                        progress = null;
+                        progress = new TransformProgress();
                         logger.warn(new ParameterizedMessage("[{}] unable to load progress information for task.", getJobId()), failure);
                         finalListener.onResponse(null);
                     }));
@@ -514,19 +514,16 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // NOTE: this method is called in the same thread as the processing thread.
             // Theoretically, there should not be a race condition with updating progress here.
             // NOTE 2: getPercentComplete should only NOT be null on the first (batch) checkpoint
-            if (progress != null && progress.getPercentComplete() != null && progress.getPercentComplete() < 100.0) {
+            if (progress.getPercentComplete() != null && progress.getPercentComplete() < 100.0) {
                 progress.incrementDocsProcessed(progress.getTotalDocs() - progress.getDocumentsProcessed());
             }
 
             if (lastCheckpoint != null) {
                 long docsIndexed = 0;
                 long docsProcessed = 0;
-                // This should not happen as we simply create a new one when we reach continuous checkpoints
-                // but this is a paranoid `null` check
-                if (progress != null) {
-                    docsIndexed = progress.getDocumentsIndexed();
-                    docsProcessed = progress.getDocumentsProcessed();
-                }
+                docsIndexed = progress.getDocumentsIndexed();
+                docsProcessed = progress.getDocumentsProcessed();
+
                 long durationMs = System.currentTimeMillis() - lastCheckpoint.getTimestamp();
                 getStats().incrementCheckpointExponentialAverages(durationMs < 0 ? 0 : durationMs, docsIndexed, docsProcessed);
             }

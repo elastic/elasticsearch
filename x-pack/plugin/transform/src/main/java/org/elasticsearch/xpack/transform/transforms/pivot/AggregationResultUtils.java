@@ -104,10 +104,8 @@ public final class AggregationResultUtils {
     ) {
         return agg.getBuckets().stream().map(bucket -> {
             stats.incrementNumDocuments(bucket.getDocCount());
-            if (progress != null) {
-                progress.incrementDocsProcessed(bucket.getDocCount());
-                progress.incrementDocsIndexed(1L);
-            }
+            progress.incrementDocsProcessed(bucket.getDocCount());
+            progress.incrementDocsIndexed(1L);
 
             Map<String, Object> document = new HashMap<>();
             // generator to create unique but deterministic document ids, so we

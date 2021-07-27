@@ -80,10 +80,8 @@ public class Latest extends AbstractCompositeAggFunction {
         TransformProgress progress
     ) {
         transformIndexerStats.incrementNumDocuments(bucket.getDocCount());
-        if (progress != null) {
-            progress.incrementDocsProcessed(bucket.getDocCount());
-            progress.incrementDocsIndexed(1L);
-        }
+        progress.incrementDocsProcessed(bucket.getDocCount());
+        progress.incrementDocsIndexed(1L);
 
         TopHits topHits = bucket.getAggregations().get(TOP_HITS_AGGREGATION_NAME);
         if (topHits.getHits().getHits().length != 1) {

@@ -86,8 +86,9 @@ public abstract class AbstractCompositeAggFunction implements Function {
                     }
                     final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
                     TransformIndexerStats stats = new TransformIndexerStats();
+                    TransformProgress progress = new TransformProgress();
 
-                    List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats, null).map(
+                    List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats, progress).map(
                         this::documentTransformationFunction
                     ).collect(Collectors.toList());
 

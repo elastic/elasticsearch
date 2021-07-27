@@ -66,9 +66,10 @@ this parameter or use `*` or `_all`.
 <<geo-point,`geo_point`>> or <<geo-shape,`geo_shape`>> field. The field must
 have <<doc-values,doc values>> enabled. Cannot be a nested field.
 +
-Vector tiles do not support geometry collections. Behavior for
-`geometrycollection` values in a `geo_shape` field is undefined and may change
-in a future release.
+NOTE: Vector tiles do not natively support geometry collections. For
+`geometrycollection` values, the API returns a feature in the `hits` layer for
+each element of the collection. This behavior may change may change in a future
+release.
 
 `<zoom>`::
 (Required, integer) Zoom level for the vector tile to search. Accepts `0`-`29`.

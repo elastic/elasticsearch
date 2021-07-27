@@ -67,9 +67,9 @@ this parameter or use `*` or `_all`.
 have <<doc-values,doc values>> enabled. Cannot be a nested field.
 +
 NOTE: Vector tiles do not natively support geometry collections. For
-`geometrycollection` values, the API returns a feature in the `hits` layer for
-each element of the collection. This behavior may change may change in a future
-release.
+`geometrycollection` values in a `geo_shape` field, the API returns a `hits`
+layer feature for each element of the collection. This behavior may change may
+change in a future release.
 
 `<zoom>`::
 (Required, integer) Zoom level for the vector tile to search. Accepts `0`-`29`.
@@ -159,7 +159,7 @@ Protobufs (PBF)]. By default, the tile contains three layers:
 
 *  An `aggs` layer containing a feature for each cell of the `geotile_grid`. You
 can use these cells as tiles for lower zoom levels. The layer only contains
-features for cells with matching data. 
+features for cells with matching data.
 
 * A `meta` layer containing:
 ** A feature containing a bounding box. By default, this is the bounding box of

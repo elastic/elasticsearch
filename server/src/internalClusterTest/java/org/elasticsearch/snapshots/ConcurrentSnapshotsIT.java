@@ -1602,6 +1602,52 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    public void testQueuedAfterFailedShardSnapshot() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+
+        final String repository = "test-repo";
+        createRepository(repository, "mock");
+
+        final String indexName = "test-idx";
+        createIndexWithContent(indexName);
+        final String fullSnapshot = "full-snapshot";
+        createFullSnapshot(repository, fullSnapshot);
+
+        indexDoc(indexName, "some_id", "foo", "bar");
+        blockAndFailDataNode(repository, dataNode);
+        final ActionFuture<CreateSnapshotResponse> snapshotFutureFailure = startFullSnapshot(repository, "failing-snapshot");
+        awaitNumberOfSnapshotsInProgress(1);
+        waitForBlock(dataNode, repository);
+        final ActionFuture<CreateSnapshotResponse> snapshotFutureSuccess = startFullSnapshot(repository, "successful-snapshot");
+        awaitNumberOfSnapshotsInProgress(2);
+        unblockNode(repository, dataNode);
+
+        assertSuccessful(snapshotFutureSuccess);
+        final SnapshotInfo failedSnapshot = snapshotFutureFailure.get().getSnapshotInfo();
+        assertEquals(SnapshotState.PARTIAL, failedSnapshot.state());
+
+        final SnapshotsStatusResponse snapshotsStatusResponse1 = clusterAdmin().prepareSnapshotStatus(repository)
+            .setSnapshots(fullSnapshot)
+            .get();
+
+        final String tmpSnapshot = "snapshot-tmp";
+        createFullSnapshot(repository, tmpSnapshot);
+        assertAcked(startDeleteSnapshot(repository, tmpSnapshot).get());
+
+        final SnapshotsStatusResponse snapshotsStatusResponse2 = clusterAdmin().prepareSnapshotStatus(repository)
+            .setSnapshots(fullSnapshot)
+            .get();
+        assertEquals(snapshotsStatusResponse1, snapshotsStatusResponse2);
+
+        assertAcked(startDeleteSnapshot(repository, "successful-snapshot").get());
+
+        final SnapshotsStatusResponse snapshotsStatusResponse3 = clusterAdmin().prepareSnapshotStatus(repository)
+            .setSnapshots(fullSnapshot)
+            .get();
+        assertEquals(snapshotsStatusResponse1, snapshotsStatusResponse3);
+    }
+
     private static void assertSnapshotStatusCountOnRepo(String otherBlockedRepoName, int count) {
         final SnapshotsStatusResponse snapshotsStatusResponse = client().admin()
             .cluster()

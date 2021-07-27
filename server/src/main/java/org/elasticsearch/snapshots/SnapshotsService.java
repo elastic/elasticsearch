@@ -741,7 +741,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         new ShardSnapshotUpdate(
                             target,
                             repoShardId,
-                            new ShardSnapshotStatus(localNodeId, ShardState.FAILED, "failed to clone shard snapshot", null)
+                            new ShardSnapshotStatus(
+                                localNodeId,
+                                ShardState.FAILED,
+                                "failed to clone shard snapshot",
+                                shardStatusBefore.generation()
+                            )
                         ),
                         ActionListener.runBefore(
                             ActionListener.wrap(
@@ -3123,6 +3128,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 T shardId,
                 ShardSnapshotStatus newState
             ) {
+                assert newState.generation() != null : "must start at defined generation where previous snapshot left of";
                 logger.trace(
                     "[{}] Starting [{}] on [{}] with generation [{}]",
                     entry.snapshot(),

@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.mockito.Mockito;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.metadata.resolver.impl.AbstractReloadingMetadataResolver;
@@ -112,6 +113,12 @@ public class SamlRealmTests extends SamlTestCase {
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         env = TestEnvironment.newEnvironment(globalSettings);
         threadContext = new ThreadContext(globalSettings);
+    }
+
+    @BeforeClass
+    public static void muteOnBrokenJdk() {
+        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/75571",
+            "1.8.0_292".equals(System.getProperty("java.version")));
     }
 
     public void testReadIdpMetadataFromFile() throws Exception {

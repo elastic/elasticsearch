@@ -416,9 +416,9 @@ public class Node implements Closeable {
                 searchModule.getNamedXContents().stream(),
                 pluginsService.filterPlugins(Plugin.class).stream()
                     .flatMap(p -> p.getNamedXContent().stream()),
-                ClusterModule.getNamedXWriteables().stream())
-                .flatMap(Function.identity()).collect(toList()),
-                getCompatibleNamedXContents()
+                ClusterModule.getNamedXWriteables().stream(),
+                getCompatibleNamedXContents())
+                .flatMap(Function.identity()).collect(toList())
             );
             final Map<String, SystemIndices.Feature> featuresMap = pluginsService
                 .filterPlugins(SystemIndexPlugin.class)
@@ -738,9 +738,9 @@ public class Node implements Closeable {
     }
 
     // package scope for testing
-    List<NamedXContentRegistry.Entry> getCompatibleNamedXContents() {
+    Stream<NamedXContentRegistry.Entry> getCompatibleNamedXContents() {
         return pluginsService.filterPlugins(Plugin.class).stream()
-            .flatMap(p -> p.getNamedXContentForCompatibility().stream()).collect(toList());
+            .flatMap(p -> p.getNamedXContentForCompatibility().stream());
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,

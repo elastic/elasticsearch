@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +56,8 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
         private static final ConstructingObjectParser<SubObject, String> PARSER = new ConstructingObjectParser<>(
             "parser1", false,
             a -> new SubObject((String) a[0]));
+        static final ParseField NAME = new ParseField("namedObjectName1")
+            .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.current()));
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("new_field"));
@@ -77,7 +78,8 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
         private static final ConstructingObjectParser<SubObject, String> PARSER = new ConstructingObjectParser<>(
             "parser2", false,
             a -> new SubObject((String) a[0]));
-
+        static final ParseField NAME = new ParseField("namedObjectName1")
+            .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported()));
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("old_field"));
         }
@@ -93,8 +95,10 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
 
     public void testNotCompatibleRequest() throws IOException {
         NamedXContentRegistry registry = new NamedXContentRegistry(
-            Arrays.asList(new NamedXContentRegistry.Entry(SubObject.class, new ParseField("namedObjectName1"), SubObject::parse)),
-            Arrays.asList(new NamedXContentRegistry.Entry(SubObject.class, new ParseField("namedObjectName1"), OldSubObject::parse)));
+            List.of(new NamedXContentRegistry.Entry(SubObject.class, SubObject.NAME, SubObject::parse,
+                    SubObject.NAME.getForRestApiVersion()),
+                new NamedXContentRegistry.Entry(SubObject.class, OldSubObject.NAME, OldSubObject::parse,
+                    OldSubObject.NAME.getForRestApiVersion())));
 
         XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
         b.startObject();
@@ -120,13 +124,14 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
             ParentObject parse = ParentObject.parse(p);
             assertThat(parse.subObject.field, equalTo("value1"));
         }
-
     }
 
     public void testCompatibleRequest() throws IOException {
-        NamedXContentRegistry compatibleRegistry = new NamedXContentRegistry(
-            Arrays.asList(new NamedXContentRegistry.Entry(SubObject.class, new ParseField("namedObjectName1"), SubObject::parse)),
-            Arrays.asList(new NamedXContentRegistry.Entry(SubObject.class, new ParseField("namedObjectName1"), OldSubObject::parse)));
+        NamedXContentRegistry registry = new NamedXContentRegistry(
+            List.of(new NamedXContentRegistry.Entry(SubObject.class, SubObject.NAME, SubObject::parse,
+                    SubObject.NAME.getForRestApiVersion()),
+                new NamedXContentRegistry.Entry(SubObject.class, OldSubObject.NAME, OldSubObject::parse,
+                    OldSubObject.NAME.getForRestApiVersion())));
 
         XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
         b.startObject();
@@ -141,7 +146,7 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
                 String.valueOf(RestApiVersion.minimumSupported().major)));
         List<String> mediaTypeList = Collections.singletonList(mediaType);
 
-        RestRequest restRequest2 = new FakeRestRequest.Builder(compatibleRegistry)
+        RestRequest restRequest2 = new FakeRestRequest.Builder(registry)
             .withContent(BytesReference.bytes(b), RestRequest.parseContentType(mediaTypeList))
             .withPath("/foo")
             .withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList))

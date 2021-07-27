@@ -12,14 +12,14 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
@@ -44,6 +44,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -55,6 +56,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class NodeTests extends ESTestCase {
@@ -340,25 +342,25 @@ public class NodeTests extends ESTestCase {
         RestApiVersion minimumRestCompatibilityVersion();
     }
 
-    static MockRestApiVersion MockCompatibleVersion = Mockito.mock(MockRestApiVersion.class);
+    static MockRestApiVersion MockCompatibleVersion = mock(MockRestApiVersion.class);
 
     static NamedXContentRegistry.Entry v7CompatibleEntries = new NamedXContentRegistry.Entry(Integer.class,
-        new ParseField("name"), Mockito.mock(ContextParser.class));
+        new ParseField("name"), mock(ContextParser.class));
     static NamedXContentRegistry.Entry v8CompatibleEntries = new NamedXContentRegistry.Entry(Integer.class,
-        new ParseField("name2"), Mockito.mock(ContextParser.class));
+        new ParseField("name2"), mock(ContextParser.class));
 
     public static class TestRestCompatibility1 extends Plugin {
 
         @Override
         public List<NamedXContentRegistry.Entry> getNamedXContentForCompatibility() {
             // real plugin will use CompatibleVersion.minimumRestCompatibilityVersion()
-            if (/*CompatibleVersion.minimumRestCompatibilityVersion()*/
+            if (/*RestApiVersion.minimumSupported() == */
                 MockCompatibleVersion.minimumRestCompatibilityVersion().equals(RestApiVersion.V_7)) {
                 //return set of N-1 entries
                 return List.of(v7CompatibleEntries);
             }
             // after major release, new compatible apis can be added before the old ones are removed.
-            if (/*CompatibleVersion.minimumRestCompatibilityVersion()*/
+            if (/*RestApiVersion.minimumSupported() == */
                 MockCompatibleVersion.minimumRestCompatibilityVersion().equals(RestApiVersion.V_8)) {
                 return List.of(v8CompatibleEntries);
 
@@ -381,7 +383,8 @@ public class NodeTests extends ESTestCase {
             plugins.add(TestRestCompatibility1.class);
 
             try (Node node = new MockNode(settings.build(), plugins)) {
-                List<NamedXContentRegistry.Entry> compatibleNamedXContents = node.getCompatibleNamedXContents();
+                List<NamedXContentRegistry.Entry> compatibleNamedXContents = node.getCompatibleNamedXContents()
+                    .collect(Collectors.toList());
                 assertThat(compatibleNamedXContents, contains(v7CompatibleEntries));
             }
         }
@@ -396,7 +399,8 @@ public class NodeTests extends ESTestCase {
             plugins.add(TestRestCompatibility1.class);
 
             try (Node node = new MockNode(settings.build(), plugins)) {
-                List<NamedXContentRegistry.Entry> compatibleNamedXContents = node.getCompatibleNamedXContents();
+                List<NamedXContentRegistry.Entry> compatibleNamedXContents = node.getCompatibleNamedXContents()
+                    .collect(Collectors.toList());;
                 assertThat(compatibleNamedXContents, contains(v8CompatibleEntries));
             }
         }

@@ -257,6 +257,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             bulk = in.readOptionalWriteable(BulkStats::new);
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
             shards = in.readOptionalWriteable(ShardCountStats::new);
         }
     }
@@ -281,6 +283,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(recoveryStats);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalWriteable(bulk);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
             out.writeOptionalWriteable(shards);
         }
     }

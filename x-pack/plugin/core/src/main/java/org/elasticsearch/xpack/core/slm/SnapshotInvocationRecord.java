@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -30,7 +31,7 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
     implements Writeable, ToXContentObject, Diffable<SnapshotInvocationRecord> {
 
     static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
-    static final ParseField START_TIMESTAMP = new ParseField("snapshot_start_time");
+    static final ParseField START_TIMESTAMP = new ParseField("start_time");
     static final ParseField TIMESTAMP = new ParseField("time");
     static final ParseField DETAILS = new ParseField("details");
 
@@ -63,7 +64,7 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
 
     public SnapshotInvocationRecord(StreamInput in) throws IOException {
         this.snapshotName = in.readString();
-        if(in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             this.snapshotStartTimestamp = in.readOptionalVLong();
         } else {
             this.snapshotStartTimestamp = null;
@@ -76,6 +77,7 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
         return snapshotName;
     }
 
+    @Nullable
     public Long getSnapshotStartTimestamp() {
         return snapshotStartTimestamp;
     }
@@ -104,7 +106,7 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
         {
             builder.field(SNAPSHOT_NAME.getPreferredName(), snapshotName);
             if (snapshotStartTimestamp != null) {
-                builder.timeField(START_TIMESTAMP.getPreferredName(), "snapshot_start_time_string", snapshotStartTimestamp);
+                builder.timeField(START_TIMESTAMP.getPreferredName(), "start_time_string", snapshotStartTimestamp);
             }
             builder.timeField(TIMESTAMP.getPreferredName(), "time_string", snapshotFinishTimestamp);
             if (Objects.nonNull(details)) {

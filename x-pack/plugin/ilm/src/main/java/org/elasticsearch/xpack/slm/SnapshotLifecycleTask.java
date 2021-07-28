@@ -223,7 +223,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
             if (exception.isPresent()) {
                 stats.snapshotFailed(policyName);
-                newPolicyMetadata.setLastFailure(new SnapshotInvocationRecord(snapshotName, snapshotStartTime, snapshotFinishTime,
+                newPolicyMetadata.setLastFailure(new SnapshotInvocationRecord(snapshotName, null, snapshotFinishTime,
                     exceptionToString()));
             } else {
                 stats.snapshotTaken(policyName);

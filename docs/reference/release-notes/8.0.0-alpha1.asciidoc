@@ -463,7 +463,6 @@ Machine Learning::
 * Checking if persistent tasks metadata is null before updating state (#41091) {es-pull}41124[#41124] (issues: {es-issue}41090[#41090], {es-issue}41091[#41091])
 * Fix typo Korean HANGUL_JAMO {es-pull}74462[#74462]
 * Handle null value of `FieldCapabilitiesResponse` {es-pull}64327[#64327]
-* Relax the test assertion so that the test always passes {es-pull}44133[#44133] (issue: {es-issue}44132[#44132])
 * Remove erroneous licence {es-pull}58732[#58732] (issue: {es-issue}58682[#58682])
 
 Mapping::

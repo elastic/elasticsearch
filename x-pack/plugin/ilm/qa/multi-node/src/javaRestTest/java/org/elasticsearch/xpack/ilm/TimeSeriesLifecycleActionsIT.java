@@ -56,6 +56,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -231,7 +232,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
         createNewSingletonPolicy(client(), policy, "delete", new WaitForSnapshotAction(slmPolicy));
-        waitForPhaseTime();
 
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
@@ -250,6 +250,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }, slmPolicy);
 
         updatePolicy(client(), index, policy);
+        waitForPhaseTime();
 
         assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
@@ -290,6 +291,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Map<String, Object> metadata = (Map<String, Object>) response.get("metadata");
             Map<String, Object> indices = (Map<String, Object>) metadata.get("indices");
             Map<String, Object> indexMap = (Map<String, Object>) indices.get(index);
+            logger.info("indexMap: {}", indexMap.keySet().stream()
+                .map(key -> key + "=" + indexMap.get(key))
+                .collect(Collectors.joining(", ", "{", "}")));
             Map<String, Object> ilm = (Map<String, Object>) indexMap.get("ilm");
             assertNotNull(ilm);
             Object phase = ilm.get("phase");

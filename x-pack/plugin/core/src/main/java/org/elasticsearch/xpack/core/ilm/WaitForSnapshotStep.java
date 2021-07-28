@@ -63,23 +63,23 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
         if (snapPolicyMeta.getLastSuccess() == null || snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() == null ||
             snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() < phaseTime) {
             if (snapPolicyMeta.getLastSuccess() == null) {
-                logger.debug("Not executing policy because no last snapshot success. Phase time: {}", phaseTime);
+                logger.info("Not executing policy because no last snapshot success. Phase time: {}", phaseTime);
             } else if (snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() == null) {
                 /*
                  * This is because we are running in mixed cluster mode, and the snapshot was taken on an older master, which then went
                  * down before this check could happen. We'll wait until a snapshot is taken on this newer master before passing this check.
                  */
-                logger.debug("Not executing policy because no last snapshot start date. Phase time: {}", phaseTime);
+                logger.info("Not executing policy because no last snapshot start date. Phase time: {}", phaseTime);
             }
             else {
-                logger.debug("Not executing policy because snapshot start time {} is before phase time {}. Snapshot timestamp is {}",
+                logger.info("Not executing policy because snapshot start time {} is before phase time {}. Snapshot timestamp is {}",
                     snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(),
                     phaseTime,
                     snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp());
             }
             return new Result(false, notExecutedMessage(phaseTime));
         }
-        logger.debug("Executing policy because snapshot start time {} is after phase time {}. Snapshot timestamp is {}",
+        logger.info("Executing policy because snapshot start time {} is after phase time {}. Snapshot timestamp is {}",
             snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(),
             phaseTime,
             snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp());

@@ -210,7 +210,6 @@ You can specify items in the array as a string or object.
 include::{es-repo-dir}/search/search.asciidoc[tag=fields-api-props]
 ====
 
-
 `filter`::
 (Optional, <<query-dsl,Query DSL object>>)
 Query, written in Query DSL, used to filter the events on which the EQL query

@@ -19,6 +19,7 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact-base'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'The GCS repository plugin adds Google Cloud Storage support for repositories.'

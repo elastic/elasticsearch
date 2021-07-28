@@ -17,6 +17,7 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 final Project fixture = project(':test:fixtures:gcs-fixture')
 final Project repositoryPlugin = project(':plugins:repository-gcs')

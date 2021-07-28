@@ -15,6 +15,7 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact-base'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'

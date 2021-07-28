@@ -256,13 +256,18 @@ public final class IndexLifecycleTransition {
                 policyMetadata.getVersion(), policyMetadata.getModifiedDate());
             newPhaseDefinition = Strings.toString(phaseExecutionInfo, false, false);
             updatedState.setPhaseDefinition(newPhaseDefinition);
+            logger.info("Updating phase time to {} for phase {} and step {}", nowAsMillis, newStep.getPhase(), newStep.getName());
             updatedState.setPhaseTime(nowAsMillis);
         } else if (currentStep.getPhase().equals(InitializePolicyContextStep.INITIALIZATION_PHASE)) {
             // The "new" phase is the initialization phase, usually the phase
             // time would be set on phase transition, but since there is no
             // transition into the "new" phase, we set it any time in the "new"
             // phase
+            logger.info("Updating phase time to {} for phase {} and step {}", nowAsMillis, newStep.getPhase(), newStep.getName());
             updatedState.setPhaseTime(nowAsMillis);
+        } else {
+            logger.info("Not changing phase time from {} for phase {} and step {}", existingState.getPhaseTime(), newStep.getPhase(),
+                newStep.getName());
         }
 
         if (currentStep == null || currentStep.getAction().equals(newStep.getAction()) == false) {

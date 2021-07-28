@@ -213,7 +213,7 @@ public class CircleProcessorTests extends ESTestCase {
         Geometry geometry = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
 
         GeoShapeWithDocValuesFieldType shapeType
-            = new GeoShapeWithDocValuesFieldType(fieldName, true, false, Orientation.RIGHT, null, Collections.emptyMap());
+            = new GeoShapeWithDocValuesFieldType(fieldName, true, false, Orientation.RIGHT, null, null, Collections.emptyMap());
 
         SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);
         when(mockedContext.getFieldType(any())).thenReturn(shapeType);

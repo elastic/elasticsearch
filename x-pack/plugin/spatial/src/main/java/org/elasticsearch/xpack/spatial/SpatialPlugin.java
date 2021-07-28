@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.spatial;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.inject.Module;
@@ -16,6 +17,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -60,7 +62,7 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.singletonList;
 
-public class SpatialPlugin extends GeoPlugin implements MapperPlugin, ActionPlugin, SearchPlugin, IngestPlugin {
+public class SpatialPlugin extends GeoPlugin implements MapperPlugin, ActionPlugin, SearchPlugin, IngestPlugin, ExtensiblePlugin {
     private final SpatialUsage usage = new SpatialUsage();
 
     public Collection<Module> createGuiceModules() {
@@ -74,6 +76,9 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, ActionPlug
         return XPackPlugin.getSharedLicenseState();
     }
 
+    // register the vector tile factory from a different module
+    private final SetOnce<VectorTileExtension> vectorTileExtension = new SetOnce<>();
+
     @Override
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return singletonList(new ActionPlugin.ActionHandler<>(SpatialStatsAction.INSTANCE, SpatialStatsTransportAction.class));
@@ -84,7 +89,8 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, ActionPlug
         Map<String, Mapper.TypeParser> mappers = new HashMap<>(super.getMappers());
         mappers.put(ShapeFieldMapper.CONTENT_TYPE, ShapeFieldMapper.PARSER);
         mappers.put(PointFieldMapper.CONTENT_TYPE, PointFieldMapper.PARSER);
-        mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, GeoShapeWithDocValuesFieldMapper.PARSER);
+        mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE,
+            new GeoShapeWithDocValuesFieldMapper.TypeParser(vectorTileExtension.get()));
         return Collections.unmodifiableMap(mappers);
     }
 
@@ -204,5 +210,11 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, ActionPlug
             }
             return realParser.parse(parser, name);
         };
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        // we only expect one vector tile extension that comes from the vector tile module.
+        loader.loadExtensions(VectorTileExtension.class).forEach(vectorTileExtension::set);
     }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.vectortile.feature;
 
 import com.wdtinc.mapbox_vector_tile.VectorTile;
-import com.wdtinc.mapbox_vector_tile.adapt.jts.UserDataIgnoreConverter;
 
 import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.geometry.Geometry;
@@ -25,6 +24,7 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -33,56 +33,56 @@ import java.util.function.Function;
 
 public class FeatureFactoryTests extends ESTestCase {
 
-    public void testPoint() {
+    public void testPoint() throws IOException {
         doTestGeometry(this::buildPoint, features -> {
             assertThat(features.size(), Matchers.equalTo(1));
             assertThat(features.get(0).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POINT));
         });
     }
 
-    public void testMultiPoint() {
+    public void testMultiPoint() throws IOException {
         doTestGeometry(this::buildMultiPoint, features -> {
             assertThat(features.size(), Matchers.equalTo(1));
             assertThat(features.get(0).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POINT));
         });
     }
 
-    public void testRectangle() {
+    public void testRectangle() throws IOException {
         doTestGeometry(r -> r, features -> {
             assertThat(features.size(), Matchers.equalTo(1));
             assertThat(features.get(0).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POLYGON));
         });
     }
 
-    public void testLine() {
+    public void testLine() throws IOException {
         doTestGeometry(this::buildLine, features -> {
             assertThat(features.size(), Matchers.equalTo(1));
             assertThat(features.get(0).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.LINESTRING));
         });
     }
 
-    public void testMultiLine() {
+    public void testMultiLine() throws IOException {
         doTestGeometry(this::buildMultiLine, features -> {
             assertThat(features.size(), Matchers.equalTo(1));
             assertThat(features.get(0).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.LINESTRING));
         });
     }
 
-    public void testPolygon() {
+    public void testPolygon() throws IOException {
         doTestGeometry(this::buildPolygon, features -> {
             assertThat(features.size(), Matchers.equalTo(1));
             assertThat(features.get(0).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POLYGON));
         });
     }
 
-    public void testMultiPolygon() {
+    public void testMultiPolygon() throws IOException {
         doTestGeometry(this::buildMultiPolygon, features -> {
             assertThat(features.size(), Matchers.equalTo(1));
             assertThat(features.get(0).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POLYGON));
         });
     }
 
-    public void testGeometryCollection() {
+    public void testGeometryCollection() throws IOException {
         doTestGeometry(this::buildGeometryCollection, features -> {
             assertThat(features.size(), Matchers.equalTo(2));
             assertThat(features.get(0).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.LINESTRING));
@@ -90,7 +90,8 @@ public class FeatureFactoryTests extends ESTestCase {
         });
     }
 
-    private void doTestGeometry(Function<Rectangle, Geometry> provider, Consumer<List<VectorTile.Tile.Feature>> consumer) {
+    private void doTestGeometry(Function<Rectangle, Geometry> provider, Consumer<List<VectorTile.Tile.Feature>> consumer)
+        throws IOException {
         final int z = randomIntBetween(3, 10);
         final int x = randomIntBetween(2, (1 << z) - 1);
         final int y = randomIntBetween(2, (1 << z) - 1);
@@ -98,13 +99,17 @@ public class FeatureFactoryTests extends ESTestCase {
         final FeatureFactory builder = new FeatureFactory(z, x, y, extent);
         {
             final Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
-            final List<VectorTile.Tile.Feature> features = builder.getFeatures(provider.apply(r), new UserDataIgnoreConverter());
+            final List<byte[]> byteFeatures = builder.getFeatures(provider.apply(r));
+            final List<VectorTile.Tile.Feature> features = new ArrayList<>(byteFeatures.size());
+            for (byte[] byteFeature : byteFeatures) {
+                features.add(VectorTile.Tile.Feature.parseFrom(byteFeature));
+            }
             consumer.accept(features);
         }
         {
             final Rectangle r = GeoTileUtils.toBoundingBox(x - 2, y, z);
-            final List<VectorTile.Tile.Feature> features = builder.getFeatures(provider.apply(r), new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(0));
+            final List<byte[]> byteFeatures = builder.getFeatures(provider.apply(r));
+            assertThat(byteFeatures.size(), Matchers.equalTo(0));
         }
     }
 

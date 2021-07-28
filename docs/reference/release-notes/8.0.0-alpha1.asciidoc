@@ -181,7 +181,7 @@ Snapshot/Restore::
 
 TLS::
 * Reject misconfigured/ambiguous SSL server config {es-pull}45892[#45892]
-* Remove support for configurable PKCS#11 keystores {es-pull}75404[#75404] (issue: {es-issue}11[#11])
+* Remove support for configurable PKCS#11 keystores {es-pull}75404[#75404]
 * Remove the client transport profile filter {es-pull}43236[#43236]
 
 

@@ -247,7 +247,6 @@ Snapshot/Restore::
 
 Analysis::
 * Moving `reload_analyzers` endpoint to xpack {es-pull}43559[#43559]
-* [Docs] Move mentions of updateable synonyms flag {es-pull}43536[#43536]
 
 Authentication::
 * Reset elastic password cli tool {es-pull}74892[#74892] (issues: {es-issue}70113[#70113], {es-issue}74890[#74890])

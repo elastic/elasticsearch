@@ -339,7 +339,6 @@ MULTIPLE AREA LABELS::
 Machine Learning::
 * Change version in serialization code in `TimingStats.java` to 7.4.0 {es-pull}44905[#44905] (issue: {es-issue}29857[#29857])
 * Limit the input sequence length for NLP processors {es-pull}74905[#74905]
-* Merge the pytorch-inference feature branch {es-pull}73660[#73660] (issues: {es-issue}70713[#70713], {es-issue}71035[#71035], {es-issue}71177[#71177], {es-issue}71323[#71323], {es-issue}71679[#71679], {es-issue}72218[#72218], {es-issue}73523[#73523])
 * Parse time from inference result {es-pull}75570[#75570] (issue: {es-issue}75268[#75268])
 * Use configurable class labels for SA and NER results {es-pull}74473[#74473] (issues: {es-issue}74361[#74361], {es-issue}74401[#74401])
 * `PyTorch` Sequence Classification (Sentiment Analysis) task {es-pull}73764[#73764]
@@ -515,6 +514,5 @@ MULTIPLE AREA LABELS::
 SQL::
 * Reference relevant issue in `ReplaceSumWithStats` {es-pull}74396[#74396] (issues: {es-issue}45251[#45251], {es-issue}71582[#71582])
 * Update supported version for `date_nanos` {es-pull}68214[#68214] (issues: {es-issue}67666[#67666], {es-issue}68198[#68198])
-
 
 

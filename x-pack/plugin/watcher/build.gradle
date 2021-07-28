@@ -78,12 +78,4 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.p12'
 }
 
-tasks.named("internalClusterTest").configure {
-  /*
-   * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
-   * other if we allow them to set the number of available processors as it's set-once in Netty.
-   */
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
 addQaCheckDependencies()

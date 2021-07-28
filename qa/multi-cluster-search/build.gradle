@@ -11,7 +11,7 @@ import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+//apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 dependencies {
   testImplementation project(":client:rest-high-level")

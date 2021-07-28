@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.security.cli;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import org.bouncycastle.asn1.DLTaggedObject;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.ASN1String;
 import org.bouncycastle.asn1.DEROctetString;
+import org.bouncycastle.asn1.DLTaggedObject;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.x509.Extension;
@@ -31,19 +31,20 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.CAInfo;
 import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.CertificateInformation;
 import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.Name;
-import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.junit.After;
 import org.junit.BeforeClass;
-
-import javax.security.auth.x500.X500Principal;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -74,6 +75,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.test.FileMatchers.pathExists;
 import static org.hamcrest.Matchers.containsString;
@@ -267,7 +269,8 @@ public class CertificateGenerateToolTests extends ESTestCase {
 
     public void testGeneratingSignedCertificates() throws Exception {
         assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72639",
-            JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
+            "1.8.0_292".equals(System.getProperty("java.version")));
+
         Path tempDir = initTempDir();
         Path outputFile = tempDir.resolve("out.zip");
         Path instanceFile = writeInstancesTo(tempDir.resolve("instances.yml"));

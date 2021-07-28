@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import static org.hamcrest.Matchers.is;
 
@@ -75,8 +76,8 @@ public class CheckTargetShardsCountStepTests extends AbstractStepTestCase<CheckT
 
         ClusterStateWaitStep.Result result = checkTargetShardsCountStep.isConditionMet(indexMetadata.getIndex(), clusterState);
         assertThat(result.isComplete(), is(false));
-        CheckTargetShardsCountStep.Info info = (CheckTargetShardsCountStep.Info) result.getInfomationContext();
-        assertThat(info.getMessage(), is("the target shards count [3] must be a factor of the source index [" + indexName + "]" +
-            "'s shards count [10]"));
+        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
+        assertThat(info.getMessage(), is("lifecycle action of policy [" + policyName + "] for index [" + indexName +
+            "] cannot make progress because the target shards count [3] must be a factor of the source index's shards count [10]"));
     }
 }

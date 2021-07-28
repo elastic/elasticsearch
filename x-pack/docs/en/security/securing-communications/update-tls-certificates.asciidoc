@@ -184,7 +184,7 @@ keystore.
 ----
 GET /_ssl/certificates
 ----
-
+// TEST[skip:creates a lot of noise]
 --
 
 . If you're only updating certificates for the transport layer (and not the HTTP layer), then complete <<start-rolling-restart>> through <<verify-keystore>> one node at a time until you've updated all keystores in your cluster. You can then
@@ -725,7 +725,7 @@ GET _cat/nodes
 ----
 GET /_ssl/certificates
 ----
-
+// TEST[skip:creates a lot of noise]
 --
 
 . One node at a time, complete <<start-rolling-restart-http-newca>> through

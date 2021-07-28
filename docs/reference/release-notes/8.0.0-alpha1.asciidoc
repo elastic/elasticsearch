@@ -485,9 +485,6 @@ Search::
 Snapshot/Restore::
 * Fix GET /_snapshot/_all/_all if there are no repos {es-pull}43558[#43558] (issue: {es-issue}43547[#43547])
 
-Transform::
-* Fix compile error in `DataFrameTransformProgressIT` {es-pull}43099[#43099]
-
 
 
 [[upgrade-8.0.0-alpha1]]
@@ -513,4 +510,3 @@ MULTIPLE AREA LABELS::
 SQL::
 * Reference relevant issue in `ReplaceSumWithStats` {es-pull}74396[#74396] (issues: {es-issue}45251[#45251], {es-issue}71582[#71582])
 * Update supported version for `date_nanos` {es-pull}68214[#68214] (issues: {es-issue}67666[#67666], {es-issue}68198[#68198])
-

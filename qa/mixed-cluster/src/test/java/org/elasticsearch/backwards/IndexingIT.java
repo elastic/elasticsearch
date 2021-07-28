@@ -341,7 +341,7 @@ public class IndexingIT extends ESRestTestCase {
         int numShards = randomIntBetween(1, 10);
         int numOfReplicas = randomIntBetween(0, nodes.getNewNodes().size() - 1);
         int totalShards = numShards * (numOfReplicas + 1);
-        final String index = "test_synced_flush";
+        final String index = "test_flush";
         createIndex(index, Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)

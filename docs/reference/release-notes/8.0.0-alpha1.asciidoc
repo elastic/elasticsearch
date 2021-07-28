@@ -346,7 +346,7 @@ Machine Learning::
 * The macOS build platform for the {ml} C++ code is now Mojave running Xcode 11.3.1,
   or Ubuntu 20.04 running clang 8 for cross compilation {ml-pull}1429[#1429]
 * The Linux build platform for the {ml} C++ code is now CentOS 7 running gcc 9.3 {ml-pull}1170[#1170]
-* Add a new application for evaluating PyTorch models. The app depends on LibTorch - the C++ front end to PyTorch and performs inference on models stored in the TorchScript format {ml-pull}1902[#1902]
+* Add a new application for evaluating PyTorch models. The app depends on LibTorch - the C++ front end to PyTorch - and performs inference on models stored in the TorchScript format {ml-pull}1902[#1902]
 
 Mapping::
 * Sparse vector to throw exception consistently {es-pull}62646[#62646]

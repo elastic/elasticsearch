@@ -9,6 +9,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -66,14 +67,17 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     public void stubValidateQueryAction() {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 
-        final TransportAction transportAction = new TransportAction(ValidateQueryAction.NAME,
-            new ActionFilters(Collections.emptySet()), taskManager) {
+        final TransportAction<? extends ActionRequest, ? extends ActionResponse> transportAction = new TransportAction<>(
+            ValidateQueryAction.NAME,
+            new ActionFilters(Collections.emptySet()),
+            taskManager
+        ) {
             @Override
-            protected void doExecute(Task task, ActionRequest request, ActionListener listener) {
-            }
+            protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {}
         };
 
-        final Map<ActionType, TransportAction> actions = new HashMap<>();
+        final Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
+            new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
         client.initialize(actions, taskManager, () -> "local",

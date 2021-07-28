@@ -30,10 +30,10 @@
     # these OSes are not supported past 7.x
     execution-strategy:
       combination-filter: |
-        (os!="centos-6-packaging" || "${ghprbTargetBranch}"!="master") &&
-        (os!="debian-8-packaging" || "${ghprbTargetBranch}"!="master") &&
-        (os!="oraclelinux-6-packaging" || "${ghprbTargetBranch}"!="master") &&
-        (os!="ubuntu-16.04-packaging" || "${ghprbTargetBranch}"!="master")
+        (os!="centos-6-packaging" || ${ghprbTargetBranch}!="master") &&
+        (os!="debian-8-packaging" || ${ghprbTargetBranch}!="master") &&
+        (os!="oraclelinux-6-packaging" || ${ghprbTargetBranch}!="master") &&
+        (os!="ubuntu-16.04-packaging" || ${ghprbTargetBranch}!="master")
     axes:
       - axis:
           type: label-expression

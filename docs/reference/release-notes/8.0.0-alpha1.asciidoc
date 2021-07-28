@@ -1,6 +1,3 @@
-:es-issue: https://github.com/elastic/elasticsearch/issues/
-:es-pull:  https://github.com/elastic/elasticsearch/pull/
-
 [[release-notes-8.0.0-alpha1]]
 == {es} version 8.0.0-alpha1
 

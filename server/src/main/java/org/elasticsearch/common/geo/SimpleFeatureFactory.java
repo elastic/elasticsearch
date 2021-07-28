@@ -1,26 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.vectortile.feature;
+package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.geo.SphericalMercatorUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.List;
 
 /**
- * Similar to {@link FeatureFactory} but only supports points and rectangles. It is just
- * more efficient for those shapes and it does not use external dependencies.
+ * Transforms points and rectangles objects in WGS84 into mvt features.
  */
 public class SimpleFeatureFactory {
 
@@ -64,11 +64,11 @@ public class SimpleFeatureFactory {
     /**
      * Returns a {@code byte[]} containing the mvt representation of the provided points
      */
-    public byte[] points(List<Point> multiPoint) throws IOException {
-        multiPoint.sort(Comparator.comparingDouble(Point::getLon).thenComparingDouble(Point::getLat));
+    public byte[] points(List<GeoPoint> multiPoint) {
+        multiPoint.sort(Comparator.comparingDouble(GeoPoint::getLon).thenComparingDouble(GeoPoint::getLat));
         final int[] commands = new int[2 * multiPoint.size() + 1];
         int pos = 1, prevLon = 0, prevLat = 0, numPoints = 0;
-        for (Point point : multiPoint) {
+        for (GeoPoint point : multiPoint) {
             final int posLon = lon(point.getLon());
             if (posLon > extent || posLon < 0) {
                 continue;
@@ -90,7 +90,11 @@ public class SimpleFeatureFactory {
             return EMPTY;
         }
         commands[0] = encodeCommand(MOVETO, numPoints);
-        return writeCommands(commands, 1, pos);
+        try {
+            return writeCommands(commands, 1, pos);
+        } catch (IOException ioe) {
+            throw new UncheckedIOException(ioe);
+        }
     }
 
     /**

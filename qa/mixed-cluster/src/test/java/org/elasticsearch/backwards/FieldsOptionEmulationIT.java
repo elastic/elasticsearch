@@ -15,9 +15,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
@@ -83,7 +81,6 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
         ) {
             Response response = client.performRequest(matchAllRequest);
             ObjectPath responseObject = ObjectPath.createFromResponse(response);
-            System.out.println(Strings.toString(responseObject.toXContentBuilder(XContentType.JSON.xContent())));
             List<Map<String, Object>> hits = responseObject.evaluate("hits.hits");
             assertEquals(10, hits.size());
             for (Map<String, Object> hit : hits) {

@@ -42,12 +42,15 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.action.document.RestIndexAction;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -55,8 +58,10 @@ import org.elasticsearch.test.rest.yaml.ObjectPath;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -255,6 +260,82 @@ public class SearchStatesIT extends ESRestTestCase {
             int iterations = between(1, 20);
             for (int i = 0; i < iterations; i++) {
                 verifySearch(localIndex, localNumDocs, CLUSTER_ALIAS + ":" + remoteIndex, remoteNumDocs);
+            }
+            localClient.indices().delete(new DeleteIndexRequest(localIndex), RequestOptions.DEFAULT);
+            remoteClient.indices().delete(new DeleteIndexRequest(remoteIndex), RequestOptions.DEFAULT);
+        }
+    }
+
+    // TODO move test to its own module where local and remote conditions can be controlled better
+    public void testFieldsOptionEmulation() throws Exception {
+        String localIndex = "test_bwc_fields_index";
+        String remoteIndex = "test_bwc_fields_remote_index";
+        try (RestHighLevelClient localClient = newLocalClient();
+             RestHighLevelClient remoteClient = newRemoteClient()) {
+            localClient.indices().create(new CreateIndexRequest(localIndex)
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))),
+                RequestOptions.DEFAULT);
+            int localNumDocs = indexDocs(localClient, localIndex, between(10, 20));
+            // if not fully upgraded, we should find one node with older version
+            Optional<Node> oldVersionNode = getNodes(remoteClient.getLowLevelClient()).stream().filter(n -> n.version.before(Version.CURRENT)).findFirst();
+            if (oldVersionNode.isPresent()) {
+                System.out.println(oldVersionNode.get());
+            }
+            Builder remoteIndexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5));
+            if (oldVersionNode.isPresent()) {
+                remoteIndexSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", oldVersionNode.get().name);
+            }
+            remoteClient.indices().create(new CreateIndexRequest(remoteIndex)
+                    .settings(remoteIndexSettings),
+                RequestOptions.DEFAULT);
+            int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 20));
+            int expectedHitCount = localNumDocs + remoteNumDocs;
+
+            configureRemoteClusters(getNodes(remoteClient.getLowLevelClient()));
+            // TODO other test uses 20 iterations, don't understand why, should this do as well?
+            RestClient lowLevelClient = localClient.getLowLevelClient();
+            List<Node> localNodes = getNodes(lowLevelClient);
+            Node currentVersionNode = localNodes.stream().filter(n -> n.version.equals(Version.CURRENT)).findFirst().get();
+            lowLevelClient
+                .setNodes(
+                    Collections.singletonList(
+                        new org.elasticsearch.client.Node(
+                            HttpHost.create(currentVersionNode.httpAddress),
+                            null,
+                            null,
+                            currentVersionNode.version.toString(),
+                            null,
+                            null
+                        )
+                    )
+                );
+
+            for (String minimizeRoundTrips : new String[] { "true", "false" }) {
+                Request request = new Request("POST", "/_search");
+                request.addParameter("index", localIndex + "," + CLUSTER_ALIAS + ":" + remoteIndex);
+                if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_0_0)) {
+                    request.addParameter("ccs_minimize_roundtrips", minimizeRoundTrips);
+                }
+                request.setJsonEntity("{\"_source\": false, \"fields\": [\"*\"] , \"size\": " + expectedHitCount + "}");
+                Response response = lowLevelClient.performRequest(request);
+                try (
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        response.getEntity().getContent()
+                    )
+                ) {
+                    SearchResponse searchResponse = SearchResponse.fromXContent(parser);
+                    ElasticsearchAssertions.assertNoFailures(searchResponse);
+                    ElasticsearchAssertions.assertHitCount(searchResponse, expectedHitCount);
+                    SearchHit[] hits = searchResponse.getHits().getHits();
+                    for (SearchHit hit : hits) {
+                        assertFalse("No source in hit expected but was: " + hit.toString(), hit.hasSource());
+                        Map<String, DocumentField> fields = hit.getFields();
+                        assertNotNull(fields);
+                        assertNotNull("Field `f` not found, hit was: " + hit.toString(), fields.get("f"));
+                    }
+                }
             }
             localClient.indices().delete(new DeleteIndexRequest(localIndex), RequestOptions.DEFAULT);
             remoteClient.indices().delete(new DeleteIndexRequest(remoteIndex), RequestOptions.DEFAULT);

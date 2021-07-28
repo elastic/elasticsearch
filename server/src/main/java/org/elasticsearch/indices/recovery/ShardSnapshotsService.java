@@ -62,7 +62,7 @@ class ShardSnapshotsService {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
 
         if (shardSnapshotResponse.getRepositoryShardSnapshots().isEmpty()) {
-          return Collections.emptyList();
+            return Collections.emptyList();
         }
 
         Collection<ShardSnapshotInfo> shardSnapshots = shardSnapshotResponse.getRepositoryShardSnapshots().values();
@@ -119,6 +119,10 @@ class ShardSnapshotsService {
 
         IndexId getIndexId() {
             return shardSnapshotInfo.getIndexId();
+        }
+
+        ShardSnapshotInfo getShardSnapshotInfo() {
+            return shardSnapshotInfo;
         }
 
         List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFiles(List<StoreFileMetadata> segmentFiles) {

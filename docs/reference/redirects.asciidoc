@@ -1542,7 +1542,7 @@ See <<getting-started>>.
 See <<getting-started>>.
 
 [role="exclude",id="jvm-options"]
-=== Settng JVM options
+=== Setting JVM options
 
 See <<set-jvm-options>>.
 

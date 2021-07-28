@@ -1,3 +1,11 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
 package org.elasticsearch.gradle.internal.rewrite;
 
 import javax.annotation.Nullable;
@@ -18,9 +26,6 @@ import static java.util.stream.Collectors.toList;
  */
 @SuppressWarnings({"unchecked", "UnusedReturnValue", "InnerClassMayBeStatic"})
 public class RewriteReflectiveFacade {
-
-    public RewriteReflectiveFacade() {
-    }
 
     private ClassLoader getClassLoader() {
         return getClass().getClassLoader();
@@ -601,72 +606,6 @@ public class RewriteReflectiveFacade {
                     .loadClass("org.openrewrite.java.Java11Parser")
                     .getMethod("builder")
                     .invoke(null));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public class YamlParser {
-        private final Object real;
-
-        private YamlParser(Object real) {
-            this.real = real;
-        }
-
-        public List<RewriteReflectiveFacade.SourceFile> parse(Iterable<Path> sourcePaths, Path baseDir, RewriteReflectiveFacade.InMemoryExecutionContext ctx) {
-            return parseBase(real, sourcePaths, baseDir, ctx);
-        }
-    }
-
-    public RewriteReflectiveFacade.YamlParser yamlParser() {
-        try {
-            return new RewriteReflectiveFacade.YamlParser(getClassLoader().loadClass("org.openrewrite.yaml.YamlParser")
-                    .getDeclaredConstructor()
-                    .newInstance());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public class PropertiesParser {
-        private final Object real;
-
-        private PropertiesParser(Object real) {
-            this.real = real;
-        }
-
-        public List<RewriteReflectiveFacade.SourceFile> parse(Iterable<Path> sourcePaths, Path baseDir, RewriteReflectiveFacade.InMemoryExecutionContext ctx) {
-            return parseBase(real, sourcePaths, baseDir, ctx);
-        }
-    }
-
-    public RewriteReflectiveFacade.PropertiesParser propertiesParser() {
-        try {
-            return new RewriteReflectiveFacade.PropertiesParser(getClassLoader().loadClass("org.openrewrite.properties.PropertiesParser")
-                    .getDeclaredConstructor()
-                    .newInstance());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public class XmlParser {
-        private final Object real;
-
-        private XmlParser(Object real) {
-            this.real = real;
-        }
-
-        public List<RewriteReflectiveFacade.SourceFile> parse(Iterable<Path> sourcePaths, Path baseDir, RewriteReflectiveFacade.InMemoryExecutionContext ctx) {
-            return parseBase(real, sourcePaths, baseDir, ctx);
-        }
-    }
-
-    public RewriteReflectiveFacade.XmlParser xmlParser() {
-        try {
-            return new RewriteReflectiveFacade.XmlParser(getClassLoader().loadClass("org.openrewrite.xml.XmlParser")
-                    .getDeclaredConstructor()
-                    .newInstance());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

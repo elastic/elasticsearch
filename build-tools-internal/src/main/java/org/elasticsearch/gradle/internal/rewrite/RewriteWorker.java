@@ -134,9 +134,7 @@ public abstract class RewriteWorker implements WorkAction<RewriteParameters> {
     protected RewriteReflectiveFacade.Environment environment() {
         Properties properties = new Properties();
         RewriteReflectiveFacade.EnvironmentBuilder env = rewrite.environmentBuilder(properties).scanRuntimeClasspath().scanUserHome();
-
         File rewriteConfig = getParameters().getConfigFile().getAsFile().getOrNull();
-        System.out.println("rewriteConfig = " + rewriteConfig);
         if(rewriteConfig != null){
             if (rewriteConfig.exists()) {
                 try (FileInputStream is = new FileInputStream(rewriteConfig)) {

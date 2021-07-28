@@ -19,6 +19,7 @@ import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceRegistration;
@@ -46,7 +47,7 @@ public abstract class GradleUtils {
     }
 
     public static SourceSetContainer getJavaSourceSets(Project project) {
-        return project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
+        return project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
     }
 
     public static void maybeConfigure(TaskContainer tasks, String name, Action<? super Task> config) {

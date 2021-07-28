@@ -52,8 +52,8 @@ public class TransformInputTests extends ESTestCase {
         ScriptTransform scriptTransform = ScriptTransform.builder(script).build();
         TransformInput transformInput = new TransformInput(scriptTransform);
 
-        ExecutableTransform executableTransform = new ExecutableScriptTransform(scriptTransform, logger, scriptService);
-        ExecutableInput input = new ExecutableTransformInput(transformInput, executableTransform);
+        ExecutableTransform<?, ?> executableTransform = new ExecutableScriptTransform(scriptTransform, logger, scriptService);
+        ExecutableInput<?, ?> input = new ExecutableTransformInput(transformInput, executableTransform);
 
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", Payload.EMPTY);
         Input.Result result = input.execute(ctx, new Payload.Simple());

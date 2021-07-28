@@ -165,7 +165,19 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                     new IndicesStatsRequest().indices(indices).clear().indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN),
                     ActionListener.wrap(response -> {
                         if (response.getFailedShards() != 0) {
-                            listener.onFailure(new CheckpointException("Source has [" + response.getFailedShards() + "] failed shards"));
+                            for (int i = 0; i < response.getShardFailures().length; ++i) {
+                                logger.warn(
+                                    new ParameterizedMessage(
+                                        "Source has [{}] failed shards, shard failure [{}]",
+                                        response.getFailedShards(), i).getFormattedMessage(),
+                                    response.getShardFailures()[i]);
+                            }
+                            listener.onFailure(
+                                new CheckpointException(
+                                    "Source has [{}] failed shards, first shard failure: {}",
+                                    response.getShardFailures()[0],
+                                    response.getFailedShards(),
+                                    response.getShardFailures()[0].toString()));
                             return;
                         }
                         listener.onResponse(extractIndexCheckPoints(response.getShards(), userIndices, prefix));

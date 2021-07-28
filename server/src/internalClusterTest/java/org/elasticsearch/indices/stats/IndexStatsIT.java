@@ -735,7 +735,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
                 Flag.QueryCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Completion, Flag.Segments,
-                Flag.Translog, Flag.RequestCache, Flag.Recovery, Flag.Bulk};
+                Flag.Translog, Flag.RequestCache, Flag.Recovery, Flag.Bulk, Flag.Shards};
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -914,6 +914,10 @@ public class IndexStatsIT extends ESIntegTestCase {
             case Bulk:
                 builder.setBulk(set);
                 break;
+            case Shards:
+                // We don't actually expose shards in IndexStats, but this test fails if it isn't handled
+                builder.request().flags().set(Flag.Shards, set);
+                break;
             default:
                 fail("new flag? " + flag);
                 break;
@@ -956,6 +960,8 @@ public class IndexStatsIT extends ESIntegTestCase {
                 return response.getRecoveryStats() != null;
             case Bulk:
                 return response.getBulk() != null;
+            case Shards:
+                return response.getShards() != null;
             default:
                 fail("new flag? " + flag);
                 return false;

@@ -30,6 +30,7 @@ import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceKeyInM
 import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceValueInMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceIsFalse;
 import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceIsTrue;
+import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceTextual;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectAllowedWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.RemoveWarnings;
@@ -196,6 +197,32 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
+     * Replaces all the values of a given key/value pairs for all project REST tests.
+     * For example "foo": "bar" can replaced as "foo": "baz"
+     *
+     * @param key the key to find
+     * @param oldValue the value of that key to find
+     * @param newValue  the value used in the replacement
+     */
+    public void replaceValueTextByKeyValue(String key, String oldValue, Object newValue) {
+        transformations.add(new ReplaceTextual(key, oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+    }
+
+    /**
+     * Replaces all the values of a given key/value pairs for for given REST test.
+     * For example "foo": "bar" can replaced as "foo": "baz"
+     *
+     * @param key the key to find
+     * @param oldValue the value of that key to find
+     * @param newValue  the value used in the replacement
+     * @param testName the testName to apply replacement
+     */
+    public void replaceValueTextByKeyValue(String key, String oldValue, Object newValue, String testName) {
+        transformations.add(new ReplaceTextual(key, oldValue, MAPPER.convertValue(newValue, TextNode.class), testName));
+    }
+
+
+    /**
      * Removes the key/value of a match assertion all project REST tests for the matching subkey.
      * For example "match":{"_type": "foo"} to "match":{}
      * An empty match is retained if there is only a single key under match.
@@ -256,6 +283,15 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
+     * Removes one or more warnings
+     * @param warnings the warning(s) to remove
+     * @param testName the test name to remove the warning
+     */
+    public void removeWarningForTest(String warnings, String testName) {
+        transformations.add(new RemoveWarnings(Set.copyOf(Arrays.asList(warnings)), testName));
+    }
+
+    /**
      * Adds one or more allowed warnings
      * @param allowedWarnings the warning(s) to add
      */
@@ -269,6 +305,15 @@ public class RestCompatTestTransformTask extends DefaultTask {
      */
     public void addAllowedWarningRegex(String... allowedWarningsRegex) {
         transformations.add(new InjectAllowedWarnings(true, Arrays.asList(allowedWarningsRegex)));
+    }
+
+    /**
+     * Adds one or more allowed regular expression warnings
+     * @param allowedWarningsRegex the regex warning(s) to add
+     * @testName the test name to add a allowedWarningRegex
+     */
+    public void addAllowedWarningRegexForTest(String allowedWarningsRegex, String testName) {
+        transformations.add(new InjectAllowedWarnings(true, Arrays.asList(allowedWarningsRegex), testName));
     }
 
     @OutputDirectory

@@ -309,6 +309,7 @@ setup:
 
   - is_true: id
   - set: {id: id}
+  - gt: {took: 0}
 
   - do:
       eql.get:

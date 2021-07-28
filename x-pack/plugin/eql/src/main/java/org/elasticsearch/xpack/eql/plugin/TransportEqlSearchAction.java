@@ -95,7 +95,8 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     @Override
     public EqlSearchResponse initialResponse(EqlSearchTask task) {
         return new EqlSearchResponse(EqlSearchResponse.Hits.EMPTY,
-            threadPool.relativeTimeInMillis() - task.getStartTime(), false, task.getExecutionId().getEncoded(), true, true);
+            TimeValue.nsecToMSec(task.getStartTimeNanos()) - threadPool.relativeTimeInMillis(), false, task.getExecutionId().getEncoded(),
+            true, true);
     }
 
     @Override

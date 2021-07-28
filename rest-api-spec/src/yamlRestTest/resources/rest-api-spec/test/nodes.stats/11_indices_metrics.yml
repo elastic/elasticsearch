@@ -323,8 +323,8 @@
 "Metric - blank for indices shards":
   - skip:
       features: [arbitrary_key]
-      version: " - 7.99.99"
-      reason:  "total shard count added in version 8.0"
+      version: " - 7.14.99"
+      reason:  "total shard count added in version 7.15.0"
   - do:
       nodes.info: {}
   - set:
@@ -340,8 +340,8 @@
 "Metric - _all for indices shards":
   - skip:
       features: [arbitrary_key]
-      version: " - 7.99.99"
-      reason:  "total shard count added in version 8.0"
+      version: " - 7.14.99"
+      reason:  "total shard count added in version 7.15.0"
   - do:
       nodes.info: {}
   - set:
@@ -359,8 +359,8 @@
 
   - skip:
       features: ["allowed_warnings", arbitrary_key]
-      version: " - 7.99.99"
-      reason:  "total shard count added in version 8.0"
+      version: " - 7.14.99"
+      reason:  "total shard count added in version 7.15.0"
 
   - do:
       indices.create:

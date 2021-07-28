@@ -326,9 +326,9 @@ MULTIPLE AREA LABELS::
 * QL: Make canonical form take into account children {es-pull}71266[#71266]
 * QL: Polish optimizer expression rule declaration {es-pull}71396[#71396]
 * QL: Propagate nullability constraints across conjunctions {es-pull}71187[#71187] (issue: {es-issue}70683[#70683])
-* [Rest Api Compatibility] Allow to use size -1 {es-pull}75342[#75342] (issues: {es-issue}51816[#51816], {es-issue}69548[#69548], {es-issue}70209[#70209])
-* [Rest Api Compatibility] Ignore `use_field_mapping` option for docvalue {es-pull}74435[#74435] (issue: {es-issue}55622[#55622])
-* [Rest Api Compatibility] `_time` and `_term` sort orders {es-pull}74919[#74919] (issues: {es-issue}39450[#39450], {es-issue}51816[#51816])
+* [REST API Compatibility] Allow to use size -1 {es-pull}75342[#75342] (issues: {es-issue}51816[#51816], {es-issue}69548[#69548], {es-issue}70209[#70209])
+* [REST API Compatibility] Ignore `use_field_mapping` option for docvalue {es-pull}74435[#74435] (issue: {es-issue}55622[#55622])
+* [REST API Compatibility] `_time` and `_term` sort orders {es-pull}74919[#74919] (issues: {es-issue}39450[#39450], {es-issue}51816[#51816])
 
 Machine Learning::
 * The Windows build platform for the {ml} C++ code now uses Visual Studio 2019 {ml-pull}1352[#1352]

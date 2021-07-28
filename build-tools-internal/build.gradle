@@ -107,6 +107,10 @@ gradlePlugin {
       id = 'elasticsearch.java-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.JavaRestTestPlugin'
     }
+    releaseTools {
+      id = 'elasticsearch.release-tools'
+      implementationClass = 'org.elasticsearch.gradle.internal.release.ReleaseToolsPlugin'
+    }
     repositories {
       id = 'elasticsearch.repositories'
       implementationClass = 'org.elasticsearch.gradle.internal.RepositoriesSetupPlugin'

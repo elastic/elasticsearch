@@ -493,4 +493,4 @@ MULTIPLE AREA LABELS::
 * [REST API Compatibility] Typed endpoints for search and related endpoints {es-pull}72155[#72155] (issues: {es-issue}51816[#51816], {es-issue}54160[#54160])
 
 SQL::
-* Update supported version for `date_nanos` {es-pull}68214[#68214] (issues: {es-issue}67666[#67666], {es-issue}68198[#68198])
+* Support for `date_nanos` data type {es-pull}67666[#67666], {es-pull}68214[#68214] (issues: {es-issue}38562[#38562])

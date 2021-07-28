@@ -489,8 +489,8 @@ Infra/Scripting::
 * Script: User funcs are script instance methods {es-pull}74268[#74268] (issues: {es-issue}68235[#68235], {es-issue}69742[#69742])
 
 MULTIPLE AREA LABELS::
-* [Rest Api Compatibility] Indicies boost in object format {es-pull}74422[#74422] (issues: {es-issue}51816[#51816], {es-issue}55078[#55078])
-* [Rest Api Compatibility] Typed endpoints for search and related endpoints {es-pull}72155[#72155] (issues: {es-issue}51816[#51816], {es-issue}54160[#54160])
+* [REST API Compatibility] Indicies boost in object format {es-pull}74422[#74422] (issues: {es-issue}51816[#51816], {es-issue}55078[#55078])
+* [REST API Compatibility] Typed endpoints for search and related endpoints {es-pull}72155[#72155] (issues: {es-issue}51816[#51816], {es-issue}54160[#54160])
 
 SQL::
 * Reference relevant issue in `ReplaceSumWithStats` {es-pull}74396[#74396] (issues: {es-issue}45251[#45251], {es-issue}71582[#71582])

@@ -10,7 +10,6 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -37,7 +36,6 @@ import java.util.Map;
 
 import static org.elasticsearch.datastreams.SystemDataStreamSnapshotIT.SystemDataStreamTestPlugin.SYSTEM_DATA_STREAM_NAME;
 import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -78,7 +76,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(indexRepsonse.status().getStatus(), oneOf(200, 201));
 
         {
-            GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[] {SYSTEM_DATA_STREAM_NAME});
+            GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
             GetDataStreamAction.Response response = client().execute(GetDataStreamAction.INSTANCE, request).get();
             assertThat(response.getDataStreams(), hasSize(1));
             assertTrue(response.getDataStreams().get(0).getDataStream().isSystem());
@@ -94,7 +92,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         // We have to delete the data stream directly, as the feature reset API doesn't clean up system data streams yet
         // See https://github.com/elastic/elasticsearch/issues/75818
         {
-            DeleteDataStreamAction.Request request = new DeleteDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME});
+            DeleteDataStreamAction.Request request = new DeleteDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
             AcknowledgedResponse response = client().execute(DeleteDataStreamAction.INSTANCE, request).get();
             assertTrue(response.isAcknowledged());
         }
@@ -113,7 +111,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertEquals(restoreSnapshotResponse.getRestoreInfo().totalShards(), restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
         {
-            GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[] {SYSTEM_DATA_STREAM_NAME});
+            GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
             GetDataStreamAction.Response response = client().execute(GetDataStreamAction.INSTANCE, request).get();
             assertThat(response.getDataStreams(), hasSize(1));
             assertTrue(response.getDataStreams().get(0).getDataStream().isSystem());

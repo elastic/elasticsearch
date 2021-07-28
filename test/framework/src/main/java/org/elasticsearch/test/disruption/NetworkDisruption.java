@@ -181,6 +181,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     public abstract static class DisruptedLinks {
         private final Set<String> nodes;
 
+        @SafeVarargs
         protected DisruptedLinks(Set<String>... nodeSets) {
             Set<String> allNodes = new HashSet<>();
             for (Set<String> nodeSet : nodeSets) {

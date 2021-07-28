@@ -24,14 +24,20 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * All results must have a request_id.
+ * If the error field is not null the instance is an error result
+ * so the inference and time_ms fields will be null.
+ */
 public class PyTorchResult implements ToXContentObject, Writeable {
 
     private static final ParseField REQUEST_ID = new ParseField("request_id");
     private static final ParseField INFERENCE = new ParseField("inference");
     private static final ParseField ERROR = new ParseField("error");
+    private static final ParseField TIME_MS = new ParseField("time_ms");
 
     public static final ConstructingObjectParser<PyTorchResult, Void> PARSER = new ConstructingObjectParser<>("pytorch_result",
-        a -> new PyTorchResult((String) a[0], (double[][]) a[1], (String) a[2]));
+        a -> new PyTorchResult((String) a[0], (double[][]) a[1], (Long) a[2], (String) a[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REQUEST_ID);
@@ -49,6 +55,7 @@ public class PyTorchResult implements ToXContentObject, Writeable {
             INFERENCE,
             ObjectParser.ValueType.VALUE_ARRAY
         );
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), TIME_MS);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ERROR);
     }
 
@@ -58,11 +65,16 @@ public class PyTorchResult implements ToXContentObject, Writeable {
 
     private final String requestId;
     private final double[][] inference;
+    private final Long timeMs;
     private final String error;
 
-    public PyTorchResult(String requestId, @Nullable double[][] inference, @Nullable String error) {
+    public PyTorchResult(String requestId,
+                         @Nullable double[][] inference,
+                         @Nullable Long timeMs,
+                         @Nullable String error) {
         this.requestId = Objects.requireNonNull(requestId);
         this.inference = inference;
+        this.timeMs = timeMs;
         this.error = error;
     }
 
@@ -70,10 +82,11 @@ public class PyTorchResult implements ToXContentObject, Writeable {
         requestId = in.readString();
         boolean hasInference = in.readBoolean();
         if (hasInference) {
-            inference = in.readArray(StreamInput::readDoubleArray, length -> new double[length][]);
+            inference = in.readArray(StreamInput::readDoubleArray, double[][]::new);
         } else {
             inference = null;
         }
+        timeMs = in.readOptionalLong();
         error = in.readOptionalString();
     }
 
@@ -93,12 +106,19 @@ public class PyTorchResult implements ToXContentObject, Writeable {
         return inference;
     }
 
+    public Long getTimeMs() {
+        return timeMs;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(REQUEST_ID.getPreferredName(), requestId);
         if (inference != null) {
             builder.field(INFERENCE.getPreferredName(), inference);
+        }
+        if (timeMs != null) {
+            builder.field(TIME_MS.getPreferredName(), timeMs);
         }
         if (error != null) {
             builder.field(ERROR.getPreferredName(), error);
@@ -116,6 +136,7 @@ public class PyTorchResult implements ToXContentObject, Writeable {
             out.writeBoolean(true);
             out.writeArray(StreamOutput::writeDoubleArray, inference);
         }
+        out.writeOptionalLong(timeMs);
         out.writeOptionalString(error);
     }
 

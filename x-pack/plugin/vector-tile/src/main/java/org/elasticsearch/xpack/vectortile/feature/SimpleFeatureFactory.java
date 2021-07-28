@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.vectortile.feature;
 
 import org.apache.lucene.util.BitUtil;
+import org.elasticsearch.common.geo.SphericalMercatorUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
@@ -67,8 +68,7 @@ public class SimpleFeatureFactory {
         multiPoint.sort(Comparator.comparingDouble(Point::getLon).thenComparingDouble(Point::getLat));
         final int[] commands = new int[2 * multiPoint.size() + 1];
         int pos = 1, prevLon = 0, prevLat = 0, numPoints = 0;
-        for (int i = 0; i < multiPoint.size(); i++) {
-            final Point point = multiPoint.get(i);
+        for (Point point : multiPoint) {
             final int posLon = lon(point.getLon());
             if (posLon > extent || posLon < 0) {
                 continue;
@@ -77,7 +77,8 @@ public class SimpleFeatureFactory {
             if (posLat > extent || posLat < 0) {
                 continue;
             }
-            if (i == 0 || posLon != prevLon || posLat != prevLat) {
+            // filter out repeated points
+            if (numPoints == 0 || posLon != prevLon || posLat != prevLat) {
                 commands[pos++] = BitUtil.zigZagEncode(posLon - prevLon);
                 commands[pos++] = BitUtil.zigZagEncode(posLat - prevLat);
                 prevLon = posLon;

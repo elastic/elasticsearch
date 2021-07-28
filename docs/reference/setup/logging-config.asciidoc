@@ -192,33 +192,21 @@ particular logger to another file. However, these use cases are rare.
 [[deprecation-logging]]
 === Deprecation logging
 
-In addition to regular logging, Elasticsearch allows you to enable logging
-of deprecated actions. For example this allows you to determine early, if
-you need to migrate certain functionality in the future. By default,
-deprecation logging is enabled at the WARN level, the level at which all
-deprecation log messages will be emitted.
+{es} also writes deprecation logs to the log directory. These logs record a
+message when you use deprecated {es} functionality. You can use the deprecation
+logs to update your application before upgrading {es} to a new major version.
+
+By default, {es} rolls and compresses deprecation logs at 1GB. The default
+configuration preserves a maximum of five log files: four rolled logs and an
+active log.
+
+{es} emits deprecation log messages at the `DEPRECATION` level. To stop writing
+deprecation log messages, set `logger.deprecation.level` to `error`:
 
 [source,properties]
---------------------------------------------------
-logger.deprecation.level = warn
---------------------------------------------------
-
-This will create a daily rolling deprecation log file in your log directory.
-Check this file regularly, especially when you intend to upgrade to a new
-major version.
-
-The default logging configuration has set the roll policy for the deprecation
-logs to roll and compress after 1 GB, and to preserve a maximum of five log
-files (four rolled logs, and the active log).
-
-You can disable it in the `config/log4j2.properties` file by setting the deprecation
-log level to `error` like this:
-[source,properties]
---------------------------------------------------
-logger.deprecation.name = org.elasticsearch.deprecation
+----
 logger.deprecation.level = error
---------------------------------------------------
-
+----
 
 You can identify what is triggering deprecated functionality if `X-Opaque-Id` was used as an HTTP header.
 The user ID is included in the `X-Opaque-ID` field in deprecation JSON logs.

@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -1178,7 +1179,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
-        public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream) {
+        public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
             Map<String, DataStream> existingDataStream =
                 Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
                     .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
@@ -1192,12 +1193,19 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 throw new IllegalArgumentException("alias [" + aliasName + "] refers to a non existing data stream [" + dataStream + "]");
             }
 
+            Map<String, Object> filterAsMap;
+            if (filter != null) {
+                filterAsMap = XContentHelper.convertToMap(XContentFactory.xContent(filter), filter, true);
+            } else {
+                filterAsMap = null;
+            }
+
             DataStreamAlias alias = dataStreamAliases.get(aliasName);
             if (alias == null) {
                 String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStream : null;
-                alias = new DataStreamAlias(aliasName, List.of(dataStream), writeDataStream);
+                alias = new DataStreamAlias(aliasName, List.of(dataStream), writeDataStream, filterAsMap);
             } else {
-                DataStreamAlias copy = alias.addDataStream(dataStream, isWriteDataStream);
+                DataStreamAlias copy = alias.update(dataStream, isWriteDataStream, filterAsMap);
                 if (copy == alias) {
                     return false;
                 }

@@ -29,7 +29,7 @@ public class PyTorchResultTests extends AbstractSerializingTestCase<PyTorchResul
         boolean createError = randomBoolean();
         String id = randomAlphaOfLength(6);
         if (createError) {
-            return new PyTorchResult(id, null, "This is an error message");
+            return new PyTorchResult(id, null, null, "This is an error message");
         } else {
             int rows = randomIntBetween(1, 10);
             int columns = randomIntBetween(1, 10);
@@ -39,7 +39,7 @@ public class PyTorchResultTests extends AbstractSerializingTestCase<PyTorchResul
                     arr[i][j] = randomDouble();
                 }
             }
-            return new PyTorchResult(id, arr, null);
+            return new PyTorchResult(id, arr, randomLong(), null);
         }
     }
 }

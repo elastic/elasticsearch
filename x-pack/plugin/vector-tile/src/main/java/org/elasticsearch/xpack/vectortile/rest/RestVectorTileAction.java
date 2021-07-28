@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * Main class handling a call to the _mvt API.
@@ -81,7 +82,7 @@ public class RestVectorTileAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "{index}/_mvt/{field}/{z}/{x}/{y}"));
+        return List.of(new Route(GET, "{index}/_mvt/{field}/{z}/{x}/{y}"), new Route(POST, "{index}/_mvt/{field}/{z}/{x}/{y}"));
     }
 
     @Override
@@ -254,7 +255,7 @@ public class RestVectorTileAction extends BaseRestHandler {
         final VectorTile.Tile.Layer.Builder aggLayerBuilder = VectorTileUtils.createLayerBuilder(AGGS_LAYER, request.getExtent());
         final MvtLayerProps layerProps = new MvtLayerProps();
         final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
-        for (InternalGeoGridBucket<?> bucket : grid.getBuckets()) {
+        for (InternalGeoGridBucket bucket : grid.getBuckets()) {
             featureBuilder.clear();
             // Add geometry
             if (request.getGridType() == VectorTileRequest.GRID_TYPE.GRID) {

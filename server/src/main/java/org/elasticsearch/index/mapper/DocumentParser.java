@@ -64,7 +64,8 @@ public final class DocumentParser {
 
     /**
      * Parse a document
-     * @param source the document to parse
+     *
+     * @param source        the document to parse
      * @param mappingLookup the mappings information needed to parse the document
      * @return the parsed document
      * @throws MapperParsingException whenever there's a problem parsing the document
@@ -160,6 +161,7 @@ public final class DocumentParser {
         Map<String, Consumer<LeafReaderContext>> fieldScripts = new HashMap<>();
         indexTimeScriptMappers.forEach(mapper -> fieldScripts.put(mapper.name(), new Consumer<>() {
             boolean executed = false;
+
             @Override
             public void accept(LeafReaderContext leafReaderContext) {
                 if (executed == false) {
@@ -233,10 +235,10 @@ public final class DocumentParser {
                     // check if the field name contains only whitespace
                     if (Strings.isEmpty(part) == false) {
                         throw new IllegalArgumentException(
-                                "object field cannot contain only whitespace: ['" + fullFieldPath + "']");
+                            "object field cannot contain only whitespace: ['" + fullFieldPath + "']");
                     }
                     throw new IllegalArgumentException(
-                            "object field starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]");
+                        "object field starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]");
                 }
             }
             return parts;
@@ -244,11 +246,13 @@ public final class DocumentParser {
             if (Strings.isEmpty(fullFieldPath)) {
                 throw new IllegalArgumentException("field name cannot be an empty string");
             }
-            return new String[] {fullFieldPath};
+            return new String[]{fullFieldPath};
         }
     }
 
-    /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */
+    /**
+     * Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings.
+     */
     static Mapping createDynamicUpdate(MappingLookup mappingLookup,
                                        List<Mapper> dynamicMappers,
                                        List<RuntimeField> dynamicRuntimeFields) {
@@ -319,7 +323,7 @@ public final class DocumentParser {
         }
         popMappers(parentMappers, 1, true);
         assert parentMappers.size() == 1;
-        return (RootObjectMapper)parentMappers.get(0);
+        return (RootObjectMapper) parentMappers.get(0);
     }
 
     private static void popMappers(List<ObjectMapper> parentMappers, int keepBefore, boolean merge) {
@@ -375,7 +379,9 @@ public final class DocumentParser {
         return i;
     }
 
-    /** Creates an update for intermediate object mappers that are not on the stack, but parents of newMapper. */
+    /**
+     * Creates an update for intermediate object mappers that are not on the stack, but parents of newMapper.
+     */
     private static ObjectMapper createExistingMapperUpdate(List<ObjectMapper> parentMappers, String[] nameParts, int i,
                                                            MappingLookup mappingLookup, Mapper newMapper) {
         String updateParentName = nameParts[i];
@@ -389,7 +395,9 @@ public final class DocumentParser {
         return createUpdate(updateParent, nameParts, i + 1, newMapper);
     }
 
-    /** Build an update for the parent which will contain the given mapper and any intermediate fields. */
+    /**
+     * Build an update for the parent which will contain the given mapper and any intermediate fields.
+     */
     private static ObjectMapper createUpdate(ObjectMapper parent, String[] nameParts, int i, Mapper mapper) {
         List<ObjectMapper> parentMappers = new ArrayList<>();
         ObjectMapper previousIntermediate = parent;
@@ -397,8 +405,8 @@ public final class DocumentParser {
             Mapper intermediate = previousIntermediate.getMapper(nameParts[i]);
             assert intermediate != null : "Field " + previousIntermediate.name() + " does not have a subfield " + nameParts[i];
             assert intermediate instanceof ObjectMapper;
-            parentMappers.add((ObjectMapper)intermediate);
-            previousIntermediate = (ObjectMapper)intermediate;
+            parentMappers.add((ObjectMapper) intermediate);
+            previousIntermediate = (ObjectMapper) intermediate;
         }
         if (parentMappers.isEmpty() == false) {
             // add the new mapper to the stack, and pop down to the original parent level
@@ -427,9 +435,8 @@ public final class DocumentParser {
                 + "] as object, but found a concrete value");
         }
 
-        ObjectMapper.Nested nested = mapper.nested();
-        if (nested.isNested()) {
-            context = nestedContext(context, mapper);
+        if (mapper.isNested()) {
+            context = nestedContext(context, (NestedObjectMapper) mapper);
         }
 
         // if we are at the end of the previous object, advance
@@ -443,8 +450,8 @@ public final class DocumentParser {
 
         innerParseObject(context, mapper, parser, currentFieldName, token);
         // restore the enable path flag
-        if (nested.isNested()) {
-            nested(context, nested);
+        if (mapper.isNested()) {
+            nested(context, (NestedObjectMapper) mapper);
         }
     }
 
@@ -476,7 +483,7 @@ public final class DocumentParser {
         }
     }
 
-    private static void nested(DocumentParserContext context, ObjectMapper.Nested nested) {
+    private static void nested(DocumentParserContext context, NestedObjectMapper nested) {
         LuceneDocument nestedDoc = context.doc();
         LuceneDocument parentDoc = nestedDoc.getParent();
         Version indexVersion = context.indexSettings().getIndexVersionCreated();
@@ -501,7 +508,7 @@ public final class DocumentParser {
         }
     }
 
-    private static DocumentParserContext nestedContext(DocumentParserContext context, ObjectMapper mapper) {
+    private static DocumentParserContext nestedContext(DocumentParserContext context, NestedObjectMapper mapper) {
         context = context.createNestedContext(mapper.fullPath());
         LuceneDocument nestedDoc = context.doc();
         LuceneDocument parentDoc = nestedDoc.getParent();
@@ -610,7 +617,7 @@ public final class DocumentParser {
             ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(parentMapper.fullPath(), arrayFieldName);
-            } else if (dynamic == ObjectMapper.Dynamic.FALSE)  {
+            } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
                 // TODO: shouldn't this skip, not parse?
                 parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
             } else {
@@ -706,7 +713,9 @@ public final class DocumentParser {
         dynamic.getDynamicFieldsBuilder().createDynamicFieldFromValue(context, token, currentFieldName);
     }
 
-    /** Creates instances of the fields that the current field should be copied to */
+    /**
+     * Creates instances of the fields that the current field should be copied to
+     */
     private static void parseCopyFields(DocumentParserContext context, List<String> copyToFields) throws IOException {
         context = context.createCopyToContext();
         for (String field : copyToFields) {
@@ -730,7 +739,9 @@ public final class DocumentParser {
         }
     }
 
-    /** Creates an copy of the current field with given field name and boost */
+    /**
+     * Creates an copy of the current field with given field name and boost
+     */
     private static void parseCopy(String field, DocumentParserContext context) throws IOException {
         Mapper mapper = context.mappingLookup().getMapper(field);
         if (mapper != null) {
@@ -747,7 +758,7 @@ public final class DocumentParser {
             context = context.overridePath(new ContentPath(0));
 
             final String[] paths = splitAndValidatePath(field);
-            final String fieldName = paths[paths.length-1];
+            final String fieldName = paths[paths.length - 1];
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, null);
             ObjectMapper objectMapper = parentMapperTuple.v2();
             parseDynamicValue(context, objectMapper, fieldName, context.parser().currentToken());
@@ -762,7 +773,7 @@ public final class DocumentParser {
         ObjectMapper mapper = currentParent == null ? context.root() : currentParent;
         int pathsAdded = 0;
         ObjectMapper parent = mapper;
-        for (int i = 0; i < paths.length-1; i++) {
+        for (int i = 0; i < paths.length - 1; i++) {
             String name = paths[i];
             String currentPath = context.path().pathAsText(name);
             Mapper existingFieldMapper = context.mappingLookup().getMapper(currentPath);
@@ -781,7 +792,7 @@ public final class DocumentParser {
                     // Should not dynamically create any more mappers so return the last mapper
                     return new Tuple<>(pathsAdded, parent);
                 } else if (dynamic == ObjectMapper.Dynamic.RUNTIME) {
-                        mapper = new NoOpObjectMapper(name, currentPath);
+                    mapper = new NoOpObjectMapper(name, currentPath);
                 } else {
                     final Mapper fieldMapper = dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, name);
                     if (fieldMapper instanceof ObjectMapper == false) {
@@ -792,7 +803,7 @@ public final class DocumentParser {
                             context.sourceToParse().dynamicTemplates().get(currentPath) + "]");
                     }
                     mapper = (ObjectMapper) fieldMapper;
-                    if (mapper.nested() != ObjectMapper.Nested.NO) {
+                    if (mapper.isNested()) {
                         throw new MapperParsingException("It is forbidden to create dynamic nested objects (["
                             + currentPath + "]) through `copy_to` or dots in field names");
                     }
@@ -853,11 +864,11 @@ public final class DocumentParser {
             if (mapper instanceof ObjectMapper == false) {
                 return null;
             }
-            objectMapper = (ObjectMapper)mapper;
-            if (objectMapper.nested().isNested()) {
+            objectMapper = (ObjectMapper) mapper;
+            if (objectMapper.isNested()) {
                 throw new MapperParsingException("Cannot add a value for field ["
-                        + fieldName + "] since one of the intermediate objects is mapped as a nested object: ["
-                        + mapper.name() + "]");
+                    + fieldName + "] since one of the intermediate objects is mapped as a nested object: ["
+                    + mapper.name() + "]");
             }
         }
         String leafName = subfields[subfields.length - 1];
@@ -879,34 +890,33 @@ public final class DocumentParser {
         // if a leaf field is not mapped, and is defined as a runtime field, then we
         // don't create a dynamic mapping for it and don't index it.
         String fieldPath = context.path().pathAsText(fieldName);
-        MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldPath);
-        if (fieldType != null) {
-            //we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
-            assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
-            return new NoOpFieldMapper(subfields[subfields.length - 1], fieldType.name());
+        if (context.isShadowed(fieldPath)) {
+            return NO_OP_FIELDMAPPER;
         }
         return null;
     }
 
-    private static class NoOpFieldMapper extends FieldMapper {
-        NoOpFieldMapper(String simpleName, String fullName) {
-            super(simpleName, new MappedFieldType(fullName, false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
-                @Override
-                public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-                    throw new UnsupportedOperationException();
-                }
+    private static final FieldMapper NO_OP_FIELDMAPPER = new FieldMapper(
+        "no-op",
+        new MappedFieldType("no-op", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+            @Override
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                throw new UnsupportedOperationException();
+            }
 
-                @Override
-                public String typeName() {
-                    throw new UnsupportedOperationException();
-                }
+            @Override
+            public String typeName() {
+                throw new UnsupportedOperationException();
+            }
 
-                @Override
-                public Query termQuery(Object value, SearchExecutionContext context) {
-                    throw new UnsupportedOperationException();
-                }
-            }, MultiFields.empty(), CopyTo.empty());
-        }
+            @Override
+            public Query termQuery(Object value, SearchExecutionContext context) {
+                throw new UnsupportedOperationException();
+            }
+        },
+        FieldMapper.MultiFields.empty(),
+        FieldMapper.CopyTo.empty()
+    ) {
 
         @Override
         protected void parseCreateField(DocumentParserContext context) throws IOException {
@@ -962,11 +972,11 @@ public final class DocumentParser {
         protected String contentType() {
             throw new UnsupportedOperationException();
         }
-    }
+    };
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(name, fullPath, new Explicit<>(true, false), Nested.NO, Dynamic.RUNTIME, Collections.emptyMap(), Version.CURRENT);
+            super(name, fullPath, new Explicit<>(true, false), Dynamic.RUNTIME, Collections.emptyMap());
         }
     }
 

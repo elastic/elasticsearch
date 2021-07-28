@@ -150,7 +150,7 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 +{ssl-prefix}.ssl.truststore.type+::
 (<<static-cluster-setting,Static>>)
 Set this to `PKCS12` to indicate that the truststore is a PKCS#12 file.
-//TBD:Should this use the ssl-truststore-type-pkcs11 or ssl-truststore-type definition and default values?
+//TBD:Should this use the ssl-truststore-type definition and default values?
 
 +{ssl-prefix}.ssl.truststore.password+::
 (<<static-cluster-setting,Static>>)
@@ -160,30 +160,3 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password
 (<<secure-settings,Secure>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
-[#{ssl-context}-pkcs11-tokens]
-===== PKCS#11 tokens
-
-{es} can be configured to use a PKCS#11 token that contains the private key,
-certificate and certificates that should be trusted.
-
-PKCS#11 token require additional configuration on the JVM level and can be enabled
-via the following settings:
-
-+{ssl-prefix}.keystore.type+::
-(<<static-cluster-setting,Static>>)
-Set this to `PKCS11` to indicate that the PKCS#11 token should be used as a keystore.
-//TBD: Is the default value `jks`?
-
-+{ssl-prefix}.truststore.type+::
-(<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type-pkcs11]
-
-[NOTE]
-When configuring the PKCS#11 token that your JVM is configured to use as
-a keystore or a truststore for Elasticsearch, the PIN for the token can be
-configured by setting the appropriate value to `ssl.truststore.password`
-or `ssl.truststore.secure_password` in the context that you are configuring.
-Since there can only be one PKCS#11 token configured, only one keystore and
-truststore will be usable for configuration in {es}. This in turn means
-that only one certificate can be used for TLS both in the transport and the
-http layer.

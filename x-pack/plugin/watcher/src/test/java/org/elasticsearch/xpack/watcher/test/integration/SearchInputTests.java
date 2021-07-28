@@ -87,6 +87,7 @@ public class SearchInputTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
     }
 
+    @SuppressWarnings("unchecked")
     public void testExecute() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
@@ -95,6 +96,7 @@ public class SearchInputTests extends ESTestCase {
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 
+        @SuppressWarnings("rawtypes")
         ArgumentCaptor<Map> headersCaptor = ArgumentCaptor.forClass(Map.class);
         when(client.filterWithHeader(headersCaptor.capture())).thenReturn(client);
 

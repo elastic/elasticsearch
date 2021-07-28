@@ -383,12 +383,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         bin.keystoreTool.run("create");
 
-        // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
-        // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
-        // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
-        // when we run these commands as a role user we won't have to do this
-        Platforms.onWindows(() -> sh.chown(keystore));
-
         if (distribution().isDocker()) {
             try {
                 waitForPathToExist(keystore);
@@ -400,6 +394,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
         if (password != null) {
             setKeystorePassword(password);
         }
+
+        // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
+        // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
+        // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
+        // when we run these commands as a role user we won't have to do this
+        Platforms.onWindows(() -> sh.chown(keystore));
     }
 
     private void rmKeystoreIfExists() {

@@ -78,11 +78,9 @@ abstract class TrustConfig {
 
     /**
      * Loads and returns the appropriate {@link KeyStore} for the given configuration. The KeyStore can be backed by a file
-     * in any format that the Security Provider might support, or a cryptographic software or hardware token in the case
-     * of a PKCS#11 Provider.
+     * in any format that the Security Provider might support.
      *
-     * @param storePath     the path to the {@link KeyStore} to load, or null if a PKCS11 token is configured as the keystore/truststore
-     *                      of the JVM
+     * @param storePath     the path to the {@link KeyStore} to load
      * @param storeType     the type of the {@link KeyStore}
      * @param storePassword the password to be used for decrypting the {@link KeyStore}
      * @return the loaded KeyStore to be used as a keystore or a truststore
@@ -92,18 +90,17 @@ abstract class TrustConfig {
      * @throws IOException              if there is an I/O issue with the KeyStore data or the password is incorrect
      */
     KeyStore getStore(Path storePath, String storeType, SecureString storePassword) throws IOException, GeneralSecurityException {
-        if (null != storePath) {
-            try (InputStream in = Files.newInputStream(storePath)) {
-                KeyStore ks = KeyStore.getInstance(storeType);
-                ks.load(in, storePassword.getChars());
-                return ks;
-            }
-        } else if (storeType.equalsIgnoreCase("pkcs11")) {
+        if (storeType.equalsIgnoreCase("pkcs11")) {
+            throw new IllegalArgumentException("PKCS#11 keystores are no longer supported by Elasticsearch");
+        }
+        if (storePath == null) {
+            throw new IllegalArgumentException("keystore.path or truststore.path cannot be empty");
+        }
+        try (InputStream in = Files.newInputStream(storePath)) {
             KeyStore ks = KeyStore.getInstance(storeType);
-            ks.load(null, storePassword.getChars());
+            ks.load(in, storePassword.getChars());
             return ks;
         }
-        throw new IllegalArgumentException("keystore.path or truststore.path can only be empty when using a PKCS#11 token");
     }
 
     /**

@@ -217,7 +217,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
             assertThat(indexILMState.get("step"), is("wait-for-snapshot"));
         }, slmPolicy);
-
+        waitForPhaseTime();
         Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
         assertBusy(() -> {
@@ -258,7 +258,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
             assertThat(indexILMState.get("step"), is("wait-for-snapshot"));
         }, slmPolicy);
-
+        waitForPhaseTime();
         request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
 

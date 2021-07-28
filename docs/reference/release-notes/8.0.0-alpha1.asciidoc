@@ -341,7 +341,7 @@ Mapping::
 * Sparse vector to throw exception consistently {es-pull}62646[#62646]
 
 NOT CLASSIFIED::
-* [REST Compatible API] 'template' parameter and field on PUT index template {es-pull}71238[#71238] (issues: {es-issue}49460[#49460], {es-issue}51816[#51816], {es-issue}68905[#68905])
+* [REST API Compatability] 'template' parameter and field on PUT index template {es-pull}71238[#71238] (issues: {es-issue}49460[#49460], {es-issue}51816[#51816], {es-issue}68905[#68905])
 
 Packaging::
 * Make the Docker build more re-usable in Cloud {es-pull}50277[#50277] (issues: {es-issue}46166[#46166], {es-issue}49926[#49926])

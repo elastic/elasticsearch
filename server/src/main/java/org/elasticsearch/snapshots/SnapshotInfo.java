@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -44,7 +46,7 @@ import java.util.Objects;
  * Information about a snapshot
  */
 public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, Writeable {
-
+    private static final Logger logger = LogManager.getLogger(SnapshotInfo.class);
     public static final String INDEX_DETAILS_XCONTENT_PARAM = "index_details";
     public static final String INCLUDE_REPOSITORY_XCONTENT_PARAM = "include_repository";
 
@@ -137,6 +139,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
 
         private void setStartTime(long startTime) {
+            logger.info("setting start time in setStartTime: {}", startTime);
             this.startTime = startTime;
         }
 
@@ -445,6 +448,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         this.state = state;
         this.reason = reason;
         this.version = version;
+        logger.info("setting start time in constructor: {}", startTime);
         this.startTime = startTime;
         this.endTime = endTime;
         this.totalShards = totalShards;
@@ -469,6 +473,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         final SnapshotState state = in.readBoolean() ? SnapshotState.fromValue(in.readByte()) : null;
         final String reason = in.readOptionalString();
         final long startTime = in.readVLong();
+        logger.info("setting start time in readFrom: {}", startTime);
         final long endTime = in.readVLong();
         final int totalShards = in.readVInt();
         final int successfulShards = in.readVInt();
@@ -903,6 +908,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                     break;
                 case START_TIME:
                     startTime = parser.longValue();
+                    logger.info("setting start time in fromXContent: {}", startTime);
                     break;
                 case END_TIME:
                     endTime = parser.longValue();

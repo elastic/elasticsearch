@@ -76,6 +76,7 @@ class DatafeedJob {
     private AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
+    private volatile long consecutiveDelayedDataBuckets;
 
     DatafeedJob(String jobId, DataDescription dataDescription, long frequencyMs, long queryDelayMs,
                 DataExtractorFactory dataExtractorFactory, DatafeedTimingStatsReporter timingStatsReporter, Client client,
@@ -223,10 +224,23 @@ class DatafeedJob {
                     && annotation.getEndTimestamp().equals(lastDataCheckAnnotationWithId.v2().getEndTimestamp())) {
                     return;
                 }
-
-                // Creating a warning in addition to updating/creating our annotation. This allows the issue to be plainly visible
-                // in the job list page.
-                auditor.warning(jobId, msg);
+                if (lastDataCheckAnnotationWithId != null) {
+                    long bucketAfterPreviousAnnotation = lastDataCheckAnnotationWithId.v2().getEndTimestamp().getTime()
+                        + lastBucket.getBucketSpan() * 1000;
+                    if (annotation.getEndTimestamp().getTime() <= bucketAfterPreviousAnnotation) {
+                        consecutiveDelayedDataBuckets++;
+                    } else {
+                        consecutiveDelayedDataBuckets = 0;
+                    }
+                } else {
+                    consecutiveDelayedDataBuckets = 0;
+                }
+                // to prevent audit log spam on many consecutive buckets missing data, we should throttle writing the messages
+                if (shouldWriteDelayedDataAudit()) {
+                    // Creating a warning in addition to updating/creating our annotation. This allows the issue to be plainly visible
+                    // in the job list page.
+                    auditor.warning(jobId, msg);
+                }
 
                 if (lastDataCheckAnnotationWithId == null) {
                     lastDataCheckAnnotationWithId = annotationPersister.persistAnnotation(null, annotation);
@@ -237,6 +251,16 @@ class DatafeedJob {
                 }
             }
         }
+    }
+
+    boolean shouldWriteDelayedDataAudit() {
+        if (consecutiveDelayedDataBuckets < 3) {
+            return true;
+        }
+        if (consecutiveDelayedDataBuckets < 100) {
+            return consecutiveDelayedDataBuckets % 10 == 0;
+        }
+        return consecutiveDelayedDataBuckets % 100 == 0;
     }
 
     private Annotation createDelayedDataAnnotation(Date startTime, Date endTime, String msg) {

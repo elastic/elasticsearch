@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.vectortile.rest;
 
 import com.wdtinc.mapbox_vector_tile.VectorTile;
-import com.wdtinc.mapbox_vector_tile.adapt.jts.IUserDataConverter;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -17,10 +16,9 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.SimpleFeatureFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -49,8 +47,6 @@ import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggrega
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
-import org.elasticsearch.xpack.vectortile.feature.SimpleFeatureFactory;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -173,8 +169,12 @@ public class RestVectorTileAction extends BaseRestHandler {
         final SearchRequestBuilder searchRequestBuilder = client.prepareSearch(request.getIndexes());
         searchRequestBuilder.setSize(request.getSize());
         searchRequestBuilder.setFetchSource(false);
-        // TODO: I wonder if we can leverage field and format so what we get in the result is already the mvt commands.
-        searchRequestBuilder.addFetchField(new FieldAndFormat(request.getField(), null));
+        searchRequestBuilder.addFetchField(
+            new FieldAndFormat(
+                request.getField(),
+                "mvt(" + request.getZ() + "/" + request.getX() + "/" + request.getY() + "@" + request.getExtent() + ")"
+            )
+        );
         for (FieldAndFormat field : request.getFieldAndFormats()) {
             searchRequestBuilder.addFetchField(field);
         }
@@ -222,13 +222,20 @@ public class RestVectorTileAction extends BaseRestHandler {
         return searchRequestBuilder;
     }
 
-    private static VectorTile.Tile.Layer.Builder buildHitsLayer(SearchHit[] hits, VectorTileRequest request) {
-        final FeatureFactory featureFactory = new FeatureFactory(request.getZ(), request.getX(), request.getY(), request.getExtent());
-        final GeometryParser parser = new GeometryParser(true, false, false);
+    @SuppressWarnings("unchecked")
+    private static VectorTile.Tile.Layer.Builder buildHitsLayer(SearchHit[] hits, VectorTileRequest request) throws IOException {
         final VectorTile.Tile.Layer.Builder hitsLayerBuilder = VectorTileUtils.createLayerBuilder(HITS_LAYER, request.getExtent());
         final List<FieldAndFormat> fields = request.getFieldAndFormats();
+        final MvtLayerProps layerProps = new MvtLayerProps();
+        final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
         for (SearchHit searchHit : hits) {
-            final IUserDataConverter tags = (userData, layerProps, featureBuilder) -> {
+            final DocumentField geoField = searchHit.field(request.getField());
+            if (geoField == null) {
+                continue;
+            }
+            for (Object feature : geoField) {
+                featureBuilder.clear();
+                featureBuilder.mergeFrom((byte[]) feature);
                 VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, ID_TAG, searchHit.getId());
                 if (fields != null) {
                     for (FieldAndFormat field : fields) {
@@ -238,12 +245,10 @@ public class RestVectorTileAction extends BaseRestHandler {
                         }
                     }
                 }
-            };
-            // TODO: See comment on field formats.
-            final Geometry geometry = parser.parseGeometry(searchHit.field(request.getField()).getValue());
-            hitsLayerBuilder.addAllFeatures(featureFactory.getFeatures(geometry, tags));
+                hitsLayerBuilder.addFeatures(featureBuilder);
+            }
         }
-        VectorTileUtils.addPropertiesToLayer(hitsLayerBuilder, featureFactory.getLayerProps());
+        VectorTileUtils.addPropertiesToLayer(hitsLayerBuilder, layerProps);
         return hitsLayerBuilder;
     }
 

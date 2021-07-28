@@ -37,7 +37,7 @@ Cluster Coordination::
 * Remove support for delaying state recovery pending master {es-pull}53845[#53845] (issue: {es-issue}51806[#51806])
 
 Distributed::
-* Goodbye and thank you synced flush! {es-pull}50882[#50882] (issues: {es-issue}50776[#50776], {es-issue}50835[#50835])
+* Remove synced flush! {es-pull}50882[#50882] (issues: {es-issue}50776[#50776], {es-issue}50835[#50835])
 
 
 Engine::

@@ -52,8 +52,8 @@ setup:
 ---
 "Test pinned query with ID and index":
   - skip:
-      version: " - 7.99.99"
-      reason: "the 'docs' option is not yet backported"
+      version: " - 7.14.99"
+      reason: "the 'docs' option was added in 7.15"
   - do:
       search:
         index: test1,test2

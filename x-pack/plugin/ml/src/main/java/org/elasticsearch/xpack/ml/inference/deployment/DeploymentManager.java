@@ -75,7 +75,7 @@ public class DeploymentManager {
     }
 
     public void startDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> listener) {
-        executorServiceForDeployment.execute(() -> doStartDeployment(task, listener));
+        doStartDeployment(task, listener);
     }
 
     private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> listener) {
@@ -113,7 +113,9 @@ public class DeploymentManager {
                 NlpTask nlpTask = NlpTask.fromConfig(config);
                 NlpTask.Processor processor = nlpTask.createProcessor();
                 processContext.nlpTaskProcessor.set(processor);
-                // This comes back on possibly a network thread, don't lock it up with a start
+                // here, we are being called back on the searching thread, which MAY be a network thread
+                // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
+                // executor.
                 executorServiceForProcess.execute(() -> startAndLoad(processContext, modelLoadedListener));
             },
             listener::onFailure

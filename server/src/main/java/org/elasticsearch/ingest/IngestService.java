@@ -670,7 +670,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
                 if (metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES) != null) {
                     Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
-                    mergedDynamicTemplates.putAll((Map<String, String>) metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES));
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> map = (Map<String, String>) metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES);
+                    mergedDynamicTemplates.putAll(map);
                     indexRequest.setDynamicTemplates(mergedDynamicTemplates);
                 }
                 handler.accept(null);

@@ -147,13 +147,13 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return new Suggest(suggestions);
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
+    public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion<?>>> groupedSuggestions) {
         List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<>(groupedSuggestions.size());
-        for (Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
-            List<Suggestion> value = unmergedResults.getValue();
+        for (Map.Entry<String, List<Suggestion<?>>> unmergedResults : groupedSuggestions.entrySet()) {
+            List<Suggestion<?>> value = unmergedResults.getValue();
+            @SuppressWarnings("rawtypes")
             Class<? extends Suggestion> suggestionClass = null;
-            for (Suggestion suggestion : value) {
+            for (Suggestion<?> suggestion : value) {
                 if (suggestionClass == null) {
                     suggestionClass = suggestion.getClass();
                 } else if (suggestionClass != suggestion.getClass()) {
@@ -162,7 +162,8 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                         " query on a single completion suggester version");
                 }
             }
-            Suggestion reduce = value.get(0).reduce(value);
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            Suggestion<? extends Entry<? extends Option>> reduce = value.get(0).reduce((List) value);
             reduce.trim();
             reduced.add(reduce);
         }

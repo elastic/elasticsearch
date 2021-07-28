@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.vectortile.feature;
+package org.elasticsearch.common.geo;
 
 import org.elasticsearch.geometry.Rectangle;
 
 /**
  * Utility functions to transforms WGS84 coordinates into spherical mercator.
  */
-class SphericalMercatorUtils {
+public class SphericalMercatorUtils {
 
-    private static double MERCATOR_FACTOR = 20037508.34 / 180.0;
+    public static final double MERCATOR_BOUNDS = 20037508.34;
+    private static final double MERCATOR_FACTOR = MERCATOR_BOUNDS / 180.0;
 
     /**
      * Transforms WGS84 longitude to a Spherical mercator longitude

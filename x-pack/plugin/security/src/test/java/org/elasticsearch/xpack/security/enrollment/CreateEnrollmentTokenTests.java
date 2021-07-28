@@ -137,7 +137,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         assertEquals("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d", infoNode.get("fgr"));
         assertEquals("DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg", infoNode.get("key"));
 
-        final String tokenKibana = createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic"));
+        final String tokenKibana = createEnrollmentToken.createKibanaEnrollmentToken("elastic", new SecureString("elastic"));
 
         Map<String, String> infoKibana = getDecoded(tokenKibana);
         assertEquals("8.0.0", infoKibana.get("ver"));

@@ -564,7 +564,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         }
     }
 
-    private String getErrorCause(HttpResponse httpResponse) {
+    public static String getErrorCause(HttpResponse httpResponse) {
         final Object error = httpResponse.getResponseBody().get("error");
         if (error == null) {
             return null;

@@ -12,7 +12,6 @@ import joptsimple.OptionSet;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -20,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
@@ -108,8 +106,7 @@ public class PasswordAndEnrollmentInitialNodeTests extends ESTestCase {
             checkClusterHealthResponseBody = Strings.toString(builder);
         }
         when(client_util.execute(eq("GET"), eq(command.checkClusterHealthUrl(client)), anyString(), any(SecureString.class),
-            any(CheckedSupplier.class), any(CheckedFunction.class))).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK,
-            checkClusterHealthResponseBody));
+            any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, checkClusterHealthResponseBody));
 
         String getChangeElasticUserPasswordBody;
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
@@ -118,8 +115,7 @@ public class PasswordAndEnrollmentInitialNodeTests extends ESTestCase {
             getChangeElasticUserPasswordBody = Strings.toString(builder);
         }
         when(client_util.execute(eq("POST"), eq(command.changeElasticUserPasswordUrl(client)), anyString(), any(SecureString.class),
-            any(CheckedSupplier.class), any(CheckedFunction.class))).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK,
-            getChangeElasticUserPasswordBody));
+            any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, getChangeElasticUserPasswordBody));
         command.execute(terminal, option, environment);
         assertEquals(new SecureString("Aljngvodjb94j8HSY803"), command.getPassword());
         assertEquals("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d", command.getFingerprint());
@@ -175,8 +171,7 @@ public class PasswordAndEnrollmentInitialNodeTests extends ESTestCase {
             checkClusterHealthResponseBody = Strings.toString(builder);
         }
         when(client_util.execute(eq("GET"), eq(command.checkClusterHealthUrl(client)), anyString(), any(SecureString.class),
-            any(CheckedSupplier.class), any(CheckedFunction.class))).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK,
-            checkClusterHealthResponseBody));
+            any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, checkClusterHealthResponseBody));
 
         String getChangeElasticUserPasswordBody;
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
@@ -185,8 +180,7 @@ public class PasswordAndEnrollmentInitialNodeTests extends ESTestCase {
             getChangeElasticUserPasswordBody = Strings.toString(builder);
         }
         when(client_util.execute(eq("POST"), eq(command.changeElasticUserPasswordUrl(client)), anyString(), any(SecureString.class),
-            any(CheckedSupplier.class), any(CheckedFunction.class))).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK,
-            getChangeElasticUserPasswordBody));
+            any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, getChangeElasticUserPasswordBody));
         command.execute(terminal, option, bootstrapPasswordEnvironment);
         assertEquals(new SecureString("password"), command.getPassword());
         assertEquals("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d", command.getFingerprint());
@@ -217,8 +211,7 @@ public class PasswordAndEnrollmentInitialNodeTests extends ESTestCase {
             checkClusterHealthResponseBody = Strings.toString(builder);
         }
         when(client_util.execute(eq("GET"), eq(command.checkClusterHealthUrl(client)), anyString(), any(SecureString.class),
-            any(CheckedSupplier.class), any(CheckedFunction.class))).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK,
-            checkClusterHealthResponseBody));
+            any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, checkClusterHealthResponseBody));
 
         UserException ex = expectThrows(UserException.class, () ->
             command.execute(terminal, option, environment));
@@ -262,8 +255,7 @@ public class PasswordAndEnrollmentInitialNodeTests extends ESTestCase {
             checkClusterHealthResponseBody = Strings.toString(builder);
         }
         when(client_util.execute(eq("GET"), eq(command.checkClusterHealthUrl(client)), anyString(), any(SecureString.class),
-            any(CheckedSupplier.class), any(CheckedFunction.class))).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK,
-            checkClusterHealthResponseBody));
+            any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, checkClusterHealthResponseBody));
 
         String getChangeElasticUserPasswordBody;
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
@@ -272,8 +264,7 @@ public class PasswordAndEnrollmentInitialNodeTests extends ESTestCase {
             getChangeElasticUserPasswordBody = Strings.toString(builder);
         }
         when(client_util.execute(eq("POST"), eq(command.changeElasticUserPasswordUrl(client)), anyString(), any(SecureString.class),
-            any(CheckedSupplier.class), any(CheckedFunction.class))).thenReturn(createHttpResponse(HttpURLConnection.HTTP_UNAUTHORIZED,
-            getChangeElasticUserPasswordBody));
+            any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_UNAUTHORIZED, getChangeElasticUserPasswordBody));
         UserException ex = expectThrows(UserException.class, () ->
             command.execute(terminal, option, environment));
         assertThat(ex.getMessage(), Matchers.containsString("Failed to set password for user [elastic]"));

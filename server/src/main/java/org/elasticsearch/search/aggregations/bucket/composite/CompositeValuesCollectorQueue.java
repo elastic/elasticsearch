@@ -23,6 +23,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.core.Types.forciblyCast;
+
 /**
  * A specialized {@link PriorityQueue} implementation for composite buckets.
  */
@@ -242,7 +244,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         SingleDimensionValuesSource<?> valuesSource = arrays[last];
         requiresRehashingWhenSwitchingLeafReaders |= valuesSource.requiresRehashingWhenSwitchingLeafReaders();
         if (forceLeadSourceValue != null) {
-            collector = valuesSource.getLeafCollector(forceLeadSourceValue, context, collector);
+            collector = valuesSource.getLeafCollector(forciblyCast(forceLeadSourceValue), context, collector);
         } else {
             collector = valuesSource.getLeafCollector(context, collector);
         }

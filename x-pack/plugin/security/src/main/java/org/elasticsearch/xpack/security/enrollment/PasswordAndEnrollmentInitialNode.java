@@ -220,8 +220,8 @@ public class PasswordAndEnrollmentInitialNode extends EnvironmentAwareCommand {
 
     private Map<String, String> getDecoded(String token) throws Exception {
         final String jsonString = new String(Base64.getDecoder().decode(token), StandardCharsets.UTF_8);
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-            jsonString)) {
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+            LoggingDeprecationHandler.INSTANCE, jsonString)) {
             final Map<String, Object> info = parser.map();
             if (info == null) {
                 throw new UserException(ExitCodes.DATA_ERROR,

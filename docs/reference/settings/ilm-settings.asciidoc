@@ -38,10 +38,8 @@ Defaults to `false`.
 
 `index.lifecycle.name`::
 (<<indices-update-settings, Dynamic>>, string)
-The name of the policy to use to manage the index. As the current executing phase
-definition is cached in the index metadata, changing the setting to a different policy
-will not affect the currently executing phase, but the next phase will be read from
-the newly configured policy.
+The name of the policy to use to manage the index. For information about how
+{es} applies policy changes, see <<update-lifecycle-policy>>.
 
 [[index-lifecycle-origination-date]]
 `index.lifecycle.origination_date`::

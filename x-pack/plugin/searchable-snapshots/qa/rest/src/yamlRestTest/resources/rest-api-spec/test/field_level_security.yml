@@ -1,0 +1,249 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "readall"
+        body:  >
+            {
+              "indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["read"]
+                }
+              ]
+            }
+
+  - do:
+      security.put_role:
+        name: "limitread"
+        body:  >
+            {
+              "indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["read"],
+                  "query": {"match": {"marker": "test_1"}}
+                }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "full"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "readall" ],
+            "full_name" : "user who can read all data"
+          }
+
+  - do:
+      security.put_user:
+        username: "limited"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "limitread" ],
+            "full_name" : "user who can read some data"
+          }
+
+  - do:
+      snapshot.create_repository:
+        repository: repository-fs
+        body:
+          type: fs
+          settings:
+            location: "repository-fs"
+
+  # Remove the snapshot if a previous test failed to delete it.
+  # Useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              location:
+                properties:
+                  city:
+                    type: "keyword"
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index"}}'
+          - '{"marker": "test_1", "location.city": "bos"}'
+          - '{"index": {"_index": "test_index"}}'
+          - '{"marker": "test_2", "location.city": "ams"}'
+
+  - do:
+      snapshot.create:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+
+  - do:
+      indices.delete:
+        index: test_index
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "full"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "limited"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "readall"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "limitread"
+        ignore: 404
+
+---
+"Test doc level security with different users on full_copy index":
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: full_copy
+        body:
+          index: test_index
+          renamed_index: test_index
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      headers: { Authorization: "Basic ZnVsbDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # full - user
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        size: 0
+        from: 0
+        body:
+          aggs:
+            cities:
+              terms:
+                field: location.city
+
+  - match: { _shards.total: 1 }
+  - match: { hits.total: 2 }
+  - length: { aggregations.cities.buckets: 2 }
+  - match: { aggregations.cities.buckets.0.key: "ams" }
+  - match: { aggregations.cities.buckets.0.doc_count: 1 }
+  - match: { aggregations.cities.buckets.1.key: "bos" }
+  - match: { aggregations.cities.buckets.1.doc_count: 1 }
+
+  - do:
+      headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        size: 0
+        from: 0
+        body:
+          aggs:
+            cities:
+              terms:
+                field: location.city
+
+  - match: { _shards.total: 1 }
+  - match: { hits.total: 1 }
+  - length: { aggregations.cities.buckets: 1 }
+  - match: { aggregations.cities.buckets.0.key: "bos" }
+  - match: { aggregations.cities.buckets.0.doc_count: 1 }
+
+  - do:
+      indices.delete:
+        index: test_index
+
+---
+"Test doc level security with different users on shared_cache index":
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: shared_cache
+        body:
+          index: test_index
+          renamed_index: test_index
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      headers: { Authorization: "Basic ZnVsbDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # full - user
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        size: 0
+        from: 0
+        body:
+          aggs:
+            cities:
+              terms:
+                field: location.city
+
+  - match: { _shards.total: 1 }
+  - match: { hits.total: 2 }
+  - length: { aggregations.cities.buckets: 2 }
+  - match: { aggregations.cities.buckets.0.key: "ams" }
+  - match: { aggregations.cities.buckets.0.doc_count: 1 }
+  - match: { aggregations.cities.buckets.1.key: "bos" }
+  - match: { aggregations.cities.buckets.1.doc_count: 1 }
+
+  - do:
+      headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        size: 0
+        from: 0
+        body:
+          aggs:
+            cities:
+              terms:
+                field: location.city
+
+  - match: { _shards.total: 1 }
+  - match: { hits.total: 1 }
+  - length: { aggregations.cities.buckets: 1 }
+  - match: { aggregations.cities.buckets.0.key: "bos" }
+  - match: { aggregations.cities.buckets.0.doc_count: 1 }
+
+  - do:
+      indices.delete:
+        index: test_index

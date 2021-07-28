@@ -23,7 +23,7 @@ import java.util.Objects;
 
 public class CreateTrainedModelAllocationAction extends ActionType<CreateTrainedModelAllocationAction.Response> {
     public static final CreateTrainedModelAllocationAction INSTANCE = new CreateTrainedModelAllocationAction();
-    public static final String NAME = "cluster:internal/create/model_allocation";
+    public static final String NAME = "cluster:internal/xpack/ml/model_allocation/create";
 
     private CreateTrainedModelAllocationAction() {
         super(NAME, CreateTrainedModelAllocationAction.Response::new);

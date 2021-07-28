@@ -342,7 +342,7 @@ GET _cat/nodes
 ----
 GET /_ssl/certificates
 ----
-
+// TEST[skip:creates a lot of noise]
 --
 
 . One node at a time, complete <<start-rolling-restart-http>> through
@@ -525,7 +525,7 @@ xpack.security.transport.ssl.truststore.type: PKCS12
 ----
 GET /_ssl/certificates
 ----
-
+// TEST[skip:creates a lot of noise]
 --
 
 . If you're only updating certificates for the transport layer (and not the HTTP

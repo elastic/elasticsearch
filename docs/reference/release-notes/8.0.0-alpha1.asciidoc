@@ -39,8 +39,6 @@ Cluster Coordination::
 Distributed::
 * Goodbye and thank you synced flush! {es-pull}50882[#50882] (issues: {es-issue}50776[#50776], {es-issue}50835[#50835])
 
-EQL::
-* [DOCS] EQL: Remove `wildcard` function {es-pull}72121[#72121] (issues: {es-issue}71906[#71906], {es-issue}72119[#72119])
 
 Engine::
 * Force Merge should reject requests with `only_expunge_deletes` and `max_num_segments` set {es-pull}44761[#44761] (issue: {es-issue}43102[#43102])

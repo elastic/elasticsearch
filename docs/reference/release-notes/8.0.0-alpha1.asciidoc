@@ -14,6 +14,7 @@ Aggregations::
 * Remove Adjacency_matrix setting {es-pull}46327[#46327] (issues: {es-issue}46257[#46257], {es-issue}46324[#46324])
 * Remove `MovingAverage` pipeline aggregation {es-pull}39328[#39328]
 * Remove deprecated `_time` and `_term` sort orders {es-pull}39450[#39450]
+* Remove deprecated date histo interval {es-pull}75000[#75000]
 
 Allocation::
 * Breaking change for single data node setting {es-pull}73737[#73737] (issues: {es-issue}55805[#55805], {es-issue}73733[#73733])
@@ -38,7 +39,7 @@ Cluster Coordination::
 
 Distributed::
 * Remove synced flush! {es-pull}50882[#50882] (issues: {es-issue}50776[#50776], {es-issue}50835[#50835])
-
+* Remove the `cluster.remote.connect` setting {es-pull}54175[#54175] (issue: {es-issue}53924[#53924])
 
 Engine::
 * Force Merge should reject requests with `only_expunge_deletes` and `max_num_segments` set {es-pull}44761[#44761] (issue: {es-issue}43102[#43102])
@@ -59,6 +60,8 @@ Features/Indices APIs::
 * Change prefer_v2_templates parameter to default to true {es-pull}55489[#55489] (issues: {es-issue}53101[#53101], {es-issue}55411[#55411])
 * Remove deprecated `_upgrade` API {es-pull}64732[#64732] (issue: {es-issue}21337[#21337])
 * Remove local parameter for get field mapping request {es-pull}55100[#55100] (issue: {es-issue}55099[#55099])
+* Remove `include_type_name` parameter from REST layer {es-pull}48632[#48632] (issue: {es-issue}41059[#41059])
+* Remove the 'template' field in index templates {es-pull}49460[#49460] (issue: {es-issue}21009[#21009])
 
 Features/Watcher::
 * Move watcher history to data stream {es-pull}64252[#64252]
@@ -96,6 +99,7 @@ Infra/REST API::
 * Remove content type required setting {es-pull}61043[#61043]
 * Remove deprecated endpoints containing `_xpack` {es-pull}48170[#48170] (issue: {es-issue}35958[#35958])
 * Remove deprecated endpoints of hot threads API {es-pull}55109[#55109] (issue: {es-issue}52640[#52640])
+* Allow parsing Content-Type and Accept headers with version {es-pull}61427[#61427]
 
 Infra/Resiliency::
 * Fail node containing ancient closed index {es-pull}44264[#44264] (issues: {es-issue}21830[#21830], {es-issue}41731[#41731], {es-issue}44230[#44230])
@@ -108,15 +112,6 @@ Infra/Scripting::
 Infra/Settings::
 * Change default value of `action.destructive_requires_name` to True {es-pull}66908[#66908] (issue: {es-issue}61074[#61074])
 * Forbid settings without a namespace {es-pull}45947[#45947] (issues: {es-issue}45905[#45905], {es-issue}45940[#45940])
-
-MULTIPLE AREA LABELS::
-* Allow parsing Content-Type and Accept headers with version {es-pull}61427[#61427]
-* Compress audit logs {es-pull}64472[#64472] (issue: {es-issue}63843[#63843])
-* Remove `include_type_name` parameter from REST layer {es-pull}48632[#48632] (issue: {es-issue}41059[#41059])
-* Remove deprecated date histo interval {es-pull}75000[#75000]
-* Remove insecure settings {es-pull}46147[#46147] (issue: {es-issue}45947[#45947])
-* Remove the 'template' field in index templates {es-pull}49460[#49460] (issue: {es-issue}21009[#21009])
-* Remove the `cluster.remote.connect` setting {es-pull}54175[#54175] (issue: {es-issue}53924[#53924])
 
 Machine Learning::
 * Remove deprecated `_xpack` endpoints {es-pull}59870[#59870] (issues: {es-issue}35958[#35958], {es-issue}48170[#48170])
@@ -172,6 +167,8 @@ Security::
 * Remove support of creating CA on the fly when generating certificates {es-pull}65590[#65590] (issue: {es-issue}61884[#61884])
 * Remove the id field from the `InvalidateApiKey` API {es-pull}66671[#66671] (issue: {es-issue}66317[#66317])
 * Remove the migrate tool {es-pull}42174[#42174]
+* Compress audit logs {es-pull}64472[#64472] (issue: {es-issue}63843[#63843])
+* Remove insecure settings {es-pull}46147[#46147] (issue: {es-issue}45947[#45947])
 
 Snapshot/Restore::
 * Blob Store compress default to true {es-pull}40033[#40033]
@@ -198,12 +195,16 @@ CCR::
 
 CRUD::
 * Remove types from `BulkRequest` {es-pull}46983[#46983] (issue: {es-issue}41059[#41059])
+* Remove Client.prepareIndex(index, type, id) method {es-pull}48443[#48443]
+* Remove deprecated include-type methods from HLRC indices client {es-pull}48471[#48471]
+
 
 Client::
 * Remove `SecurityClient` from x-pack {es-pull}42471[#42471]
 
 Features/ILM+SLM::
 * Remove the ILMClient {es-pull}42817[#42817]
+* Rename HLRC 'indexlifecycle' components to 'ilm' {es-pull}44982[#44982] (issues: {es-issue}44725[#44725], {es-issue}44917[#44917])
 
 Features/Monitoring::
 * Remove `MonitoringClient` from x-pack {es-pull}42770[#42770]
@@ -219,12 +220,6 @@ Infra/Core::
 Infra/REST API::
 * Copy http headers to `ThreadContext` strictly {es-pull}45945[#45945]
 
-MULTIPLE AREA LABELS::
-* Remove Client.prepareIndex(index, type, id) method {es-pull}48443[#48443]
-* Remove deprecated include-type methods from HLRC indices client {es-pull}48471[#48471]
-* Remove type parameter from CIR.mapping(type, object...) {es-pull}50739[#50739] (issue: {es-issue}41059[#41059])
-* Rename HLRC 'indexlifecycle' components to 'ilm' {es-pull}44982[#44982] (issues: {es-issue}44725[#44725], {es-issue}44917[#44917])
-
 Machine Learning::
 * Remove the `MachineLearningClient` {es-pull}43108[#43108]
 
@@ -232,6 +227,7 @@ Mapping::
 * Remove type filter from `GetMappings` API {es-pull}47364[#47364] (issue: {es-issue}41059[#41059])
 * Remove type parameter from `PutMappingRequest.buildFromSimplifiedDef()` {es-pull}50844[#50844] (issue: {es-issue}41059[#41059])
 * Remove unused parameter from `MetadataFieldMapper.TypeParser#getDefault()` {es-pull}51219[#51219]
+* Remove type parameter from CIR.mapping(type, object...) {es-pull}50739[#50739] (issue: {es-issue}41059[#41059])
 
 Search::
 * Removes types from `SearchRequest` and `QueryShardContext` {es-pull}42112[#42112]
@@ -307,6 +303,12 @@ Infra/REST API::
 * [REST API Compatibility] Voting config exclusion exception message {es-pull}75406[#75406] (issues: {es-issue}51816[#51816], {es-issue}55291[#55291])
 * [REST API Compatibility] `MoreLikeThisQuery` with types {es-pull}75123[#75123] (issues: {es-issue}42198[#42198], {es-issue}51816[#51816], {es-issue}54160[#54160])
 * [REST API Compatibility] Update and delete by query using size field {es-pull}69606[#69606]
+* [REST API Compatibility] Indicies boost in object format {es-pull}74422[#74422] (issues: {es-issue}51816[#51816], {es-issue}55078[#55078])
+* [REST API Compatibility] Typed endpoints for search and related endpoints {es-pull}72155[#72155] (issues: {es-issue}51816[#51816], {es-issue}54160[#54160])
+* [REST API Compatibility] Allow to use size -1 {es-pull}75342[#75342] (issues: {es-issue}51816[#51816], {es-issue}69548[#69548], {es-issue}70209[#70209])
+* [REST API Compatibility] Ignore `use_field_mapping` option for docvalue {es-pull}74435[#74435] (issue: {es-issue}55622[#55622])
+* [REST API Compatibility] `_time` and `_term` sort orders {es-pull}74919[#74919] (issues: {es-issue}39450[#39450], {es-issue}51816[#51816])
+* [REST API Compatability] 'template' parameter and field on PUT index template {es-pull}71238[#71238] (issues: {es-issue}49460[#49460], {es-issue}51816[#51816], {es-issue}68905[#68905])
 
 Infra/Scripting::
 * Update `DeprecationMap` to `DynamicMap` {es-pull}56149[#56149] (issue: {es-issue}52103[#52103])
@@ -319,17 +321,6 @@ License::
 * Add deprecated `accept_enterprise` param to /_xpack {es-pull}58220[#58220] (issue: {es-issue}58217[#58217])
 * Support "accept_enterprise" param in get license {es-pull}50067[#50067] (issue: {es-issue}49474[#49474])
 
-MULTIPLE AREA LABELS::
-* Add recovery state tracking for Searchable Snapshots {es-pull}60505[#60505]
-* Configure security for the initial node cli {es-pull}74868[#74868]
-* QL: Improve removal of items during iteration {es-pull}71193[#71193]
-* QL: Make canonical form take into account children {es-pull}71266[#71266]
-* QL: Polish optimizer expression rule declaration {es-pull}71396[#71396]
-* QL: Propagate nullability constraints across conjunctions {es-pull}71187[#71187] (issue: {es-issue}70683[#70683])
-* [REST API Compatibility] Allow to use size -1 {es-pull}75342[#75342] (issues: {es-issue}51816[#51816], {es-issue}69548[#69548], {es-issue}70209[#70209])
-* [REST API Compatibility] Ignore `use_field_mapping` option for docvalue {es-pull}74435[#74435] (issue: {es-issue}55622[#55622])
-* [REST API Compatibility] `_time` and `_term` sort orders {es-pull}74919[#74919] (issues: {es-issue}39450[#39450], {es-issue}51816[#51816])
-
 Machine Learning::
 * The Windows build platform for the {ml} C++ code now uses Visual Studio 2019 {ml-pull}1352[#1352]
 * The macOS build platform for the {ml} C++ code is now Mojave running Xcode 11.3.1,
@@ -339,9 +330,6 @@ Machine Learning::
 
 Mapping::
 * Sparse vector to throw exception consistently {es-pull}62646[#62646]
-
-NOT CLASSIFIED::
-* [REST API Compatability] 'template' parameter and field on PUT index template {es-pull}71238[#71238] (issues: {es-issue}49460[#49460], {es-issue}51816[#51816], {es-issue}68905[#68905])
 
 Packaging::
 * Make the Docker build more re-usable in Cloud {es-pull}50277[#50277] (issues: {es-issue}46166[#46166], {es-issue}49926[#49926])
@@ -367,6 +355,9 @@ SQL::
 * Improve the optimization of null conditionals {es-pull}71192[#71192]
 * Pushdown WHERE clause inside subqueries {es-pull}71362[#71362]
 * Use java String methods for LTRIM/RTRIM {es-pull}57594[#57594]
+* QL: Make canonical form take into account children {es-pull}71266[#71266]
+* QL: Polish optimizer expression rule declaration {es-pull}71396[#71396]
+* QL: Propagate nullability constraints across conjunctions {es-pull}71187[#71187] (issue: {es-issue}70683[#70683])
 
 Search::
 * Completely disallow setting negative size in search {es-pull}70209[#70209] (issue: {es-issue}69548[#69548])
@@ -380,10 +371,12 @@ Security::
 * Create enrollment token {es-pull}73573[#73573] (issues: {es-issue}71438[#71438], {es-issue}72129[#72129])
 * Enroll node API {es-pull}72129[#72129]
 * Not encoding the Api Key in Enrollment token {es-pull}74510[#74510] (issue: {es-issue}73573[#73573])
+* Configure security for the initial node cli {es-pull}74868[#74868]
 
 Snapshot/Restore::
 * Introduce searchable snapshots index setting for cascade deletion of snapshots {es-pull}74977[#74977]
 * Unify blob store compress setting {es-pull}39346[#39346] (issue: {es-issue}39073[#39073])
+* Add recovery state tracking for Searchable Snapshots {es-pull}60505[#60505]
 
 TLS::
 * Add `ChaCha20` TLS ciphers on Java 12+ {es-pull}42155[#42155]
@@ -411,9 +404,14 @@ Cluster Coordination::
 Distributed::
 * Introduce ?wait_for_active_shards=index-setting {es-pull}67158[#67158] (issue: {es-issue}66419[#66419])
 * Respect `CloseIndexRequest#waitForActiveShards` in HLRC {es-pull}67374[#67374] (issues: {es-issue}67158[#67158], {es-issue}67246[#67246])
+* Fixes to task result index mapping {es-pull}50359[#50359] (issue: {es-issue}50248[#50248])
+
+Features/CAT APIs::
+* Fix cat recovery display of bytes fields {es-pull}40379[#40379] (issue: {es-issue}40335[#40335])
 
 Features/Java High Level REST Client::
 * Fix HLRC compatibility with Java 8 {es-pull}74290[#74290] (issues: {es-issue}73910[#73910], {es-issue}74272[#74272], {es-issue}74289[#74289])
+* Avoid `StackOverflowError` due to regex alternate paths {es-pull}61259[#61259] (issue: {es-issue}60889[#60889])
 
 Geo::
 * Preprocess polygon rings before processing it for decomposition {es-pull}59501[#59501] (issues: {es-issue}54441[#54441], {es-issue}59386[#59386])
@@ -443,11 +441,6 @@ Infra/Scripting::
 * Fixes casting in constant folding {es-pull}61508[#61508]
 * Several minor Painless fixes {es-pull}61594[#61594]
 
-MULTIPLE AREA LABELS::
-* Avoid `StackOverflowError` due to regex alternate paths {es-pull}61259[#61259] (issue: {es-issue}60889[#60889])
-* Fix cat recovery display of bytes fields {es-pull}40379[#40379] (issue: {es-issue}40335[#40335])
-* Fixes to task result index mapping {es-pull}50359[#50359] (issue: {es-issue}50248[#50248])
-
 Machine Learning::
 * Handle null value of `FieldCapabilitiesResponse` {es-pull}64327[#64327]
 
@@ -471,26 +464,12 @@ Snapshot/Restore::
 * Fix GET /_snapshot/_all/_all if there are no repos {es-pull}43558[#43558] (issue: {es-issue}43547[#43547])
 
 
-
 [[upgrade-8.0.0-alpha1]]
 [float]
 === Upgrades
 
-NOT CLASSIFIED::
+Lucene::
 * Upgrade to Lucene 8.9.0 {es-pull}74729[#74729]
 
 
 
-[[other-8.0.0-alpha1]]
-[float]
-=== NOT CLASSIFIED
-
-Infra/Scripting::
-* Script: User funcs are script instance methods {es-pull}74268[#74268] (issues: {es-issue}68235[#68235], {es-issue}69742[#69742])
-
-MULTIPLE AREA LABELS::
-* [REST API Compatibility] Indicies boost in object format {es-pull}74422[#74422] (issues: {es-issue}51816[#51816], {es-issue}55078[#55078])
-* [REST API Compatibility] Typed endpoints for search and related endpoints {es-pull}72155[#72155] (issues: {es-issue}51816[#51816], {es-issue}54160[#54160])
-
-SQL::
-* Support for `date_nanos` data type {es-pull}67666[#67666], {es-pull}68214[#68214] (issues: {es-issue}38562[#38562])

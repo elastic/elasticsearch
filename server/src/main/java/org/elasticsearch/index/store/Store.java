@@ -52,10 +52,10 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -83,7 +83,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1069,21 +1068,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          */
         public String getSyncId() {
             return commitUserData.get(Engine.SYNC_COMMIT_ID);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            MetadataSnapshot metadata1 = (MetadataSnapshot) o;
-            return numDocs == metadata1.numDocs &&
-                Objects.equals(metadata, metadata1.metadata) &&
-                Objects.equals(commitUserData, metadata1.commitUserData);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(metadata, commitUserData, numDocs);
         }
     }
 

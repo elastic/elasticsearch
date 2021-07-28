@@ -109,6 +109,10 @@ class ShardSnapshotsService {
             return shardSnapshotInfo.getShardStateIdentifier();
         }
 
+        String getRepository() {
+            return shardSnapshotInfo.getRepository();
+        }
+
         Store.MetadataSnapshot getMetadataSnapshot() {
             return metadataSnapshot;
         }

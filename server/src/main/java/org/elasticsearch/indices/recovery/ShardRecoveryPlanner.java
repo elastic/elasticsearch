@@ -136,6 +136,7 @@ class ShardRecoveryPlanner {
 
             ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover = new ShardRecoveryPlan.SnapshotFilesToRecover(
                 equivalentSnapshot.getIndexId(),
+                equivalentSnapshot.getRepository(),
                 equivalentSnapshot.getSnapshotFiles(sourceTargetDiff.missingAndDifferent)
             );
 
@@ -159,6 +160,7 @@ class ShardRecoveryPlanner {
             if (snapshotDiff.identical.size() > filesToRecoverFromSnapshot) {
                 final ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover =
                     new ShardRecoveryPlan.SnapshotFilesToRecover(shardSnapshot.getIndexId(),
+                        shardSnapshot.getRepository(),
                         shardSnapshot.getSnapshotFiles(snapshotDiff.identical));
 
                 plan = buildRecoveryPlan(snapshotFilesToRecover, snapshotDiff.missingAndDifferent);

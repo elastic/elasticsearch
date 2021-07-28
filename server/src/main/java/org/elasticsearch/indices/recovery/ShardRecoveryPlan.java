@@ -106,18 +106,24 @@ class ShardRecoveryPlan {
     }
 
     static class SnapshotFilesToRecover implements Iterable<BlobStoreIndexShardSnapshot.FileInfo> {
-        static final SnapshotFilesToRecover EMPTY = new SnapshotFilesToRecover(null, emptyList());
+        static final SnapshotFilesToRecover EMPTY = new SnapshotFilesToRecover(null, null, emptyList());
 
         final IndexId indexId;
+        final String repository;
         final List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles;
 
-        SnapshotFilesToRecover(IndexId indexId, List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles) {
+        SnapshotFilesToRecover(IndexId indexId, String repository, List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles) {
             this.indexId = indexId;
+            this.repository = repository;
             this.snapshotFiles = snapshotFiles;
         }
 
         IndexId getIndexId() {
             return indexId;
+        }
+
+        String getRepository() {
+            return repository;
         }
 
         List<BlobStoreIndexShardSnapshot.FileInfo> getFiles() {

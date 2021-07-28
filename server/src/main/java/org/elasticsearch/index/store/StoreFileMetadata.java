@@ -142,23 +142,6 @@ public class StoreFileMetadata implements Writeable {
         return hash;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        StoreFileMetadata that = (StoreFileMetadata) o;
-        return length == that.length &&
-            Objects.equals(name, that.name) &&
-            Objects.equals(checksum, that.checksum) &&
-            Objects.equals(writtenBy, that.writtenBy) &&
-            Objects.equals(hash, that.hash);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(name, length, checksum, writtenBy, hash);
-    }
-
     private static boolean assertValidWrittenBy(String writtenBy) {
         try {
             Version.parse(writtenBy);

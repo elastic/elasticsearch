@@ -28,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -37,13 +38,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
 @LuceneTestCase.SuppressFileSystems("*")
-public class RemovePluginCommandTests extends ESTestCase {
+public class RemovePluginActionTests extends ESTestCase {
 
     private Path home;
     private Environment env;
 
     static class MockRemovePluginCommand extends RemovePluginCommand {
-
         final Environment env;
 
         private MockRemovePluginCommand(final Environment env) {
@@ -54,7 +54,6 @@ public class RemovePluginCommandTests extends ESTestCase {
         protected Environment createEnv(Map<String, String> settings) throws UserException {
             return env;
         }
-
     }
 
     @Override
@@ -70,15 +69,11 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     void createPlugin(String name) throws IOException {
-        createPlugin(env.pluginsFile(), name);
+        createPlugin(env.pluginsFile(), name, Version.CURRENT);
     }
 
     void createPlugin(String name, Version version) throws IOException {
         createPlugin(env.pluginsFile(), name, version);
-    }
-
-    void createPlugin(Path path, String name) throws IOException {
-        createPlugin(path, name, Version.CURRENT);
     }
 
     void createPlugin(Path path, String name, Version version) throws IOException {
@@ -106,7 +101,10 @@ public class RemovePluginCommandTests extends ESTestCase {
     static MockTerminal removePlugin(List<String> pluginIds, Path home, boolean purge) throws Exception {
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
-        new MockRemovePluginCommand(env).execute(terminal, env, pluginIds, purge);
+        final List<PluginDescriptor> plugins = pluginIds == null
+            ? null
+            : pluginIds.stream().map(PluginDescriptor::new).collect(Collectors.toList());
+        new RemovePluginAction(terminal, env, purge).execute(plugins);
         return terminal;
     }
 

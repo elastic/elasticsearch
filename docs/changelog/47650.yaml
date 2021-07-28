@@ -1,7 +1,0 @@
-pr: 47650
-issues: []
-area: Packaging
-type: UNKNOWN
-summary: Update docker-compose.yml to fix bootstrap check error
-versions:
-  - v8.0.0

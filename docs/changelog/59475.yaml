@@ -1,7 +1,0 @@
-pr: 59475
-issues: []
-area: Aggregations
-type: bug
-summary: Fix `DoubleBounds` null serialization
-versions:
-  - v8.0.0

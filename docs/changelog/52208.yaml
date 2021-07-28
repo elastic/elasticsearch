@@ -1,9 +1,0 @@
-pr: 52208
-issues:
-  - 50536
-  - 47345
-area: Features/Stats
-type: enhancement
-summary: Add Bulk stats track the bulk per shard
-versions:
-  - v8.0.0

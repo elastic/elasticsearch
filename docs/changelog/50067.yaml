@@ -1,8 +1,0 @@
-pr: 50067
-issues:
-  - 49474
-area: License
-type: enhancement
-summary: Support "accept_enterprise" param in get license
-versions:
-  - v8.0.0

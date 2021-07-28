@@ -1,8 +1,0 @@
-pr: 54953
-issues:
-  - 54897
-area: Search
-type: bug
-summary: Check for negative "from" values in search request body
-versions:
-  - v8.0.0

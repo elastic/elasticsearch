@@ -1,7 +1,0 @@
-pr: 40952
-issues: []
-area: Engine
-type: upgrade
-summary: Upgrade to lucene 8.1.0-snapshot-e460356abe
-versions:
-  - v8.0.0

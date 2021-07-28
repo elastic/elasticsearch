@@ -1,7 +1,0 @@
-pr: 43099
-issues: []
-area: Transform
-type: bug
-summary: "`[DataFrame]` Fix compile error in `DataFrameTransformProgressIT`"
-versions:
-  - v8.0.0

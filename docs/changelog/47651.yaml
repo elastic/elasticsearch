@@ -1,7 +1,0 @@
-pr: 47651
-issues: []
-area: Packaging
-type: UNKNOWN
-summary: Update `docker.asciidoc`
-versions:
-  - v8.0.0

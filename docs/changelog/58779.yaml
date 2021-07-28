@@ -1,8 +1,0 @@
-pr: 58779
-issues:
-  - 58521
-area: Mapping
-type: bug
-summary: Remove assertions that mappings have one top-level key.
-versions:
-  - v8.0.0

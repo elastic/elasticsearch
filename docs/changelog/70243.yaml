@@ -1,7 +1,0 @@
-pr: 70243
-issues: []
-area: Infra/REST API
-type: UNKNOWN
-summary: "Parsing: Validate that fields are not registered twice"
-versions:
-  - v8.0.0

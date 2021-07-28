@@ -1,9 +1,0 @@
-pr: 69029
-issues:
-  - 69016
-  - 67325
-area: Highlighting
-type: UNKNOWN
-summary: Update versions after backport of `max_analyzed_offset`
-versions:
-  - v8.0.0

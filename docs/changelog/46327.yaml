@@ -1,9 +1,0 @@
-pr: 46327
-issues:
-  - 46257
-  - 46324
-area: Aggregations
-type: UNKNOWN
-summary: Remove `Adjacency_matrix` setting
-versions:
-  - v8.0.0

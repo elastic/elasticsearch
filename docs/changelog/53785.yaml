@@ -1,8 +1,0 @@
-pr: 53785
-issues:
-  - 53751
-area: Cluster Coordination
-type: bug
-summary: Apply cluster states in system context
-versions:
-  - v8.0.0

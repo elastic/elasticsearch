@@ -1,9 +1,0 @@
-pr: 65590
-issues:
-  - 61884
-  - 61884
-area: Security
-type: deprecation
-summary: Remove support of creating CA on the fly when generating certificates
-versions:
-  - v8.0.0

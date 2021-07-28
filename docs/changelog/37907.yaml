@@ -1,8 +1,0 @@
-pr: 37907
-issues:
-  - 37897
-area: Search
-type: bug
-summary: Handle total hits equal to `track_total_hits`
-versions:
-  - v8.0.0

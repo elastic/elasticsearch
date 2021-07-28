@@ -1,8 +1,0 @@
-pr: 43558
-issues:
-  - 43547
-area: Snapshot/Restore
-type: bug
-summary: Fix GET /_snapshot/_all/_all if there are no repos
-versions:
-  - v8.0.0

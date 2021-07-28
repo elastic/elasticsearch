@@ -1,7 +1,0 @@
-pr: 63038
-issues: []
-area: Features/ILM+SLM
-type: UNKNOWN
-summary: Move SLM history to data stream
-versions:
-  - v8.0.0

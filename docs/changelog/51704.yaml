@@ -1,8 +1,0 @@
-pr: 51704
-issues:
-  - 51703
-area: Docs Infrastructure
-type: UNKNOWN
-summary: Remove docs related to index time boosting
-versions:
-  - v8.0.0

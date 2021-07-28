@@ -1,7 +1,0 @@
-pr: 59336
-issues: []
-area: Unknown
-type: UNKNOWN
-summary: "Re-enable bwc from #59265"
-versions:
-  - v8.0.0

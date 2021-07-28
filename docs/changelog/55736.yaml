@@ -1,8 +1,0 @@
-pr: 55736
-issues:
-  - 54478
-area: Features/CAT APIs
-type: UNKNOWN
-summary: _cat/threadpool remove "size" and add "time" params
-versions:
-  - v8.0.0

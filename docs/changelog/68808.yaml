@@ -1,8 +1,0 @@
-pr: 68808
-issues: []
-area: Infra/REST API
-type: UNKNOWN
-summary: Refactor `ObjectParser` and `CompatibleObjectParser` to support REST
-  Compatible API
-versions:
-  - v8.0.0

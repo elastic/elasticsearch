@@ -1,8 +1,0 @@
-pr: 60351
-issues:
-  - 59683
-area: Search
-type: bug
-summary: Improve error msg for CCS request on node without remote cluster role
-versions:
-  - v8.0.0

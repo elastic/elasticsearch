@@ -1,9 +1,0 @@
-pr: 44905
-issues:
-  - 44897
-  - 29857
-area: Machine Learning
-type: enhancement
-summary: Change version in serialization code in `TimingStats.java` to 7.4.0
-versions:
-  - v8.0.0

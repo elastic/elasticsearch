@@ -1,8 +1,0 @@
-pr: 40379
-issues:
-  - 40335
-area: Features/CAT APIs, Recovery
-type: bug
-summary: Fix cat recovery display of bytes fields
-versions:
-  - v8.0.0

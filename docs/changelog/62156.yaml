@@ -1,7 +1,0 @@
-pr: 62156
-issues: []
-area: Infra/Logging
-type: UNKNOWN
-summary: Populate data stream fields when `xOpaqueId` not provided
-versions:
-  - v8.0.0

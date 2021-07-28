@@ -158,6 +158,8 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Geometry {
   int getDimensionalType()
   org.elasticsearch.common.geo.GeoPoint getCentroid()
   org.elasticsearch.common.geo.GeoBoundingBox getBoundingBox()
+  double getMercatorWidth()
+  double getMercatorHeight()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints {

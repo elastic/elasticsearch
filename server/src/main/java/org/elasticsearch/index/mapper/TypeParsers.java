@@ -160,6 +160,7 @@ public class TypeParsers {
         throw new IllegalArgumentException("Invalid format: [" + node.toString() + "]: expected string value");
     }
 
+    @SuppressWarnings("unchecked")
     public static List<String> parseCopyFields(Object propNode) {
         List<String> copyFields = new ArrayList<>();
         if (isArray(propNode)) {

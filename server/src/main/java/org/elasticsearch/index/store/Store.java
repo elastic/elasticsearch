@@ -281,6 +281,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public void renameTempFilesSafe(Map<String, String> tempFileMap) throws IOException {
         // this works just like a lucene commit - we rename all temp files and once we successfully
         // renamed all the segments we rename the commit to ensure we don't leave half baked commits behind.
+        @SuppressWarnings({"rawtypes", "unchecked"})
         final Map.Entry<String, String>[] entries = tempFileMap.entrySet().toArray(new Map.Entry[0]);
         ArrayUtil.timSort(entries, (o1, o2) -> {
             String left = o1.getValue();

@@ -43,7 +43,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
 
         SearchResponse response = client().prepareSearch("my-index")
                 .addAggregation(AggregationBuilders.dateHistogram("rate").field("@timestamp")
-                        .dateHistogramInterval(DateHistogramInterval.HOUR).order(BucketOrder.count(false)))
+                        .fixedInterval(DateHistogramInterval.HOUR).order(BucketOrder.count(false)))
                 .get();
 
         CompareCondition condition = new CompareCondition("ctx.payload.aggregations.rate.buckets.0.doc_count", CompareCondition.Op.GTE, 5,
@@ -61,7 +61,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
 
         response = client().prepareSearch("my-index")
                 .addAggregation(AggregationBuilders.dateHistogram("rate")
-                        .field("@timestamp").dateHistogramInterval(DateHistogramInterval.HOUR).order(BucketOrder.count(false)))
+                        .field("@timestamp").fixedInterval(DateHistogramInterval.HOUR).order(BucketOrder.count(false)))
                 .get();
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));

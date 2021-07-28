@@ -6,9 +6,6 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-
-// end::notable-breaking-changes[]
-
 .The `repositories.fs.compress` node-level setting has been removed.
 [%collapsible]
 ====
@@ -19,7 +16,8 @@ The `repositories.fs.compress` setting has been removed.
 
 *Impact* +
 Use the repository specific `compress` setting to enable compression. See
-<<modules-snapshots>> for information on the `compress` setting.
+{ref}/snapshots-register-repository.html[Register a snapshot repository] for
+information on the `compress` setting.
 
 Discontinue use of the `repositories.fs.compress` node-level setting.
 ====
@@ -33,7 +31,8 @@ Previously, the default value for `compress` was `false`. The default has been c
 This change will affect both newly created repositories and existing repositories where `compress=false` has not been
 explicitly specified.
 
-For more information on the compress option, see <<modules-snapshots>>
+For more information on the compress option, see
+{ref}/snapshots-register-repository.html[Register a snapshot repository].
 
 *Impact* +
 Update your workflow and applications to assume a default value of `true` for
@@ -81,5 +80,7 @@ The repository stats API has been removed. We deprecated this experimental API
 in 7.10.0. 
 
 *Impact* +
-Use the <<repositories-metering-apis,repositories metering APIs>> instead.
+Use the {ref}/repositories-metering-apis.html[repositories metering APIs]
+instead.
 ====
+// end::notable-breaking-changes[]

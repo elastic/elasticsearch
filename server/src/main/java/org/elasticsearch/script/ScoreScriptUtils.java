@@ -43,7 +43,7 @@ public final class ScoreScriptUtils {
     // random score based on the documents' values of the given field
     public static final class RandomScoreField {
         private final ScoreScript scoreScript;
-        private final ScriptDocValues docValues;
+        private final ScriptDocValues<?> docValues;
         private final int saltedSeed;
 
 

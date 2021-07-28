@@ -460,8 +460,6 @@ MULTIPLE AREA LABELS::
 * Fixes to task result index mapping {es-pull}50359[#50359] (issue: {es-issue}50248[#50248])
 
 Machine Learning::
-* Checking if persistent tasks metadata is null before updating state (#41091) {es-pull}41124[#41124] (issues: {es-issue}41090[#41090], {es-issue}41091[#41091])
-* Fix typo Korean HANGUL_JAMO {es-pull}74462[#74462]
 * Handle null value of `FieldCapabilitiesResponse` {es-pull}64327[#64327]
 
 Mapping::

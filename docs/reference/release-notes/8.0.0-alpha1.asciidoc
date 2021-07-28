@@ -337,11 +337,6 @@ MULTIPLE AREA LABELS::
 * [Rest Api Compatibility] `_time` and `_term` sort orders {es-pull}74919[#74919] (issues: {es-issue}39450[#39450], {es-issue}51816[#51816])
 
 Machine Learning::
-* Change version in serialization code in `TimingStats.java` to 7.4.0 {es-pull}44905[#44905] (issue: {es-issue}29857[#29857])
-* Limit the input sequence length for NLP processors {es-pull}74905[#74905]
-* Parse time from inference result {es-pull}75570[#75570] (issue: {es-issue}75268[#75268])
-* Use configurable class labels for SA and NER results {es-pull}74473[#74473] (issues: {es-issue}74361[#74361], {es-issue}74401[#74401])
-* `PyTorch` Sequence Classification (Sentiment Analysis) task {es-pull}73764[#73764]
 * The Windows build platform for the {ml} C++ code now uses Visual Studio 2019 {ml-pull}1352[#1352]
 * The macOS build platform for the {ml} C++ code is now Mojave running Xcode 11.3.1,
   or Ubuntu 20.04 running clang 8 for cross compilation {ml-pull}1429[#1429]

@@ -109,6 +109,7 @@
   - is_false:  nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
+  - is_false:  nodes.$node_id.indices.shards
 
 ---
 "Metric - multi":
@@ -166,6 +167,7 @@
   - is_false:  nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_true:   nodes.$node_id.indices.recovery
+  - is_false:  nodes.$node_id.indices.shards
 
 ---
 "Metric - _all include_segment_file_sizes":
@@ -223,6 +225,7 @@
   - is_true:   nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
+  - is_false:  nodes.$node_id.indices.shards
   - is_true:   nodes.$node_id.indices.segments.file_sizes
 
 ---
@@ -254,6 +257,7 @@
   - is_true:   nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
+  - is_false:  nodes.$node_id.indices.shards
 
 ---
 "Metric - _all include_unloaded_segments":
@@ -314,3 +318,72 @@
   - gte: { nodes.$node_id.http.clients.0.request_size_bytes: 0 }
   # values for clients.0.closed_time_millis, clients.0.x_forwarded_for, and clients.0.x_opaque_id are often
   # null and cannot be tested here
+
+---
+"Metric - blank for indices shards":
+  - skip:
+      features: [arbitrary_key]
+      version: " - 7.99.99"
+      reason:  "total shard count added in version 8.0"
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: {}
+
+  - is_true:  nodes.$node_id.indices.shards
+  - match: { nodes.$node_id.indices.shards.total_count: 0 }
+
+---
+"Metric - _all for indices shards":
+  - skip:
+      features: [arbitrary_key]
+      version: " - 7.99.99"
+      reason:  "total shard count added in version 8.0"
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: _all }
+
+  - is_true:  nodes.$node_id.indices.shards
+  - match: { nodes.$node_id.indices.shards.total_count: 0 }
+
+
+---
+"indices shards total count test":
+
+  - skip:
+      features: ["allowed_warnings", arbitrary_key]
+      version: " - 7.99.99"
+      reason:  "total shard count added in version 8.0"
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "5"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: index2
+        body:
+          settings:
+            number_of_shards: "3"
+            number_of_replicas: "1"
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: _all }
+
+  - gte: { nodes.$node_id.indices.shards.total_count: 1 }

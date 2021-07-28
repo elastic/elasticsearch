@@ -107,7 +107,7 @@ public class EmailService extends NotificationService<Account> {
             Setting.affixKeySetting("xpack.notification.email.account.", "smtp.wait_on_quit",
                     (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
 
-    private static final SSLConfigurationSettings SSL_SETTINGS = SSLConfigurationSettings.withPrefix(EMAIL_NOTIFICATION_SSL_PREFIX);
+    private static final SSLConfigurationSettings SSL_SETTINGS = SSLConfigurationSettings.withPrefix(EMAIL_NOTIFICATION_SSL_PREFIX, true);
 
     private static final Logger logger = LogManager.getLogger(EmailService.class);
 
@@ -208,7 +208,7 @@ public class EmailService extends NotificationService<Account> {
     public static List<Setting<?>> getSettings() {
         List<Setting<?>> allSettings = new ArrayList<Setting<?>>(EmailService.getDynamicSettings());
         allSettings.addAll(EmailService.getSecureSettings());
-        allSettings.addAll(SSL_SETTINGS.getAllSettings());
+        allSettings.addAll(SSL_SETTINGS.getEnabledSettings());
         return allSettings;
     }
 

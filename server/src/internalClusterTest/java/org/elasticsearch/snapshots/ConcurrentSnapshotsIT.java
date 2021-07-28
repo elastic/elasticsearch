@@ -58,6 +58,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFile
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -1427,7 +1428,15 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             }
         }
         for (ActionFuture<AcknowledgedResponse> operation : cloneFutures) {
-            assertAcked(operation.get());
+            try {
+                assertAcked(operation.get());
+            } catch (ExecutionException e) {
+                final Throwable csee = ExceptionsHelper.unwrap(e, SnapshotException.class);
+                assertThat(
+                    csee,
+                    either(instanceOf(ConcurrentSnapshotExecutionException.class)).or(instanceOf(SnapshotMissingException.class))
+                );
+            }
         }
         for (ActionFuture<AcknowledgedResponse> operation : deleteFutures) {
             try {
@@ -1600,6 +1609,52 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             clusterAdmin().prepareSnapshotStatus().setSnapshots("snapshot-2").setRepository(repository).get().getSnapshots(),
             hasSize(1)
         );
+    }
+
+    public void testQueuedAfterFailedShardSnapshot() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+
+        final String repository = "test-repo";
+        createRepository(repository, "mock");
+
+        final String indexName = "test-idx";
+        createIndexWithContent(indexName);
+        final String fullSnapshot = "full-snapshot";
+        createFullSnapshot(repository, fullSnapshot);
+
+        indexDoc(indexName, "some_id", "foo", "bar");
+        blockAndFailDataNode(repository, dataNode);
+        final ActionFuture<CreateSnapshotResponse> snapshotFutureFailure = startFullSnapshot(repository, "failing-snapshot");
+        awaitNumberOfSnapshotsInProgress(1);
+        waitForBlock(dataNode, repository);
+        final ActionFuture<CreateSnapshotResponse> snapshotFutureSuccess = startFullSnapshot(repository, "successful-snapshot");
+        awaitNumberOfSnapshotsInProgress(2);
+        unblockNode(repository, dataNode);
+
+        assertSuccessful(snapshotFutureSuccess);
+        final SnapshotInfo failedSnapshot = snapshotFutureFailure.get().getSnapshotInfo();
+        assertEquals(SnapshotState.PARTIAL, failedSnapshot.state());
+
+        final SnapshotsStatusResponse snapshotsStatusResponse1 = clusterAdmin().prepareSnapshotStatus(repository)
+            .setSnapshots(fullSnapshot)
+            .get();
+
+        final String tmpSnapshot = "snapshot-tmp";
+        createFullSnapshot(repository, tmpSnapshot);
+        assertAcked(startDeleteSnapshot(repository, tmpSnapshot).get());
+
+        final SnapshotsStatusResponse snapshotsStatusResponse2 = clusterAdmin().prepareSnapshotStatus(repository)
+            .setSnapshots(fullSnapshot)
+            .get();
+        assertEquals(snapshotsStatusResponse1, snapshotsStatusResponse2);
+
+        assertAcked(startDeleteSnapshot(repository, "successful-snapshot").get());
+
+        final SnapshotsStatusResponse snapshotsStatusResponse3 = clusterAdmin().prepareSnapshotStatus(repository)
+            .setSnapshots(fullSnapshot)
+            .get();
+        assertEquals(snapshotsStatusResponse1, snapshotsStatusResponse3);
     }
 
     private static void assertSnapshotStatusCountOnRepo(String otherBlockedRepoName, int count) {

@@ -198,24 +198,32 @@ public class DeploymentManager {
                     processor.validateInputs(input);
                     BytesReference request = processor.getRequestBuilder().buildRequest(input, requestId);
                     logger.trace(() -> "Inference Request "+ request.utf8ToString());
+                    PyTorchResultProcessor.PendingResult pendingResult = processContext.resultProcessor.requestWritten(requestId);
                     processContext.process.get().writeInferenceRequest(request);
-
-                    waitForResult(processContext, requestId, timeout, processor.getResultProcessor(), listener);
+                    waitForResult(processContext, pendingResult, requestId, timeout, processor.getResultProcessor(), listener);
                 } catch (IOException e) {
                     logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
                     onFailure(ExceptionsHelper.serverError("error writing to process", e));
+                } finally {
+                    processContext.resultProcessor.requestAccepted(requestId);
                 }
             }
         });
     }
 
     private void waitForResult(ProcessContext processContext,
+                               PyTorchResultProcessor.PendingResult pendingResult,
                                String requestId,
                                TimeValue timeout,
                                NlpTask.ResultProcessor inferenceResultsProcessor,
                                ActionListener<InferenceResults> listener) {
         try {
-            PyTorchResult pyTorchResult = processContext.resultProcessor.waitForResult(requestId, timeout);
+            PyTorchResult pyTorchResult = processContext.resultProcessor.waitForResult(
+                processContext.process.get(),
+                requestId,
+                pendingResult,
+                timeout
+            );
             if (pyTorchResult == null) {
                 listener.onFailure(new ElasticsearchStatusException("timeout [{}] waiting for inference result",
                     RestStatus.TOO_MANY_REQUESTS, timeout));

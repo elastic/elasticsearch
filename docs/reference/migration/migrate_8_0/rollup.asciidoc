@@ -6,9 +6,6 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-
-// end::notable-breaking-changes[]
-
 .The StartRollupJob endpoint now returns a success status if a job has already started.
 [%collapsible]
 ====
@@ -26,3 +23,4 @@ attempting to start a rollup job means the job is in an actively started state.
 The request itself may have started the job, or it was previously running and so
 the request had no effect.
 ====
+// end::notable-breaking-changes[]

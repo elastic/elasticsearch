@@ -844,7 +844,7 @@ public abstract class StreamInput extends InputStream {
         return list8;
     }
 
-    private Map readLinkedHashMap() throws IOException {
+    private Map<String, Object> readLinkedHashMap() throws IOException {
         int size9 = readArraySize();
         if (size9 == 0) {
             return Collections.emptyMap();
@@ -856,7 +856,7 @@ public abstract class StreamInput extends InputStream {
         return map9;
     }
 
-    private Map readHashMap() throws IOException {
+    private Map<String, Object> readHashMap() throws IOException {
         int size10 = readArraySize();
         if (size10 == 0) {
             return Collections.emptyMap();

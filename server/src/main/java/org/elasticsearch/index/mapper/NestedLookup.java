@@ -77,13 +77,12 @@ public interface NestedLookup {
         NestedObjectMapper previous = null;
         for (NestedObjectMapper mapper : mappers) {
             mappersByName.put(mapper.name(), mapper);
-            if (previous == null) {
-                previous = mapper;
-            } else {
+            if (previous != null) {
                 if (mapper.name().startsWith(previous.name() + ".")) {
                     parentFilters.put(previous.name(), previous.nestedTypeFilter());
                 }
             }
+            previous = mapper;
         }
         List<String> nestedPathNames = mappers.stream()
             .map(NestedObjectMapper::name)

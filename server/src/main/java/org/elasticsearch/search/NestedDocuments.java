@@ -177,7 +177,8 @@ public class NestedDocuments {
                     parentNameLength = 0;
                 } else {
                     if (objectFilters.containsKey(parent) == false) {
-                        throw new IllegalStateException("Cannot find parent mapper for path " + path + " in doc " + doc);
+                        throw new IllegalStateException("Cannot find parent mapper " + parent + " for path " + path + " in doc " + doc
+                         + " - known parents are " + objectFilters.keySet());
                     }
                     parentBitSet = objectFilters.get(parent);
                     parentNameLength = parent.length() + 1;

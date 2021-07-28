@@ -7,15 +7,9 @@
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction.Request;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class CompletionPersistentTaskRequestTests extends AbstractWireSerializingTestCase<Request> {
 

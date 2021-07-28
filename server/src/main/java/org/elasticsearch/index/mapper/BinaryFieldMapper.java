@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteArrayDataOutput;
@@ -137,18 +138,17 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         if (stored == false && hasDocValues == false) {
             return;
         }
-        byte[] value = context.parseExternalValue(byte[].class);
-        if (value == null) {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                return;
-            } else {
-                value = context.parser().binaryValue();
-            }
+        if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+            return;
         }
+        indexValue(context, context.parser().binaryValue());
+    }
+
+    public void indexValue(DocumentParserContext context, byte[] value) {
         if (value == null) {
             return;
         }
@@ -168,7 +168,7 @@ public class BinaryFieldMapper extends FieldMapper {
             // Only add an entry to the field names field if the field is stored
             // but has no doc values so exists query will work on a field with
             // no doc values
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

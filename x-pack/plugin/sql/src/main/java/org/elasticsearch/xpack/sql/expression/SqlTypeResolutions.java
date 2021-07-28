@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;

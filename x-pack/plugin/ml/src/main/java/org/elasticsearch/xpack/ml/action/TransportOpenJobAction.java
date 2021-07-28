@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -112,7 +112,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             ActionListener<NodeAcknowledgedResponse> clearJobFinishTime = ActionListener.wrap(
                 response -> {
                     if (response.isAcknowledged()) {
-                        clearJobFinishedTime(response, state, jobParams.getJobId(), listener);
+                        clearJobFinishedTime(response, state, jobParams.getJobId(), request.masterNodeTimeout(), listener);
                     } else {
                         listener.onResponse(response);
                     }
@@ -202,6 +202,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     private void clearJobFinishedTime(NodeAcknowledgedResponse response,
                                       ClusterState clusterState,
                                       String jobId,
+                                      TimeValue masterNodeTimeout,
                                       ActionListener<NodeAcknowledgedResponse> listener) {
         final JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
         ActionListener<Job> clearedTimeListener = ActionListener.wrap(
@@ -225,6 +226,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             MlConfigIndex::mapping,
             client,
             clusterState,
+            masterNodeTimeout,
             mappingsUpdatedListener);
     }
 

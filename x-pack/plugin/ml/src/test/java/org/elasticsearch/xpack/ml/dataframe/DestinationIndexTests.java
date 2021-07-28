@@ -463,13 +463,13 @@ public class DestinationIndexTests extends ESTestCase {
     private static DataFrameAnalyticsConfig createConfig(DataFrameAnalysis analysis) {
         return new DataFrameAnalyticsConfig.Builder()
             .setId(ANALYTICS_ID)
-            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, null))
+            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, null, null))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, null))
             .setAnalysis(analysis)
             .build();
     }
 
     private static FieldCapabilities createFieldCapabilities(String field, String type) {
-        return new FieldCapabilities(field, type, true, true, null, null, null, Collections.emptyMap());
+        return new FieldCapabilities(field, type, false, true, true, null, null, null, Collections.emptyMap());
     }
 }

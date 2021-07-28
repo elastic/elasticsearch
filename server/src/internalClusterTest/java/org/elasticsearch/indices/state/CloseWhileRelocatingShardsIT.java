@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
@@ -61,10 +61,10 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final int maxRecoveries = Integer.MAX_VALUE;
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), maxRecoveries)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), maxRecoveries)
             .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), -1)
@@ -179,7 +179,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 (MockTransportService) internalCluster().getInstance(TransportService.class, targetNode);
 
             for (DiscoveryNode node : state.getNodes()) {
-                if (node.isDataNode() && node.getName().equals(targetNode) == false) {
+                if (node.canContainData() && node.getName().equals(targetNode) == false) {
                     final TransportService sourceTransportService = internalCluster().getInstance(TransportService.class, node.getName());
                     targetTransportService.addSendBehavior(sourceTransportService, sendBehavior);
                 }

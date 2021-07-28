@@ -18,11 +18,17 @@ public abstract class EqlExtraSpecTestCase extends BaseEqlSpecTestCase {
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readTestSpecs() throws Exception {
-        return asArray(EqlSpecLoader.load("/test_extra.toml", true, new HashSet<>()));
+        return asArray(EqlSpecLoader.load("/test_extra.toml", new HashSet<>()));
     }
 
+    // constructor for "local" rest tests
     public EqlExtraSpecTestCase(String query, String name, long[] eventIds) {
-        super(TEST_EXTRA_INDEX, query, name, eventIds);
+        this(TEST_EXTRA_INDEX, query, name, eventIds);
+    }
+
+    // constructor for multi-cluster tests
+    public EqlExtraSpecTestCase(String index, String query, String name, long[] eventIds) {
+        super(index, query, name, eventIds);
     }
 
     @Override

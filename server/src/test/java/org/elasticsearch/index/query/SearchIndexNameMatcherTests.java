@@ -13,11 +13,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -39,10 +38,8 @@ public class SearchIndexNameMatcherTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
 
-        matcher = new SearchIndexNameMatcher("index1", "", clusterService,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
-        remoteMatcher = new SearchIndexNameMatcher("index1", "cluster", clusterService,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+        matcher = new SearchIndexNameMatcher("index1", "", clusterService, TestIndexNameExpressionResolver.newInstance());
+        remoteMatcher = new SearchIndexNameMatcher("index1", "cluster", clusterService, TestIndexNameExpressionResolver.newInstance());
     }
 
     private static IndexMetadata.Builder indexBuilder(String index) {

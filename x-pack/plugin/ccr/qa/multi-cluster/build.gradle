@@ -1,10 +1,10 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ccr'))
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
@@ -13,10 +13,15 @@ testClusters {
   'leader-cluster' {
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
+    setting 'path.repo', "${buildDir}/cluster/shared/repo/leader-cluster"
   }
   'middle-cluster' {
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
     setting 'cluster.remote.leader_cluster.seeds',
             { "\"${testClusters.named('leader-cluster').get().getAllTransportPortURI().join(",")}\"" }
   }
@@ -25,12 +30,14 @@ testClusters {
 tasks.register("leader-cluster", RestIntegTestTask) {
   mustRunAfter("precommit")
   systemProperty 'tests.target_cluster', 'leader'
+  systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
 }
 
 tasks.register("middle-cluster", RestIntegTestTask) {
   dependsOn "leader-cluster"
   useCluster testClusters."leader-cluster"
   systemProperty 'tests.target_cluster', 'middle'
+  systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
   nonInputProperties.systemProperty 'tests.leader_host',
     "${-> testClusters.named('leader-cluster').get().getAllHttpSocketURI().get(0)}"
 }
@@ -41,6 +48,7 @@ tasks.register('follow-cluster', RestIntegTestTask) {
     useCluster testClusters."leader-cluster"
     useCluster testClusters."middle-cluster"
     systemProperty 'tests.target_cluster', 'follow'
+    systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
     nonInputProperties.systemProperty 'tests.leader_host',
       "${-> testClusters.named('leader-cluster').get().getAllHttpSocketURI().get(0)}"
     nonInputProperties.systemProperty 'tests.middle_host',
@@ -51,6 +59,8 @@ testClusters.matching { it.name == "follow-cluster" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
   setting 'cluster.remote.leader_cluster.seeds',
     { "\"${testClusters.named('leader-cluster').get().getAllTransportPortURI().join(",")}\"" }
   setting 'cluster.remote.middle_cluster.seeds',
@@ -58,4 +68,3 @@ testClusters.matching { it.name == "follow-cluster" }.configureEach {
 }
 
 tasks.named("check").configure { dependsOn "follow-cluster" }
-tasks.named("test").configure { enabled = false } // no unit tests for multi-cluster-search, only the rest integration test

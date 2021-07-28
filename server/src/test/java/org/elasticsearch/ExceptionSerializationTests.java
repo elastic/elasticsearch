@@ -36,8 +36,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -673,7 +673,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(7, org.elasticsearch.http.BindHttpException.class);
         ids.put(8, org.elasticsearch.action.search.ReduceSearchPhaseException.class);
         ids.put(9, org.elasticsearch.node.NodeClosedException.class);
-        ids.put(10, org.elasticsearch.index.engine.SnapshotFailedEngineException.class);
+        ids.put(10, null); // SnapshotFailedEngineException, never instantiated in 6.2.0+ and never thrown across clusters
         ids.put(11, org.elasticsearch.index.shard.ShardNotFoundException.class);
         ids.put(12, org.elasticsearch.transport.ConnectTransportException.class);
         ids.put(13, org.elasticsearch.transport.NotSerializableTransportException.class);
@@ -709,7 +709,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(43, org.elasticsearch.index.translog.TruncatedTranslogException.class);
         ids.put(44, org.elasticsearch.indices.recovery.RecoveryFailedException.class);
         ids.put(45, org.elasticsearch.index.shard.IndexShardRelocatedException.class);
-        ids.put(46, org.elasticsearch.transport.NodeShouldNotConnectException.class);
+        ids.put(46, null); // NodeShouldNotConnectException, never instantiated in 5.0+
         ids.put(47, null);
         ids.put(48, org.elasticsearch.index.translog.TranslogCorruptedException.class);
         ids.put(49, org.elasticsearch.cluster.block.ClusterBlockException.class);
@@ -728,7 +728,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(62, org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class);
         ids.put(63, org.elasticsearch.indices.AliasFilterParsingException.class);
         ids.put(64, null); // DeleteByQueryFailedEngineException was removed in 3.0
-        ids.put(65, org.elasticsearch.gateway.GatewayException.class);
+        ids.put(65, null); // GatewayException, never instantiated in 5.0+
         ids.put(66, org.elasticsearch.index.shard.IndexShardNotRecoveringException.class);
         ids.put(67, org.elasticsearch.http.HttpException.class);
         ids.put(68, org.elasticsearch.ElasticsearchException.class);

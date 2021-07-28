@@ -27,9 +27,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseSections;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -49,6 +50,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 public class SequenceSpecTests extends ESTestCase {
 
+    private static final NoopCircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("SequenceSpecTests");
+
     private static final String PARAM_FORMATTING = "%1$s";
     private static final String QUERIES_FILENAME = "sequences.series-spec";
 
@@ -60,6 +63,7 @@ public class SequenceSpecTests extends ESTestCase {
     private final List<HitExtractor> keyExtractors;
     private final HitExtractor tsExtractor;
     private final HitExtractor tbExtractor;
+    private final HitExtractor implicitTbExtractor;
 
     abstract static class EmptyHitExtractor implements HitExtractor {
         @Override
@@ -93,6 +97,15 @@ public class SequenceSpecTests extends ESTestCase {
         }
     }
 
+    static class ImplicitTbExtractor extends EmptyHitExtractor {
+        static final ImplicitTbExtractor INSTANCE = new ImplicitTbExtractor();
+
+        @Override
+        public Long extract(SearchHit hit) {
+            return (long) hit.docId();
+        }
+    }
+
     class TestCriterion extends Criterion<BoxedQueryRequest> {
         private final int ordinal;
         private boolean unused = true;
@@ -106,7 +119,7 @@ public class SequenceSpecTests extends ESTestCase {
                       // pass the ordinal through terminate after
                       .terminateAfter(ordinal), "timestamp", emptyList()),
                   keyExtractors,
-                  tsExtractor, tbExtractor, false);
+                  tsExtractor, tbExtractor, implicitTbExtractor, false);
             this.ordinal = ordinal;
         }
 
@@ -212,6 +225,7 @@ public class SequenceSpecTests extends ESTestCase {
         this.keyExtractors = hasKeys ? singletonList(new KeyExtractor()) : emptyList();
         this.tsExtractor = TimestampExtractor.INSTANCE;
         this.tbExtractor = null;
+        this.implicitTbExtractor = ImplicitTbExtractor.INSTANCE;
     }
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
@@ -229,7 +243,7 @@ public class SequenceSpecTests extends ESTestCase {
         }
 
         // convert the results through a test specific payload
-        SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null);
+        SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, NOOP_CIRCUIT_BREAKER);
 
         QueryClient testClient = new TestQueryClient();
         TumblingWindow window = new TumblingWindow(testClient, criteria, null, matcher);

@@ -31,7 +31,7 @@ GET /_field_caps?fields=rating
 
 * If the {es} {security-features} are enabled, you must have the
 `view_index_metadata`, `read`, or `manage` <<privileges-list-indices,index
-privilege>> for the target data stream, index, or index alias.
+privilege>> for the target data stream, index, or alias.
 
 [[search-field-caps-api-desc]]
 ==== {api-description-title}
@@ -49,13 +49,9 @@ other field. For example, a runtime field with a type of
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
-
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[search-field-caps-api-query-params]]
 ==== {api-query-parms-title}
@@ -88,6 +84,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 (Optional,  <<query-dsl,query object>> Allows to filter indices if the provided
 query rewrites to `match_none` on every shard.
 
+`runtime_mappings`::
+(Optional, object)
+Defines ad-hoc <<runtime-search-request,runtime fields>> in the request similar
+to the way it is done in <<search-api-body-runtime, search requests>>. These fields
+exist only as part of the query and take precedence over fields defined with the
+same name in the index mappings.
+
 [[search-field-caps-api-response-body]]
 ==== {api-response-body-title}
 
@@ -99,6 +102,8 @@ described using a type family. For example, `keyword`, `constant_keyword` and `w
 field types are all described as the `keyword` type family.
 
 
+`metadata_field`::
+  Whether this field is registered as a <<mapping-fields,metadata field>>.
 
 `searchable`::
   Whether this field is indexed for search on all indices.
@@ -155,12 +160,14 @@ The API returns the following response:
   "fields": {
     "rating": {                                   <1>
       "long": {
+        "metadata_field": false,
         "searchable": true,
         "aggregatable": false,
         "indices": [ "index1", "index2" ],
         "non_aggregatable_indices": [ "index1" ]  <2>
       },
       "keyword": {
+        "metadata_field": false,
         "searchable": false,
         "aggregatable": true,
         "indices": [ "index3", "index4" ],
@@ -169,6 +176,7 @@ The API returns the following response:
     },
     "title": {                                    <4>
       "text": {
+        "metadata_field": false,
         "searchable": true,
         "aggregatable": false
 
@@ -204,18 +212,21 @@ in some indices but not all:
   "fields": {
     "rating": {
       "long": {
+        "metadata_field": false,
         "searchable": true,
         "aggregatable": false,
         "indices": [ "index1", "index2" ],
         "non_aggregatable_indices": [ "index1" ]
       },
       "keyword": {
+        "metadata_field": false,
         "searchable": false,
         "aggregatable": true,
         "indices": [ "index3", "index4" ],
         "non_searchable_indices": [ "index4" ]
       },
       "unmapped": {                               <1>
+        "metadata_field": false,
         "indices": [ "index5" ],
         "searchable": false,
         "aggregatable": false
@@ -223,11 +234,13 @@ in some indices but not all:
     },
     "title": {
       "text": {
+        "metadata_field": false,
         "indices": [ "index1", "index2", "index3", "index4" ],
         "searchable": true,
         "aggregatable": false
       },
       "unmapped": {                               <2>
+        "metadata_field": false,
         "indices": [ "index5" ],
         "searchable": false,
         "aggregatable": false

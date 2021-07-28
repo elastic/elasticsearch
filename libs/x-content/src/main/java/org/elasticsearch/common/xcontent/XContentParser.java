@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -111,6 +111,8 @@ public interface XContentParser extends Closeable {
     }
 
     XContentType contentType();
+
+    void allowDuplicateKeys(boolean allowDuplicateKeys);
 
     Token nextToken() throws IOException;
 
@@ -252,7 +254,7 @@ public interface XContentParser extends Closeable {
 
     boolean isClosed();
 
-    RestApiCompatibleVersion getRestApiCompatibleVersion();
+    RestApiVersion getRestApiVersion();
 
     /**
      * The callback to notify when parsing encounters a deprecated field.

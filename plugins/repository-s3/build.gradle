@@ -1,8 +1,8 @@
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.test.rest.YamlRestTestPlugin
-import org.elasticsearch.gradle.test.InternalClusterTestPlugin
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.rest.YamlRestTestPlugin
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
@@ -15,6 +15,7 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact-base'
 
 esplugin {
   description 'The S3 repository plugin adds S3 repositories'
@@ -47,9 +48,18 @@ dependencies {
   testImplementation project(':test:fixtures:s3-fixture')
 }
 
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
+}
+
+tasks.named("internalClusterTestJar").configure {
+  // for the plugin-security.policy resource
+  from sourceSets.test.output
+}
+
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
+    include '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
   }
 }
 
@@ -143,10 +153,10 @@ tasks.named("processYamlRestTestResources").configure {
     'ec2_base_path'           : s3EC2BasePath,
     'ecs_bucket'              : s3ECSBucket,
     'ecs_base_path'           : s3ECSBasePath,
-    'disable_chunked_encoding': s3DisableChunkedEncoding,
+    'disable_chunked_encoding': s3DisableChunkedEncoding
   ]
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
 tasks.named("internalClusterTest").configure {
@@ -300,21 +310,4 @@ tasks.named("thirdPartyAudit").configure {
           'com.amazonaws.services.kms.model.GenerateDataKeyResult',
           'javax.activation.DataHandler'
   )
-}
-
-// test jar is exported by the integTestArtifacts configuration to be used in the encrypted S3 repository test
-configurations {
-  internalClusterTestArtifacts.extendsFrom internalClusterTestImplementation
-  internalClusterTestArtifacts.extendsFrom internalClusterTestRuntime
-}
-
-def internalClusterTestJar = tasks.register("internalClusterTestJar", Jar) {
-  appendix 'internalClusterTest'
-  from sourceSets.internalClusterTest.output
-  // for the plugin-security.policy resource
-  from sourceSets.test.output
-}
-
-artifacts {
-  internalClusterTestArtifacts internalClusterTestJar
 }

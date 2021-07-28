@@ -30,12 +30,14 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
@@ -333,6 +335,29 @@ public class TextFieldMapperTests extends MapperTestCase {
         });
     }
 
+    public void testDefaultPositionIncrementGapOnSubfields() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("index_phrases", true);
+            b.startObject("index_prefixes").endObject();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", "aargle bargle", "foo bar")));
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
+            TermsEnum phraseTerms = getOnlyLeafReader(reader).terms("field._index_phrase").iterator();
+            assertTrue(phraseTerms.seekExact(new BytesRef("foo bar")));
+            PostingsEnum phrasePostings = phraseTerms.postings(null, PostingsEnum.POSITIONS);
+            assertEquals(0, phrasePostings.nextDoc());
+            assertEquals(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP + 1, phrasePostings.nextPosition());
+
+            TermsEnum prefixTerms = getOnlyLeafReader(reader).terms("field._index_prefix").iterator();
+            assertTrue(prefixTerms.seekExact(new BytesRef("foo")));
+            PostingsEnum prefixPostings = prefixTerms.postings(null, PostingsEnum.POSITIONS);
+            assertEquals(0, prefixPostings.nextDoc());
+            assertEquals(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP + 2, prefixPostings.nextPosition());
+        });
+    }
+
     public void testPositionIncrementGap() throws IOException {
         final int positionIncrementGap = randomIntBetween(1, 1000);
         MapperService mapperService = createMapperService(
@@ -351,6 +376,30 @@ public class TextFieldMapperTests extends MapperTestCase {
             PostingsEnum postings = terms.postings(null, PostingsEnum.POSITIONS);
             assertEquals(0, postings.nextDoc());
             assertEquals(positionIncrementGap + 1, postings.nextPosition());
+        });
+    }
+
+    public void testPositionIncrementGapOnSubfields() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("position_increment_gap", 10);
+            b.field("index_phrases", true);
+            b.startObject("index_prefixes").endObject();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", "aargle bargle", "foo bar")));
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
+            TermsEnum phraseTerms = getOnlyLeafReader(reader).terms("field._index_phrase").iterator();
+            assertTrue(phraseTerms.seekExact(new BytesRef("foo bar")));
+            PostingsEnum phrasePostings = phraseTerms.postings(null, PostingsEnum.POSITIONS);
+            assertEquals(0, phrasePostings.nextDoc());
+            assertEquals(11, phrasePostings.nextPosition());
+
+            TermsEnum prefixTerms = getOnlyLeafReader(reader).terms("field._index_prefix").iterator();
+            assertTrue(prefixTerms.seekExact(new BytesRef("foo")));
+            PostingsEnum prefixPostings = prefixTerms.postings(null, PostingsEnum.POSITIONS);
+            assertEquals(0, prefixPostings.nextDoc());
+            assertEquals(12, prefixPostings.nextPosition());
         });
     }
 
@@ -727,10 +776,10 @@ public class TextFieldMapperTests extends MapperTestCase {
             .build(), BooleanClause.Occur.SHOULD).build()));
 
         ParsedDocument doc = mapperService.documentMapper()
-            .parse(source(b -> b.field("field", "Some English text that is going to be very useful")));
+            .parse(source(b -> b.array("field", "Some English text that is going to be very useful", "bad", "Prio 1")));
 
         IndexableField[] fields = doc.rootDoc().getFields("field._index_phrase");
-        assertEquals(1, fields.length);
+        assertEquals(3, fields.length);
 
         try (TokenStream ts = fields[0].tokenStream(mapperService.indexAnalyzer(fields[0].name(), f -> null), null)) {
             CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
@@ -738,6 +787,13 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertTrue(ts.incrementToken());
             assertEquals("Some English", termAtt.toString());
         }
+
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
+            IndexSearcher searcher = new IndexSearcher(ir);
+            MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "Prio 1");
+            TopDocs td = searcher.search(queryBuilder.toQuery(searchExecutionContext), 1);
+            assertEquals(1, td.totalHits.value);
+        });
 
         Exception e = expectThrows(
             MapperParsingException.class,
@@ -775,9 +831,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         SearchExecutionContext context = createSearchExecutionContext(ms);
         QueryStringQueryParser parser = new QueryStringQueryParser(context, "f");
         Query q = parser.parse("foo:*");
-        assertEquals(new ConstantScoreQuery(new BooleanQuery.Builder()
-            .add(new NormsFieldExistsQuery("foo.bar"), BooleanClause.Occur.SHOULD)
-            .build()), q);
+        assertEquals(new ConstantScoreQuery(new NormsFieldExistsQuery("foo.bar")), q);
     }
 
     private static void assertAnalyzesTo(Analyzer analyzer, String field, String input, String[] output) throws IOException {
@@ -1022,5 +1076,16 @@ public class TextFieldMapperTests extends MapperTestCase {
         merge(mapperService, newField);
         assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
         assertThat(mapperService.documentMapper().mappers().getMapper("other_field"), instanceOf(KeywordFieldMapper.class));
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("We don't have a way to assert things here", true);
+        return null;
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        assumeFalse("We don't have a way to assert things here", true);
     }
 }

@@ -9,8 +9,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 
@@ -41,7 +40,7 @@ public class RecoveryRequestTracker {
         if (checkpointTracker.hasProcessed(requestSeqNo)) {
             final ListenableFuture<Void> existingFuture = ongoingRequests.get(requestSeqNo);
             if (existingFuture != null) {
-                existingFuture.addListener(listener, EsExecutors.newDirectExecutorService());
+                existingFuture.addListener(listener);
             } else {
                 listener.onResponse(null);
             }
@@ -50,19 +49,10 @@ public class RecoveryRequestTracker {
             checkpointTracker.markSeqNoAsProcessed(requestSeqNo);
             final ListenableFuture<Void> future = new ListenableFuture<>();
             ongoingRequests.put(requestSeqNo, future);
-            future.addListener(new ActionListener<>() {
-                @Override
-                public void onResponse(Void v) {
-                    ongoingRequests.remove(requestSeqNo);
-                    listener.onResponse(v);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // We do not remove the future to cache the error for retried requests
-                    listener.onFailure(e);
-                }
-            }, EsExecutors.newDirectExecutorService());
+            future.addListener(listener.delegateFailure((l, v) -> {
+                ongoingRequests.remove(requestSeqNo);
+                l.onResponse(v);
+            }));
             return future;
         }
     }

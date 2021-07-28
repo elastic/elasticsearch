@@ -10,11 +10,11 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -143,46 +143,6 @@ public class DateHistogramValuesSourceBuilder
     }
 
     /**
-     * Returns the interval in milliseconds that is set on this source
-     **/
-    @Deprecated
-    public long interval() {
-        return dateHistogramInterval.interval();
-    }
-
-    /**
-     * Sets the interval on this source.
-     * If both {@link #interval()} and {@link #dateHistogramInterval()} are set,
-     * then the {@link #dateHistogramInterval()} wins.
-     *
-     * @deprecated Use {@link #calendarInterval(DateHistogramInterval)} or {@link #fixedInterval(DateHistogramInterval)} instead
-     * @since 7.2.0
-     **/
-    @Deprecated
-    public DateHistogramValuesSourceBuilder interval(long interval) {
-        dateHistogramInterval.interval(interval);
-        return this;
-    }
-
-    /**
-     * Returns the date interval that is set on this source
-     **/
-    @Deprecated
-    public DateHistogramInterval dateHistogramInterval() {
-        return dateHistogramInterval.dateHistogramInterval();
-    }
-
-    /**
-     * @deprecated Use {@link #calendarInterval(DateHistogramInterval)} or {@link #fixedInterval(DateHistogramInterval)} instead
-     * @since 7.2.0
-     */
-    @Deprecated
-    public DateHistogramValuesSourceBuilder dateHistogramInterval(DateHistogramInterval interval) {
-        dateHistogramInterval.dateHistogramInterval(interval);
-        return this;
-    }
-
-    /**
      * Sets the interval of the DateHistogram using calendar units (`1d`, `1w`, `1M`, etc).  These units
      * are calendar-aware, meaning they respect leap additions, variable days per month, etc.
      *
@@ -212,7 +172,10 @@ public class DateHistogramValuesSourceBuilder
      *  {@code null} then it means that the interval is expressed as a fixed
      *  {@link TimeValue} and may be accessed via {@link #getIntervalAsFixed()} ()}. */
     public DateHistogramInterval getIntervalAsCalendar() {
-        return dateHistogramInterval.getAsCalendarInterval();
+        if (dateHistogramInterval.getIntervalType().equals(DateIntervalWrapper.IntervalTypeEnum.CALENDAR)) {
+            return dateHistogramInterval.getAsCalendarInterval();
+        }
+        return null;
     }
 
     /**
@@ -220,7 +183,10 @@ public class DateHistogramValuesSourceBuilder
      * the interval cannot be parsed as a fixed time.
      */
     public DateHistogramInterval getIntervalAsFixed() {
-        return dateHistogramInterval.getAsFixedInterval();
+        if (dateHistogramInterval.getIntervalType().equals(DateIntervalWrapper.IntervalTypeEnum.FIXED)) {
+            return dateHistogramInterval.getAsFixedInterval();
+        }
+        return null;
     }
 
     /**

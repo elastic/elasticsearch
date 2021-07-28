@@ -8,8 +8,8 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -23,7 +23,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ContextApiSpecGenerator {
     public static void main(String[] args) throws IOException {
@@ -77,28 +80,58 @@ public class ContextApiSpecGenerator {
         if (jdksrc == null || "".equals(jdksrc)) {
             return null;
         }
-        return new JavaClassFilesystemResolver(PathUtils.get(jdksrc));
+        String packageSourcesString = System.getProperty("packageSources");
+        if (packageSourcesString == null || "".equals(packageSourcesString)) {
+            return new JavaClassFilesystemResolver(PathUtils.get(jdksrc));
+        }
+        HashMap<String, Path> packageSources = new HashMap<>();
+        for (String packageSourceString: packageSourcesString.split(";")) {
+            String[] packageSource = packageSourceString.split(":", 2);
+            if (packageSource.length != 2) {
+                throw new IllegalArgumentException(
+                    "Bad format for packageSources. Format <package0>:<path0>;<package1>:<path1> ..."
+                );
+            }
+            packageSources.put(packageSource[0], PathUtils.get(packageSource[1]));
+        }
+        return new JavaClassFilesystemResolver(PathUtils.get(jdksrc), packageSources);
     }
 
     public static class JavaClassFilesystemResolver implements JavaClassResolver {
         private final Path root;
+        private final Map<String, Path> pkgRoots;
 
         public JavaClassFilesystemResolver(Path root) {
             this.root = root;
+            this.pkgRoots = Collections.emptyMap();
+        }
+
+        public JavaClassFilesystemResolver(Path root, Map<String, Path> pkgRoots) {
+            this.root = root;
+            this.pkgRoots = pkgRoots;
         }
 
         @SuppressForbidden(reason = "resolve class file from java src directory with environment")
         public InputStream openClassFile(String className) throws IOException {
             // TODO(stu): handle primitives & not stdlib
-            if (className.contains(".") && className.startsWith("java")) {
+            if (className.contains(".")) {
                 int dollarPosition = className.indexOf("$");
                 if (dollarPosition >= 0) {
                     className = className.substring(0, dollarPosition);
                 }
-                String[] packages = className.split("\\.");
-                String path = String.join("/", packages);
-                Path classPath = root.resolve(path + ".java");
-                return new FileInputStream(classPath.toFile());
+                if (className.startsWith("java")) {
+                    String[] packages = className.split("\\.");
+                    String path = String.join("/", packages);
+                    Path classPath = root.resolve(path + ".java");
+                    return new FileInputStream(classPath.toFile());
+                } else {
+                    String packageName = className.substring(0, className.lastIndexOf("."));
+                    Path root = pkgRoots.get(packageName);
+                    if (root != null) {
+                        Path classPath = root.resolve(className.substring(className.lastIndexOf(".") + 1) + ".java");
+                        return new FileInputStream(classPath.toFile());
+                    }
+                }
             }
             return new InputStream() {
                 @Override

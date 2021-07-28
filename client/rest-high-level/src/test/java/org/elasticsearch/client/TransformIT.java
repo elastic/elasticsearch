@@ -43,7 +43,7 @@ import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -200,7 +200,7 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
 
         String id = "test-update";
         TransformConfig transform = validDataFrameTransformConfigBuilder(id, sourceIndex, "pivot-dest").setSyncConfig(
-            new TimeSyncConfig("timefield", TimeValue.timeValueSeconds(60))
+            TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(60)).build()
         ).build();
 
         TransformClient client = highLevelClient().transform();

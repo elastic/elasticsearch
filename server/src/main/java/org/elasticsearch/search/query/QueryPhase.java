@@ -35,12 +35,12 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -56,9 +56,9 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescorePhase;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -102,8 +102,8 @@ public class QueryPhase {
         if (context.lowLevelCancellation()) {
             cancellation = context.searcher().addQueryCancellation(() -> {
                 SearchShardTask task = context.getTask();
-                if (task != null && task.isCancelled()) {
-                    throw new TaskCancelledException("cancelled");
+                if (task != null) {
+                    task.ensureNotCancelled();
                 }
             });
         } else {
@@ -271,8 +271,8 @@ public class QueryPhase {
             if (searchContext.lowLevelCancellation()) {
                 searcher.addQueryCancellation(() -> {
                     SearchShardTask task = searchContext.getTask();
-                    if (task != null && task.isCancelled()) {
-                        throw new TaskCancelledException("cancelled");
+                    if (task != null) {
+                        task.ensureNotCancelled();
                     }
                 });
             }
@@ -359,14 +359,18 @@ public class QueryPhase {
      * no search after, no scroll, no collapse, no track scores.
      * Absence of all other collectors and parameters allows us to use TopFieldCollector directly.
      */
-    private static boolean searchWithCollectorManager(SearchContext searchContext, ContextIndexSearcher searcher, Query query,
-            CheckedConsumer<List<LeafReaderContext>, IOException> leafSorter, boolean timeoutSet) throws IOException {
+    private static boolean searchWithCollectorManager(SearchContext searchContext,
+                                                      ContextIndexSearcher searcher,
+                                                      Query query,
+                                                      CheckedConsumer<List<LeafReaderContext>, IOException> leafSorter,
+                                                      boolean timeoutSet) throws IOException {
+        final QuerySearchResult queryResult = searchContext.queryResult();
         final IndexReader reader = searchContext.searcher().getIndexReader();
-        final int numHits = Math.min(searchContext.from() + searchContext.size(),  Math.max(1, reader.numDocs()));
+        final int numHits = Math.min(searchContext.from() + searchContext.size(), Math.max(1, reader.numDocs()));
         final SortAndFormats sortAndFormats = searchContext.sort();
 
         int totalHitsThreshold;
-        TotalHits totalHits;
+        final TotalHits totalHits;
         if (searchContext.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
             totalHitsThreshold = 1;
             totalHits = new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
@@ -386,17 +390,37 @@ public class QueryPhase {
 
         List<LeafReaderContext> leaves = new ArrayList<>(searcher.getIndexReader().leaves());
         leafSorter.accept(leaves);
+
+        final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.TOP_SCORES, 1f);
+        final List<TopFieldCollector> collectors = new ArrayList<>(leaves.size());
+
         try {
-            Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.TOP_SCORES, 1f);
-            searcher.search(leaves, weight, sharedManager, searchContext.queryResult(), sortAndFormats.formats, totalHits);
+            for (LeafReaderContext ctx : leaves) {
+                final TopFieldCollector collector = sharedManager.newCollector();
+                collectors.add(collector);
+                searcher.search(Collections.singletonList(ctx), weight, collector);
+            }
+        } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
+            queryResult.terminatedEarly(true);
         } catch (TimeExceededException e) {
             assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
             if (searchContext.request().allowPartialSearchResults() == false) {
                 // Can't rethrow TimeExceededException because not serializable
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
-            searchContext.queryResult().searchTimedOut(true);
+            queryResult.searchTimedOut(true);
         }
+
+        TopFieldDocs mergedTopDocs = sharedManager.reduce(collectors);
+        // Lucene sets shards indexes during merging of topDocs from different collectors
+        // We need to reset shard index; ES will set shard index later during reduce stage
+        for (ScoreDoc scoreDoc : mergedTopDocs.scoreDocs) {
+            scoreDoc.shardIndex = -1;
+        }
+        if (totalHits != null) { // we have already precalculated totalHits for the whole index
+            mergedTopDocs = new TopFieldDocs(totalHits, mergedTopDocs.scoreDocs, mergedTopDocs.fields);
+        }
+        queryResult.topDocs(new TopDocsAndMaxScore(mergedTopDocs, Float.NaN), sortAndFormats.formats);
         return false; // no rescoring when sorting by field
     }
 
@@ -432,10 +456,14 @@ public class QueryPhase {
             SortField sField = sort.getSort()[i];
             String sFieldName = sField.getField();
             if (sFieldName == null) {
-                if (SortField.FIELD_DOC.equals(sField) == false) return null;
-            } else {
+                if (SortField.FIELD_DOC.equals(sField) == false) {
+                    return null;
+                }
+            } else if (FieldSortBuilder.SHARD_DOC_FIELD_NAME.equals(sFieldName) == false) {
                 //TODO: find out how to cover _script sort that don't use _score
-                if (searchExecutionContext.getFieldType(sFieldName) == null) return null; // could be _script sort that uses _score
+                if (searchExecutionContext.getFieldType(sFieldName) == null) {
+                    return null; // could be _script sort that uses _score
+                }
             }
         }
 
@@ -636,5 +664,5 @@ public class QueryPhase {
         return pointValues.estimatePointCount(visitor);
     }
 
-    private static class TimeExceededException extends RuntimeException {}
+    static class TimeExceededException extends RuntimeException {}
 }

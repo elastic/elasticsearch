@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -20,7 +21,11 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk',
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk',
       'put_script', 'render_search_template', 'search_template', 'msearch_template', 'lang_mustache'
   }
 }
+
+tasks.named("transformV7RestTests").configure({ task ->
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+})

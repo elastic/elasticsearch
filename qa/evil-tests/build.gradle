@@ -12,7 +12,7 @@
  * threads, etc.
  */
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
@@ -20,31 +20,6 @@ dependencies {
 }
 
 // TODO: give each evil test its own fresh JVM for more isolation.
-
 tasks.named("test").configure {
   systemProperty 'tests.security.manager', 'false'
-}
-
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-    'com.ibm.icu.lang.UCharacter'
-  )
-
-  ignoreViolations(
-    // uses internal java api: sun.misc.Unsafe
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
-  )
 }

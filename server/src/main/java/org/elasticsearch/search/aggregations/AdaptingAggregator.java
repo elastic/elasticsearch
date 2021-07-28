@@ -10,7 +10,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.profile.aggregation.InternalAggregationProfileTree;
 
 import java.io.IOException;
@@ -30,24 +30,26 @@ public abstract class AdaptingAggregator extends Aggregator {
     public AdaptingAggregator(
         Aggregator parent,
         AggregatorFactories subAggregators,
-        CheckedFunction<AggregatorFactories, Aggregator, IOException> delegate
+        CheckedFunction<AggregatorFactories, ? extends Aggregator, IOException> delegate
     ) throws IOException {
         // Its important we set parent first or else when we build the sub-aggregators they can fail because they'll call this.parent.
         this.parent = parent;
         /*
          * Lock the parent of the sub-aggregators to *this* instead of to
          * the delegate. This keeps the parent link shaped like the requested
-         * agg tree. Thisis how it has always been and some aggs rely on it.
+         * agg tree the rate aggregator needs this or it will die.
          */
         this.delegate = delegate.apply(subAggregators.fixParent(this));
-        assert this.delegate.parent() == parent : "invalid parent set on delegate";
+        if (this.delegate.parent() != parent) {
+            throw new IllegalStateException("invalid parent set on delegate");
+        }
     }
 
     /**
      * Adapt the result from the collecting {@linkplain Aggregator} into the
      * result expected by this {@linkplain Aggregator}.
      */
-    protected abstract InternalAggregation adapt(InternalAggregation delegateResult);
+    protected abstract InternalAggregation adapt(InternalAggregation delegateResult) throws IOException;
 
     @Override
     public final void close() {
@@ -85,6 +87,11 @@ public abstract class AdaptingAggregator extends Aggregator {
     }
 
     @Override
+    public final void postCollection() throws IOException {
+        delegate.postCollection();
+    }
+
+    @Override
     public final InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         InternalAggregation[] delegateResults = delegate.buildAggregations(owningBucketOrds);
         InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
@@ -96,7 +103,12 @@ public abstract class AdaptingAggregator extends Aggregator {
 
     @Override
     public final InternalAggregation buildEmptyAggregation() {
-        return adapt(delegate.buildEmptyAggregation());
+        try {
+            return adapt(delegate.buildEmptyAggregation());
+        } catch (IOException e) {
+            // We don't expect this to happen, but computers are funny.
+            throw new AggregationExecutionException("io error while building empty agg", e);
+        }
     }
 
     @Override

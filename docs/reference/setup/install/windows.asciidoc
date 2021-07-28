@@ -3,7 +3,7 @@
 
 beta[]
 
-Elasticsearch can be installed on Windows using the `.msi` package.  This can
+Elasticsearch can be installed on Windows using the `.msi` package. This can
 install Elasticsearch as a Windows service or allow it to be run manually using
 the included `elasticsearch.exe` executable.
 
@@ -362,7 +362,7 @@ the command line, using the `-E` syntax as follows:
 .\bin\elasticsearch.exe -E cluster.name=my_cluster -E node.name=node_1
 --------------------------------------------
 
-NOTE: Values that contain spaces must be surrounded with quotes.  For instance `-E path.logs="C:\My Logs\logs"`.
+NOTE: Values that contain spaces must be surrounded with quotes. For instance `-E path.logs="C:\My Logs\logs"`.
 
 TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
 added to the `elasticsearch.yml` config file, while any node-specific settings

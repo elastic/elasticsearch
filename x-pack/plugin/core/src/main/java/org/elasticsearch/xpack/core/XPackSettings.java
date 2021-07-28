@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -101,6 +101,10 @@ public class XPackSettings {
     public static final Setting<Boolean> FIPS_MODE_ENABLED =
         Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
 
+    /** Setting for enabling enrollment process; set-up by the es start-up script */
+    public static final Setting<Boolean> ENROLLMENT_ENABLED =
+        Setting.boolSetting("xpack.security.enrollment.enabled", false, Property.NodeScope);
+
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
      * but instead parse based on a prefix (eg *.ssl.*)
@@ -162,6 +166,26 @@ public class XPackSettings {
             }
         }, Property.NodeScope);
 
+    // TODO: This setting of hashing algorithm can share code with the one for password when pbkdf2_stretch is the default for both
+    public static final Setting<String> SERVICE_TOKEN_HASHING_ALGORITHM = new Setting<>(
+        new Setting.SimpleKey("xpack.security.authc.service_token_hashing.algorithm"),
+        (s) -> "PBKDF2_STRETCH",
+        Function.identity(),
+        v -> {
+            if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
+                throw new IllegalArgumentException("Invalid algorithm: " + v + ". Valid values for password hashing are " +
+                    Hasher.getAvailableAlgoStoredHash().toString());
+            } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
+                try {
+                    SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
+                } catch (NoSuchAlgorithmException e) {
+                    throw new IllegalArgumentException(
+                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the " +
+                            "PBKDF2 algorithms for the [xpack.security.authc.service_token_hashing.algorithm] setting.", e);
+                }
+            }
+        }, Property.NodeScope);
+
     public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS;
 
     static {
@@ -183,17 +207,17 @@ public class XPackSettings {
 
     // http specific settings
     public static final String HTTP_SSL_PREFIX = SecurityField.setting("http.ssl.");
-    private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX);
+    private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX, true);
 
     // transport specific settings
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
-    private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX);
+    private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
 
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
-        settings.addAll(HTTP_SSL.getAllSettings());
-        settings.addAll(TRANSPORT_SSL.getAllSettings());
+        settings.addAll(HTTP_SSL.getEnabledSettings());
+        settings.addAll(TRANSPORT_SSL.getEnabledSettings());
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);
@@ -207,6 +231,7 @@ public class XPackSettings {
         settings.add(API_KEY_SERVICE_ENABLED_SETTING);
         settings.add(USER_SETTING);
         settings.add(PASSWORD_HASHING_ALGORITHM);
+        settings.add(ENROLLMENT_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

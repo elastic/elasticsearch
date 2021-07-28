@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
@@ -47,10 +47,8 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.User.Fields;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Arrays;
@@ -169,17 +167,8 @@ public class NativeUsersStore {
                         .setSize(0)
                         .setTrackTotalHits(true)
                         .request(),
-                    new ActionListener<SearchResponse>() {
-                        @Override
-                        public void onResponse(SearchResponse response) {
-                            listener.onResponse(response.getHits().getTotalHits().value);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, client::search));
+                    listener.<SearchResponse>delegateFailure(
+                            (l, response) -> l.onResponse(response.getHits().getTotalHits().value)), client::search));
         }
     }
 
@@ -189,7 +178,7 @@ public class NativeUsersStore {
     private void getUserAndPassword(final String user, final ActionListener<UserAndPassword> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (frozenSecurityIndex.isAvailable() == false) {
-            if (frozenSecurityIndex.indexExists()) {
+            if (frozenSecurityIndex.indexExists() == false) {
                 logger.trace("could not retrieve user [{}] because security index does not exist", user);
             } else {
                 logger.error("security index is unavailable. short circuiting retrieval of user [{}]", user);
@@ -202,15 +191,24 @@ public class NativeUsersStore {
                             new ActionListener<GetResponse>() {
                                 @Override
                                 public void onResponse(GetResponse response) {
+                                    logger.trace(
+                                        "user [{}] is doc [{}] in index [{}] with primTerm [{}] and seqNo [{}]",
+                                        user,
+                                        response.getId(),
+                                        response.getIndex(),
+                                        response.getPrimaryTerm(),
+                                        response.getSeqNo()
+                                    );
                                     listener.onResponse(transformUser(response.getId(), response.getSource()));
                                 }
 
                                 @Override
                                 public void onFailure(Exception t) {
                                     if (t instanceof IndexNotFoundException) {
-                                        logger.trace(
-                                                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                                        "could not retrieve user [{}] because security index does not exist", user), t);
+                                        logger.trace(new ParameterizedMessage(
+                                                "could not retrieve user [{}] because security index does not exist",
+                                                user),
+                                            t);
                                     } else {
                                         logger.error(new ParameterizedMessage("failed to retrieve user [{}]", user), t);
                                     }
@@ -228,7 +226,7 @@ public class NativeUsersStore {
      */
     public void changePassword(final ChangePasswordRequest request, final ActionListener<Void> listener) {
         final String username = request.username();
-        assert SystemUser.NAME.equals(username) == false && XPackUser.NAME.equals(username) == false : username + "is internal!";
+        assert User.isInternalUsername(username) == false : username + "is internal!";
         final String docType;
         if (ClientReservedRealm.isReserved(username, settings)) {
             docType = RESERVED_USER_TYPE;
@@ -280,17 +278,7 @@ public class NativeUsersStore {
                             .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash), Fields.ENABLED.getPreferredName(),
                                     true, Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
                             .setRefreshPolicy(refresh).request(),
-                    new ActionListener<IndexResponse>() {
-                        @Override
-                        public void onResponse(IndexResponse indexResponse) {
-                            clearRealmCache(username, listener, null);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, client::index);
+                    listener.<IndexResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)), client::index);
         });
     }
 
@@ -371,18 +359,8 @@ public class NativeUsersStore {
                                     Fields.TYPE.getPreferredName(), USER_DOC_TYPE)
                             .setRefreshPolicy(putUserRequest.getRefreshPolicy())
                             .request(),
-                    new ActionListener<IndexResponse>() {
-                        @Override
-                        public void onResponse(IndexResponse updateResponse) {
-                            clearRealmCache(putUserRequest.username(), listener,
-                                    updateResponse.getResult() == DocWriteResponse.Result.CREATED);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, client::index);
+                    listener.<IndexResponse>delegateFailure((l, updateResponse) -> clearRealmCache(putUserRequest.username(), l,
+                            updateResponse.getResult() == DocWriteResponse.Result.CREATED)), client::index);
         });
     }
 
@@ -445,21 +423,13 @@ public class NativeUsersStore {
                                     Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
                             .setRefreshPolicy(refreshPolicy)
                             .request(),
-                    new ActionListener<UpdateResponse>() {
-                        @Override
-                        public void onResponse(UpdateResponse updateResponse) {
-                            if (clearCache) {
-                                clearRealmCache(username, listener, null);
-                            } else {
-                                listener.onResponse(null);
-                            }
+                    listener.<UpdateResponse>delegateFailure((l, updateResponse) -> {
+                        if (clearCache) {
+                            clearRealmCache(username, l, null);
+                        } else {
+                            l.onResponse(null);
                         }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, client::update);
+                    }), client::update);
         });
     }
 
@@ -476,18 +446,8 @@ public class NativeUsersStore {
                         .request();
                 request.setRefreshPolicy(deleteUserRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                    new ActionListener<DeleteResponse>() {
-                        @Override
-                        public void onResponse(DeleteResponse deleteResponse) {
-                            clearRealmCache(deleteUserRequest.username(), listener,
-                                deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, client::delete);
+                    listener.<DeleteResponse>delegateFailure((l, deleteResponse) -> clearRealmCache(deleteUserRequest.username(), l,
+                            deleteResponse.getResult() == DocWriteResponse.Result.DELETED)), client::delete);
             });
         }
     }
@@ -500,12 +460,25 @@ public class NativeUsersStore {
      */
     void verifyPassword(String username, final SecureString password, ActionListener<AuthenticationResult> listener) {
         getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
-            if (userAndPassword == null || userAndPassword.passwordHash() == null) {
+            if (userAndPassword == null) {
+                logger.trace(
+                    "user [{}] does not exist in index [{}], cannot authenticate against the native realm",
+                    username,
+                    securityIndex.aliasName()
+                );
                 listener.onResponse(AuthenticationResult.notHandled());
-            } else if (userAndPassword.verifyPassword(password)) {
-                listener.onResponse(AuthenticationResult.success(userAndPassword.user()));
+            } else if (userAndPassword.passwordHash() == null) {
+                logger.debug("user [{}] in index [{}] does not have a password, cannot authenticate", username, securityIndex.aliasName());
+                listener.onResponse(AuthenticationResult.notHandled());
             } else {
-                listener.onResponse(AuthenticationResult.unsuccessful("Password authentication failed for " + username, null));
+                if (userAndPassword.verifyPassword(password)) {
+                    logger.trace(
+                        "successfully authenticated user [{}] (security index [{}])", userAndPassword, securityIndex.aliasName());
+                    listener.onResponse(AuthenticationResult.success(userAndPassword.user()));
+                } else {
+                    logger.trace("password mismatch for user [{}] (security index [{}])", userAndPassword, securityIndex.aliasName());
+                    listener.onResponse(AuthenticationResult.unsuccessful("Password authentication failed for " + username, null));
+                }
             }
         }, listener::onFailure));
     }
@@ -638,6 +611,7 @@ public class NativeUsersStore {
         final String username = id.substring(USER_DOC_TYPE.length() + 1);
         try {
             String password = (String) sourceMap.get(Fields.PASSWORD.getPreferredName());
+            @SuppressWarnings("unchecked")
             String[] roles = ((List<String>) sourceMap.get(Fields.ROLES.getPreferredName())).toArray(Strings.EMPTY_ARRAY);
             String fullName = (String) sourceMap.get(Fields.FULL_NAME.getPreferredName());
             String email = (String) sourceMap.get(Fields.EMAIL.getPreferredName());
@@ -646,6 +620,7 @@ public class NativeUsersStore {
                 // fallback mechanism as a user from 2.x may not have the enabled field
                 enabled = Boolean.TRUE;
             }
+            @SuppressWarnings("unchecked")
             Map<String, Object> metadata = (Map<String, Object>) sourceMap.get(Fields.METADATA.getPreferredName());
             return new UserAndPassword(new User(username, roles, fullName, email, metadata, enabled), password.toCharArray());
         } catch (Exception e) {

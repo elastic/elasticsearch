@@ -55,15 +55,13 @@ public class DebPreservationTests extends PackagingTestCase {
             installation.config(Paths.get("jvm.options.d", "heap.options"))
         );
 
-        if (distribution().isDefault()) {
-            assertPathsExist(
-                installation.config,
-                installation.config("role_mapping.yml"),
-                installation.config("roles.yml"),
-                installation.config("users"),
-                installation.config("users_roles")
-            );
-        }
+        assertPathsExist(
+            installation.config,
+            installation.config("role_mapping.yml"),
+            installation.config("roles.yml"),
+            installation.config("users"),
+            installation.config("users_roles")
+        );
 
         // keystore was removed
 
@@ -71,10 +69,7 @@ public class DebPreservationTests extends PackagingTestCase {
 
         // doc files were removed
 
-        assertPathsDoNotExist(
-            Paths.get("/usr/share/doc/" + distribution().flavor.name),
-            Paths.get("/usr/share/doc/" + distribution().flavor.name + "/copyright")
-        );
+        assertPathsDoNotExist(Paths.get("/usr/share/doc/elasticsearch"), Paths.get("/usr/share/doc/elasticsearch/copyright"));
 
         // defaults file was not removed
         assertThat(installation.envFile, fileExists());
@@ -83,7 +78,7 @@ public class DebPreservationTests extends PackagingTestCase {
     public void test30Purge() throws Exception {
         append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
 
-        sh.run("dpkg --purge " + distribution().flavor.name);
+        sh.run("dpkg --purge elasticsearch");
 
         assertRemoved(distribution());
 

@@ -18,8 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -221,7 +220,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @return the retention leases
      */
     public RetentionLeases getRetentionLeases() {
-        return getRetentionLeases(false).v2();
+        return getRetentionLeases(false);
     }
 
     /**
@@ -230,11 +229,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * primary shard calculates which leases are expired, and if any have expired, syncs the retention leases to any replicas. If the
      * expire leases parameter is true, this replication tracker must be in primary mode.
      *
-     * @return a tuple indicating whether or not any retention leases were expired, and the non-expired retention leases
+     * @return the non-expired retention leases
      */
-    public synchronized Tuple<Boolean, RetentionLeases> getRetentionLeases(final boolean expireLeases) {
+    public synchronized RetentionLeases getRetentionLeases(final boolean expireLeases) {
         if (expireLeases == false) {
-            return Tuple.tuple(false, retentionLeases);
+            return retentionLeases;
         }
         assert primaryMode;
         // the primary calculates the non-expired retention leases and syncs them to replicas
@@ -267,13 +266,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (expiredLeases == null) {
             // early out as no retention leases have expired
             logger.debug("no retention leases are expired from current retention leases [{}]", retentionLeases);
-            return Tuple.tuple(false, retentionLeases);
+            return retentionLeases;
         }
         final Collection<RetentionLease> nonExpiredLeases =
                 partitionByExpiration.get(false) != null ? partitionByExpiration.get(false) : Collections.emptyList();
         logger.debug("expiring retention leases [{}] from current retention leases [{}]", expiredLeases, retentionLeases);
         retentionLeases = new RetentionLeases(operationPrimaryTerm, retentionLeases.version() + 1, nonExpiredLeases);
-        return Tuple.tuple(true, retentionLeases);
+        return retentionLeases;
     }
 
     private long getMinimumReasonableRetainedSeqNo() {
@@ -779,7 +778,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             "entries blocking global checkpoint advancement during relocation handoff: " + pendingInSync;
 
         // entries blocking global checkpoint advancement can only exist in primary mode and when not having a relocation handoff
-        assert pendingInSync.isEmpty() || (primaryMode && !handoffInProgress);
+        assert pendingInSync.isEmpty() || (primaryMode && handoffInProgress == false);
 
         // the computed global checkpoint is always up-to-date
         assert primaryMode == false

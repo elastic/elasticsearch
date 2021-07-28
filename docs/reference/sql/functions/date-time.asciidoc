@@ -256,15 +256,17 @@ DATE_ADD(
 
 *Input*:
 
-<1> string expression denoting the date/time unit to add to the date/datetime
-<2> integer expression denoting how many times the above unit should be added to/from the date/datetime,
-if a negative value is used it results to a subtraction from the date/datetime
-<3> date/datetime expression
+<1> string expression denoting the date/time unit to add to the date/datetime.
+If `null`, the function returns `null`.
+<2> integer expression denoting how many times the above unit should be added
+to/from the date/datetime, if a negative value is used it results to a
+subtraction from the date/datetime. If `null`, the function returns `null`.
+<3> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: datetime
 
 *Description*: Add the given number of date/time units to a date/datetime. If the number of units is negative then it's subtracted from
-the date/datetime. If any of the three arguments is `null` a `null` is returned.
+the date/datetime.
 
 [WARNING]
 If the second argument is a long there is possibility of truncation since an integer value will be extracted and
@@ -332,15 +334,16 @@ DATE_DIFF(
 
 *Input*:
 
-<1> string expression denoting the date/time unit difference between the following two date/datetime expressions
-<2> start date/datetime expression
-<3> end date/datetime expression
+<1> string expression denoting the date/time unit difference between the
+following two date/datetime expressions. If `null`, the function returns `null`.
+<2> start date/datetime expression. If `null`, the function returns `null`.
+<3> end date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
 *Description*: Subtract the second argument from the third argument and return their difference in multiples of the unit
 specified in the first argument. If the second argument (start) is greater than the third argument (end),
-then negative values are returned. If any of the three arguments is `null`, a `null` is returned.
+then negative values are returned.
 
 [cols="^,^"]
 |===
@@ -417,15 +420,15 @@ DATE_PARSE(
 
 *Input*:
 
-<1> date expression as a string
-<2> parsing pattern
+<1> date expression as a string. If `null` or an empty string, the function
+returns `null`.
+<2> parsing pattern. If `null` or an empty string, the function returns `null`.
 
 *Output*: date
 
 *Description*: Returns a date by parsing the 1st argument using the format specified in the 2nd argument. The parsing
 format pattern used is the one from
 https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
-If any of the two arguments is `null` or an empty string, then `null` is returned.
 
 [NOTE]
 If the parsing pattern does not contain all valid date units (e.g. 'HH:mm:ss', 'dd-MM HH:mm:ss', etc.) an error is returned
@@ -439,7 +442,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateParse1]
 [NOTE]
 ====
 The resulting `date` will have the time zone specified by the user through the 
-<<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
+<<sql-search-api-time-zone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
 with no conversion applied.
 
 [source, sql]
@@ -461,19 +464,18 @@ DATETIME_FORMAT(
 
 *Input*:
 
-<1> date/datetime/time expression
-<2> format pattern
+<1> date/datetime/time expression. If `null`, the function returns `null`.
+<2> format pattern. If `null` or an empty string, the function returns `null`.
 
 *Output*: string
 
 *Description*: Returns the date/datetime/time as a string using the format specified in the 2nd argument. The formatting
 pattern used is the one from
 https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
-If any of the two arguments is `null` or the pattern is an empty string `null` is returned.
 
 [NOTE]
 If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
-(e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned.
+(e.g. 'dd', 'MM', 'yyyy', etc.). If it contains such units an error is returned.
 
 [source, sql]
 --------------------------------------------------
@@ -503,19 +505,19 @@ DATETIME_PARSE(
 
 *Input*:
 
-<1> datetime expression as a string
-<2> parsing pattern
+<1> datetime expression as a string. If `null` or an empty string, the function
+returns `null`.
+<2> parsing pattern. If `null` or an empty string, the function returns `null`.
 
 *Output*: datetime
 
 *Description*: Returns a datetime by parsing the 1st argument using the format specified in the 2nd argument. The parsing
 format pattern used is the one from
 https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
-If any of the two arguments is `null` or an empty string `null` is returned.
 
 
 [NOTE]
-If the parsing pattern contains only date or only time units (e.g. 'dd/MM/uuuu', 'HH:mm:ss', etc.) an error is returned
+If the parsing pattern contains only date or only time units (e.g. 'dd/MM/yyyy', 'HH:mm:ss', etc.) an error is returned
 as the function needs to return a value of `datetime` type which must contain both.
 
 [source, sql]
@@ -531,7 +533,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeParse2]
 [NOTE]
 ====
 If timezone is not specified in the datetime string expression and the parsing pattern, the resulting `datetime` will have the
-time zone specified by the user through the <<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
+time zone specified by the user through the <<sql-search-api-time-zone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
 with no conversion applied.
 
 [source, sql]
@@ -553,18 +555,18 @@ TIME_PARSE(
 
 *Input*:
 
-<1> time expression as a string
-<2> parsing pattern
+<1> time expression as a string. If `null` or an empty string, the function
+returns `null`.
+<2> parsing pattern. If `null` or an empty string, the function returns `null`.
 
 *Output*: time
 
 *Description*: Returns a time by parsing the 1st argument using the format specified in the 2nd argument. The parsing
 format pattern used is the one from
 https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
-If any of the two arguments is `null` or an empty string `null` is returned.
 
 [NOTE]
-If the parsing pattern contains only date units (e.g. 'dd/MM/uuuu') an error is returned
+If the parsing pattern contains only date units (e.g. 'dd/MM/yyyy') an error is returned
 as the function needs to return a value of `time` type which will contain only time.
 
 [source, sql]
@@ -581,7 +583,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse2]
 ====
 If timezone is not specified in the time string expression and the parsing pattern,
 the resulting `time` will have the offset of the time zone specified by the user through the
- <<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver
+ <<sql-search-api-time-zone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver
 parameters at the Unix epoch date (`1970-01-01`) with no conversion applied.
 
 [source, sql]
@@ -603,14 +605,15 @@ DATE_PART(
 
 *Input*:
 
-<1> string expression denoting the unit to extract from the date/datetime
-<2> date/datetime expression
+<1> string expression denoting the unit to extract from the date/datetime. If
+`null`, the function returns `null`.
+<2> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
-*Description*: Extract the specified unit from a date/datetime. If any of the two arguments is `null` a `null` is returned.
-It's similar to <<sql-functions-datetime-extract>> but with different names and aliases for the units and
-provides more options (e.g.: `TZOFFSET`).
+*Description*: Extract the specified unit from a date/datetime. It's similar to
+<<sql-functions-datetime-extract>> but with different names and aliases for the
+units and provides more options (e.g.: `TZOFFSET`).
 
 [cols="^,^"]
 |===
@@ -691,14 +694,17 @@ DATE_TRUNC(
 
 *Input*:
 
-<1> string expression denoting the unit to which the date/datetime/interval should be truncated to
-<2> date/datetime/interval expression
+<1> string expression denoting the unit to which the date/datetime/interval
+should be truncated to. If `null`, the function returns `null`.
+<2> date/datetime/interval expression. If `null`, the function returns `null`.
 
 *Output*: datetime/interval
 
-*Description*: Truncate the date/datetime/interval to the specified unit by setting all fields that are less significant than the specified
-one to zero (or one, for day, day of week and month). If any of the two arguments is `null` a `null` is returned.
-If the first argument is `week` and the second argument is of `interval` type, an error is thrown since the `interval` data type doesn't support a `week` time unit.
+*Description*: Truncate the date/datetime/interval to the specified unit by
+setting all fields that are less significant than the specified one to zero (or
+one, for day, day of week and month). If the first argument is `week` and the
+second argument is of `interval` type, an error is thrown since the `interval`
+data type doesn't support a `week` time unit.
 
 [cols="^,^"]
 |===
@@ -778,16 +784,16 @@ FORMAT(
 
 *Input*:
 
-<1> date/datetime/time expression
-<2> format pattern
+<1> date/datetime/time expression. If `null`, the function returns `null`.
+<2> format pattern. If `null` or an empty string, the function returns `null`.
 
 *Output*: string
 
 *Description*: Returns the date/datetime/time as a string using the
-https://docs.microsoft.com/en-us/sql/t-sql/functions/format-transact-sql#arguments[format] specified in the 2nd argument. The formatting
-pattern used is the one from
-https://docs.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings[Microsoft SQL Server Format Specification].
-If any of the two arguments is `null` or the pattern is an empty string `null` is returned.
+https://docs.microsoft.com/en-us/sql/t-sql/functions/format-transact-sql#arguments[format]
+specified in the 2nd argument. The formatting pattern used is the one from
+https://docs.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings[Microsoft
+SQL Server Format Specification].
 
 [NOTE]
 If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
@@ -829,15 +835,15 @@ TO_CHAR(
 
 *Input*:
 
-<1> date/datetime/time expression
-<2> format pattern
+<1> date/datetime/time expression. If `null`, the function returns `null`.
+<2> format pattern. If `null` or an empty string, the function returns `null`.
 
 *Output*: string
 
-*Description*: Returns the date/datetime/time as a string using the format specified in the 2nd argument. The formatting
-pattern conforms to
-https://www.postgresql.org/docs/13/functions-formatting.html[PostgreSQL Template Patterns for Date/Time Formatting].
-If any of the two arguments is `null` or the pattern is an empty string `null` is returned.
+*Description*: Returns the date/datetime/time as a string using the format
+specified in the 2nd argument. The formatting pattern conforms to
+https://www.postgresql.org/docs/13/functions-formatting.html[PostgreSQL Template
+Patterns for Date/Time Formatting].
 
 [NOTE]
 If the 1st argument is of type `time`, then the pattern specified by the 2nd argument cannot contain date related units
@@ -875,7 +881,7 @@ DAY_OF_MONTH(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -897,7 +903,7 @@ DAY_OF_WEEK(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -919,7 +925,7 @@ DAY_OF_YEAR(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -941,7 +947,7 @@ DAY_NAME(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -963,7 +969,7 @@ HOUR_OF_DAY(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -985,7 +991,7 @@ ISO_DAY_OF_WEEK(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1008,7 +1014,7 @@ ISO_WEEK_OF_YEAR(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1031,7 +1037,7 @@ MINUTE_OF_DAY(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1053,7 +1059,7 @@ MINUTE_OF_HOUR(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1075,7 +1081,7 @@ MONTH(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1097,7 +1103,7 @@ MONTH_NAME(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -1149,7 +1155,7 @@ SECOND_OF_MINUTE(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1171,7 +1177,7 @@ QUARTER(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1223,7 +1229,7 @@ WEEK_OF_YEAR(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1245,7 +1251,7 @@ YEAR(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 

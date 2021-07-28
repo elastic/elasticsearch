@@ -199,4 +199,13 @@ public class ScriptTests extends ESTestCase {
         );
         assertEquals("Value must be of type Map: [params]", exc.getMessage());
     }
+
+    public void testDynamicMapToString() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("long", 1L);
+        map.put("string", "value");
+        DynamicMap dm = new DynamicMap(map, Collections.emptyMap());
+        assertTrue(dm.toString().contains("string=value"));
+        assertTrue(dm.toString().contains("long=1"));
+    }
 }

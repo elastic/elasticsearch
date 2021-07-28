@@ -1,15 +1,11 @@
 import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  javaRestTestImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
-
-// let the javaRestTest see the classpath of main
-GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))
-
 
 File repoDir = file("$buildDir/testclusters/repo")
 
@@ -24,6 +20,7 @@ testClusters.all {
   numberOfNodes = 4
 
   setting 'path.repo', repoDir.absolutePath
+  setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'

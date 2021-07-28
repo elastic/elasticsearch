@@ -1,6 +1,6 @@
 [[discovery-settings]]
 [discrete]
-=== Discovery and cluster formation settings
+==== Discovery and cluster formation settings
 
 Configure two important discovery and cluster formation settings before going
 to production so that nodes in the cluster can discover each other and elect a
@@ -8,7 +8,7 @@ master node.
 
 [discrete]
 [[unicast.hosts]]
-==== `discovery.seed_hosts`
+===== `discovery.seed_hosts`
 
 Out of the box, without any network configuration, {es} will bind to
 the available loopback addresses and scan local ports `9300` to `9305` to
@@ -44,7 +44,7 @@ dynamically.
 
 [discrete]
 [[initial_master_nodes]]
-==== `cluster.initial_master_nodes`
+===== `cluster.initial_master_nodes`
 
 When you start an {es} cluster for the first time, a
 <<modules-discovery-bootstrap-cluster,cluster bootstrapping>> step

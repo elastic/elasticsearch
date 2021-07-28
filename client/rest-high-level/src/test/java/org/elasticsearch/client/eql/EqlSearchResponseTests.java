@@ -11,17 +11,23 @@ package org.elasticsearch.client.eql;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -83,13 +89,46 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
             hits = new ArrayList<>();
             for (int i = 0; i < size; i++) {
                 BytesReference bytes = new RandomSource(() -> randomAlphaOfLength(10)).toBytes(xType);
-                hits.add(new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event(String.valueOf(i), randomAlphaOfLength(10), bytes));
+                Map<String, DocumentField> fetchFields = new HashMap<>();
+                int fieldsCount = randomIntBetween(0, 5);
+                for (int j = 0; j < fieldsCount; j++) {
+                    fetchFields.put(randomAlphaOfLength(10), randomDocumentField(xType).v1());
+                }
+                if (fetchFields.isEmpty() && randomBoolean()) {
+                    fetchFields = null;
+                }
+                hits.add(new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event(String.valueOf(i), randomAlphaOfLength(10), bytes,
+                    fetchFields));
             }
         }
         if (randomBoolean()) {
             return null;
         }
         return hits;
+    }
+
+    private static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xType) {
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                String fieldName = randomAlphaOfLengthBetween(3, 10);
+                Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xType);
+                DocumentField input = new DocumentField(fieldName, tuple.v1());
+                DocumentField expected = new DocumentField(fieldName, tuple.v2());
+                return Tuple.tuple(input, expected);
+            case 1:
+                List<Object> listValues = randomList(1, 5, () -> randomList(1, 5, ESTestCase::randomInt));
+                DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
+                return Tuple.tuple(listField, listField);
+            case 2:
+                List<Object> objectValues = randomList(1, 5, () ->
+                    Map.of(randomAlphaOfLength(5), randomInt(),
+                        randomAlphaOfLength(5), randomBoolean(),
+                        randomAlphaOfLength(5), randomAlphaOfLength(10)));
+                DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
+                return Tuple.tuple(objectField, objectField);
+            default:
+                throw new IllegalStateException();
+        }
     }
 
     public static org.elasticsearch.xpack.eql.action.EqlSearchResponse createRandomEventsResponse(TotalHits totalHits, XContentType xType) {

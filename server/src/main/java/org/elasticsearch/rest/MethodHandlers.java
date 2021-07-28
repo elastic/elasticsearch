@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,28 +20,30 @@ import java.util.Set;
 final class MethodHandlers {
 
     private final String path;
-    private final Map<RestRequest.Method, Map<RestApiCompatibleVersion, RestHandler>> methodHandlers;
+    private final Map<RestRequest.Method, Map<RestApiVersion, RestHandler>> methodHandlers;
 
-    MethodHandlers(String path, RestHandler handler, RestRequest.Method... methods) {
+    MethodHandlers(String path) {
         this.path = path;
-        this.methodHandlers = new HashMap<>(methods.length);
-        for (RestRequest.Method method : methods) {
-            methodHandlers.computeIfAbsent(method, k -> new HashMap<>())
-                .put(handler.compatibleWithVersion(), handler);
-        }
+
+        // by setting the loadFactor to 1, these maps are resized only when they *must* be, and the vast majority of these
+        // maps contain only 1 or 2 entries anyway, so most of these maps are never resized at all and waste only 1 or 0
+        // array references, while those few that contain 3 or 4 elements will have been resized just once and will still
+        // waste only 1 or 0 array references
+        this.methodHandlers = new HashMap<>(2, 1);
     }
 
     /**
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.
      */
-    MethodHandlers addMethods(RestHandler handler, RestRequest.Method... methods) {
-        for (RestRequest.Method method : methods) {
-            RestHandler existing = methodHandlers.computeIfAbsent(method, k -> new HashMap<>())
-                .putIfAbsent(handler.compatibleWithVersion(), handler);
-            if (existing != null) {
-                throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
-            }
+    MethodHandlers addMethod(RestRequest.Method method, RestApiVersion version, RestHandler handler) {
+        RestHandler existing = methodHandlers
+            // same sizing notes as 'methodHandlers' above, except that having a size here that's more than 1 is vanishingly
+            // rare, so an initialCapacity of 1 with a loadFactor of 1 is perfect
+            .computeIfAbsent(method, k -> new HashMap<>(1, 1))
+            .putIfAbsent(version, handler);
+        if (existing != null) {
+            throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
         }
         return this;
     }
@@ -54,14 +56,13 @@ final class MethodHandlers {
      * (as opposed to non-compatible/breaking)
      * or {@code null} if none exists.
      */
-    RestHandler getHandler(RestRequest.Method method, RestApiCompatibleVersion version) {
-        Map<RestApiCompatibleVersion, RestHandler> versionToHandlers = methodHandlers.get(method);
+    RestHandler getHandler(RestRequest.Method method, RestApiVersion version) {
+        Map<RestApiVersion, RestHandler> versionToHandlers = methodHandlers.get(method);
         if (versionToHandlers == null) {
             return null; //method not found
         }
         final RestHandler handler = versionToHandlers.get(version);
-        return handler == null ? versionToHandlers.get(RestApiCompatibleVersion.currentVersion()) : handler;
-
+        return handler == null ? versionToHandlers.get(RestApiVersion.current()) : handler;
     }
 
     /**

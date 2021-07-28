@@ -30,6 +30,21 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         });
     }
 
+    public void testDefNullPointer() {
+        NullPointerException npe = expectScriptThrows(NullPointerException.class, () -> {
+            exec("def x = null; x.intValue(); return null;");
+        });
+        assertEquals(npe.getMessage(), "cannot access method/field [intValue] from a null def reference");
+        npe = expectScriptThrows(NullPointerException.class, () -> {
+            exec("def x = [1, null]; for (y in x) y.intValue(); return null;");
+        });
+        assertEquals(npe.getMessage(), "cannot access method/field [intValue] from a null def reference");
+        npe = expectScriptThrows(NullPointerException.class, () -> {
+            exec("def x = [1, 2L, 3.0, 'test', (byte)1, (short)1, (char)1, null]; for (y in x) y.toString(); return null;");
+        });
+        assertEquals(npe.getMessage(), "cannot access method/field [toString] from a null def reference");
+    }
+
     /**
      * Test that the scriptStack looks good. By implication this tests that we build proper "line numbers" in stack trace. These line
      * numbers are really 1 based character numbers.

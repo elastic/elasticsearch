@@ -31,14 +31,14 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.index.IndexWarmer.TerminationHandle;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -124,6 +124,10 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         }
         final IndexReader.CacheKey coreCacheReader = cacheHelper.getKey();
         final ShardId shardId = ShardUtils.extractShardId(context.reader());
+        if (shardId == null) {
+            throw new IllegalStateException("Null shardId. If you got here from a test, you need to wrap the directory reader. " +
+                "see for example AggregatorTestCase#wrapInMockESDirectoryReader.  If you got here in production, please file a bug.");
+        }
         if (indexSettings.getIndex().equals(shardId.getIndex()) == false) {
             // insanity
             throw new IllegalStateException("Trying to load bit set for index " + shardId.getIndex()
@@ -228,7 +232,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
             MappingLookup lookup = mapperService.mappingLookup();
             if (lookup.hasNested()) {
                 warmUp.add(Queries.newNonNestedFilter());
-                lookup.getNestedParentMappers().stream().map(ObjectMapper::nestedTypeFilter).forEach(warmUp::add);
+                lookup.getNestedParentMappers().stream().map(NestedObjectMapper::nestedTypeFilter).forEach(warmUp::add);
             }
 
             final CountDownLatch latch = new CountDownLatch(reader.leaves().size() * warmUp.size());

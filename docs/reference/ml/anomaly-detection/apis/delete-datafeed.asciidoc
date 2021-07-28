@@ -18,11 +18,10 @@ Deletes an existing {dfeed}.
 [[ml-delete-datafeed-prereqs]]
 == {api-prereq-title}
 
+* Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 * Unless you use the `force` parameter, you must stop the {dfeed} before you
 can delete it.
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
 
 [[ml-delete-datafeed-path-parms]]
 == {api-path-parms-title}

@@ -10,7 +10,7 @@ package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -33,6 +33,7 @@ import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -195,6 +196,17 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         }
     }
 
+    public void testExtractValueMixedDottedObjectNotation() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+            .startObject("foo").field("cat", "meow").endObject()
+            .field("foo.cat", "miau")
+            .endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+            Map<String, Object> map = parser.map();
+            assertThat((List<?>) XContentMapValues.extractValue("foo.cat", map), containsInAnyOrder("meow", "miau"));
+        }
+    }
+
     public void testExtractRawValue() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .field("test", "value")
@@ -205,7 +217,6 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractRawValues("test", map).get(0).toString(), equalTo("value"));
-        assertThat(XContentMapValues.extractRawValues("test.dummy", map), contains("value"));
 
         builder = XContentFactory.jsonBuilder().startObject()
                 .field("test.me", "value")
@@ -288,6 +299,16 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
                 Map<String, Object> map = parser.map();
                 assertThat(XContentMapValues.extractRawValues("foo.bar", map), Matchers.containsInAnyOrder("meow", "baz"));
+            }
+        }
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .field("foo", "bar")
+                .field("foo.subfoo", "baz")
+                .endObject();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+                assertThat(XContentMapValues.extractRawValues("foo.subfoo", parser.map()),
+                    containsInAnyOrder("baz"));
             }
         }
     }
@@ -658,5 +679,51 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     private static Map<String, Object> toMap(Builder test, XContentType xContentType, boolean humanReadable) throws IOException {
         ToXContentObject toXContent = (builder, params) -> test.apply(builder);
         return convertToMap(toXContent(toXContent, xContentType, humanReadable), true, xContentType).v2();
+    }
+
+    public void testExtractSingleNestedSource() {
+        Map<String, Object> map = Map.of("nested", Map.of("field", "nested1"));
+        List<Map<?, ?>> nestedSources = XContentMapValues.extractNestedSources("nested", map);
+        assertThat(nestedSources, contains(Map.of("field", "nested1")));
+    }
+
+    public void testExtractFlatArrayNestedSource() {
+        Map<String, Object> map = Map.of("nested", List.of(
+            Map.of("field", "nested1"),
+            Map.of("field", "nested2")));
+        List<Map<?, ?>> nestedSources = XContentMapValues.extractNestedSources("nested", map);
+        assertThat(nestedSources, containsInAnyOrder(
+            Map.of("field", "nested1"),
+            Map.of("field", "nested2")));
+    }
+
+    public void testNonExistentNestedSource() {
+        assertNull(XContentMapValues.extractNestedSources("nested", Map.of("foo", "bar")));
+    }
+
+    public void testNestedSourceIsBadlyFormed() {
+        Exception e = expectThrows(IllegalStateException.class,
+            () -> XContentMapValues.extractNestedSources("nested", Map.of("nested", "foo")));
+        assertThat(e.getMessage(), equalTo("Cannot extract nested source from path [nested]: got [foo]"));
+    }
+
+    public void testExtractNestedSources() {
+        Map<String, Object> map = Map.of(
+            "obj.ect", List.of(
+                Map.of("nested", List.of(Map.of("field", "nested1"), Map.of("field", "nested2"))),
+                Map.of("nested", List.of(Map.of("field", "nested3")))
+            ),
+            "obj", List.of(Map.of("ect", Map.of("nested", List.of(
+                Map.of("field", "nested4"), Map.of("field", "nested5"))
+            )))
+        );
+        List<Map<?, ?>> nestedSources = XContentMapValues.extractNestedSources("obj.ect.nested", map);
+        assertThat(nestedSources, containsInAnyOrder(
+            Map.of("field", "nested1"),
+            Map.of("field", "nested2"),
+            Map.of("field", "nested3"),
+            Map.of("field", "nested4"),
+            Map.of("field", "nested5")
+        ));
     }
 }

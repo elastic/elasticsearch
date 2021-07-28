@@ -11,7 +11,7 @@ data, such as logs, metrics, and traces.
 
 [discrete]
 [[eql-advantages]]
-== Advantages of EQL
+=== Advantages of EQL
 
 * *EQL lets you express relationships between events.* +
 Many query languages allow you to match single events. EQL lets you match a
@@ -29,7 +29,7 @@ describe activity that goes beyond IOCs.
 
 [discrete]
 [[eql-required-fields]]
-== Required fields
+=== Required fields
 
 To run an EQL search, the searched data stream or index must contain a
 _timestamp_ and _event category_ field. By default, EQL uses the `@timestamp`
@@ -43,16 +43,23 @@ default.
 
 [discrete]
 [[run-an-eql-search]]
-== Run an EQL search
+=== Run an EQL search
 
 Use the <<eql-search-api,EQL search API>> to run a <<eql-basic-syntax,basic EQL
-query>>. If the {es} {security-features} are enabled, you must have the `read`
-<<privileges-list-indices,index privilege>> for the target data stream, index,
-or index alias.
+query>>.
+
+////
+[source,console]
+----
+DELETE /_data_stream/*
+DELETE /_index_template/*
+----
+// TEARDOWN
+////
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     process where process.name == "regsvr32.exe"
@@ -79,7 +86,7 @@ milliseconds since the {wikipedia}/Unix_time[Unix epoch], in ascending order.
     },
     "events": [
       {
-        "_index": "my-index-000001",
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
         "_id": "OQmfCaduce8zoHT93o4H",
         "_source": {
           "@timestamp": "2099-12-07T11:07:09.000Z",
@@ -97,7 +104,7 @@ milliseconds since the {wikipedia}/Unix_time[Unix epoch], in ascending order.
         }
       },
       {
-        "_index": "my-index-000001",
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
         "_id": "xLkCaj4EujzdNSxfYLbO",
         "_source": {
           "@timestamp": "2099-12-07T11:07:10.000Z",
@@ -119,6 +126,7 @@ milliseconds since the {wikipedia}/Unix_time[Unix epoch], in ascending order.
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
 // TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
 // TESTRESPONSE[s/"_id": "xLkCaj4EujzdNSxfYLbO"/"_id": $body.hits.events.1._id/]
 
@@ -126,7 +134,7 @@ Use the `size` parameter to get a smaller or larger set of hits:
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     process where process.name == "regsvr32.exe"
@@ -135,49 +143,6 @@ GET /my-index-000001/_eql/search
 }
 ----
 // TEST[setup:sec_logs]
-
-Use the <<common-options-response-filtering,`filter_path`>> query parameter to
-filter the API response. For example, the following search returns only the
-timestamp and PID for each matching event.
-
-[source,console]
-----
-GET /my-index-000001/_eql/search?filter_path=hits.events._source.@timestamp,hits.events._source.process.pid
-{
-  "query": """
-    process where process.name == "regsvr32.exe"
-  """
-}
-----
-// TEST[setup:sec_logs]
-
-The API returns the following response.
-
-[source,console-result]
-----
-{
-  "hits" : {
-    "events" : [
-      {
-        "_source" : {
-          "@timestamp" : "2099-12-07T11:07:09.000Z",
-          "process" : {
-            "pid" : 2012
-          }
-        }
-      },
-      {
-        "_source" : {
-          "@timestamp" : "2099-12-07T11:07:10.000Z",
-          "process" : {
-            "pid" : 2012
-          }
-        }
-      }
-    ]
-  }
-}
-----
 
 [discrete]
 [[eql-search-sequence]]
@@ -189,7 +154,7 @@ with the most recent event listed last:
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     sequence
@@ -206,20 +171,14 @@ sequences.
 [source,console-result]
 ----
 {
-  "is_partial": false,
-  "is_running": false,
-  "took": 60,
-  "timed_out": false,
+  ...
   "hits": {
-    "total": {
-      "value": 1,
-      "relation": "eq"
-    },
+    "total": ...,
     "sequences": [
       {
         "events": [
           {
-            "_index": "my-index-000001",
+            "_index": ".ds-my-data-stream-2099.12.07-000001",
             "_id": "OQmfCaduce8zoHT93o4H",
             "_source": {
               "@timestamp": "2099-12-07T11:07:09.000Z",
@@ -237,7 +196,7 @@ sequences.
             }
           },
           {
-            "_index": "my-index-000001",
+            "_index": ".ds-my-data-stream-2099.12.07-000001",
             "_id": "yDwnGIJouOYGBzP0ZE9n",
             "_source": {
               "@timestamp": "2099-12-07T11:07:10.000Z",
@@ -263,7 +222,9 @@ sequences.
   }
 }
 ----
-// TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+// TESTRESPONSE[s/"total": \.\.\.,/"total": { "value": 1, "relation": "eq" },/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.sequences.0.events.0._index/]
 // TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.0._id/]
 // TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
 
@@ -272,7 +233,7 @@ matching sequences to a timespan:
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     sequence with maxspan=1h
@@ -288,7 +249,7 @@ same field values:
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     sequence with maxspan=1h
@@ -304,7 +265,7 @@ keyword. The following query is equivalent to the previous one.
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     sequence by process.pid with maxspan=1h
@@ -320,76 +281,29 @@ The `hits.sequences.join_keys` property contains the shared field values.
 [source,console-result]
 ----
 {
-  "is_partial": false,
-  "is_running": false,
-  "took": 60,
-  "timed_out": false,
-  "hits": {
-    "total": {
-      "value": 1,
-      "relation": "eq"
-    },
+  ...
+  "hits": ...,
     "sequences": [
       {
         "join_keys": [
           2012
         ],
-        "events": [
-          {
-            "_index": "my-index-000001",
-            "_id": "OQmfCaduce8zoHT93o4H",
-            "_source": {
-              "@timestamp": "2099-12-07T11:07:09.000Z",
-              "event": {
-                "category": "process",
-                "id": "aR3NWVOs",
-                "sequence": 4
-              },
-              "process": {
-                "pid": 2012,
-                "name": "regsvr32.exe",
-                "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll",
-                "executable": "C:\\Windows\\System32\\regsvr32.exe"
-              }
-            }
-          },
-          {
-            "_index": "my-index-000001",
-            "_id": "yDwnGIJouOYGBzP0ZE9n",
-            "_source": {
-              "@timestamp": "2099-12-07T11:07:10.000Z",
-              "event": {
-                "category": "file",
-                "id": "tZ1NWVOs",
-                "sequence": 5
-              },
-              "process": {
-                "pid": 2012,
-                "name": "regsvr32.exe",
-                "executable": "C:\\Windows\\System32\\regsvr32.exe"
-              },
-              "file": {
-                "path": "C:\\Windows\\System32\\scrobj.dll",
-                "name": "scrobj.dll"
-              }
-            }
-          }
-        ]
+        "events": ...
       }
     ]
   }
 }
 ----
-// TESTRESPONSE[s/"took": 60/"took": $body.took/]
-// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.0._id/]
-// TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
+// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+// TESTRESPONSE[s/"hits": \.\.\.,/"hits": { "total": { "value": 1, "relation": "eq" },/]
+// TESTRESPONSE[s/"events": \.\.\./"events": $body.hits.sequences.0.events/]
 
 Use the <<eql-until-keyword,`until` keyword>> to specify an expiration
 event for sequences. Matching sequences must end before this event.
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     sequence by process.pid with maxspan=1h
@@ -402,6 +316,204 @@ GET /my-index-000001/_eql/search
 // TEST[setup:sec_logs]
 
 [discrete]
+[[retrieve-selected-fields]]
+=== Retrieve selected fields
+
+By default, each hit in the search response includes the document `_source`,
+which is the entire JSON object that was provided when indexing the document.
+
+You can use the <<common-options-response-filtering,`filter_path`>> query
+parameter to filter the API response. For example, the following search returns
+only the timestamp and PID from the `_source` of each matching event.
+
+[source,console]
+----
+GET /my-data-stream/_eql/search?filter_path=hits.events._source.@timestamp,hits.events._source.process.pid
+{
+  "query": """
+    process where process.name == "regsvr32.exe"
+  """
+}
+----
+// TEST[setup:sec_logs]
+
+The API returns the following response.
+
+[source,console-result]
+----
+{
+  "hits": {
+    "events": [
+      {
+        "_source": {
+          "@timestamp": "2099-12-07T11:07:09.000Z",
+          "process": {
+            "pid": 2012
+          }
+        }
+      },
+      {
+        "_source": {
+          "@timestamp": "2099-12-07T11:07:10.000Z",
+          "process": {
+            "pid": 2012
+          }
+        }
+      }
+    ]
+  }
+}
+----
+
+You can also use the `fields` parameter to retrieve and format specific fields
+in the response. This field is identical to the search API's
+<<search-fields,`fields` parameter>>.
+
+include::{es-repo-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-desc]
+
+The following search request uses the `fields` parameter to retrieve values for
+the `event.type` field, all fields starting with `process.`, and the
+`@timestamp` field. The request also uses the `filter_path` query parameter to
+exclude the `_source` of each hit.
+
+[source,console]
+----
+GET /my-data-stream/_eql/search?filter_path=-hits.events._source
+{
+  "query": """
+    process where process.name == "regsvr32.exe"
+  """,
+  "fields": [
+    "event.type",
+    "process.*",                <1>
+    {
+      "field": "@timestamp",
+      "format": "epoch_millis"  <2>
+    }
+  ]
+}
+----
+// TEST[setup:sec_logs]
+
+include::{es-repo-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-callouts]
+
+The response includes values as a flat list in the `fields` section for each
+hit.
+
+[source,console-result]
+----
+{
+  ...
+  "hits": {
+    "total": ...,
+    "events": [
+      {
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
+        "_id": "OQmfCaduce8zoHT93o4H",
+        "fields": {
+          "process.name": [
+            "regsvr32.exe"
+          ],
+          "process.name.keyword": [
+            "regsvr32.exe"
+          ],
+          "@timestamp": [
+            "4100324829000"
+          ],
+          "process.command_line": [
+            "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll"
+          ],
+          "process.command_line.keyword": [
+            "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll"
+          ],
+          "process.executable.keyword": [
+            "C:\\Windows\\System32\\regsvr32.exe"
+          ],
+          "process.pid": [
+            2012
+          ],
+          "process.executable": [
+            "C:\\Windows\\System32\\regsvr32.exe"
+          ]
+        }
+      },
+      ....
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+// TESTRESPONSE[s/"total": \.\.\.,/"total": { "value": 2, "relation": "eq" },/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
+// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
+// TESTRESPONSE[s/      \.\.\.\.\n/$body.hits.events.1/]
+
+[discrete]
+[[eql-use-runtime-fields]]
+=== Use runtime fields
+
+Use the `runtime_mappings` parameter to extract and create <<runtime,runtime
+fields>> during a search. Use the `fields` parameter to include runtime fields
+in the response.
+
+The following search creates a `day_of_week` runtime field from the `@timestamp`
+and returns it in the response.
+
+[source,console]
+----
+GET /my-data-stream/_eql/search?filter_path=-hits.events._source
+{
+  "runtime_mappings": {
+    "day_of_week": {
+      "type": "keyword",
+      "script": "emit(doc['@timestamp'].value.dayOfWeekEnum.toString())"
+    }
+  },
+  "query": """
+    process where process.name == "regsvr32.exe"
+  """,
+  "fields": [
+    "@timestamp",
+    "day_of_week"
+  ]
+}
+----
+// TEST[setup:sec_logs]
+
+The API returns:
+
+[source,console-result]
+----
+{
+  ...
+  "hits": {
+    "total": ...,
+    "events": [
+      {
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
+        "_id": "OQmfCaduce8zoHT93o4H",
+        "fields": {
+          "@timestamp": [
+            "2099-12-07T11:07:09.000Z"
+          ],
+          "day_of_week": [
+            "MONDAY"
+          ]
+        }
+      },
+      ....
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+// TESTRESPONSE[s/"total": \.\.\.,/"total": { "value": 2, "relation": "eq" },/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
+// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
+// TESTRESPONSE[s/      \.\.\.\.\n/$body.hits.events.1/]
+
+
+[discrete]
 [[specify-a-timestamp-or-event-category-field]]
 === Specify a timestamp or event category field
 
@@ -411,7 +523,7 @@ The EQL search API uses the `@timestamp` and `event.category` fields from the
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "timestamp_field": "file.accessed",
   "event_category_field": "file.type",
@@ -438,15 +550,15 @@ the events in ascending order. {es} orders events with no
 tiebreaker value after events with a value.
 
 If you don't specify a tiebreaker field or the events also share the same
-tiebreaker value, {es} considers the events concurrent. Concurrent events cannot
-be part of the same sequence and may not be returned in a consistent sort order.
+tiebreaker value, {es} considers the events concurrent and may
+not return them in a consistent sort order.
 
 To specify a tiebreaker field, use the `tiebreaker_field` parameter. If you use
 the {ecs-ref}[ECS], we recommend using `event.sequence` as the tiebreaker field.
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "tiebreaker_field": "event.sequence",
   "query": """
@@ -458,20 +570,20 @@ GET /my-index-000001/_eql/search
 
 [discrete]
 [[eql-search-filter-query-dsl]]
-=== Filter using query DSL
+=== Filter using Query DSL
 
-The `filter` parameter uses <<query-dsl,query DSL>> to limit the documents on
+The `filter` parameter uses <<query-dsl,Query DSL>> to limit the documents on
 which an EQL query runs.
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "filter": {
-    "range" : {
-      "file.size" : {
-        "gte" : 1,
-        "lte" : 1000000
+    "range": {
+      "@timestamp": {
+        "gte": "now-1d/d",
+        "lt": "now/d"
       }
     }
   },
@@ -488,16 +600,14 @@ GET /my-index-000001/_eql/search
 
 By default, EQL search requests are synchronous and wait for complete results
 before returning a response. However, complete results can take longer for
-searches across <<frozen-indices,frozen indices>> or
-<<modules-cross-cluster-search,multiple clusters>>.
+searches across large data sets or <<data-tiers,frozen>> data.
 
-To avoid long waits, run an async EQL search. Set the
-`wait_for_completion_timeout` parameter to a duration you'd like to wait for
-synchronous results.
+To avoid long waits, run an async EQL search. Set `wait_for_completion_timeout`
+to a duration you'd like to wait for synchronous results.
 
 [source,console]
 ----
-GET /frozen-my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "wait_for_completion_timeout": "2s",
   "query": """
@@ -506,7 +616,6 @@ GET /frozen-my-index-000001/_eql/search
 }
 ----
 // TEST[setup:sec_logs]
-// TEST[s/frozen-my-index-000001/my-index-000001/]
 
 If the request doesn't finish within the timeout period, the search becomes async
 and returns a response that includes:
@@ -538,10 +647,7 @@ requests.
 
 To check the progress of an async search, use the <<get-async-eql-search-api,get
 async EQL search API>> with the search ID. Specify how long you'd like for
-complete results in the `wait_for_completion_timeout` parameter. If the {es}
-{security-features} are enabled, only the user who first submitted the EQL
-search can retrieve the search using this API.
-
+complete results in the `wait_for_completion_timeout` parameter.
 [source,console]
 ----
 GET /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?wait_for_completion_timeout=2s
@@ -567,6 +673,28 @@ complete.
 // TESTRESPONSE[s/"took": 2000/"took": $body.took/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
+Another more lightweight way to check the progress of an async search is to use
+the <<get-async-eql-status-api,get async EQL status API>> with the search ID.
+
+[source,console]
+----
+GET /_eql/search/status/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=
+----
+// TEST[skip: no access to search ID]
+
+[source,console-result]
+----
+{
+  "id": "FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=",
+  "is_running": false,
+  "is_partial": false,
+  "expiration_time_in_millis": 1611690295000,
+  "completion_status": 200
+}
+----
+// TESTRESPONSE[s/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=/$body.id/]
+// TESTRESPONSE[s/"expiration_time_in_millis": 1611690295000/"expiration_time_in_millis": $body.expiration_time_in_millis/]
+
 [discrete]
 [[eql-search-store-async-eql-search]]
 === Change the search retention period
@@ -577,7 +705,7 @@ parameter to change this retention period:
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "keep_alive": "2d",
   "wait_for_completion_timeout": "2s",
@@ -600,13 +728,11 @@ GET /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTo
 
 Use the <<delete-async-eql-search-api,delete async EQL search API>> to
 manually delete an async EQL search before the `keep_alive` period ends. If the
-search is still ongoing, {es} cancels the search request. If the {es}
-{security-features} are enabled, only the user who first submitted the EQL
-search can delete the search using this API.
+search is still ongoing, {es} cancels the search request.
 
 [source,console]
 ----
-DELETE /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?keep_alive=5d
+DELETE /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=
 ----
 // TEST[skip: no access to search ID]
 
@@ -619,7 +745,7 @@ search, set `keep_on_completion` to `true`:
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "keep_on_completion": true,
   "wait_for_completion_timeout": "2s",
@@ -660,8 +786,104 @@ GET /_eql/search/FjlmbndxNmJjU0RPdExBTGg0elNOOEEaQk9xSjJBQzBRMldZa1VVQ2pPa01YUTo
 Saved synchronous searches are still subject to the `keep_alive` parameter's
 retention period. When this period ends, the search and its results are deleted.
 
+You can also check only the status of the saved synchronous search without
+results by using <<get-async-eql-status-api,get async EQL status API>>.
+
 You can also manually delete saved synchronous searches using the
 <<delete-async-eql-search-api,delete async EQL search API>>.
+
+[discrete]
+[[run-eql-search-across-clusters]]
+=== Run an EQL search across clusters
+
+experimental::[]
+
+The EQL search API supports <<modules-cross-cluster-search,cross-cluster
+search>>. However, the local and <<modules-remote-clusters,remote clusters>>
+must use the same {es} version.
+
+The following <<cluster-update-settings,update cluster settings>> request
+adds two remote clusters: `cluster_one` and `cluster_two`.
+
+[source,console]
+----
+PUT /_cluster/settings
+{
+  "persistent": {
+    "cluster": {
+      "remote": {
+        "cluster_one": {
+          "seeds": [
+            "127.0.0.1:9300"
+          ]
+        },
+        "cluster_two": {
+          "seeds": [
+            "127.0.0.1:9301"
+          ]
+        }
+      }
+    }
+  }
+}
+----
+// TEST[setup:host]
+// TEST[s/127.0.0.1:930\d+/\${transport_host}/]
+
+To target a data stream or index on a remote cluster, use the
+`<cluster>:<target>` syntax.
+
+[source,console]
+----
+GET /cluster_one:my-data-stream,cluster_two:my-data-stream/_eql/search
+{
+  "query": """
+    process where process.name == "regsvr32.exe"
+  """
+}
+----
+// TEST[continued]
+// TEST[setup:sec_logs]
+// TEST[teardown:data_stream_cleanup]
+
+[discrete]
+[[eql-circuit-breaker]]
+=== EQL circuit breaker settings
+
+When a <<eql-sequences, sequence>> query is executed, the node handling the query
+needs to keep some structures in memory, which are needed by the algorithm
+implementing the sequence matching. When large amounts of data need to be processed,
+and/or a large amount of matched sequences is requested by the user (by setting the
+<<eql-search-api-params-size, size>> query param), the memory occupied by those
+structures could potentially exceed the available memory of the JVM. This would cause
+an `OutOfMemory` exception which would bring down the node.
+
+To prevent this from happening, a special <<circuit-breaker, circuit breaker>> is used,
+which limits the memory allocation during the execution of a <<eql-sequences, sequence>>
+query. When the breaker is triggered, an `org.elasticsearch.common.breaker.CircuitBreakingException`
+is thrown and a descriptive error message is returned to the user.
+
+This <<circuit-breaker, circuit breaker>> can be configured using the following settings:
+
+`breaker.eql_sequence.limit`::
+(<<cluster-update-settings,Dynamic>>) The limit for circuit breaker used to restrict
+the memory utilisation during the execution of an EQL sequence query. This value is
+defined as a percentage of the JVM heap. Defaults to `50%`. If the
+<<parent-circuit-breaker,parent circuit breaker>> is set to a value less than `50%`,
+this setting uses that value as its default instead.
+
+`breaker.eql_sequence.overhead`::
+(<<cluster-update-settings,Dynamic>>) A constant that sequence query memory
+estimates are multiplied by to determine a final estimate. Defaults to `1`.
+
+`breaker.eql_sequence.type`::
+(<<static-cluster-setting,Static>>) Circuit breaker type. Valid values are:
+
+`memory` (Default):::
+The breaker limits memory usage for EQL sequence queries.
+
+`noop`:::
+Disables the breaker.
 
 include::syntax.asciidoc[]
 include::functions.asciidoc[]

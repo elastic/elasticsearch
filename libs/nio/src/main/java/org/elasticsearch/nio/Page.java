@@ -8,12 +8,13 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.AbstractRefCounted;
 
-import java.io.Closeable;
 import java.nio.ByteBuffer;
 
-public class Page implements Closeable {
+public class Page implements Releasable {
 
     private final ByteBuffer byteBuffer;
     // This is reference counted as some implementations want to retain the byte pages by calling
@@ -22,15 +23,12 @@ public class Page implements Closeable {
     // released.
     private final RefCountedCloseable refCountedCloseable;
 
-    public Page(ByteBuffer byteBuffer) {
-        this(byteBuffer, () -> {});
-    }
-
-    public Page(ByteBuffer byteBuffer, Runnable closeable) {
+    public Page(ByteBuffer byteBuffer, Releasable closeable) {
         this(byteBuffer, new RefCountedCloseable(closeable));
     }
 
     private Page(ByteBuffer byteBuffer, RefCountedCloseable refCountedCloseable) {
+        assert refCountedCloseable.refCount() > 0;
         this.byteBuffer = byteBuffer;
         this.refCountedCloseable = refCountedCloseable;
     }
@@ -53,6 +51,7 @@ public class Page implements Closeable {
      * @return the byte buffer
      */
     public ByteBuffer byteBuffer() {
+        assert refCountedCloseable.refCount() > 0;
         return byteBuffer;
     }
 
@@ -63,16 +62,16 @@ public class Page implements Closeable {
 
     private static class RefCountedCloseable extends AbstractRefCounted {
 
-        private final Runnable closeable;
+        private final Releasable closeable;
 
-        private RefCountedCloseable(Runnable closeable) {
+        private RefCountedCloseable(Releasable closeable) {
             super("byte array page");
             this.closeable = closeable;
         }
 
         @Override
         protected void closeInternal() {
-            closeable.run();
+            Releasables.closeExpectNoException(closeable);
         }
     }
 }

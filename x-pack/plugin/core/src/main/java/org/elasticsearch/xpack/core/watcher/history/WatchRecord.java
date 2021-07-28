@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.watcher.history;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionResult;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
+import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -55,13 +56,14 @@ public abstract class WatchRecord implements ToXContentObject {
     // only emitted to xcontent in "debug" mode
     protected final Map<String, Object> vars;
 
-    @Nullable protected final ExecutableInput input;
+    @Nullable protected final ExecutableInput<? extends Input, ? extends Input.Result> input;
     @Nullable protected final ExecutableCondition condition;
     @Nullable protected final Map<String,Object> metadata;
     @Nullable protected final WatchExecutionResult executionResult;
 
-    private WatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state, Map<String, Object> vars, ExecutableInput input,
-                        ExecutableCondition condition, Map<String, Object> metadata, Watch watch, WatchExecutionResult executionResult,
+    private WatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state, Map<String, Object> vars,
+                        ExecutableInput<? extends Input, ? extends Input.Result> input, ExecutableCondition condition,
+                        Map<String, Object> metadata, Watch watch, WatchExecutionResult executionResult,
                         String nodeId, String user) {
         this.id = id;
         this.triggerEvent = triggerEvent;
@@ -131,7 +133,7 @@ public abstract class WatchRecord implements ToXContentObject {
         return id.watchId();
     }
 
-    public ExecutableInput input() { return input; }
+    public ExecutableInput<? extends Input, ? extends Input.Result> input() { return input; }
 
     public ExecutionState state() {
         return state;

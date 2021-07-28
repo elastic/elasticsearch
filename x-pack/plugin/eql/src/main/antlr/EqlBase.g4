@@ -101,8 +101,8 @@ operatorExpression
 //   https://github.com/antlr/antlr4/issues/781
 predicate
     : NOT? kind=(IN | IN_INSENSITIVE) LP expression (COMMA expression)* RP
-    | kind=SEQ constant
-    | kind=SEQ LP constant (COMMA constant)* RP
+    | kind=(SEQ | LIKE | LIKE_INSENSITIVE | REGEX | REGEX_INSENSITIVE) constant
+    | kind=(SEQ | LIKE | LIKE_INSENSITIVE | REGEX | REGEX_INSENSITIVE) LP constant (COMMA constant)* RP
     ;
 
 primaryExpression
@@ -165,11 +165,15 @@ FALSE: 'false';
 IN: 'in';
 IN_INSENSITIVE : 'in~';
 JOIN: 'join';
+LIKE: 'like';
+LIKE_INSENSITIVE: 'like~';
 MAXSPAN: 'maxspan';
 NOT: 'not';
 NULL: 'null';
 OF: 'of';
 OR: 'or';
+REGEX: 'regex';
+REGEX_INSENSITIVE: 'regex~';
 SEQUENCE: 'sequence';
 TRUE: 'true';
 UNTIL: 'until';
@@ -201,12 +205,29 @@ LP: '(';
 RP: ')';
 PIPE: '|';
 
+fragment STRING_ESCAPE
+    : '\\' [btnfr"'\\]
+    ;
+
+fragment HEX_DIGIT
+    : [0-9abcdefABCDEF]
+    ;
+
+fragment UNICODE_ESCAPE
+    : '\\u' '{' HEX_DIGIT+  '}' // 2-8 hex
+    ;
+
+fragment UNESCAPED_CHARS
+    : ~[\r\n"\\]
+    ;
+
 STRING
-    : '\''  ('\\' [btnfr"'\\] | ~[\r\n'\\])* '\''
-    | '"'   ('\\' [btnfr"'\\] | ~[\r\n"\\])* '"'
+    : '"' (STRING_ESCAPE | UNICODE_ESCAPE | UNESCAPED_CHARS)* '"'
+    | '"""' (~[\r\n])*? '"""' '"'? '"'?
+    // Old style quoting of string, handled as errors in AbstractBuilder
+    | '\''  ('\\' [btnfr"'\\] | ~[\r\n'\\])* '\''
     | '?"'  ('\\"' |~["\r\n])* '"'
     | '?\'' ('\\\'' |~['\r\n])* '\''
-    | '"""' (~[\r\n])*? '"""' '"'? '"'?
     ;
 
 INTEGER_VALUE

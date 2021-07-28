@@ -12,7 +12,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.client.security.user.privileges.GlobalPrivileges;
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 

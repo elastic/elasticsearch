@@ -25,9 +25,6 @@ import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -38,9 +35,20 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
+
+import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 
@@ -229,7 +237,7 @@ public class ServerUtils {
         String count = makeRequest(Request.Get("http://localhost:9200/_count?pretty"));
         assertThat(count, containsString("\"count\" : 2"));
 
-        makeRequest(Request.Delete("http://localhost:9200/_all"));
+        makeRequest(Request.Delete("http://localhost:9200/library"));
     }
 
     public static String makeRequest(Request request) throws Exception {
@@ -245,5 +253,24 @@ public class ServerUtils {
         }
 
         return body;
+    }
+
+    public static void disableGeoIpDownloader(Installation installation) throws IOException {
+        List<String> yaml = Collections.singletonList("ingest.geoip.downloader.enabled: false");
+        Path yml = installation.config("elasticsearch.yml");
+        try (Stream<String> lines = Files.readAllLines(yml).stream()) {
+            if (lines.noneMatch(s -> s.startsWith("ingest.geoip.downloader.enabled"))) {
+                Files.write(yml, yaml, CREATE, APPEND);
+            }
+        }
+    }
+
+    public static void enableGeoIpDownloader(Installation installation) throws IOException {
+        Path yml = installation.config("elasticsearch.yml");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith("ingest.geoip.downloader.enabled") == false).collect(Collectors.toList());
+        }
+        Files.write(yml, lines, TRUNCATE_EXISTING);
     }
 }

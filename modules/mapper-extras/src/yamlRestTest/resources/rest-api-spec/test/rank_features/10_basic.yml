@@ -9,6 +9,10 @@ setup:
               properties:
                 tags:
                    type: rank_features
+                negative_reviews:
+                   type: rank_features
+                   positive_score_impact: false
+
 
   - do:
       index:
@@ -18,6 +22,9 @@ setup:
           tags:
             foo: 3
             bar: 5
+          negative_reviews:
+            1star: 10
+            2star: 1
 
   - do:
       index:
@@ -27,6 +34,9 @@ setup:
           tags:
             bar: 6
             quux: 10
+          negative_reviews:
+            1star: 1
+            2star: 10
 
   - do:
       indices.refresh: {}
@@ -122,3 +132,35 @@ setup:
       hits.hits.1._id: "1"
   - match:
       hits.hits.1._score: 5.0
+
+
+---
+"Linear negative impact":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            rank_feature:
+              field: negative_reviews.1star
+              linear: {}
+
+  - match:
+      hits.hits.0._id: "2"
+  - match:
+      hits.hits.1._id: "1"
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            rank_feature:
+              field: negative_reviews.2star
+              linear: {}
+
+  - match:
+      hits.hits.0._id: "1"
+  - match:
+      hits.hits.1._id: "2"

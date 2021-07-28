@@ -8,9 +8,9 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -29,7 +29,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.ObjectPath.eval;
@@ -51,7 +50,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         List<FieldAndFormat> fieldAndFormats = List.of(
             new FieldAndFormat("field", null),
             new FieldAndFormat("object.field", null));
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormats, null);
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormats);
         assertThat(fields.size(), equalTo(2));
 
         DocumentField field = fields.get("field");
@@ -99,6 +98,74 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         DocumentField field = fields.get("foo.bar");
         assertThat(field.getValues().size(), equalTo(1));
         assertThat(field.getValue(), equalTo("baz"));
+
+        source = XContentFactory.jsonBuilder().startObject()
+            .startObject("foo").field("cat", "meow").endObject()
+            .field("foo.cat", "miau")
+            .endObject();
+
+        doc = mapperService.documentMapper().parse(source(Strings.toString(source)));
+
+        fields = fetchFields(mapperService, source, "foo.cat");
+        assertThat(fields.size(), equalTo(1));
+
+        field = fields.get("foo.cat");
+        assertThat(field.getValues().size(), equalTo(2));
+        assertThat(field.getValues(), containsInAnyOrder("meow", "miau"));
+
+        source = XContentFactory.jsonBuilder().startObject()
+            .startObject("foo").field("cat", "meow").endObject()
+            .array("foo.cat", "miau", "purr")
+            .endObject();
+
+        doc = mapperService.documentMapper().parse(source(Strings.toString(source)));
+
+        fields = fetchFields(mapperService, source, "foo.cat");
+        assertThat(fields.size(), equalTo(1));
+
+        field = fields.get("foo.cat");
+        assertThat(field.getValues().size(), equalTo(3));
+        assertThat(field.getValues(), containsInAnyOrder("meow", "miau", "purr"));
+    }
+
+    public void testMixedDottedObjectSyntax() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startObject("object").field("field", "value").endObject()
+            .field("object.field", "value2")
+            .endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
+        assertThat(fields.size(), equalTo(1));
+
+        DocumentField field = fields.get("object.field");
+        assertThat(field.getValues().size(), equalTo(2));
+        assertThat(field.getValues(), containsInAnyOrder("value", "value2"));
+    }
+
+    public void testNullValues() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startObject("object").field("field", "value").endObject()
+            .nullField("object.field")
+            .endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
+        assertThat(fields.size(), equalTo(1));
+
+        DocumentField field = fields.get("object.field");
+        assertThat(field.getValues().size(), equalTo(1));
+        assertThat(field.getValues(), containsInAnyOrder("value"));
+
+        source = XContentFactory.jsonBuilder().startObject()
+            .array("nullable_long_field", 1, 2, 3, null, 5)
+            .endObject();
+        fields = fetchFields(mapperService, source, "*");
+        assertThat(fields.size(), equalTo(1));
+
+        field = fields.get("nullable_long_field");
+        assertThat(field.getValues().size(), equalTo(5));
+        assertThat(field.getValues(), containsInAnyOrder(1L, 2L, 3L, 5L, 42L));
     }
 
     public void testNonExistentField() throws IOException {
@@ -115,15 +182,22 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService();
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .field("field", "value")
+            .field("_doc_count", 100)
         .endObject();
 
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, "_routing");
-        assertTrue(fields.isEmpty());
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "_doc_count");
+        assertNotNull(fields.get("_doc_count"));
+        assertEquals(100, ((Integer) fields.get("_doc_count").getValue()).intValue());
 
         // The _type field was deprecated in 7.x and is not supported in 8.0. So the behavior
         // should be the same as if the field didn't exist.
         fields = fetchFields(mapperService, source, "_type");
         assertTrue(fields.isEmpty());
+
+        // several other metadata fields throw exceptions via their value fetchers when trying to get them
+        for (String fieldname : List.of("_id", "_index", "_seq_no", "_routing", "_ignored")) {
+            expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
+        }
     }
 
     public void testFetchAllFields() throws IOException {
@@ -236,8 +310,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, List.of(
             new FieldAndFormat("field", null),
-            new FieldAndFormat("date_field", "yyyy/MM/dd")),
-            null);
+            new FieldAndFormat("date_field", "yyyy/MM/dd")));
         assertThat(fields.size(), equalTo(2));
 
         DocumentField field = fields.get("field");
@@ -247,6 +320,16 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertNotNull(dateField);
         assertThat(dateField.getValues().size(), equalTo(1));
         assertThat(dateField.getValue(), equalTo("1990/12/29"));
+
+        // check that badly formed dates in source are just ignored when fetching
+        source = XContentFactory.jsonBuilder().startObject()
+            .field("field", "value")
+            .array("date_field", "1990-12-29T00:00:00.000Z", "baddate", "1991-12-29T00:00:00.000Z")
+            .endObject();
+        DocumentField dates
+            = fetchFields(mapperService, source, List.of(new FieldAndFormat("date_field", "yyyy/MM/dd"))).get("date_field");
+        assertThat(dates.getValues().size(), equalTo(2));
+        assertThat(dates, containsInAnyOrder(equalTo("1990/12/29"), equalTo("1991/12/29")));
     }
 
     public void testIgnoreAbove() throws IOException {
@@ -408,26 +491,26 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                 .field("object.b", "bar")
             .endObject();
 
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_f*", null, true), null);
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_f*", null, true));
         assertThat(fields.size(), equalTo(3));
         assertThat(fields.keySet(), containsInAnyOrder("unmapped_f1", "unmapped_f2", "unmapped_f3"));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("un*1", null, true), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("un*1", null, true));
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.keySet(), containsInAnyOrder("unmapped_f1"));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("*thing*", null, true), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("*thing*", null, true));
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.keySet(), containsInAnyOrder("something_else"));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("null*", null, true), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("null*", null, true));
         assertThat(fields.size(), equalTo(0));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("object.a", null, true), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("object.a", null, true));
         assertThat(fields.size(), equalTo(1));
         assertEquals("foo", fields.get("object.a").getValues().get(0));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("object.b", null, true), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("object.b", null, true));
         assertThat(fields.size(), equalTo(1));
         assertEquals("bar", fields.get("object.b").getValues().get(0));
     }
@@ -437,7 +520,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().array("unmapped_field", "foo", "bar").endObject();
 
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_field", null, true), null);
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_field", null, true));
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.keySet(), containsInAnyOrder("unmapped_field"));
         DocumentField field = fields.get("unmapped_field");
@@ -460,10 +543,10 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endArray()
             .endObject();
 
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_field", null, true), null);
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_field", null, true));
         assertThat(fields.size(), equalTo(0));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_field.f*", null, true), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_field.f*", null, true));
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.get("unmapped_field.f1").getValue(), equalTo("a"));
         assertThat(fields.get("unmapped_field.f2").getValue(), equalTo("b"));
@@ -483,19 +566,19 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endArray()
             .endObject();
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_field.f1", null, true), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_field.f1", null, true));
         assertThat(fields.size(), equalTo(1));
         DocumentField field = fields.get("unmapped_field.f1");
         assertThat(field.getValues().size(), equalTo(2));
         assertThat(field.getValues(), hasItems("a", "b"));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_field.f2", null, true), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_field.f2", null, true));
         assertThat(fields.size(), equalTo(1));
         field = fields.get("unmapped_field.f2");
         assertThat(field.getValues().size(), equalTo(4));
         assertThat(field.getValues(), hasItems(1, 2, 3, 4));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_field.f3", null, true), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_field.f3", null, true));
         assertThat(fields.size(), equalTo(1));
         field = fields.get("unmapped_field.f3");
         assertThat(field.getValues().size(), equalTo(3));
@@ -547,7 +630,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endArray()
           .endObject();
 
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false), null);
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
         assertEquals(2, fields.size());
         assertThat(fields.keySet(), containsInAnyOrder("f1", "obj"));
         assertEquals("value1", fields.get("f1").getValue());
@@ -565,7 +648,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertEquals("value3b", eval("f3.0", obj1));
         assertEquals("value4b", eval("inner_nested.0.f4.0", obj1));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("obj*", null, false), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("obj*", null, false));
         assertEquals(1, fields.size());
         assertThat(fields.keySet(), containsInAnyOrder("obj"));
         obj = fields.get("obj").getValues();
@@ -582,7 +665,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertEquals("value3b", eval("f3.0", obj1));
         assertEquals("value4b", eval("inner_nested.0.f4.0", obj1));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("obj*", null, false), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("obj*", null, false));
         assertEquals(1, fields.size());
         assertThat(fields.keySet(), containsInAnyOrder("obj"));
         obj = fields.get("obj").getValues();
@@ -591,6 +674,55 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertEquals("value4a", eval("inner_nested.0.f4.0", obj0));
         obj1 = obj.get(1);
         assertEquals("value4b", eval("inner_nested.0.f4.0", obj1));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFlattenedField() throws IOException {
+        XContentBuilder mapping = mapping(b -> b.startObject("flat").field("type", "flattened").endObject());
+        MapperService mapperService = createMapperService(mapping);
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startObject("flat")
+              .field("f1", "value1")
+              .field("f2", 1)
+            .endObject()
+          .endObject();
+
+        // requesting via wildcard should retrieve the root field as a structured map
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
+        assertEquals(1, fields.size());
+        assertThat(fields.keySet(), containsInAnyOrder("flat"));
+        Map<String, Object> flattenedValue = (Map<String, Object>) fields.get("flat").getValue();
+        assertThat(flattenedValue.keySet(), containsInAnyOrder("f1", "f2"));
+        assertEquals("value1", flattenedValue.get("f1"));
+        assertEquals(1, flattenedValue.get("f2"));
+
+        // direct retrieval of subfield is possible
+        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
+        fieldAndFormatList.add(new FieldAndFormat("flat.f1", null));
+        fields = fetchFields(mapperService, source, fieldAndFormatList);
+        assertEquals(1, fields.size());
+        assertThat(fields.keySet(), containsInAnyOrder("flat.f1"));
+        assertThat(fields.get("flat.f1").getValue(), equalTo("value1"));
+
+        // direct retrieval of root field and subfield is possible
+        fieldAndFormatList.add(new FieldAndFormat("*", null));
+        fields = fetchFields(mapperService, source, fieldAndFormatList);
+        assertEquals(2, fields.size());
+        assertThat(fields.keySet(), containsInAnyOrder("flat", "flat.f1"));
+        flattenedValue = (Map<String, Object>) fields.get("flat").getValue();
+        assertThat(flattenedValue.keySet(), containsInAnyOrder("f1", "f2"));
+        assertEquals("value1", flattenedValue.get("f1"));
+        assertEquals(1, flattenedValue.get("f2"));
+        assertThat(fields.get("flat.f1").getValue(), equalTo("value1"));
+
+        // retrieval of subfield with wildcard is not possible
+        fields = fetchFields(mapperService, source, fieldAndFormatList("flat.f*", null, false));
+        assertEquals(0, fields.size());
+
+        // retrieval of non-existing subfield returns empty result
+        fields = fetchFields(mapperService, source, fieldAndFormatList("flat.baz", null, false));
+        assertEquals(0, fields.size());
     }
 
     public void testUnmappedFieldsInsideObject() throws IOException {
@@ -617,13 +749,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .field("obj.innerObj.f4", "unmapped_value_f4")
             .endObject();
 
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false), null);
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
 
         // without unmapped fields this should only return "obj.f1"
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.keySet(), containsInAnyOrder("obj.f1"));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, true), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, true));
         assertThat(fields.size(), equalTo(4));
         assertThat(fields.keySet(), containsInAnyOrder("obj.f1", "obj.f2", "obj.innerObj.f3", "obj.innerObj.f4"));
     }
@@ -654,11 +786,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endArray()
         .endObject();
 
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false), null);
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
         // without unmapped fields this should return nothing
         assertThat(fields.size(), equalTo(0));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, true), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, true));
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.keySet(), containsInAnyOrder("obj", "obj.a"));
 
@@ -693,15 +825,15 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .field("f1", "malformed")
             .endObject();
 
-        // this should not return a field bc. f1 is in the ignored fields
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null, true)), Set.of("f1"));
+        // this should not return a field bc. f1 is malformed
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null, true)));
         assertThat(fields.size(), equalTo(0));
 
         // and this should neither
-        fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null, true)), Set.of("f1"));
+        fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null, true)));
         assertThat(fields.size(), equalTo(0));
 
-        fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("f1", null, true)), Set.of("f1"));
+        fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("f1", null, true)));
         assertThat(fields.size(), equalTo(0));
 
         // check this also does not overwrite with arrays
@@ -709,7 +841,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .array("f1", "malformed")
             .endObject();
 
-        fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("f1", null, true)), Set.of("f1"));
+        fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("f1", null, true)));
         assertThat(fields.size(), equalTo(0));
     }
 
@@ -723,24 +855,24 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endObject()
             .endObject();
 
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_object", null, true), null);
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_object", null, true));
         assertThat(fields.size(), equalTo(0));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("unmap*object", null, true), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("unmap*object", null, true));
         assertThat(fields.size(), equalTo(0));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_object.*", null, true), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_object.*", null, true));
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.keySet(), containsInAnyOrder("unmapped_object.a", "unmapped_object.b"));
 
         assertThat(fields.get("unmapped_object.a").getValue(), equalTo("foo"));
         assertThat(fields.get("unmapped_object.b").getValue(), equalTo("bar"));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_object.a", null, true), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_object.a", null, true));
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.get("unmapped_object.a").getValue(), equalTo("foo"));
 
-        fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_object.b", null, true), null);
+        fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_object.b", null, true));
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.get("unmapped_object.b").getValue(), equalTo("bar"));
     }
@@ -757,18 +889,35 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         List<FieldAndFormat> ff = new ArrayList<>();
         ff.add(new FieldAndFormat("date_field", "year", false));
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, ff, null);
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, ff);
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.get("date_field").getValues().size(), equalTo(2));
         assertThat(fields.get("date_field").getValues().get(0), equalTo("2011"));
         assertThat(fields.get("date_field").getValues().get(1), equalTo("2012"));
 
         ff.add(new FieldAndFormat("date_field", "hour", false));
-        fields = fetchFields(mapperService, source, ff, null);
+        fields = fetchFields(mapperService, source, ff);
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.get("date_field").getValues().size(), equalTo(2));
         assertThat(fields.get("date_field").getValues().get(0), equalTo("11"));
         assertThat(fields.get("date_field").getValues().get(1), equalTo("12"));
+    }
+
+    /**
+     * Field patterns retrieved with "include_unmapped" use an automaton with a maximal allowed size internally.
+     * This test checks we have a bound in place to avoid misuse of this with exceptionally large field patterns
+     */
+    public void testTooManyUnmappedFieldWildcardPattern() throws IOException {
+        MapperService mapperService = createMapperService();
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("a", "foo").endObject();
+
+        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
+        boolean includeUnmapped = true;
+        for (int i = 0; i < 1000; i++) {
+            fieldAndFormatList.add(new FieldAndFormat(randomAlphaOfLength(150) + "*", null, includeUnmapped));
+        }
+        expectThrows(TooComplexToDeterminizeException.class, () -> fetchFields(mapperService, source, fieldAndFormatList));
     }
 
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {
@@ -777,21 +926,20 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     private Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, String fieldPattern)
         throws IOException {
-        return fetchFields(mapperService, source, fieldAndFormatList(fieldPattern, null, false), null);
+        return fetchFields(mapperService, source, fieldAndFormatList(fieldPattern, null, false));
     }
 
     private static Map<String, DocumentField> fetchFields(
         MapperService mapperService,
         XContentBuilder source,
-        List<FieldAndFormat> fields,
-        @Nullable Set<String> ignoreFields
+        List<FieldAndFormat> fields
     ) throws IOException {
 
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
 
         FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
-        return fieldFetcher.fetch(sourceLookup, ignoreFields != null ? ignoreFields : Collections.emptySet());
+        return fieldFetcher.fetch(sourceLookup);
     }
 
     public MapperService createMapperService() throws IOException {
@@ -803,6 +951,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                 .startObject("date_field").field("type", "date").endObject()
                 .startObject("geo_point").field("type", "geo_point").endObject()
                 .startObject("float_range").field("type", "float_range").endObject()
+                .startObject("nullable_long_field").field("type", "long").field("null_value", 42).endObject()
                 .startObject("object")
                     .startObject("properties")
                         .startObject("field").field("type", "keyword").endObject()

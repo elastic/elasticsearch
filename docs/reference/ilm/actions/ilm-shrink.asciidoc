@@ -4,50 +4,38 @@
 
 Phases allowed: hot, warm.
 
-Sets an index to <<dynamic-index-settings, read-only>>
-and shrinks it into a new index with fewer primary shards.
-The name of the new index is of the form `shrink-<original-index-name>`.
-For example, if the name of the source index is _logs_,
-the name of the shrunken index is _shrink-logs_.
+Sets a source index to <<index-blocks-read-only,read-only>> and shrinks it into
+a new index with fewer primary shards. The name of the resulting index is
+`shrink-<random-uuid>-<original-index-name>`. This action corresponds to the
+<<indices-shrink-index,shrink API>>.
 
-The shrink action allocates all primary shards of the index to one node so it
-can call the <<indices-shrink-index,Shrink API>> to shrink the index.
-After shrinking, it swaps aliases that point to the original index to the new shrunken index.
+After the `shrink` action, any aliases that pointed to the source index point to
+the new shrunken index. If {ilm-init} performs the `shrink` action on a backing
+index for a data stream, the shrunken index replaces the source index in the
+stream. You cannot perform the `shrink` action on a write index.
 
-To use the `shrink` action in the `hot` phase, the `rollover` action *must* be present.
-If no rollover action is configured, {ilm-init} will reject the policy.
+To use the `shrink` action in the `hot` phase, the `rollover` action *must* be
+present. If no rollover action is configured, {ilm-init} will reject the policy.
 
 [IMPORTANT]
-If the shrink action is used on a <<ccr-put-follow,follower index>>,
-policy execution waits until the leader index rolls over (or is
-<<skipping-rollover, otherwise marked complete>>),
-then converts the follower index into a regular index with the
-<<ilm-unfollow,unfollow>> action before performing the shrink operation.
-
-If the managed index is part of a <<data-streams, data stream>>,
-the shrunken index replaces the original index in the data stream.
-
-[NOTE]
-This action cannot be performed on a data stream's write index. Attempts to do
-so will fail. To shrink the index, first
-<<manually-roll-over-a-data-stream,manually roll over>> the data stream. This
-creates a new write index. Because the index is no longer the stream's write
-index, the action can resume shrinking it.
-Using a policy that makes use of the <<ilm-rollover, rollover>> action
-in the hot phase will avoid this situation and the need for a manual rollover for future
-managed indices.
+If the shrink action is used on a <<ccr-put-follow,follower index>>, policy
+execution waits until the leader index rolls over (or is <<skipping-rollover,
+otherwise marked complete>>), then converts the follower index into a regular
+index with the <<ilm-unfollow,unfollow>> action before performing the shrink
+operation.
 
 [[ilm-shrink-options]]
 ==== Shrink options
+
 `number_of_shards`::
 (Optional, integer)
 Number of shards to shrink to.
 Must be a factor of the number of shards in the source index. This parameter conflicts with
-`max_single_primary_size`, only one of them may be set.
+`max_primary_shard_size`, only one of them may be set.
 
-`max_single_primary_size`::
+`max_primary_shard_size`::
 (Optional, <<byte-units, byte units>>)
-The max single primary shard size for the target index. Used to find the optimum number of shards for the target index.
+The max primary shard size for the target index. Used to find the optimum number of shards for the target index.
 When this parameter is set, each shard's storage in the target index will not be greater than the parameter.
 The shards count of the target index will still be a factor of the source index's shards count, but if the parameter
 is less than the single shard size in the source index, the shards count for the target index will be equal to the source index's shards count.
@@ -83,8 +71,11 @@ PUT _ilm/policy/my_policy
 --------------------------------------------------
 
 [[ilm-shrink-size-ex]]
-===== Calculate the number of shards of the new shrunken index based on the storage of the
-source index and the `max_single_primary_size` parameter
+===== Calculate the optimal number of primary shards for a shrunken index
+
+The following policy uses the `max_primary_shard_size` parameter to
+automatically calculate the new shrunken index's primary shard count based on
+the source index's storage size.
 
 [source,console]
 --------------------------------------------------
@@ -95,7 +86,7 @@ PUT _ilm/policy/my_policy
       "warm": {
         "actions": {
           "shrink" : {
-            "max_single_primary_size": "50gb"
+            "max_primary_shard_size": "50gb"
           }
         }
       }
@@ -103,3 +94,27 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
+
+[[ilm-shrink-shard-allocation]]
+==== Shard allocation for shrink
+
+During a `shrink` action, {ilm-init} allocates the source index's primary shards
+to one node. After shrinking the index, {ilm-init} reallocates the shrunken
+index's shards to the appropriate nodes based on your allocation rules.
+
+These allocation steps can fail for several reasons, including:
+
+* A node is removed during the `shrink` action.
+* No node has enough disk space to host the source index's shards.
+* {es} cannot reallocate the shrunken index due to conflicting allocation rules.
+
+When one of the allocation steps fails, {ilm-init} waits for the period set in
+<<index-lifecycle-step-wait-time-threshold,`index.lifecycle.step.wait_time_threshold`>>,
+which defaults to 12 hours. This threshold period lets the cluster resolve any
+issues causing the allocation failure.
+
+If the threshold period passes and {ilm-init} has not yet shrunk the index,
+{ilm-init} attempts to allocate the source index's primary shards to another
+node. If {ilm-init} shrunk the index but could not reallocate the shrunken
+index's shards during the threshold period, {ilm-init} deletes the shrunken
+index and re-attempts the entire `shrink` action.

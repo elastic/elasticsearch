@@ -18,6 +18,7 @@ import org.elasticsearch.action.ingest.SimulateDocumentVerboseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -158,7 +159,7 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
             }
         } else {
             assertThat(results.get(0), instanceOf(SimulateDocumentBaseResult.class));
-            SimulateDocumentBaseResult baseResult = (SimulateDocumentBaseResult)results.get(0);
+            SimulateDocumentBaseResult baseResult = (SimulateDocumentBaseResult) results.get(0);
             if (isFailure) {
                 assertNotNull(baseResult.getFailure());
                 assertThat(baseResult.getFailure().getMessage(),
@@ -176,5 +177,16 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
                 );
             }
         }
+    }
+
+    public void testGeoIpStats() throws IOException {
+        GeoIpStatsResponse response = execute(new MainRequest(), highLevelClient().ingest()::geoIpStats,
+            highLevelClient().ingest()::geoIpStatsAsync);
+        assertEquals(0, response.getDatabasesCount());
+        assertEquals(0, response.getSkippedDownloads());
+        assertEquals(0, response.getSuccessfulDownloads());
+        assertEquals(0, response.getFailedDownloads());
+        assertEquals(0, response.getTotalDownloadTime());
+        assertEquals(0, response.getNodes().size());
     }
 }

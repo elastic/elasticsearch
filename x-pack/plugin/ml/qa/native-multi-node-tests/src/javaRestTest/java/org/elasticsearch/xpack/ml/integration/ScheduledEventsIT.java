@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -384,7 +384,7 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         assertEquals(0, buckets.get(2).getScheduledEvents().size());
     }
 
-        private Job.Builder createJob(String jobId, TimeValue bucketSpan) {
+    private Job.Builder createJob(String jobId, TimeValue bucketSpan) {
         Detector.Builder detector = new Detector.Builder("count", null);
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(bucketSpan);
@@ -393,8 +393,6 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         job.setDataDescription(dataDescription);
         putJob(job);
-        // register for clean up
-        registerJob(job);
 
         return job;
     }

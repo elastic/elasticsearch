@@ -21,7 +21,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -172,7 +172,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                     deprecationEvents.get(i),
                     DEPRECATION,
-                    "org.elasticsearch.common.logging.DeprecationLogger\\$DeprecationLoggerBuilder.withDeprecation",
+                    "org.elasticsearch.common.logging.DeprecationLogger.deprecate",
                     "This is a maybe logged deprecation message" + i);
         }
 
@@ -205,7 +205,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                     deprecationEvents.get(0),
                     DEPRECATION,
-                    "org.elasticsearch.common.logging.DeprecationLogger\\$DeprecationLoggerBuilder.withDeprecation",
+                    "org.elasticsearch.common.logging.DeprecationLogger.deprecate",
                     "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                             "See the breaking changes documentation for the next major version.");
         }

@@ -20,7 +20,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -464,6 +464,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
             WeightedAvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType, fieldType2);
             aggregator.preCollection();
             indexSearcher.search(query, aggregator);
+            aggregator.postCollection();
             verify.accept((InternalWeightedAvg) aggregator.buildAggregation(0L));
         } finally {
             indexReader.close();

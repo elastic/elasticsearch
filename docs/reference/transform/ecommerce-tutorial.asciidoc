@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[ecommerce-transforms]]
 = Tutorial: Transforming the eCommerce sample data
 
@@ -23,7 +22,7 @@ already familiar with the `kibana_sample_data_ecommerce` index, use the
 might want to derive from this eCommerce data.
 --
 
-. Choose the `pivot` type of {transform} and play with various options for
+. Choose the pivot type of {transform} and play with various options for
 grouping and aggregating the data.
 +
 --
@@ -129,20 +128,32 @@ POST _transform/_preview
 {transform}.
 +
 --
-.. Supply a job ID and the name of the target (or _destination_) index. If the
-target index does not exist, it will be created automatically.
+.. Supply a {transform} ID, the name of the destination index and optionally a
+description. If the destination index does not exist, it will be created
+automatically when you start the {transform}.
 
-.. Decide whether you want the {transform} to run once or continuously.
---
-+
---
-Since this sample data index is unchanging, let's use the default behavior and
-just run the {transform} once.
+.. Decide whether you want the {transform} to run once or continuously. Since 
+this sample data index is unchanging, let's use the default behavior and just 
+run the {transform} once. If you want to try it out, however, go ahead and click 
+on *Continuous mode*. You must choose a field that the {transform} can use to 
+check which entities have changed. In general, it's a good idea to use the 
+ingest timestamp field. In this example, however, you can use the `order_date` 
+field.
 
-If you want to try it out, however, go ahead and click on *Continuous mode*.
-You must choose a field that the {transform} can use to check which
-entities have changed. In general, it's a good idea to use the ingest timestamp
-field. In this example, however, you can use the `order_date` field.
+.. Optionally, you can configure a retention policy that applies to your 
+{transform}. Select a date field that is used to identify old documents 
+in the destination index and provide a maximum age. Documents that are older 
+than the configured value are removed from the destination index.
+
+[role="screenshot"]
+image::images/ecommerce-pivot3.png["Adding transfrom ID and retention policy to a {transform} in {kib}"]
+
+In {kib}, before you finish creating the {transform}, you can copy the preview 
+{transform} API request to your clipboard. This information is useful later when 
+you're deciding whether you want to manually create the destination index.
+
+[role="screenshot"]
+image::images/ecommerce-pivot4.png["Copy the Dev Console statement of the transform preview to the clipboard"]
 
 If you prefer, you can use the
 <<put-transform,create {transforms} API>>.
@@ -201,10 +212,157 @@ PUT _transform/ecommerce-customer-transform
   },
   "dest": {
     "index": "ecommerce-customers"
-  }
+  },
+  "retention_policy": {
+    "time": {
+      "field": "order_date",
+      "max_age": "60d"
+    }
+  }  
 }
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
+====
+--
+
+. Optional: Create the destination index.
++
+--
+If the destination index does not exist, it is created the first time you start
+your {transform}. A pivot transform deduces the mappings for the destination
+index from the source indices and the transform aggregations. If there are
+fields in the destination index that are derived from scripts (for example, 
+if you use
+<<search-aggregations-metrics-scripted-metric-aggregation,`scripted_metrics`>>
+or <<search-aggregations-pipeline-bucket-script-aggregation,`bucket_scripts`>>
+aggregations), they're created with <<dynamic-mapping,dynamic mappings>>. You
+can use the preview {transform} API to preview the mappings it will use for the
+destination index. In {kib}, if you copied the API request to your 
+clipboard, paste it into the console, then refer to the `generated_dest_index` 
+object in the API response.
+
+.API example
+[%collapsible]
+====
+
+[source,console-result]
+--------------------------------------------------
+{
+  "preview" : [
+    {
+      "total_quantity" : {
+        "max" : 2,
+        "sum" : 118.0
+      },
+      "taxless_total_price" : {
+        "sum" : 3946.9765625
+      },
+      "customer_id" : "10",
+      "order_id" : {
+        "cardinality" : 59
+      }
+    },
+    ...
+  ],
+  "generated_dest_index" : {
+    "mappings" : {
+      "_meta" : {
+        "_transform" : {
+          "transform" : "transform-preview",
+          "version" : {
+            "created" : "8.0.0"
+          },
+          "creation_date_in_millis" : 1621991264061
+        },
+        "created_by" : "transform"
+      },
+      "properties" : {
+        "total_quantity.sum" : {
+          "type" : "double"
+        },
+        "total_quantity" : {
+          "type" : "object"
+        },
+        "taxless_total_price" : {
+          "type" : "object"
+        },
+        "taxless_total_price.sum" : {
+          "type" : "double"
+        },
+        "order_id.cardinality" : {
+          "type" : "long"
+        },
+        "customer_id" : {
+          "type" : "keyword"
+        },
+        "total_quantity.max" : {
+          "type" : "integer"
+        },
+        "order_id" : {
+          "type" : "object"
+        }
+      }
+    },
+    "settings" : {
+      "index" : {
+        "number_of_shards" : "1",
+        "auto_expand_replicas" : "0-1"
+      }
+    },
+    "aliases" : { }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[skip:needs sample data]
+====
+
+In some instances the deduced mappings might be incompatible with the actual
+data. For example, numeric overflows might occur or dynamically mapped fields
+might contain both numbers and strings. To avoid this problem, create your
+destination index before you start the {transform}. For more information, see
+the <<indices-create-index,create index API>>.
+
+.API example
+[%collapsible]
+====
+You can use the information from the {transform} preview to create the
+destination index. For example:
+
+[source,console]
+--------------------------------------------------
+PUT /ecommerce-customers
+{
+  "mappings": {
+    "properties": {
+      "total_quantity.sum" : {
+        "type" : "double"
+      },
+      "total_quantity" : {
+        "type" : "object"
+      },
+      "taxless_total_price" : {
+        "type" : "object"
+      },
+      "taxless_total_price.sum" : {
+        "type" : "double"
+      },
+      "order_id.cardinality" : {
+        "type" : "long"
+      },
+      "customer_id" : {
+        "type" : "keyword"
+      },
+      "total_quantity.max" : {
+        "type" : "integer"
+      },
+      "order_id" : {
+        "type" : "object"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST
 ====
 --
 
@@ -256,7 +414,6 @@ image::images/ecommerce-results.png["Exploring the new index in {kib}"]
 . Optional: Create another {transform}, this time using the `latest` method.
 +
 --
-beta::[]
 
 This method populates the destination index with the latest documents for each
 unique key value. For example, you might want to find the latest orders (sorted
@@ -290,6 +447,13 @@ POST _transform/_preview
 --------------------------------------------------
 // TEST[skip:set up sample data]
 ====
+
+TIP: If the destination index does not exist, it is created the first time you 
+start your {transform}. Unlike pivot {transforms}, however, latest {transforms} 
+do not deduce mapping definitions when they create the index. Instead, they use 
+dynamic mappings. To use explicit mappings, create the destination index 
+before you start the {transform}.
+
 --
 
 . If you do not want to keep a {transform}, you can delete it in

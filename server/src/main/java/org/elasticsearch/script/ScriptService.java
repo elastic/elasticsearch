@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class ScriptService implements Closeable, ClusterStateApplier {
+public class ScriptService implements Closeable, ClusterStateApplier, ScriptCompiler {
 
     private static final Logger logger = LogManager.getLogger(ScriptService.class);
 
@@ -105,8 +105,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     final AtomicReference<CacheHolder> cacheHolder = new AtomicReference<>();
 
     public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
-        this.engines = Objects.requireNonNull(engines);
-        this.contexts = Objects.requireNonNull(contexts);
+        this.engines = Collections.unmodifiableMap(Objects.requireNonNull(engines));
+        this.contexts = Collections.unmodifiableMap(Objects.requireNonNull(contexts));
 
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with " +
@@ -246,6 +246,13 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         IOUtils.close(engines.values());
     }
 
+    /**
+     * @return an unmodifiable {@link Map} of available script context names to {@link ScriptContext}s
+     */
+    public Map<String, ScriptContext<?>> getScriptContexts() {
+        return contexts;
+    }
+
     private ScriptEngine getEngine(String lang) {
         ScriptEngine scriptEngine = engines.get(lang);
         if (scriptEngine == null) {
@@ -270,7 +277,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         maxSizeInBytes = newMaxSizeInBytes;
     }
 
-    /*
+    /**
      * Compiles a script using the given context.
      *
      * @return a compiled script which may be used to construct instances of a script for the given context
@@ -401,6 +408,9 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 ScriptContext<?> context = contexts.get(request.context());
                 if (context == null) {
                     throw new IllegalArgumentException("Unknown context [" + request.context() + "]");
+                }
+                if (context.allowStoredScript == false) {
+                    throw new IllegalArgumentException("cannot store a script for context [" + request.context() + "]");
                 }
                 scriptEngine.compile(request.id(), source.getSource(), context, Collections.emptyMap());
             }

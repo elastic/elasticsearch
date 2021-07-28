@@ -73,6 +73,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
         collector.preCollection();
         indexSearcher.search(termQuery, collector);
+        collector.postCollection();
         collector.prepareSelectedBuckets(0);
 
         assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
@@ -86,6 +87,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
         collector.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), collector);
+        collector.postCollection();
         collector.prepareSelectedBuckets(0);
 
         assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
@@ -110,6 +112,11 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
             @Override
             public void preCollection() throws IOException {
+
+            }
+
+            @Override
+            public void postCollection() throws IOException {
 
             }
 
@@ -202,11 +209,15 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                     public void preCollection() throws IOException {}
 
                     @Override
+                    public void postCollection() throws IOException {}
+
+                    @Override
                     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
                         LeafBucketCollector delegate = deferringCollector.getLeafCollector(ctx);
                         return leafCollector.apply(deferringCollector, delegate);
                     }
                 });
+                deferringCollector.postCollection();
                 verify.accept(deferringCollector, finalCollector);
             }
         }
@@ -232,5 +243,10 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
         @Override
         public void preCollection() throws IOException {}
+
+        @Override
+        public void postCollection() throws IOException {
+
+        }
     }
 }

@@ -27,15 +27,16 @@ bootstrap an initial index.
 [[ilm-create-policy]]
 === Create lifecycle policy
 
-To create lifecycle policies through {kib} Management
-go to Management and click **Index Lifecycle Policies**.
+To create a lifecycle policy from {kib}, open the menu and go to *Stack
+Management > Index Lifecycle Policies*. Click *Create policy*.
 
 [role="screenshot"]
-image:images/ilm/create-policy.png[]
+image:images/ilm/create-policy.png[Create policy page]
 
 You specify the lifecycle phases for the policy and the actions to perform in each phase.
 
-The <<ilm-put-lifecycle, put policy>> API is invoked to add the policy to the {es} cluster.
+The <<ilm-put-lifecycle,create or update policy>> API is invoked to add the
+policy to the {es} cluster.
 
 .API example
 [%collapsible]
@@ -49,7 +50,7 @@ PUT _ilm/policy/my_policy
       "hot": {
         "actions": {
           "rollover": {
-            "max_size": "25GB" <1>
+            "max_primary_shard_size": "25GB" <1>
           }
         }
       },
@@ -78,12 +79,13 @@ You specify the name of the policy and the alias used to reference the rolling i
 
 You can use the {kib} Create template wizard to create a template. To access the
 wizard, open the menu and go to *Stack Management > Index Management*. In the
-the *Index Templates* tab, click *Create template*.
+*Index Templates* tab, click *Create template*.
 
 [role="screenshot"]
 image:images/ilm/create-template-wizard-my_template.png[Create template page]
 
-The wizard invokes the <<indices-put-template,put template API>> to add templates to a cluster.
+The wizard invokes the <<indices-put-template,create or update index template
+API>> to add templates to a cluster.
 
 .API example
 [%collapsible]
@@ -266,3 +268,70 @@ PUT mylogs-pre-ilm*/_settings <1>
 // TEST[continued]
 
 <1> Updates all indices with names that start with `mylogs-pre-ilm`
+
+[discrete]
+[[switch-lifecycle-policies]]
+==== Switch lifecycle policies
+
+To switch an index's lifecycle policy, follow these steps:
+
+. Remove the existing policy using the <<ilm-remove-policy,remove policy API>>.
+Target a data stream or alias to remove the policies of all its indices.
++
+[source,console]
+----
+POST logs-my_app-default/_ilm/remove
+----
+// TEST[continued]
+// TEST[s/^/PUT _data_stream\/logs-my_app-default\n/]
+
+. The remove policy API removes all {ilm-init} metadata from the index and
+doesn't consider the index's lifecycle status. This can leave indices in an
+undesired state.
++
+--
+For example, the <<ilm-forcemerge,`forcemerge`>> action temporarily closes an
+index before reopening it. Removing an index's {ilm-init} policy during a
+`forcemerge` can leave the index closed indefinitely.
+
+After policy removal, use the <<indices-get-index,get index API>> to check an
+index's state . Target a data stream or alias to get the state of all its
+indices.
+
+[source,console]
+----
+GET logs-my_app-default
+----
+// TEST[continued]
+
+You can then change the index as needed. For example, you can re-open any
+closed indices using the <<indices-open-close,open index API>>.
+
+[source,console]
+----
+POST logs-my_app-default/_open
+----
+// TEST[continued]
+--
+
+. Assign a new policy using the <<indices-update-settings,update settings API>>.
+Target a data stream or alias to assign a policy to all its indices.
++
+--
+WARNING: Don't assign a new policy without first removing the existing policy.
+This can cause <<ilm-phase-execution,phase execution>> to silently fail.
+
+[source,console]
+----
+PUT logs-my_app-default/_settings
+{
+  "index": {
+    "lifecycle": {
+      "name": "new-lifecycle-policy"
+    }
+  }
+}
+----
+// TEST[continued]
+// TEST[s/new-lifecycle-policy/mylogs_policy_existing/]
+--

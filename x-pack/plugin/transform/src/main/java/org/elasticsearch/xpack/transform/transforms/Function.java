@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -209,6 +209,7 @@ public interface Function {
      * @param destinationPipeline the destination pipeline
      * @param fieldMappings field mappings for the destination
      * @param stats a stats object to record/collect stats
+     * @param progress a progress object to record/collect progress information
      * @return a tuple with the stream of index requests and the cursor
      */
     Tuple<Stream<IndexRequest>, Map<String, Object>> processSearchResponse(
@@ -216,6 +217,7 @@ public interface Function {
         String destinationIndex,
         String destinationPipeline,
         Map<String, String> fieldMappings,
-        TransformIndexerStats stats
+        TransformIndexerStats stats,
+        TransformProgress progress
     );
 }

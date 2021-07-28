@@ -1,8 +1,6 @@
 [[mapping-ignored-field]]
 === `_ignored` field
 
-added[6.4.0]
-
 The `_ignored` field indexes and stores the names of every field in a document
 that has been ignored because it was malformed and
 <<ignore-malformed,`ignore_malformed`>> was turned on.

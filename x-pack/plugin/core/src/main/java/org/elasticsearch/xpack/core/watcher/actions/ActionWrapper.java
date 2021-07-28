@@ -10,9 +10,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,7 +44,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 public class ActionWrapper implements ToXContentObject {
 
@@ -52,7 +52,7 @@ public class ActionWrapper implements ToXContentObject {
     @Nullable
     private final ExecutableCondition condition;
     @Nullable
-    private final ExecutableTransform<Transform, Transform.Result> transform;
+    private final ExecutableTransform<? extends Transform, ? extends Transform.Result> transform;
     private final ActionThrottler throttler;
     private final ExecutableAction<? extends Action> action;
     @Nullable
@@ -61,7 +61,7 @@ public class ActionWrapper implements ToXContentObject {
 
     public ActionWrapper(String id, ActionThrottler throttler,
                          @Nullable ExecutableCondition condition,
-                         @Nullable ExecutableTransform<Transform, Transform.Result> transform,
+                         @Nullable ExecutableTransform<? extends Transform, ? extends Transform.Result> transform,
                          ExecutableAction<? extends Action> action,
                          @Nullable String path,
                          @Nullable Integer maxIterations) {
@@ -82,7 +82,7 @@ public class ActionWrapper implements ToXContentObject {
         return condition;
     }
 
-    public ExecutableTransform<Transform, Transform.Result> transform() {
+    public ExecutableTransform<? extends Transform, ? extends Transform.Result> transform() {
         return transform;
     }
 
@@ -108,6 +108,7 @@ public class ActionWrapper implements ToXContentObject {
      * @param ctx The current watch's context
      * @return Never {@code null}
      */
+    @SuppressWarnings("unchecked")
     public ActionWrapperResult execute(WatchExecutionContext ctx) {
         ActionWrapperResult result = ctx.actionsResults().get(id);
         if (result != null) {
@@ -174,7 +175,7 @@ public class ActionWrapper implements ToXContentObject {
                 Object object = ObjectPath.eval(path, toMap(ctx));
                 int runs = 0;
                 if (object instanceof Collection) {
-                    Collection collection = Collection.class.cast(object);
+                    Collection<?> collection = (Collection<?>) object;
                     if (collection.isEmpty()) {
                         throw new ElasticsearchException("foreach object [{}] was an empty list, could not run any action", path);
                     } else {
@@ -295,7 +296,7 @@ public class ActionWrapper implements ToXContentObject {
         assert parser.currentToken() == XContentParser.Token.START_OBJECT;
 
         ExecutableCondition condition = null;
-        ExecutableTransform<Transform, Transform.Result> transform = null;
+        ExecutableTransform<? extends Transform, ? extends Transform.Result> transform = null;
         TimeValue throttlePeriod = null;
         String path = null;
         ExecutableAction<? extends Action> action = null;

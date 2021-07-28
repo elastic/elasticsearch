@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -16,6 +17,8 @@ import java.util.Locale;
 public enum TargetType implements Writeable {
 
     REGRESSION, CLASSIFICATION;
+
+    public static final ParseField TARGET_TYPE = new ParseField("target_type");
 
     public static TargetType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

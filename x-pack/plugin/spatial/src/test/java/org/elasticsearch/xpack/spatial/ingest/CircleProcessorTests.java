@@ -14,10 +14,10 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -27,7 +27,6 @@ import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -59,7 +58,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class CircleProcessorTests extends ESTestCase {
-    private static final WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
 
     public void testNumSides() {
         double radiusDistanceMeters = randomDoubleBetween(0.01, 6371000, true);
@@ -132,13 +130,13 @@ public class CircleProcessorTests extends ESTestCase {
     public void testWKT() {
         Circle circle = new Circle(101.0, 0.0, 2);
         HashMap<String, Object> map = new HashMap<>();
-        map.put("field", WKT.toWKT(circle));
+        map.put("field", WellKnownText.toWKT(circle));
         Geometry expectedPoly = SpatialUtils.createRegularGeoShapePolygon(circle, 4);
         IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field",false, 2, GEO_SHAPE);
         processor.execute(ingestDocument);
         String polyString = ingestDocument.getFieldValue("field", String.class);
-        assertThat(polyString, equalTo(WKT.toWKT(expectedPoly)));
+        assertThat(polyString, equalTo(WellKnownText.toWKT(expectedPoly)));
     }
 
     public void testInvalidWKT() {
@@ -215,7 +213,7 @@ public class CircleProcessorTests extends ESTestCase {
         Geometry geometry = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
 
         GeoShapeWithDocValuesFieldType shapeType
-            = new GeoShapeWithDocValuesFieldType(fieldName, true, false, ShapeBuilder.Orientation.RIGHT, null, Collections.emptyMap());
+            = new GeoShapeWithDocValuesFieldType(fieldName, true, false, Orientation.RIGHT, null, null, Collections.emptyMap());
 
         SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);
         when(mockedContext.getFieldType(any())).thenReturn(shapeType);
@@ -226,8 +224,7 @@ public class CircleProcessorTests extends ESTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
             GeoShapeIndexer indexer = new GeoShapeIndexer(true, fieldName);
-            Geometry normalized = indexer.prepareForIndexing(geometry);
-            for (IndexableField field : indexer.indexShape(null, normalized)) {
+            for (IndexableField field : indexer.indexShape(indexer.prepareForIndexing(geometry))) {
                 doc.add(field);
             }
             w.addDocument(doc);
@@ -246,7 +243,7 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularShapePolygon(circle, numSides);
 
-        MappedFieldType shapeType = new ShapeFieldType(fieldName, true, ShapeBuilder.Orientation.RIGHT, null, Collections.emptyMap());
+        MappedFieldType shapeType = new ShapeFieldType(fieldName, true, Orientation.RIGHT, null, Collections.emptyMap());
 
         ShapeQueryProcessor processor = new ShapeQueryProcessor();
         SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);
@@ -258,8 +255,7 @@ public class CircleProcessorTests extends ESTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
             ShapeIndexer indexer = new ShapeIndexer(fieldName);
-            Geometry normalized = indexer.prepareForIndexing(geometry);
-            for (IndexableField field : indexer.indexShape(null, normalized)) {
+            for (IndexableField field : indexer.indexShape(geometry)) {
                 doc.add(field);
             }
             w.addDocument(doc);

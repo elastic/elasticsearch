@@ -291,6 +291,16 @@
       "background_persist_interval" : {
         "type" : "keyword"
       },
+      "blocked": {
+        "properties": {
+          "reason": {
+            "type": "keyword"
+          },
+          "task_id": {
+            "type": "keyword"
+          }
+        }
+      },
       "chunking_config" : {
         "properties" : {
           "mode" : {
@@ -462,6 +472,10 @@
             "type" : "keyword"
           },
           "query" : {
+            "type" : "object",
+            "enabled" : false
+          },
+          "runtime_mappings" : {
             "type" : "object",
             "enabled" : false
           }

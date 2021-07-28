@@ -32,7 +32,6 @@ public class PackageUpgradeTests extends PackagingTestCase {
     public void test10InstallBwcVersion() throws Exception {
         installation = installPackage(sh, bwcDistribution);
         assertInstalled(bwcDistribution);
-        verifyPackageInstallation(installation, bwcDistribution, sh);
     }
 
     public void test11ModifyKeystore() throws Exception {
@@ -76,9 +75,9 @@ public class PackageUpgradeTests extends PackagingTestCase {
     public void test20InstallUpgradedVersion() throws Exception {
         if (bwcDistribution.path.equals(distribution.path)) {
             // the old and new distributions are the same, so we are testing force upgrading
-            Packages.forceUpgradePackage(sh, distribution);
+            installation = Packages.forceUpgradePackage(sh, distribution);
         } else {
-            Packages.upgradePackage(sh, distribution);
+            installation = Packages.upgradePackage(sh, distribution);
         }
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);

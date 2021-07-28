@@ -22,12 +22,12 @@ h| JSON data type h| `"dynamic":"true"` h| `"dynamic":"runtime"`
  |`true` or `false` 2*| `boolean`
  |`double` | `float` | `double`
  |`integer` 2*| `long`
- |`object`^1^  2*| `object`
+ |`object` | `object` | No field added
  |`array` 2*|  Depends on the first non-`null` value in the array
  |`string` that passes <<date-detection,date detection>> 2*| `date`
  |`string` that passes <<numeric-detection,numeric detection>> | `float` or `long` | `double` or `long`
  |`string` that doesn't pass `date` detection or `numeric` detection | `text` with a `.keyword` sub-field | `keyword`
-3+| ^1^Objects are always mapped as part of the `properties` section, even when the `dynamic` parameter is set to `runtime`. | |
+3+|
 |===
 // end::dynamic-field-mapping-types-tag[]
 
@@ -36,7 +36,7 @@ You can disable dynamic mapping, both at the document and at the
 `false` ignores new fields, and `strict` rejects the document if {es}
 encounters an unknown field.
 
-TIP: Use the <<indices-put-mapping,PUT mapping API>> to update the `dynamic`
+TIP: Use the <<indices-put-mapping,update mapping API>> to update the `dynamic`
 setting on existing fields.
 
 You can customize dynamic field mapping rules for
@@ -49,7 +49,7 @@ fields, use <<dynamic-templates,`dynamic_templates`>>.
 
 If `date_detection` is enabled (default), then new string fields are checked
 to see whether their contents match any of the date patterns specified in
-`dynamic_date_formats`.  If a match is found, a new <<date,`date`>> field is
+`dynamic_date_formats`. If a match is found, a new <<date,`date`>> field is
 added with the corresponding format.
 
 The default value for `dynamic_date_formats` is:

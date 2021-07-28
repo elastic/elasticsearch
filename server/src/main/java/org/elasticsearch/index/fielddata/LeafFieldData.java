@@ -9,8 +9,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.index.mapper.DocValueFetcher;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -31,18 +30,18 @@ public interface LeafFieldData extends Accountable, Releasable {
     SortedBinaryDocValues getBytesValues();
 
     /**
-     * Return a value fetcher for this leaf implementation.
+     * Return a formatted representation of the values
      */
-    default DocValueFetcher.Leaf getLeafValueFetcher(DocValueFormat format) {
+    default FormattedDocValues getFormattedValues(DocValueFormat format) {
         SortedBinaryDocValues values = getBytesValues();
-        return new DocValueFetcher.Leaf() {
+        return new FormattedDocValues() {
             @Override
             public boolean advanceExact(int docId) throws IOException {
                 return values.advanceExact(docId);
             }
 
             @Override
-            public int docValueCount() throws IOException {
+            public int docValueCount() {
                 return values.docValueCount();
             }
 

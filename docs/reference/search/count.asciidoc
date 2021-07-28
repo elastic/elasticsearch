@@ -26,7 +26,7 @@ the <<search-search,search API>> works.
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or index alias.
+or alias.
 
 
 [[search-count-api-desc]]
@@ -37,7 +37,7 @@ that query. The query can either
 be provided using a simple query string as a parameter, or using the
 <<query-dsl,Query DSL>> defined within the request body.
 
-The count API supports <<multi-index,multi-target syntax>>. You can run a single
+The count API supports <<api-multi-index,multi-target syntax>>. You can run a single
 count API search across multiple data streams and indices.
 
 The operation is broadcast across all shards. For each shard id group, a replica
@@ -49,13 +49,9 @@ scalability of count.
 ==== {api-path-parms-title}
 
 `<target>`::
-
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases to search.
-Wildcard (`*`) expressions are supported.
-+
-To search all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
+(Optional, string) Comma-separated list of data streams, indices, and aliases to
+search. Supports wildcards (`*`). To search all data streams and indices, omit
+this parameter or use `*` or `_all`.
 
 [[search-count-api-query-params]]
 ==== {api-query-parms-title}

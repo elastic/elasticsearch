@@ -1,12 +1,13 @@
 import org.elasticsearch.gradle.Architecture
-import org.elasticsearch.gradle.DockerBase
-import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor
+import org.elasticsearch.gradle.internal.DockerBase
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.docker.DockerBuildTask
-import org.elasticsearch.gradle.docker.ShellRetry
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
+import org.elasticsearch.gradle.internal.docker.DockerBuildTask
+import org.elasticsearch.gradle.internal.docker.ShellRetry
+import org.elasticsearch.gradle.internal.docker.TransformLog4jConfigFilter
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER
 
 import java.nio.file.Path
 
@@ -15,65 +16,47 @@ apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.rest-resources'
 
+// Define a repository that allows Gradle to fetch a resource from GitHub. This
+// is only used to fetch the `tini` binary, when building the Iron Bank docker image
+// for testing purposes.
+repositories {
+  ivy {
+    url 'https://github.com/'
+
+    patternLayout {
+      artifact '/[organisation]/[module]/releases/download/v[revision]/[ext]'
+    }
+
+    // This is required in Gradle 6.0+ as metadata file (ivy.xml)
+    // is mandatory. Docs linked below this code section
+    metadataSources { artifact() }
+  }
+}
+
 testFixtures.useFixture()
 
 configurations {
   aarch64DockerSource
   dockerSource
-  aarch64OssDockerSource
-  ossDockerSource
-  transformLog4jJar
+  log4jConfig
+  tini
 }
 
 dependencies {
-  aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar", configuration:"default")
-  dockerSource project(path: ":distribution:archives:linux-tar", configuration:"default")
-  aarch64OssDockerSource project(path: ":distribution:archives:oss-linux-aarch64-tar", configuration:"default")
-  ossDockerSource project(path: ":distribution:archives:oss-linux-tar", configuration:"default")
-  transformLog4jJar project(path: ":distribution:docker:transform-log4j-config", configuration: "default")
+  aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar", configuration: 'default')
+  dockerSource project(path: ":distribution:archives:linux-tar", configuration: 'default')
+  log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
+  tini 'krallin:tini:0.19.0@tini-amd64'
 }
 
-ext.expansions = { Architecture architecture, boolean oss, DockerBase base, boolean local ->
-  String classifier
-  if (local) {
-    if (architecture == Architecture.AARCH64) {
-      classifier = "linux-aarch64"
-    } else if (architecture == Architecture.X64) {
-      classifier = "linux-x86_64"
-    } else {
-      throw new IllegalArgumentException("Unsupported architecture [" + architecture + "]")
-    }
-  } else {
-    /* When sourcing the Elasticsearch build remotely, the same Dockerfile needs
-     * to be able to fetch the artifact for any supported platform. We can't make
-     * the decision here. Bash will interpolate the `arch` command for us. */
-    classifier = "linux-\$(arch)"
-  }
-
-  final String elasticsearch = "elasticsearch-${oss ? 'oss-' : ''}${VersionProperties.elasticsearch}-${classifier}.tar.gz"
-
-  String buildArgs = '#'
+ext.expansions = { Architecture architecture, DockerBase base ->
+  String buildArgs = ''
   if (base == DockerBase.IRON_BANK) {
     buildArgs = """
 ARG BASE_REGISTRY=nexus-docker-secure.levelup-nexus.svc.cluster.local:18082
 ARG BASE_IMAGE=redhat/ubi/ubi8
 ARG BASE_TAG=8.3
 """
-  }
-
-  /* Both the following Dockerfile commands put the resulting artifact at
-   * the same location, regardless of classifier, so that the commands that
-   * follow in the Dockerfile don't have to know about the runtime
-   * architecture. */
-  String sourceElasticsearch
-  if (local) {
-    sourceElasticsearch = "COPY $elasticsearch /opt/elasticsearch.tar.gz"
-  } else {
-    sourceElasticsearch = """
-RUN curl --retry 10 -S -L \\
-      --output /opt/elasticsearch.tar.gz \\
-      https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/$elasticsearch
-""".trim()
   }
 
   def (major,minor) = VersionProperties.elasticsearch.split("\\.")
@@ -87,7 +70,6 @@ RUN curl --retry 10 -S -L \\
     'git_revision'        : BuildParams.gitRevision,
     'license'             : 'Elastic-License-2.0',
     'package_manager'     : base == DockerBase.UBI ? 'microdnf' : 'yum',
-    'source_elasticsearch': sourceElasticsearch,
     'docker_base'         : base.name().toLowerCase(),
     'version'             : VersionProperties.elasticsearch,
     'major_minor_version' : "${major}.${minor}",
@@ -105,93 +87,39 @@ class SquashNewlinesFilter extends FilterReader {
   }
 }
 
-private static String buildPath(Architecture architecture, boolean oss, DockerBase base) {
-  return 'build/' +
-    (architecture == Architecture.AARCH64 ? 'aarch64-' : '') +
-    (oss ? 'oss-' : '') +
-    (base == DockerBase.UBI ? 'ubi-' : '') +
-    (base == DockerBase.UBI ? 'ubi-' : (base == DockerBase.IRON_BANK ? 'ironbank-' : '')) +
-    'docker'
-}
-
-private static String taskName(String prefix, Architecture architecture, boolean oss, DockerBase base, String suffix) {
+private static String taskName(String prefix, Architecture architecture, DockerBase base, String suffix) {
   return prefix +
     (architecture == Architecture.AARCH64 ? 'Aarch64' : '') +
-    (oss ? 'Oss' : '') +
     (base == DockerBase.UBI ? 'Ubi' : (base == DockerBase.IRON_BANK ? 'IronBank' : '')) +
     suffix
 }
 
-project.ext {
-  dockerBuildContext = { Architecture architecture, boolean oss, DockerBase base, boolean local ->
-    copySpec {
-      final Map<String,String> varExpansions = expansions(architecture, oss, base, local)
-      final Path projectDir = project.projectDir.toPath()
+ext.dockerBuildContext = { Architecture architecture, DockerBase base ->
+  copySpec {
+    final Map<String,String> varExpansions = expansions(architecture, base)
+    final Path projectDir = project.projectDir.toPath()
 
-      if (base == DockerBase.IRON_BANK) {
-        into('scripts') {
-          from projectDir.resolve("src/docker/bin")
-          from(projectDir.resolve("src/docker/config")) {
-            exclude '**/oss'
-          }
-        }
-        from(projectDir.resolve("src/docker/iron_bank")) {
-          expand(varExpansions)
-        }
-      } else {
-        into('bin') {
-          from projectDir.resolve("src/docker/bin")
-        }
-
-        into('config') {
-          // The OSS and default distribution can have different configuration, therefore we want to
-          // allow overriding the default configuration by creating config files in oss or default
-          // build-context sub-modules.
-          duplicatesStrategy = DuplicatesStrategy.INCLUDE
-          from projectDir.resolve("src/docker/config")
-          if (oss) {
-            from projectDir.resolve("src/docker/config/oss")
-          }
-        }
+    if (base == DockerBase.IRON_BANK) {
+      into('scripts') {
+        from projectDir.resolve("src/docker/bin")
+        from projectDir.resolve("src/docker/config")
       }
-
-      from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
+      from(projectDir.resolve("src/docker/iron_bank")) {
         expand(varExpansions)
-        filter SquashNewlinesFilter
-      }
-    }
-  }
-}
-
-void addCopyDockerContextTask(Architecture architecture, boolean oss, DockerBase base) {
-  if (oss && base != DockerBase.CENTOS) {
-    throw new GradleException("The only allowed docker base image for OSS builds is CENTOS")
-  }
-
-  tasks.register(taskName("copy", architecture, oss, base, "DockerContext"), Sync) {
-    expansions(architecture, oss, base, true).findAll { it.key != 'build_date' }.each { k, v ->
-      inputs.property(k, { v.toString() })
-    }
-    into buildPath(architecture, oss, base)
-
-    with dockerBuildContext(architecture, oss, base, true)
-
-    into(base == DockerBase.IRON_BANK ? 'scripts' : 'bin') {
-      from configurations.transformLog4jJar
-    }
-
-    if (architecture == Architecture.AARCH64) {
-      if (oss) {
-        from configurations.aarch64OssDockerSource
-      } else {
-        from configurations.aarch64DockerSource
       }
     } else {
-      if (oss) {
-        from configurations.ossDockerSource
-      } else {
-        from configurations.dockerSource
+      into('bin') {
+        from projectDir.resolve("src/docker/bin")
       }
+
+      into('config') {
+        from projectDir.resolve("src/docker/config")
+      }
+    }
+
+    from(projectDir.resolve("src/docker/Dockerfile")) {
+      expand(varExpansions)
+      filter SquashNewlinesFilter
     }
   }
 }
@@ -220,34 +148,27 @@ tasks.register("copyNodeKeyMaterial", Sync) {
 
 elasticsearch_distributions {
   Architecture.values().each { eachArchitecture ->
-    Flavor.values().each { distroFlavor ->
-      "docker_$distroFlavor${ eachArchitecture == Architecture.AARCH64 ? '_aarch64' : '' }" {
-        architecture = eachArchitecture
-        flavor = distroFlavor
-        type = 'docker'
-        version = VersionProperties.getElasticsearch()
-        failIfUnavailable = false // This ensures we don't attempt to build images if docker is unavailable
-      }
+    "docker_${ eachArchitecture == Architecture.AARCH64 ? '_aarch64' : '' }" {
+      architecture = eachArchitecture
+      type = DOCKER
+      version = VersionProperties.getElasticsearch()
+      failIfUnavailable = false // This ensures we don't attempt to build images if docker is unavailable
     }
   }
 }
 
 tasks.named("preProcessFixture").configure {
-  dependsOn elasticsearch_distributions.docker_default, elasticsearch_distributions.docker_oss
+  dependsOn elasticsearch_distributions.matching { it.architecture == Architecture.current() }
   dependsOn "copyNodeKeyMaterial"
   doLast {
     // tests expect to have an empty repo
     project.delete(
       "${buildDir}/repo",
-      "${buildDir}/oss-repo"
     )
     createAndSetWritable(
       "${buildDir}/repo",
-      "${buildDir}/oss-repo",
       "${buildDir}/logs/default-1",
       "${buildDir}/logs/default-2",
-      "${buildDir}/logs/oss-1",
-      "${buildDir}/logs/oss-2"
     )
   }
 }
@@ -270,68 +191,130 @@ tasks.named("check").configure {
   dependsOn "integTest"
 }
 
-void addBuildDockerImage(Architecture architecture, boolean oss, DockerBase base) {
-  if (oss && base != DockerBase.CENTOS) {
-    throw new GradleException("The only allowed docker base image for OSS builds is CENTOS")
-  }
-
-  final TaskProvider<DockerBuildTask> buildDockerImageTask =
-          tasks.register(taskName("build", architecture, oss, base, "DockerImage"), DockerBuildTask) {
-    onlyIf { Architecture.current() == architecture }
-    TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, oss, base, "DockerContext"))
-    dependsOn(copyContextTask)
-    dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
-
-    if (base == DockerBase.UBI) {
-      baseImages = [ base.getImage() ]
-    } else {
-      baseImages = [ base.getImage(), 'alpine:latest' ]
-    }
-
-    String version = VersionProperties.elasticsearch
-    if (oss) {
-      tags = [
-        "docker.elastic.co/elasticsearch/elasticsearch-oss:${version}",
-        "elasticsearch-oss:test"
-      ]
-    } else {
-      String suffix = base == DockerBase.UBI ? '-ubi8' : ''
-      tags = [
-        "elasticsearch${suffix}:${version}",
-        "docker.elastic.co/elasticsearch/elasticsearch${suffix}:${version}",
-        "docker.elastic.co/elasticsearch/elasticsearch-full${suffix}:${version}",
-        "elasticsearch${suffix}:test",
-      ]
-    }
-  }
-  tasks.named("assemble").configure {
-    dependsOn(buildDockerImageTask)
-  }
-}
-
-for (final Architecture architecture : Architecture.values()) {
-  for (final DockerBase base : DockerBase.values()) {
-    if (base == DockerBase.IRON_BANK) {
-      // At the moment we don't actually build the Iron Bank image
-      continue
-    }
-    for (final boolean oss : [false, true]) {
-      if (oss && base != DockerBase.CENTOS) {
-        // We only create Docker images for the OSS distribution on CentOS.
-        // Other bases only use the default distribution.
-        continue
-      }
-      addCopyDockerContextTask(architecture, oss, base)
-      addBuildDockerImage(architecture, oss, base)
-    }
-  }
-}
-
 // We build the images used in compose locally, but the pull command insists on using a repository
 // thus we must disable it to prevent it from doing so.
 // Everything will still be pulled since we will build the local images on a pull
 tasks.named("composePull").configure {
   enabled = false
+}
+
+void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
+  String configDirectory = base == DockerBase.IRON_BANK ? 'scripts' : 'config'
+  String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
+
+  tasks.register(taskName('build', architecture, base, 'DockerContext'), Tar) {
+    archiveExtension = 'tar.gz'
+    compression = Compression.GZIP
+    archiveClassifier = "docker-build-context${arch}"
+    archiveBaseName = "elasticsearch${base.suffix}"
+    with dockerBuildContext(architecture, base)
+
+    into(configDirectory) {
+      from(configurations.log4jConfig) {
+        filter TransformLog4jConfigFilter
+      }
+    }
+
+    onlyIf { Architecture.current() == architecture }
+  }
+}
+
+void addUnpackDockerContextTask(Architecture architecture, DockerBase base) {
+  tasks.register(taskName("transform", architecture, base, "DockerContext"), Sync) {
+    TaskProvider<Tar> buildContextTask = tasks.named(taskName("build", architecture, base, "DockerContext"))
+    dependsOn(buildContextTask)
+
+    String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
+    String archiveName = "elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
+    String distributionName = "elasticsearch-${VersionProperties.elasticsearch}-linux-${architecture.classifier}.tar.gz"
+
+    from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
+      eachFile { FileCopyDetails details ->
+        if (details.name.equals("Dockerfile")) {
+          filter { it.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /opt/elasticsearch.tar.gz")}
+        }
+      }
+    }
+    into "${project.buildDir}/docker-context/${archiveName}"
+
+    // Since we replaced the remote URL in the Dockerfile, copy in the required file
+    if (architecture == Architecture.AARCH64) {
+      from configurations.aarch64DockerSource
+    } else {
+      from configurations.dockerSource
+    }
+
+    if (base == DockerBase.IRON_BANK) {
+      from (configurations.tini) {
+        rename { _ -> 'tini' }
+      }
+    }
+
+    expansions(architecture, base).findAll { it.key != 'build_date' }.each { k, v ->
+      inputs.property(k, { v.toString() })
+    }
+
+    onlyIf { Architecture.current() == architecture }
+  }
+}
+
+
+private List<String> generateTags(DockerBase base) {
+  String version = VersionProperties.elasticsearch
+  return [
+    "elasticsearch${base.suffix}:test",
+    "elasticsearch${base.suffix}:${version}",
+    "docker.elastic.co/elasticsearch/elasticsearch${base.suffix}:${version}"
+  ]
+}
+
+void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
+  final TaskProvider<DockerBuildTask> buildDockerImageTask =
+    tasks.register(taskName("build", architecture, base, "DockerImage"), DockerBuildTask) {
+
+      TaskProvider<Tar> transformTask = tasks.named(taskName("transform", architecture, base, "DockerContext"))
+      dependsOn(transformTask)
+
+      dockerContext.fileProvider(transformTask.map { it.destinationDir })
+
+      tags = generateTags(base)
+
+      if (base == DockerBase.IRON_BANK) {
+        Map<String, String> buildArgsMap = [
+          'BASE_REGISTRY': 'docker.elastic.co',
+          'BASE_IMAGE': 'ubi8/ubi',
+          'BASE_TAG': 'latest'
+        ]
+
+        // Iron Bank has a single, parameterized base image
+        String baseImage = base.image
+        for (String key : buildArgsMap.keySet()) {
+          baseImage = baseImage.replace('${' + key + '}', buildArgsMap.get(key))
+        }
+
+        baseImages = [baseImage]
+        buildArgs = buildArgsMap
+      } else if (base == DockerBase.CENTOS) {
+        baseImages = ['alpine:3.13', base.image]
+      } else {
+        baseImages = [base.image]
+      }
+
+      onlyIf { Architecture.current() == architecture }
+    }
+
+  tasks.named("assemble").configure {
+    dependsOn(buildDockerImageTask)
+  }
+}
+
+
+for (final Architecture architecture : Architecture.values()) {
+  for (final DockerBase base : DockerBase.values()) {
+    addBuildDockerContextTask(architecture, base)
+    addUnpackDockerContextTask(architecture, base)
+    addBuildDockerImageTask(architecture, base)
+  }
 }
 
 /*
@@ -343,18 +326,19 @@ subprojects { Project subProject ->
     apply plugin: 'distribution'
 
     final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.X64
-    final boolean oss = subProject.name.contains('oss-')
-    // We can ignore Iron Bank at the moment as we don't
-    // build those images ourselves.
-    final DockerBase base = subProject.name.contains('ubi-') ? DockerBase.UBI : DockerBase.CENTOS
+    DockerBase base = DockerBase.CENTOS
+    if (subProject.name.contains('ubi-')) {
+      base = DockerBase.UBI
+    } else if (subProject.name.contains('ironbank-')) {
+      base = DockerBase.IRON_BANK
+    }
 
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
-    final String suffix = oss ? '-oss' : base == DockerBase.UBI ? '-ubi8' : ''
-    final String extension = base == DockerBase.UBI ? 'ubi.tar' : 'docker.tar'
-    final String artifactName = "elasticsearch${arch}${suffix}_test"
+    final String extension = base == DockerBase.UBI ? 'ubi.tar' : (base == DockerBase.IRON_BANK ? 'ironbank.tar' : 'docker.tar')
+    final String artifactName = "elasticsearch${arch}${base.suffix}_test"
 
-    final String exportTaskName = taskName("export", architecture, oss, base, "DockerImage")
-    final String buildTaskName = taskName("build", architecture, oss, base, "DockerImage")
+    final String exportTaskName = taskName("export", architecture, base, 'DockerImage')
+    final String buildTaskName = taskName('build', architecture, base, 'DockerImage')
     final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.elasticsearch}.${extension}"
 
     tasks.register(exportTaskName, LoggedExec) {
@@ -364,7 +348,7 @@ subprojects { Project subProject ->
       args "save",
         "-o",
         tarFile,
-        "elasticsearch${suffix}:test"
+        "elasticsearch${base.suffix}:test"
 
       dependsOn(parent.path + ":" + buildTaskName)
       onlyIf { Architecture.current() == architecture }

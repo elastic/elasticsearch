@@ -72,9 +72,6 @@ POST /_snapshot/my_repository/my_snapshot/_restore
 
 Use the restore snapshot API to restore a snapshot of a cluster, including all data streams and indices in the snapshot. If you do not want to restore the entire snapshot, you can select specific data streams or indices to restore.
 
-NOTE: You cannot restore a data stream if a stream with the same name already
-exists.
-
 You can run the restore operation on a cluster that contains an elected
 <<master-node,master node>> and has data nodes with enough capacity to accommodate the snapshot
 you are restoring. Existing indices can only be restored if they are
@@ -82,7 +79,7 @@ you are restoring. Existing indices can only be restored if they are
 the snapshot. The restore operation automatically opens restored indices if
 they were closed and creates new indices if they do not exist in the cluster.
 
-If a data stream is restored, its backing indices are also restored.
+If a data stream is restored, its aliases and backing indices are also restored.
 Alternatively, you can restore individual backing indices without restoring an
 entire data stream. If you restore individual backing indices, they are not
 automatically added to any existing data stream. For example, if only the
@@ -102,7 +99,21 @@ Name of the repository to restore a snapshot from.
 (Required, string)
 Name of the snapshot to restore.
 
-[role="child-attributes"]
+[[restore-snapshot-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request returns a response when the restore
+operation completes. The operation is complete when it finishes all attempts to
+<<_monitoring_restore_operations,recover primary shards>> for restored indices.
+This applies even if one or more of the recovery attempts fail.
++
+If `false`, the request returns a response when the restore
+operation initializes. Defaults to `false`.
+
+[role="child_attributes"]
 [[restore-snapshot-api-request-body]]
 ==== {api-request-body-title}
 
@@ -118,31 +129,45 @@ A comma-separated list of index settings that should not be restored from a snap
 
 `include_aliases`::
 (Optional, Boolean)
-If `true`, index aliases from the original snapshot are restored.
-Defaults to `true`.
-+
-If `false`, prevents aliases from being restored together with associated
-indices.
+If `true`, the request restores aliases for any restored data streams and
+indices. If `false`, the request doesn't restore aliases. Defaults to `true`.
 
 [[restore-snapshot-api-include-global-state]]
 `include_global_state`::
 +
 --
 (Optional, Boolean)
-If `false`, the cluster state is not restored. Defaults to `false`.
+If `false`, the global state is not restored. Defaults to `false`.
 
-If `true`, the current cluster state is included in the restore operation.
+If `true`, the current global state is included in the restore operation.
 
-The cluster state includes:
+The global state includes:
 
 * Persistent cluster settings
 * Index templates
 * Legacy index templates
 * Ingest pipelines
 * {ilm-init} lifecycle policies
+* For snapshots taken after 7.12.0, data stored in system indices, such as Watches and task records, replacing any existing configuration (configurable via `feature_states`)
+
+If `include_global_state` is `true` then the restore operation merges the
+legacy index templates in your cluster with the templates contained in the
+snapshot, replacing any existing ones whose name matches one in the snapshot.
+It completely removes all persistent settings, non-legacy index templates,
+ingest pipelines and {ilm-init} lifecycle policies that exist in your cluster
+and replaces them with the corresponding items from the snapshot.
 --
+
+[[restore-snapshot-api-feature-states]]
+`feature_states`::
+(Optional, array of strings)
+A comma-separated list of feature states you wish to restore. Each feature state contains one or more system indices. The list of feature states
+available in a given snapshot are returned by the <<get-snapshot-api-feature-states, Get Snapshot API>>. Note that feature
+states restored this way will completely replace any existing configuration, rather than returning an error if the system index already exists.
+Providing an empty array will restore no feature states, regardless of the value of `include_global_state`.
 +
-IMPORTANT: By default, the entire restore operation will fail if one or more indices included in the snapshot do not have all primary shards available. You can change this behavior by setting <<restore-snapshot-api-partial,`partial`>> to `true`.
+By default, all available feature states will be restored if `include_global_state` is `true`, and no feature states will be restored if
+`include_global_state` is `false`.
 
 [[restore-snapshot-api-index-settings]]
 `index_settings`::
@@ -189,14 +214,6 @@ include::{es-ref-dir}/snapshot-restore/restore-snapshot.asciidoc[tag=rename-rest
 `rename_replacement`::
 (Optional, string)
 Defines the rename replacement string. See <<restore-snapshot-api-rename-pattern,`rename_pattern`>> for more information.
-
-`wait_for_completion`::
-(Optional, Boolean)
-If `false`, the request returns a response when the restore operation initializes.
-Defaults to `false`.
-+
-If `true`, the request returns a response when the restore operation
-completes.
 
 [[restore-snapshot-api-example]]
 ==== {api-examples-title}

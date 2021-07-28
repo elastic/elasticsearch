@@ -8,7 +8,7 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -109,9 +109,11 @@ public interface IndexEventListener {
     }
 
     /**
-     * Called before the index shard gets created.
+     * Called before the index shard gets created, before obtaining the shard lock.
+     * @param routing the routing entry that caused the shard to be created.
+     * @param indexSettings the shards index settings
      */
-    default void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
+    default void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {
     }
 
     /**

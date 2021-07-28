@@ -8,18 +8,20 @@
 
 package org.elasticsearch.client.ml.dataframe;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class DataFrameAnalyticsSource implements ToXContentObject {
@@ -45,16 +47,20 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
             (p, c) -> FetchSourceContext.fromXContent(p),
             _SOURCE,
             ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
+        PARSER.declareObject(Builder::setRuntimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
     }
 
     private final String[] index;
     private final QueryConfig queryConfig;
     private final FetchSourceContext sourceFiltering;
+    private final Map<String, Object> runtimeMappings;
 
-    private DataFrameAnalyticsSource(String[] index, @Nullable QueryConfig queryConfig, @Nullable FetchSourceContext sourceFiltering) {
+    private DataFrameAnalyticsSource(String[] index, @Nullable QueryConfig queryConfig, @Nullable FetchSourceContext sourceFiltering,
+                                     @Nullable Map<String, Object> runtimeMappings) {
         this.index = Objects.requireNonNull(index);
         this.queryConfig = queryConfig;
         this.sourceFiltering = sourceFiltering;
+        this.runtimeMappings = runtimeMappings;
     }
 
     public String[] getIndex() {
@@ -69,6 +75,10 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
         return sourceFiltering;
     }
 
+    public Map<String, Object> getRuntimeMappings() {
+        return runtimeMappings;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -78,6 +88,9 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
         }
         if (sourceFiltering != null) {
             builder.field(_SOURCE.getPreferredName(), sourceFiltering);
+        }
+        if (runtimeMappings != null) {
+            builder.field(SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
         }
         builder.endObject();
         return builder;
@@ -91,12 +104,13 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
         DataFrameAnalyticsSource other = (DataFrameAnalyticsSource) o;
         return Arrays.equals(index, other.index)
             && Objects.equals(queryConfig, other.queryConfig)
-            && Objects.equals(sourceFiltering, other.sourceFiltering);
+            && Objects.equals(sourceFiltering, other.sourceFiltering)
+            && Objects.equals(runtimeMappings, other.runtimeMappings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.asList(index), queryConfig, sourceFiltering);
+        return Objects.hash(Arrays.asList(index), queryConfig, sourceFiltering, runtimeMappings);
     }
 
     @Override
@@ -109,6 +123,7 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
         private String[] index;
         private QueryConfig queryConfig;
         private FetchSourceContext sourceFiltering;
+        private Map<String, Object> runtimeMappings;
 
         private Builder() {}
 
@@ -132,8 +147,13 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
             return this;
         }
 
+        public Builder setRuntimeMappings(Map<String, Object> runtimeMappings) {
+            this.runtimeMappings = runtimeMappings;
+            return this;
+        }
+
         public DataFrameAnalyticsSource build() {
-            return new DataFrameAnalyticsSource(index, queryConfig, sourceFiltering);
+            return new DataFrameAnalyticsSource(index, queryConfig, sourceFiltering, runtimeMappings);
         }
     }
 }

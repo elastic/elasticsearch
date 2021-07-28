@@ -38,13 +38,13 @@ RP that you commonly need to provide for registration are the following:
 nor the Elastic Stack implementation impose any constraints on this value.
 - `Redirect URI`: This is the URI where the OP will redirect the user's browser after authentication. The
 appropriate value for this will depend on your setup and whether or not {kib} sits behind a proxy or
-load balancer. It will typically be +$\{kibana-url}/api/security/oidc/callback+ (for the authorization code flow) or +$\{kibana-url}/api/security/oidc/implicit+ (for the implicit flow) where _$\{kibana-url}_  is the base URL for your {kib} instance. You might also see this
+load balancer. It will typically be +$\{kibana-url}/api/security/oidc/callback+ (for the authorization code flow) or +$\{kibana-url}/api/security/oidc/implicit+ (for the implicit flow) where _$\{kibana-url}_ is the base URL for your {kib} instance. You might also see this
 called `Callback URI`.
 
 At the end of the registration process, the OP will assign a Client Identifier and a Client Secret for the RP ({stack}) to use.
 Note these two values as they will be used in the {es} configuration.
 
-[[oidc-guide-authentication]]
+[[oidc-elasticsearch-authentication]]
 === Configure {es} for OpenID Connect authentication
 
 The following is a summary of the configuration steps required in order to enable authentication
@@ -53,7 +53,7 @@ using OpenID Connect in {es}:
 . <<oidc-enable-http,Enable SSL/TLS for HTTP>>
 . <<oidc-enable-token,Enable the Token Service>>
 . <<oidc-create-realm,Create one or more OpenID Connect realms>>
-. <<oidc-role-mapping,Configure role mappings>>
+. <<oidc-role-mappings,Configure role mappings>>
 
 [[oidc-enable-http]]
 ==== Enable TLS for HTTP
@@ -63,12 +63,12 @@ configure the HTTP interface to use SSL/TLS before you can enable OpenID Connect
 authentication.
 
 For more information, see
-<<tls-http>>.
+<<encrypt-http-communication>>.
 
 [[oidc-enable-token]]
 ==== Enable the token service
 
-The {es} OpenID Connect implementation makes use of the {es} Token Service.  This service
+The {es} OpenID Connect implementation makes use of the {es} Token Service. This service
 is automatically enabled if you configure TLS on the HTTP interface, and can be
 explicitly configured by including the following in your `elasticsearch.yml` file:
 
@@ -157,7 +157,7 @@ op.authorization_endpoint::
 
 op.token_endpoint::
     The URL for the Token Endpoint in the OpenID Connect Provider. This is the endpoint where
-    {es} will send a request to exchange the code for an ID Token.  This setting is optional when
+    {es} will send a request to exchange the code for an ID Token. This setting is optional when
     you use the implicit flow. The value for this setting should be provided by your OpenID Connect Provider.
 
 op.jwkset_path::
@@ -183,8 +183,8 @@ rp.post_logout_redirect_uri::
     will not trigger a new OpenID Connect Authentication, such as +$\{kibana-url}/security/logged_out+  or
     +$\{kibana-url}/login?msg=LOGGED_OUT+ where _$\{kibana-url}_ is the base URL for your {kib} instance.
 
-claims.principal:: See <<oidc-claims-mapping>>.
-claims.groups:: See <<oidc-claims-mapping>>.
+claims.principal:: See <<oidc-claims-mappings>>.
+claims.groups:: See <<oidc-claims-mappings>>.
 
 A final piece of configuration of the OpenID Connect realm is to set the `Client Secret` that was assigned
 to the RP during registration in the OP. This is a secure setting and as such is not defined in the realm
@@ -205,7 +205,7 @@ available at a well known URL, which is the concatenation of their `Issuer` valu
 That document should contain all the necessary information to configure the OpenID Connect realm in {es}.
 
 
-[[oidc-claims-mapping]]
+[[oidc-claims-mappings]]
 ==== Claims mapping
 
 ===== Claims and scopes
@@ -234,7 +234,7 @@ largely supported.
 The goal of claims mapping is to configure {es} in such a way as to be able to map the values of
 specified returned claims to one of the <<oidc-user-properties, user properties>> that are supported
 by {es}. These user properties are then utilized to identify the user in the {kib} UI or the audit
-logs, and can also be used to create <<oidc-role-mapping, role mapping>> rules.
+logs, and can also be used to create <<oidc-role-mappings, role mapping>> rules.
 
 The recommended steps for configuring OpenID Claims mapping are as follows:
 
@@ -298,7 +298,7 @@ NOTE: If the principal property fails to be mapped from a claim, the authenticat
 groups:: _(Recommended)_
     If you wish to use your OP's concept of groups or roles as the basis for a
     user's {es} privileges, you should map them with this property.
-    The `groups` are passed directly to your <<oidc-role-mapping, role mapping rules>>.
+    The `groups` are passed directly to your <<oidc-role-mappings, role mapping rules>>.
 
 name:: _(Optional)_ The user's full name.
 mail:: _(Optional)_ The user's email address.
@@ -408,7 +408,7 @@ xpack.security.authc.realms.oidc.oidc1:
   ssl.certificate_authorities: ["/oidc/company-ca.pem"]
 -------------------------------------------------------------------------------------
 
-[[oidc-role-mapping]]
+[[oidc-role-mappings]]
 === Configuring role mappings
 
 When a user authenticates using OpenID Connect, they are identified to the Elastic Stack,
@@ -505,7 +505,7 @@ that pertain to the authentication event, rather than the user themselves.
 This behaviour can be disabled by adding `populate_user_metadata: false` as
 a setting in the oidc realm.
 
-[[oidc-kibana]]
+[[oidc-configure-kibana]]
 === Configuring {kib}
 
 OpenID Connect authentication in {kib} requires a small number of additional settings
@@ -603,7 +603,7 @@ APIs require authentication and the necessary authorization level for the authen
 user. For this reason, a Service Account user needs to be created and assigned a role
 that gives them the `manage_oidc` cluster privilege. The use of the `manage_token`
 cluster privilege will be necessary after the authentication takes place, so that the
-the user can maintain access or be subsequently logged out.
+user can maintain access or be subsequently logged out.
 
 [source,console]
 --------------------------------------------------

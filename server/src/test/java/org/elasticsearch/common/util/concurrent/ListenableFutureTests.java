@@ -39,7 +39,7 @@ public class ListenableFutureTests extends ESTestCase {
         AtomicInteger notifications = new AtomicInteger(0);
         final int numberOfListeners = scaledRandomIntBetween(1, 12);
         for (int i = 0; i < numberOfListeners; i++) {
-            future.addListener(ActionListener.wrap(notifications::incrementAndGet), EsExecutors.newDirectExecutorService(), threadContext);
+            future.addListener(ActionListener.wrap(notifications::incrementAndGet), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
         }
 
         future.onResponse("");
@@ -56,7 +56,7 @@ public class ListenableFutureTests extends ESTestCase {
             future.addListener(ActionListener.wrap(s -> fail("this should never be called"), e -> {
                 assertEquals(exception, e);
                 notifications.incrementAndGet();
-            }), EsExecutors.newDirectExecutorService(), threadContext);
+            }), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
         }
 
         future.onFailure(exception);

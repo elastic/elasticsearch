@@ -37,7 +37,7 @@ public class ExampleSecurityExtension implements SecurityExtension {
     static {
         // check that the extension's policy works.
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            System.getSecurityManager().checkCreateClassLoader();
+            System.getSecurityManager().checkPropertyAccess("myproperty");
             return null;
         });
     }

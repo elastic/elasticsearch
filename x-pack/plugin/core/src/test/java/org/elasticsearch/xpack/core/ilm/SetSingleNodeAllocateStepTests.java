@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,9 +30,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.core.ilm.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.hamcrest.Matchers;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -47,7 +45,6 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSingleNodeAllocateStep> {
@@ -201,22 +198,9 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
         SetSingleNodeAllocateStep step = createRandomInstance();
-        SetOnce<Exception> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetadata, clusterState, null, new Listener() {
 
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                actionCompleted.set(e);
-            }
-        });
-
-        Exception failure = actionCompleted.get();
-        assertThat(failure, instanceOf(NoNodeAvailableException.class));
+        expectThrows(NoNodeAvailableException.class,
+            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
 
         Mockito.verifyZeroInteractions(client);
     }
@@ -295,22 +279,8 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetadata, clusterState, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertSame(exception, e);
-                exceptionThrown.set(true);
-            }
-        });
-
-        assertEquals(true, exceptionThrown.get());
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+            f -> step.performAction(indexMetadata, clusterState, null, f))));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -322,7 +292,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         final int numNodes = randomIntBetween(1, 20);
         String[][] validAttrs = new String[numAttrs][2];
         for (int i = 0; i < numAttrs; i++) {
-            validAttrs[i] = new String[] { randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20) };
+            validAttrs[i] = new String[] { "na_" + randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20) };
         }
         Settings.Builder indexSettings = settings(Version.CURRENT);
         for (String[] attr : validAttrs) {
@@ -351,23 +321,9 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
-        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetadata, clusterState, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertThat(e, Matchers.instanceOf(IndexNotFoundException.class));
-                assertEquals(indexMetadata.getIndex(), ((IndexNotFoundException) e).getIndex());
-                exceptionThrown.set(true);
-            }
-        });
-
-        assertEquals(true, exceptionThrown.get());
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
+            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        assertEquals(indexMetadata.getIndex(), e.getIndex());
 
         Mockito.verifyZeroInteractions(client);
     }
@@ -573,22 +529,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
-
-        step.performAction(indexMetadata, clusterState, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Unexpected method call", e);
-            }
-        });
-
-        assertEquals(true, actionCompleted.get());
+        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -611,23 +552,8 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
-        SetOnce<Exception> actionCompleted = new SetOnce<>();
-
-        step.performAction(indexMetadata, clusterState, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                actionCompleted.set(e);
-            }
-        });
-
-        Exception failure = actionCompleted.get();
-        assertThat(failure, instanceOf(NoNodeAvailableException.class));
+        expectThrows(NoNodeAvailableException.class,
+            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
 
         Mockito.verifyZeroInteractions(client);
     }

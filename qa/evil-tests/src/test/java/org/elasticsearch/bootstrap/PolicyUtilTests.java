@@ -8,7 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -210,8 +210,10 @@ public class PolicyUtilTests extends ESTestCase {
     }
 
     static final List<String> PLUGIN_TEST_PERMISSIONS = List.of(
+        // TODO: move this back to module test permissions, see https://github.com/elastic/elasticsearch/issues/69464
+        "java.io.FilePermission /foo/bar read",
+
         "java.lang.reflect.ReflectPermission suppressAccessChecks",
-        "java.lang.RuntimePermission createClassLoader",
         "java.lang.RuntimePermission getClassLoader",
         "java.lang.RuntimePermission setContextClassLoader",
         "java.lang.RuntimePermission setFactory",
@@ -270,8 +272,8 @@ public class PolicyUtilTests extends ESTestCase {
     }
 
     static final List<String> MODULE_TEST_PERMISSIONS = List.of(
-        "java.io.FilePermission /foo/bar read",
         "java.io.FilePermission /foo/bar write",
+        "java.lang.RuntimePermission createClassLoader",
         "java.lang.RuntimePermission getFileStoreAttributes",
         "java.lang.RuntimePermission accessUserInformation"
     );
@@ -311,6 +313,8 @@ public class PolicyUtilTests extends ESTestCase {
         "java.lang.RuntimePermission setDefaultUncaughtExceptionHandler",
         "java.lang.RuntimePermission preferences",
         "java.lang.RuntimePermission usePolicy",
+        // blanket runtime permission not allowed
+        "java.lang.RuntimePermission *",
         "java.net.NetPermission setDefaultAuthenticator",
         "java.net.NetPermission specifyStreamHandler",
         "java.net.NetPermission setProxySelector",

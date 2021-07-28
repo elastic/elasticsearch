@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -16,14 +16,13 @@ final Project fixture = project(':test:fixtures:azure-fixture')
 final Project repositoryPlugin = project(':plugins:repository-azure')
 
 dependencies {
-  testImplementation project(path: xpackModule('repositories-metering-api'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
   testImplementation repositoryPlugin
 }
 
 restResources {
   restApi {
-    includeCore 'indices', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'repositories-metering-api'
+    include 'indices', 'bulk', 'snapshot', 'nodes', '_common', 'repositories-metering-api'
   }
 }
 
@@ -47,6 +46,10 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
 if (useFixture) {
   apply plugin: 'elasticsearch.test.fixtures'
   testFixtures.useFixture(fixture.path, 'azure-fixture-repositories-metering')
+}
+
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.named("integTest") {

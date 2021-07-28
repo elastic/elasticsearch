@@ -34,7 +34,7 @@ import org.elasticsearch.client.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -43,6 +43,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
@@ -58,12 +59,13 @@ import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class PermissionsIT extends ESRestTestCase {
 
@@ -140,16 +142,24 @@ public class PermissionsIT extends ESRestTestCase {
                 Map<String, Object> mapResponse = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                 Map<String, Object> indexExplain = (Map<String, Object>) ((Map<String, Object>) mapResponse.get("indices")).get("not-ilm");
                 assertThat(indexExplain.get("managed"), equalTo(true));
-                assertThat(indexExplain.get("step"), equalTo("ERROR"));
-                assertThat(indexExplain.get("failed_step"), equalTo("wait-for-shard-history-leases"));
-                Map<String, String> stepInfo = (Map<String, String>) indexExplain.get("step_info");
-                assertThat(stepInfo.get("type"), equalTo("security_exception"));
-                assertThat(stepInfo.get("reason"), equalTo("action [indices:monitor/stats] is unauthorized" +
-                    " for user [test_ilm]" +
-                    " on indices [not-ilm]," +
-                    " this action is granted by the index privileges [monitor,manage,all]"));
+                assertThat((Integer) indexExplain.get("failed_step_retry_count"), greaterThanOrEqualTo(1));
+
+                // as `wait-for-shard-history-leases` is now retryable, when it fails ILM moves into ERROR and when it retries it moves back
+                // into `wait-for-shard-history-leases`. this assertBusy block might never catch ILM in the `ERROR` step (if unlucky) so
+                // the following checks are lenient
+                String currentStep = (String) indexExplain.get("step");
+                if (currentStep != null && currentStep.equals("ERROR")) {
+                    assertThat(indexExplain.get("failed_step"), equalTo("wait-for-shard-history-leases"));
+                    Map<String, String> stepInfo = (Map<String, String>) indexExplain.get("step_info");
+                    assertThat(stepInfo.get("type"), equalTo("security_exception"));
+                    assertThat(stepInfo.get("reason"), equalTo("action [indices:monitor/stats] is unauthorized" +
+                        " for user [test_ilm]" +
+                        " with roles [ilm]" +
+                        " on indices [not-ilm]," +
+                        " this action is granted by the index privileges [monitor,manage,all]"));
+                }
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testSLMWithPermissions() throws Exception {
@@ -227,7 +237,7 @@ public class PermissionsIT extends ESRestTestCase {
                 GetSnapshotsRequest getSnaps = new GetSnapshotsRequest(repo);
                 getSnaps.snapshots(new String[]{snapName});
                 GetSnapshotsResponse getResp = adminHLRC.snapshot().get(getSnaps, RequestOptions.DEFAULT);
-                assertThat(getResp.getSnapshots(repo).get(0).state(), equalTo(SnapshotState.SUCCESS));
+                assertThat(getResp.getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
             } catch (ElasticsearchException e) {
                 fail("expected snapshot to exist but it does not: " + e.getDetailedMessage());
             }
@@ -247,7 +257,7 @@ public class PermissionsIT extends ESRestTestCase {
                 GetSnapshotsRequest getSnaps = new GetSnapshotsRequest(repo);
                 getSnaps.snapshots(new String[]{snapName});
                 GetSnapshotsResponse getResp = adminHLRC.snapshot().get(getSnaps, RequestOptions.DEFAULT);
-                assertThat(getResp.getSnapshots(repo).size(), equalTo(0));
+                assertThat(getResp.getSnapshots().size(), equalTo(0));
             } catch (ElasticsearchException e) {
                 // great, we want it to not exist
                 assertThat(e.getDetailedMessage(), containsString("snapshot_missing_exception"));
@@ -284,7 +294,7 @@ public class PermissionsIT extends ESRestTestCase {
          * - Create role with just write and manage privileges on alias
          * - Create user and assign newly created role.
          */
-        createNewSingletonPolicy(adminClient(), "foo-policy", "hot", new RolloverAction(null, null, 2L));
+        createNewSingletonPolicy(adminClient(), "foo-policy", "hot", new RolloverAction(null, null, null, 2L));
         createIndexTemplate("foo-template", "foo-logs-*", "foo_alias", "foo-policy");
         createIndexAsAdmin("foo-logs-000001", "foo_alias", randomBoolean());
         createRole("foo_alias_role", "foo_alias");
@@ -299,7 +309,7 @@ public class PermissionsIT extends ESRestTestCase {
             Request request = new Request("HEAD", "/" + "foo-logs-000002");
             int status = adminClient().performRequest(request).getStatusLine().getStatusCode();
             assertThat(status, equalTo(200));
-        });
+        }, 30, TimeUnit.SECONDS);
 
         // test_user: index docs using alias, now should be able write to new index
         indexDocs("test_user", "x-pack-test-password", "foo_alias", 1);
@@ -354,6 +364,7 @@ public class PermissionsIT extends ESRestTestCase {
                 "                   \"index.lifecycle.rollover_alias\": \""+alias+"\"\n" +
                 "                 }\n" +
                 "              }");
+        request.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         assertOK(adminClient().performRequest(request));
     }
 

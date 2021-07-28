@@ -168,6 +168,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
                     AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
                         "test_alias",
                         Collections.singletonList("logs-*"),
+                        Collections.emptyList(),
                         null,
                         Settings.EMPTY,
                         true,

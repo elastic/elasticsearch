@@ -1,18 +1,22 @@
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
-import org.elasticsearch.gradle.test.rest.JavaRestTestPlugin
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.test.rest.JavaRestTestPlugin
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.java-rest-test'
 
+//randomise between implicitly and explicitly disabled security
+boolean implicitlyDisabledSecurity = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+
 dependencies {
-  javaRestTestImplementation project(path: xpackModule('core'))
-  javaRestTestImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 tasks.named("javaRestTest").configure {
   description = "Run tests against a cluster that doesn't have security"
-  systemProperty 'tests.has_security', 'false'
+  if (!implicitlyDisabledSecurity) {
+    systemProperty 'tests.has_security', 'false'
+  }
 }
 
 if (BuildParams.inFipsJvm){
@@ -26,11 +30,14 @@ testClusters {
     numberOfNodes = 2
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'basic'
-    setting 'xpack.security.enabled', 'false'
+    if (!implicitlyDisabledSecurity) {
+      setting 'xpack.security.enabled', 'false'
+    }
   }
 }
 
-tasks.register("javaRestTestWithSecurity", StandaloneRestIntegTestTask) {
+tasks.register("javaRestTestWithSecurityEnabled", StandaloneRestIntegTestTask) {
+  mustRunAfter("javaRestTest")
   description = "Run tests against a cluster that has security enabled"
   dependsOn "javaRestTest"
   useCluster testClusters.javaRestTest
@@ -65,5 +72,5 @@ tasks.register("javaRestTestWithSecurity", StandaloneRestIntegTestTask) {
     nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.javaRestTest.getAllHttpSocketURI().join(",")}"
   }
 }
-tasks.named("check").configure { dependsOn("javaRestTestWithSecurity") }
+tasks.named("check").configure { dependsOn("javaRestTestWithSecurityEnabled") }
 

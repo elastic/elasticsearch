@@ -12,7 +12,7 @@ transliteration.
 ================================================
 
 From time to time, the ICU library receives updates such as adding new
-characters and emojis, and improving collation (sort) orders.  These changes
+characters and emojis, and improving collation (sort) orders. These changes
 may or may not affect search and sort orders, depending on which characters
 sets you are using.
 
@@ -38,11 +38,11 @@ The following parameters are accepted:
 
 `method`::
 
-    Normalization method.  Accepts `nfkc`, `nfc` or `nfkc_cf` (default)
+    Normalization method. Accepts `nfkc`, `nfc` or `nfkc_cf` (default)
 
 `mode`::
 
-    Normalization mode.  Accepts `compose` (default) or `decompose`.
+    Normalization mode. Accepts `compose` (default) or `decompose`.
 
 [[analysis-icu-normalization-charfilter]]
 ==== ICU Normalization Character Filter
@@ -52,7 +52,7 @@ http://userguide.icu-project.org/transforms/normalization[here].
 It registers itself as the `icu_normalizer` character filter, which is
 available to all indices without any further configuration. The type of
 normalization can be specified with the `name` parameter, which accepts `nfc`,
-`nfkc`, and `nfkc_cf` (default).  Set the `mode` parameter to `decompose` to
+`nfkc`, and `nfkc_cf` (default). Set the `mode` parameter to `decompose` to
 convert `nfc` to `nfd` or `nfkc` to `nfkd` respectively:
 
 Which letters are normalized can be controlled by specifying the
@@ -328,7 +328,7 @@ PUT icu_sample
 
 [WARNING]
 ======
-This token filter has been deprecated since Lucene 5.0.  Please use
+This token filter has been deprecated since Lucene 5.0. Please use
 <<analysis-icu-collation-keyword-field, ICU Collation Keyword Field>>.
 ======
 
@@ -404,7 +404,7 @@ The following parameters are accepted by `icu_collation_keyword` fields:
 `null_value`::
 
     Accepts a string value which is substituted for any explicit `null`
-    values.  Defaults to `null`, which means the field is treated as missing.
+    values. Defaults to `null`, which means the field is treated as missing.
 
 {ref}/ignore-above.html[`ignore_above`]::
 
@@ -434,7 +434,7 @@ The strength property determines the minimum level of difference considered
 significant during comparison. Possible values are : `primary`, `secondary`,
 `tertiary`, `quaternary` or `identical`. See the
 https://icu-project.org/apiref/icu4j/com/ibm/icu/text/Collator.html[ICU Collation documentation]
-for a more detailed  explanation for each value.  Defaults to `tertiary`
+for a more detailed explanation for each value. Defaults to `tertiary`
 unless otherwise specified in the collation.
 
 `decomposition`::
@@ -483,7 +483,7 @@ Single character or contraction. Controls what is variable for `alternate`.
 
 `hiragana_quaternary_mode`::
 
-Possible values: `true` or `false`.  Distinguishing between Katakana and
+Possible values: `true` or `false`. Distinguishing between Katakana and
 Hiragana characters in `quaternary` strength.
 
 
@@ -495,7 +495,7 @@ case mapping, normalization, transliteration and bidirectional text handling.
 
 You can define which transformation you want to apply with the `id` parameter
 (defaults to `Null`), and specify text direction with the `dir` parameter
-which accepts `forward` (default) for LTR and `reverse` for RTL.  Custom
+which accepts `forward` (default) for LTR and `reverse` for RTL. Custom
 rulesets are not yet supported.
 
 For example:

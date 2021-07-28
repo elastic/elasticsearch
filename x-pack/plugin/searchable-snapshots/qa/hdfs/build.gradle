@@ -6,9 +6,9 @@
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.util.ports.ReservedPortRange
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.util.ports.ReservedPortRange
 
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -26,14 +26,13 @@ final Project krbFixtureProject = project(':test:fixtures:krb5kdc-fixture')
 final Project hdfsRepoPluginProject = project(':plugins:repository-hdfs')
 
 dependencies {
-  testImplementation project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
   testImplementation hdfsRepoPluginProject
 }
 
 restResources {
   restApi {
-    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'searchable_snapshots'
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots'
   }
 }
 
@@ -47,7 +46,9 @@ dependencies {
   hdfsFixture hdfsFixtureProject
   // Set the keytab files in the classpath so that we can access them from test code without the security manager freaking out.
   if (isEclipse == false) {
-    testRuntimeOnly files(krbFixtureProject.ext.krb5Keytabs("hdfs-snapshot", "hdfs_hdfs.build.elastic.co.keytab").parent)
+    testRuntimeOnly files(krbFixtureProject.ext.krb5Keytabs("hdfs-snapshot", "hdfs_hdfs.build.elastic.co.keytab").parent){
+      builtBy ":test:fixtures:krb5kdc-fixture:preProcessFixture"
+    }
   }
 }
 
@@ -65,7 +66,7 @@ String krb5conf = krbFixtureProject.ext.krb5Conf("hdfs")
 
 // Create HDFS File System Testing Fixtures
 for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
-  project.tasks.register(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
+  project.tasks.register(fixtureName, org.elasticsearch.gradle.internal.test.AntFixture) {
     dependsOn project.configurations.hdfsFixture, krbFixtureProject.tasks.postProcessFixture
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
@@ -133,6 +134,8 @@ testClusters.configureEach {
 
   setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
   setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
+
+  setting 'xpack.security.enabled', 'false'
 }
 
 testClusters.matching { it.name == "integTestSecure" }.configureEach {

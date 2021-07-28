@@ -8,130 +8,65 @@
 
 package org.elasticsearch.kibana;
 
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.index.reindex.RestDeleteByQueryAction;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
-import org.elasticsearch.rest.action.admin.indices.RestGetAliasesAction;
-import org.elasticsearch.rest.action.admin.indices.RestGetIndicesAction;
-import org.elasticsearch.rest.action.admin.indices.RestIndexPutAliasAction;
-import org.elasticsearch.rest.action.admin.indices.RestRefreshAction;
-import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
-import org.elasticsearch.rest.action.document.RestBulkAction;
-import org.elasticsearch.rest.action.document.RestDeleteAction;
-import org.elasticsearch.rest.action.document.RestGetAction;
-import org.elasticsearch.rest.action.document.RestIndexAction;
-import org.elasticsearch.rest.action.document.RestIndexAction.AutoIdHandler;
-import org.elasticsearch.rest.action.document.RestIndexAction.CreateHandler;
-import org.elasticsearch.rest.action.document.RestMultiGetAction;
-import org.elasticsearch.rest.action.document.RestUpdateAction;
-import org.elasticsearch.rest.action.search.RestClearScrollAction;
-import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
-    public static final Setting<List<String>> KIBANA_INDEX_NAMES_SETTING = Setting.listSetting(
-        "kibana.system_indices",
-        List.of(".kibana", ".kibana_*", ".reporting-*", ".apm-agent-configuration", ".apm-custom-link"),
-        Function.identity(),
-        Property.NodeScope
-    );
+    private static final List<String> KIBANA_PRODUCT_ORIGIN = List.of("kibana");
+
+    public static final SystemIndexDescriptor KIBANA_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
+        .setIndexPattern(".kibana_*")
+        .setDescription("Kibana saved objects system index")
+        .setAliasName(".kibana")
+        .setType(Type.EXTERNAL_UNMANAGED)
+        .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
+        .build();
+
+    public static final SystemIndexDescriptor REPORTING_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
+        .setIndexPattern(".reporting-*")
+        .setDescription("system index for reporting")
+        .setType(Type.EXTERNAL_UNMANAGED)
+        .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
+        .build();
+
+    public static final SystemIndexDescriptor APM_AGENT_CONFIG_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
+        .setIndexPattern(".apm-agent-configuration")
+        .setDescription("system index for APM agent configuration")
+        .setType(Type.EXTERNAL_UNMANAGED)
+        .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
+        .build();
+
+    public static final SystemIndexDescriptor APM_CUSTOM_LINK_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
+        .setIndexPattern(".apm-custom-link")
+        .setDescription("system index for APM custom links")
+        .setType(Type.EXTERNAL_UNMANAGED)
+        .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
+        .build();
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return KIBANA_INDEX_NAMES_SETTING.get(settings)
-            .stream()
-            .map(pattern -> new SystemIndexDescriptor(pattern, "System index used by kibana"))
-            .collect(Collectors.toUnmodifiableList());
-    }
-
-    @Override
-    public List<RestHandler> getRestHandlers(
-        Settings settings,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
-    ) {
-        // TODO need to figure out what subset of system indices Kibana should have access to via these APIs
         return List.of(
-            // Based on https://github.com/elastic/kibana/issues/49764
-            // apis needed to perform migrations... ideally these will go away
-            new KibanaWrappedRestHandler(new RestCreateIndexAction()),
-            new KibanaWrappedRestHandler(new RestGetAliasesAction()),
-            new KibanaWrappedRestHandler(new RestIndexPutAliasAction()),
-            new KibanaWrappedRestHandler(new RestRefreshAction()),
-
-            // apis needed to access saved objects
-            new KibanaWrappedRestHandler(new RestGetAction()),
-            new KibanaWrappedRestHandler(new RestMultiGetAction(settings)),
-            new KibanaWrappedRestHandler(new RestSearchAction()),
-            new KibanaWrappedRestHandler(new RestBulkAction(settings)),
-            new KibanaWrappedRestHandler(new RestDeleteAction()),
-            new KibanaWrappedRestHandler(new RestDeleteByQueryAction()),
-
-            // api used for testing
-            new KibanaWrappedRestHandler(new RestUpdateSettingsAction()),
-
-            // apis used specifically by reporting
-            new KibanaWrappedRestHandler(new RestGetIndicesAction()),
-            new KibanaWrappedRestHandler(new RestIndexAction()),
-            new KibanaWrappedRestHandler(new CreateHandler()),
-            new KibanaWrappedRestHandler(new AutoIdHandler(nodesInCluster)),
-            new KibanaWrappedRestHandler(new RestUpdateAction()),
-            new KibanaWrappedRestHandler(new RestSearchScrollAction()),
-            new KibanaWrappedRestHandler(new RestClearScrollAction())
+            KIBANA_INDEX_DESCRIPTOR,
+            REPORTING_INDEX_DESCRIPTOR,
+            APM_AGENT_CONFIG_INDEX_DESCRIPTOR,
+            APM_CUSTOM_LINK_INDEX_DESCRIPTOR
         );
-
     }
 
     @Override
-    public List<Setting<?>> getSettings() {
-        return List.of(KIBANA_INDEX_NAMES_SETTING);
+    public String getFeatureName() {
+        return "kibana";
     }
 
-    static class KibanaWrappedRestHandler extends BaseRestHandler.Wrapper {
-
-        KibanaWrappedRestHandler(BaseRestHandler delegate) {
-            super(delegate);
-        }
-
-        @Override
-        public String getName() {
-            return "kibana_" + super.getName();
-        }
-
-        @Override
-        public boolean allowSystemIndexAccessByDefault() {
-            return true;
-        }
-
-        @Override
-        public List<Route> routes() {
-            return super.routes().stream()
-                .map(route -> new Route(route.getMethod(), "/_kibana" + route.getPath()))
-                .collect(Collectors.toUnmodifiableList());
-        }
+    @Override
+    public String getFeatureDescription() {
+        return "Manages Kibana configuration and reports";
     }
 }

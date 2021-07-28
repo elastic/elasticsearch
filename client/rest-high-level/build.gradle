@@ -1,5 +1,5 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -8,23 +8,24 @@ import org.elasticsearch.gradle.info.BuildParams
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-high-level-client'
 
 // HLRC is published under the Elastic License
-ext.projectLicenses = ['Elastic License 2.0': ext.elasticLicenseUrl]
+ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl.get()])
 
 restResources {
   //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
   restApi {
-    includeCore '*'
+    include '*'
   }
 }
 
@@ -50,7 +51,11 @@ dependencies {
   testImplementation(project(':x-pack:plugin:core')) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
   }
+  testImplementation(project(':modules:ingest-geoip')) {
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+  }
   testImplementation(project(':x-pack:plugin:eql'))
+  testImplementation(project(':x-pack:plugin:ql:test-fixtures'))
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -112,4 +117,12 @@ testClusters.all {
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile nodeTrustStore.name, nodeTrustStore
   extraConfigFile pkiTrustCert.name, pkiTrustCert
+
+  setting 'xpack.searchable.snapshot.shared_cache.size', '1mb'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '16kb'
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // the client package should be owned by the client, but server has some classes there too
+  ignoreClasses 'org.elasticsearch.client.*'
 }

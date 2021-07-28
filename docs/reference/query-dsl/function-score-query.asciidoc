@@ -536,7 +536,7 @@ In this case your *origin* for the location field is the town center
 and the *scale* is ~2km.
 
 If your budget is low, you would probably prefer something cheap above
-something expensive.  For the price field, the *origin* would be 0 Euros
+something expensive. For the price field, the *origin* would be 0 Euros
 and the *scale* depends on how much you are willing to pay, for example 20 Euros.
 
 In this example, the fields might be called "price" for the price of the

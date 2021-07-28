@@ -5,7 +5,7 @@
 
 experimental[]
 
-There are some limitations to how fields can be rolled up / aggregated.  This page highlights the major limitations so that
+There are some limitations to how fields can be rolled up / aggregated. This page highlights the major limitations so that
 you are aware of them.
 
 [discrete]

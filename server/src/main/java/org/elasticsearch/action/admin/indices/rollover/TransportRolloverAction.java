@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.DocsStats;
@@ -239,7 +239,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .map(stats -> stats.getPrimaries().getDocs())
                 .orElse(null);
 
-            final long maxSinglePrimarySize = indexStats.stream()
+            final long maxPrimaryShardSize = indexStats.stream()
                 .map(IndexStats::getShards)
                 .filter(Objects::nonNull)
                 .flatMap(Arrays::stream)
@@ -252,7 +252,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 docsStats == null ? 0 : docsStats.getCount(),
                 metadata.getCreationDate(),
                 new ByteSizeValue(docsStats == null ? 0 : docsStats.getTotalSizeInBytes()),
-                new ByteSizeValue(maxSinglePrimarySize)
+                new ByteSizeValue(maxPrimaryShardSize)
             );
         }
     }

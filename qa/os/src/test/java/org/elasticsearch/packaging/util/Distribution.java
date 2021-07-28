@@ -16,8 +16,8 @@ public class Distribution {
     public final Path path;
     public final Packaging packaging;
     public final Platform platform;
-    public final Flavor flavor;
     public final boolean hasJdk;
+    public final String baseVersion;
     public final String version;
 
     public Distribution(Path path) {
@@ -30,27 +30,21 @@ public class Distribution {
             this.packaging = Packaging.DOCKER;
         } else if (filename.endsWith(".ubi.tar")) {
             this.packaging = Packaging.DOCKER_UBI;
+        } else if (filename.endsWith(".ironbank.tar")) {
+            this.packaging = Packaging.DOCKER_IRON_BANK;
         } else {
             int lastDot = filename.lastIndexOf('.');
             this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));
         }
 
         this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
-        this.flavor = filename.contains("oss") ? Flavor.OSS : Flavor.DEFAULT;
         this.hasJdk = filename.contains("no-jdk") == false;
         String version = filename.split("-", 3)[1];
+        this.baseVersion = version;
         if (filename.contains("-SNAPSHOT")) {
             version += "-SNAPSHOT";
         }
         this.version = version;
-    }
-
-    public boolean isDefault() {
-        return flavor.equals(Flavor.DEFAULT);
-    }
-
-    public boolean isOSS() {
-        return flavor.equals(Flavor.OSS);
     }
 
     public boolean isArchive() {
@@ -61,8 +55,17 @@ public class Distribution {
         return packaging == Packaging.RPM || packaging == Packaging.DEB;
     }
 
+    /**
+     * @return whether this distribution is packaged as a Docker image.
+     */
     public boolean isDocker() {
-        return packaging == Packaging.DOCKER || packaging == Packaging.DOCKER_UBI;
+        switch (packaging) {
+            case DOCKER:
+            case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
+                return true;
+        }
+        return false;
     }
 
     public enum Packaging {
@@ -72,7 +75,8 @@ public class Distribution {
         DEB(".deb", Platforms.isDPKG()),
         RPM(".rpm", Platforms.isRPM()),
         DOCKER(".docker.tar", Platforms.isDocker()),
-        DOCKER_UBI(".ubi.tar", Platforms.isDocker());
+        DOCKER_UBI(".ubi.tar", Platforms.isDocker()),
+        DOCKER_IRON_BANK(".ironbank.tar", Platforms.isDocker());
 
         /** The extension of this distribution's file */
         public final String extension;

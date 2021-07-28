@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -50,7 +50,7 @@ public class TimeRetentionPolicyConfig implements RetentionPolicyConfig {
         return PARSER.apply(parser, null);
     }
 
-    public TimeRetentionPolicyConfig(String field, TimeValue maxAge) {
+    TimeRetentionPolicyConfig(String field, TimeValue maxAge) {
         this.field = field;
         this.maxAge = maxAge;
     }
@@ -95,5 +95,38 @@ public class TimeRetentionPolicyConfig implements RetentionPolicyConfig {
     @Override
     public String getName() {
         return NAME;
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private String field;
+        private TimeValue maxAge;
+
+        /**
+         * The time field used to calculate the age of a document.
+         * @param field The field name to be used to execute the retention policy
+         * @return The {@link Builder} with the field set.
+         */
+        public Builder setField(String field) {
+            this.field = field;
+            return this;
+        }
+
+        /**
+         * The max age, all documents that are older will be deleted.
+         * @param maxAge The maximum age of a document
+         * @return The {@link Builder} with max age set.
+         */
+        public Builder setMaxAge(TimeValue maxAge) {
+            this.maxAge = maxAge;
+            return this;
+        }
+
+        public TimeRetentionPolicyConfig build() {
+            return new TimeRetentionPolicyConfig(field, maxAge);
+        }
     }
 }

@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -101,12 +102,15 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
      * that the resulting policy has all valid phases and all valid actions.
      */
     public static LifecyclePolicy randomTimeseriesLifecyclePolicyWithAllPhases(@Nullable String lifecycleName) {
-        List<String> phaseNames = TimeseriesLifecycleType.VALID_PHASES;
+        List<String> phaseNames = TimeseriesLifecycleType.ORDERED_VALID_PHASES;
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
         Function<String, Set<String>> validActions = getPhaseToValidActions();
         Function<String, LifecycleAction> randomAction = getNameToActionFunction();
+        TimeValue prev = null;
         for (String phase : phaseNames) {
-            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+            TimeValue after = prev == null ? TimeValue.parseTimeValue(randomTimeValue(0, 100000, "s", "m", "h", "d"), "test_after") :
+                TimeValue.timeValueSeconds(prev.seconds() + randomIntBetween(60, 600));
+            prev = after;
             Map<String, LifecycleAction> actions = new HashMap<>();
             Set<String> actionNames = validActions.apply(phase);
             if (phase.equals(TimeseriesLifecycleType.HOT_PHASE) == false) {
@@ -119,12 +123,15 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             }
             phases.put(phase, new Phase(phase, after, actions));
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases);
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
     }
 
     public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
         List<String> phaseNames = randomSubsetOf(
-            between(0, TimeseriesLifecycleType.VALID_PHASES.size() - 1), TimeseriesLifecycleType.VALID_PHASES);
+            between(0, TimeseriesLifecycleType.ORDERED_VALID_PHASES.size() - 1), TimeseriesLifecycleType.ORDERED_VALID_PHASES).stream()
+            // Remove the frozen phase, we'll randomly re-add it later
+            .filter(pn -> TimeseriesLifecycleType.FROZEN_PHASE.equals(pn) == false)
+            .collect(Collectors.toList());
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
         Function<String, Set<String>> validActions = getPhaseToValidActions();
         Function<String, LifecycleAction> randomAction = getNameToActionFunction();
@@ -135,8 +142,20 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             phaseNames.add(0, TimeseriesLifecycleType.HOT_PHASE);
         }
         boolean hotPhaseContainsSearchableSnap = false;
-        for (String phase : phaseNames) {
-            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+        boolean coldPhaseContainsSearchableSnap = false;
+        // let's order the phases so we can reason about actions in a previous phase in order to generate a random *valid* policy
+        List<String> orderedPhases = new ArrayList<>(phaseNames.size());
+        for (String validPhase : TimeseriesLifecycleType.ORDERED_VALID_PHASES) {
+            if (phaseNames.contains(validPhase)) {
+                orderedPhases.add(validPhase);
+            }
+        }
+
+        TimeValue prev = null;
+        for (String phase : orderedPhases) {
+            TimeValue after = prev == null ? TimeValue.parseTimeValue(randomTimeValue(0, 100000, "s", "m", "h", "d"), "test_after") :
+                TimeValue.timeValueSeconds(prev.seconds() + randomIntBetween(60, 600));
+            prev = after;
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<String> actionNames = randomSubsetOf(validActions.apply(phase));
 
@@ -149,10 +168,21 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 if (actionNames.contains(SearchableSnapshotAction.NAME)) {
                     hotPhaseContainsSearchableSnap = true;
                 }
-            } else {
+            }
+            if (phase.equals(TimeseriesLifecycleType.COLD_PHASE)) {
                 if (hotPhaseContainsSearchableSnap) {
                     // let's make sure the other phases don't configure actions that conflict with a possible `searchable_snapshot` action
                     // configured in the hot phase
+                    actionNames.removeAll(TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT);
+                }
+
+                if (actionNames.contains(SearchableSnapshotAction.NAME)) {
+                    coldPhaseContainsSearchableSnap = true;
+                }
+            } else {
+                if (hotPhaseContainsSearchableSnap || coldPhaseContainsSearchableSnap) {
+                    // let's make sure the other phases don't configure actions that conflict with a possible `searchable_snapshot` action
+                    // configured in a previous phase (hot/cold)
                     actionNames.removeAll(TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT);
                 }
             }
@@ -162,7 +192,18 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             }
             phases.put(phase, new Phase(phase, after, actions));
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases);
+        // Add a frozen phase if neither the hot nor cold phase contains a searchable snapshot action
+        if (hotPhaseContainsSearchableSnap == false && coldPhaseContainsSearchableSnap == false && randomBoolean()) {
+            TimeValue frozenTime = prev == null ? TimeValue.parseTimeValue(randomTimeValue(0, 100000, "s", "m", "h", "d"), "test") :
+                TimeValue.timeValueSeconds(prev.seconds() + randomIntBetween(60, 600));
+            phases.put(TimeseriesLifecycleType.FROZEN_PHASE,
+                new Phase(TimeseriesLifecycleType.FROZEN_PHASE, frozenTime,
+                    Collections.singletonMap(SearchableSnapshotAction.NAME,
+                        new SearchableSnapshotAction(randomAlphaOfLength(10), randomBoolean()))));
+        } else {
+            phases.remove(TimeseriesLifecycleType.FROZEN_PHASE);
+        }
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
     }
 
     private static Function<String, Set<String>> getPhaseToValidActions() {
@@ -207,7 +248,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     case UnfollowAction.NAME:
                         return new UnfollowAction();
                     case SearchableSnapshotAction.NAME:
-                        return new SearchableSnapshotAction(randomAlphaOfLengthBetween(1, 10));
+                        return new SearchableSnapshotAction("repo", randomBoolean());
                     case MigrateAction.NAME:
                         return new MigrateAction(false);
                     case RollupILMAction.NAME:
@@ -221,7 +262,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         int numberPhases = randomInt(5);
         Map<String, Phase> phases = new HashMap<>(numberPhases);
         for (int i = 0; i < numberPhases; i++) {
-            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 10000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
             if (randomBoolean()) {
                 MockAction action = new MockAction();
@@ -230,7 +271,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             String phaseName = randomAlphaOfLength(10);
             phases.put(phaseName, new Phase(phaseName, after, actions));
         }
-        return new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+        return new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
     }
 
     @Override
@@ -242,14 +283,23 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 name = name + randomAlphaOfLengthBetween(1, 5);
                 break;
             case 1:
-                String phaseName = randomValueOtherThanMany(phases::containsKey, () -> randomFrom(TimeseriesLifecycleType.VALID_PHASES));
+                // Remove the frozen phase, because it makes a lot of invalid phases when randomly mutating an existing policy
+                phases.remove(TimeseriesLifecycleType.FROZEN_PHASE);
+                // Remove a random phase
+                if (phases.size() > 0) {
+                    phases.remove(new ArrayList<>(phases.keySet()).remove(randomIntBetween(0, phases.size() - 1)));
+                }
+                String phaseName = randomValueOtherThanMany(phases::containsKey,
+                        () -> randomFrom(TimeseriesLifecycleType.ORDERED_VALID_PHASES.stream()
+                            .filter(pn -> TimeseriesLifecycleType.FROZEN_PHASE.equals(pn) == false)
+                            .collect(Collectors.toList())));
                 phases = new LinkedHashMap<>(phases);
-                phases.put(phaseName, new Phase(phaseName, TimeValue.timeValueSeconds(randomIntBetween(1, 1000)), Collections.emptyMap()));
+                phases.put(phaseName, new Phase(phaseName, null, Collections.emptyMap()));
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases);
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases, randomMeta());
     }
 
     @Override
@@ -261,8 +311,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Client client = mock(Client.class);
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
-        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
-        List<Step> steps = policy.toSteps(client);
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
+        List<Step> steps = policy.toSteps(client, null);
         assertThat(steps.size(), equalTo(2));
         assertThat(steps.get(0), instanceOf(InitializePolicyContextStep.class));
         assertThat(steps.get(0).getKey(), equalTo(new StepKey("new", "init", "init")));
@@ -281,10 +331,10 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Map<String, LifecycleAction> actions = Collections.singletonMap(MockAction.NAME, firstAction);
         Phase firstPhase = new Phase("test", TimeValue.ZERO, actions);
         phases.put(firstPhase.getName(), firstPhase);
-        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
         StepKey firstStepKey = InitializePolicyContextStep.KEY;
         StepKey secondStepKey = PhaseCompleteStep.finalStep("new").getKey();
-        List<Step> steps = policy.toSteps(client);
+        List<Step> steps = policy.toSteps(client, null);
         assertThat(steps.size(), equalTo(4));
         assertSame(steps.get(0).getKey(), firstStepKey);
         assertThat(steps.get(0).getNextStepKey(), equalTo(secondStepKey));
@@ -316,9 +366,9 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Phase secondPhase = new Phase("second_phase", TimeValue.ZERO, secondActions);
         phases.put(firstPhase.getName(), firstPhase);
         phases.put(secondPhase.getName(), secondPhase);
-        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
 
-        List<Step> steps = policy.toSteps(client);
+        List<Step> steps = policy.toSteps(client, null);
         assertThat(steps.size(), equalTo(7));
         assertThat(steps.get(0).getClass(), equalTo(InitializePolicyContextStep.class));
         assertThat(steps.get(0).getKey(), equalTo(init.getKey()));
@@ -345,7 +395,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Phase secondPhase = new Phase("second_phase", TimeValue.ZERO, secondActions);
         phases.put(firstPhase.getName(), firstPhase);
         phases.put(secondPhase.getName(), secondPhase);
-        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
 
         assertTrue(policy.isActionSafe(new StepKey("first_phase", MockAction.NAME, randomAlphaOfLength(10))));
 
@@ -377,5 +427,18 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0, 10) + "+" + randomAlphaOfLengthBetween(0, 10));
 
         LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(1, 255));
+    }
+
+    public static Map<String, Object> randomMeta() {
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                return Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4));
+            } else {
+                return Collections.singletonMap(randomAlphaOfLength(5),
+                    Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4)));
+            }
+        } else {
+            return null;
+        }
     }
 }

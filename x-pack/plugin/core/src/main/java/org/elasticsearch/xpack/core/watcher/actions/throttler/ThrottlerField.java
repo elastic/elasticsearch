@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.actions.throttler;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 
 public final class ThrottlerField {
     public static final ParseField THROTTLE_PERIOD = new ParseField("throttle_period_in_millis");

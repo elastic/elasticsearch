@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.ml.job.task;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class JobTaskTests extends ESTestCase {
 
@@ -32,4 +34,46 @@ public class JobTaskTests extends ESTestCase {
         assertThat(OpenJobAction.JobTaskMatcher.match(jobTask2, "ml-2"), is(true));
     }
 
+    public void testKillJob() {
+        JobTask jobTask = new JobTask("job-to-kill", 0, "persistent", "", null, null);
+        AutodetectProcessManager processManager = mock(AutodetectProcessManager.class);
+        jobTask.setAutodetectProcessManager(processManager);
+
+        jobTask.killJob("test");
+
+        assertThat(jobTask.isClosing(), is(true));
+        verify(processManager).killProcess(jobTask, true, "test");
+    }
+
+    public void testCloseOrVacateTransitions() {
+
+        JobTask jobTask = new JobTask("transition-test-task", 0, "persistent", "", null, null);
+
+        assertThat(jobTask.isClosing(), is(false));
+        assertThat(jobTask.isVacating(), is(false));
+
+        AutodetectProcessManager processManager = mock(AutodetectProcessManager.class);
+        jobTask.setAutodetectProcessManager(processManager);
+
+        assertThat(jobTask.isClosing(), is(false));
+        assertThat(jobTask.isVacating(), is(false));
+
+        // we can transition from neither closing nor vacating to vacating
+        assertThat(jobTask.triggerVacate(), is(true));
+
+        assertThat(jobTask.isClosing(), is(false));
+        assertThat(jobTask.isVacating(), is(true));
+
+        jobTask.closeJob("just testing");
+        verify(processManager).closeJob(jobTask, "just testing");
+
+        assertThat(jobTask.isClosing(), is(true));
+        assertThat(jobTask.isVacating(), is(false));
+
+        // we cannot transition from closing back to vacating
+        assertThat(jobTask.triggerVacate(), is(false));
+
+        assertThat(jobTask.isClosing(), is(true));
+        assertThat(jobTask.isVacating(), is(false));
+    }
 }

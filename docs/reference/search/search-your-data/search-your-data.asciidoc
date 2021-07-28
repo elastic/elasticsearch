@@ -22,7 +22,7 @@ a specific number of results.
 
 [discrete]
 [[run-an-es-search]]
-== Run a search
+=== Run a search
 
 You can use the <<search-search,search API>> to search and
 <<search-aggregations,aggregate>> data stored in {es} data streams or indices.
@@ -101,9 +101,9 @@ The API response returns the top 10 documents matching the query in the
 
 [discrete]
 [[run-search-runtime-fields]]
-== Define fields that exist only in a query
+=== Define fields that exist only in a query
 Instead of indexing your data and then searching it, you can define
-<<runtime-search-request,runtime fields>>beta:[] that only exist as part of your
+<<runtime-search-request,runtime fields>> that only exist as part of your
 search query. You specify a `runtime_mappings` section in your search request
 to define the runtime field, which can optionally include a Painless script.
 
@@ -220,7 +220,7 @@ _synchronous_ by default. The search request waits for complete results before
 returning a response.
 
 However, complete results can take longer for searches across
-<<frozen-indices,frozen indices>> or <<modules-cross-cluster-search,multiple
+<<freeze-index-api,frozen indices>> or <<modules-cross-cluster-search,multiple
 clusters>>.
 
 To avoid long waits, you can run an _asynchronous_, or _async_, search
@@ -232,12 +232,15 @@ results for a long-running search now and get complete results later.
 === Search timeout
 
 By default, search requests don't time out. The request waits for complete
-results before returning a response.
+results from each shard before returning a response.
 
 While <<async-search-intro,async search>> is designed for long-running
 searches, you can also use the `timeout` parameter to specify a duration you'd
-like to wait for a search to complete. If no response is received before this
-period ends, the request fails and returns an error.
+like to wait on each shard to complete. Each shard collects hits within the
+specified time period. If collection isn't finished when the period ends, {es}
+uses only the hits accumulated up to that point. The overall latency of a search
+request depends on the number of shards needed for the search and the number of
+concurrent shard requests.
 
 [source,console]
 ----
@@ -521,4 +524,5 @@ include::retrieve-selected-fields.asciidoc[]
 include::search-across-clusters.asciidoc[]
 include::search-multiple-indices.asciidoc[]
 include::search-shard-routing.asciidoc[]
+include::search-template.asciidoc[]
 include::sort-search-results.asciidoc[]

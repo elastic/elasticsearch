@@ -1,5 +1,7 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 esplugin {
   name 'x-pack-ml'
   description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
@@ -10,15 +12,22 @@ esplugin {
 
 
 repositories {
-  ivy {
-    name "ml-cpp"
-    url System.getProperty('build.ml_cpp.repo', 'https://prelert-artifacts.s3.amazonaws.com')
-    metadataSources {
-      // no repository metadata, look directly for the artifact
-      artifact()
+  exclusiveContent {
+    forRepository {
+      ivy {
+        name "ml-cpp"
+        url System.getProperty('build.ml_cpp.repo', 'https://prelert-artifacts.s3.amazonaws.com')
+        metadataSources {
+          // no repository metadata, look directly for the artifact
+          artifact()
+        }
+        patternLayout {
+          artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/ml-cpp-[revision].[ext]"
+        }
+      }
     }
-    patternLayout {
-      artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/ml-cpp-[revision].[ext]"
+    filter {
+      includeGroup 'org.elasticsearch.ml'
     }
   }
 }
@@ -48,41 +57,31 @@ tasks.named("bundlePlugin").configure {
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('ilm'))
   compileOnly project(path: xpackModule('autoscaling'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('ilm'))
+  testImplementation project(path: xpackModule('shutdown'))
   testImplementation project(path: xpackModule('data-streams'))
   testImplementation project(':modules:ingest-common')
   // This should not be here
-  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-
+  testImplementation(testArtifact(project(xpackModule('security'))))
   // ml deps
   api project(':libs:elasticsearch-grok')
-  api "net.sf.supercsv:super-csv:${versions.supercsv}"
+  api "org.apache.commons:commons-math3:3.6.1"
   nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}@zip") {
     changing = true
   }
   testImplementation 'org.ini4j:ini4j:0.5.2'
 }
 
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-TaskProvider testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
 artifacts {
   // normal es plugins do not publish the jar but we need to since users need it for extensions
   archives tasks.named("jar")
-  testArtifacts testJar
 }
 
 tasks.register("extractNativeLicenses", Copy) {
   dependsOn configurations.nativeBundle
-  into "${buildDir}"
+  into "${buildDir}/extractedNativeLicenses"
   from {
     project.zipTree(configurations.nativeBundle.singleFile)
   }
@@ -92,7 +91,7 @@ project.afterEvaluate {
   // Add an extra licenses directory to the combined notices
   tasks.named('generateNotice').configure {
     dependsOn "extractNativeLicenses"
-    licensesDir new File("${project.buildDir}/platform/licenses")
+    licensesDir new File("${project.buildDir}/extractedNativeLicenses/platform/licenses")
     outputs.upToDateWhen {
       extractNativeLicenses.didWork
     }

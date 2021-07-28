@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -69,9 +69,9 @@ public interface TransformConfigManager {
      * This deletes stored state/stats documents for the given transformId that are contained in old index versions.
      *
      * @param transformId The transform ID referenced by the documents
-     * @param listener listener to alert on completion
+     * @param listener listener to alert on completion, returning the number of deleted docs
      */
-    void deleteOldTransformStoredDocuments(String transformId, ActionListener<Boolean> listener);
+    void deleteOldTransformStoredDocuments(String transformId, ActionListener<Long> listener);
 
     /**
      * This deletes stored checkpoint documents for the given transformId, based on number and age.
@@ -123,13 +123,13 @@ public interface TransformConfigManager {
      *
      * @param transformIdsExpression The id expression. Can be _all, *, or comma delimited list of simple regex strings
      * @param pageParams             The paging params
-     * @param foundIdsListener       The listener on signal on success or failure
+     * @param foundConfigsListener   The listener on signal on success or failure
      */
     void expandTransformIds(
         String transformIdsExpression,
         PageParams pageParams,
         boolean allowNoMatch,
-        ActionListener<Tuple<Long, List<String>>> foundIdsListener
+        ActionListener<Tuple<Long, Tuple<List<String>, List<TransformConfig>>>> foundConfigsListener
     );
 
     /**

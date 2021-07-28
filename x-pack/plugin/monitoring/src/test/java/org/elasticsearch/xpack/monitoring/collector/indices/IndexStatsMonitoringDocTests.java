@@ -357,7 +357,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         commonStats.getMerge().add(no, no, no, ++iota, no, no, no, no, no, no);
         commonStats.getQueryCache().add(new QueryCacheStats(++iota, ++iota, ++iota, ++iota, no));
         commonStats.getRequestCache().add(new RequestCacheStats(++iota, ++iota, ++iota, ++iota));
-        commonStats.getStore().add(new StoreStats(++iota, no));
+        commonStats.getStore().add(new StoreStats(++iota, no, no));
         commonStats.getRefresh().add(new RefreshStats(no, ++iota, no, ++iota, (int) no));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(++iota, ++iota, no, no, no, no, no, no, false, ++iota);

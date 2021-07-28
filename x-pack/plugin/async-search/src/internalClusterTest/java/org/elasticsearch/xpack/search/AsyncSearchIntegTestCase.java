@@ -18,13 +18,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -41,12 +40,12 @@ import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncStatusAction;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
@@ -59,15 +58,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
 import static org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -99,44 +94,6 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    public static class ExpirationTimeScriptPlugin extends MockScriptPlugin {
-        @Override
-        public String pluginScriptLang() {
-            return "painless";
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            final String fieldName = "expiration_time";
-            final String script =
-                " if (ctx._source.expiration_time < params.expiration_time) { " +
-                "     ctx._source.expiration_time = params.expiration_time; " +
-                " } else { " +
-                "     ctx.op = \"noop\"; " +
-                " }";
-            return Map.of(
-                script, vars -> {
-                    Map<String, Object> params = (Map<String, Object>) vars.get("params");
-                    assertNotNull(params);
-                    assertThat(params.keySet(), contains(fieldName));
-                    long updatingValue = (long) params.get(fieldName);
-
-                    Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
-                    assertNotNull(ctx);
-                    Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
-                    long currentValue = (long) source.get(fieldName);
-                    if (currentValue < updatingValue) {
-                        source.put(fieldName, updatingValue);
-                    } else {
-                        ctx.put("op", "noop");
-                    }
-                    return ctx;
-                }
-            );
-        }
-    }
-
     @Before
     public void startMaintenanceService() {
         for (AsyncTaskMaintenanceService service : internalCluster().getDataNodeInstances(AsyncTaskMaintenanceService.class)) {
@@ -164,13 +121,13 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateCompositeXPackPlugin.class, AsyncSearch.class, AsyncResultsIndexPlugin.class, IndexLifecycle.class,
-            SearchTestPlugin.class, ReindexPlugin.class, ExpirationTimeScriptPlugin.class);
+            SearchTestPlugin.class, ReindexPlugin.class);
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(0))
+            .put(super.nodeSettings(0, otherSettings))
             .put(ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(100))
             .build();
     }
@@ -233,7 +190,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     throw exc;
                 }
             }
-        }, 30, TimeUnit.SECONDS);
+        });
     }
 
     /**
@@ -251,7 +208,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     throw exc;
                 }
             }
-        }, 30, TimeUnit.SECONDS);
+        });
     }
 
     /**
@@ -267,13 +224,8 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         final String pitId;
         final SubmitAsyncSearchRequest request;
         if (randomBoolean()) {
-            OpenPointInTimeRequest openPIT = new OpenPointInTimeRequest(
-                new String[]{indexName},
-                OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS,
-                TimeValue.timeValueMinutes(between(5, 10)),
-                null,
-                null);
-            pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPIT).actionGet().getSearchContextId();
+            OpenPointInTimeRequest openPIT = new OpenPointInTimeRequest(indexName).keepAlive(TimeValue.timeValueMinutes(between(5, 10)));
+            pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPIT).actionGet().getPointInTimeId();
             final PointInTimeBuilder pit = new PointInTimeBuilder(pitId);
             if (randomBoolean()) {
                 pit.setKeepAlive(TimeValue.timeValueMillis(randomIntBetween(1, 3600)));

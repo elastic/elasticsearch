@@ -36,7 +36,10 @@ public class RestGetPipelineAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        GetPipelineRequest request = new GetPipelineRequest(Strings.splitStringByCommaToArray(restRequest.param("id")));
+        GetPipelineRequest request = new GetPipelineRequest(
+            restRequest.paramAsBoolean("summary", false),
+            Strings.splitStringByCommaToArray(restRequest.param("id"))
+        );
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         return channel -> client.admin().cluster().getPipeline(request, new RestStatusToXContentListener<>(channel));
     }

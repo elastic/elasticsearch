@@ -17,15 +17,13 @@ tasks.named("buildRestTests").configure {
 }
 
 dependencies {
-  testImplementation project(path: xpackModule('core'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackProject('plugin').path)))
 }
 
 restResources {
   restApi {
-    includeCore '*'
-    includeXpack '*'
+    include '*'
   }
 }
 
@@ -74,7 +72,7 @@ tasks.named("buildRestTests").configure { buildRestTests ->
     // No snippets in here!
     exclude 'build.gradle'
     // That is where the snippets go, not where they come from!
-    exclude 'build'
+    exclude 'build/**'
     // These file simply doesn't pass yet. We should figure out how to fix them.
     exclude 'en/watcher/reference/actions.asciidoc'
     exclude 'en/rest-api/security/ssl.asciidoc'
@@ -733,5 +731,12 @@ tasks.named("buildRestTests").configure { buildRestTests ->
                 }
               }
             }
+'''
+  setups['service_token42'] = '''
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: token42
 '''
 }

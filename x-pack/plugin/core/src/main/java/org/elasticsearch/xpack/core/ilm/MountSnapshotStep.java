@@ -15,12 +15,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
@@ -57,7 +60,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, Listener listener) {
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Boolean> listener) {
         String indexName = indexMetadata.getIndex().getName();
 
         LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
@@ -101,10 +104,13 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             indexName = snapshotIndexName;
         }
 
+        final Settings.Builder settingsBuilder = Settings.builder();
+
+        overrideTierPreference(this.getKey().getPhase())
+            .ifPresent(override -> settingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, override));
+
         final MountSearchableSnapshotRequest mountSearchableSnapshotRequest = new MountSearchableSnapshotRequest(mountedIndexName,
-            snapshotRepository, snapshotName, indexName, Settings.builder()
-            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
-            .build(),
+            snapshotRepository, snapshotName, indexName, settingsBuilder.build(),
             // we captured the index metadata when we took the snapshot. the index likely had the ILM execution state in the metadata.
             // if we were to restore the lifecycle.name setting, the restored index would be captured by the ILM runner and,
             // depending on what ILM execution state was captured at snapshot time, make it's way forward from _that_ step forward in
@@ -115,6 +121,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             // perform expensive operations (ie. clusterStateProcessed)
             false,
             storageType);
+        mountSearchableSnapshotRequest.masterNodeTimeout(TimeValue.MAX_VALUE);
         getClient().execute(MountSearchableSnapshotAction.INSTANCE, mountSearchableSnapshotRequest,
             ActionListener.wrap(response -> {
                 if (response.status() != RestStatus.OK && response.status() != RestStatus.ACCEPTED) {
@@ -135,6 +142,19 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         String originalName = indexName.replaceFirst("^" + SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX, "");
         originalName = originalName.replaceFirst("^" + SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX, "");
         return originalName;
+    }
+
+    /**
+     * return the tier preference to use or empty to use default.
+     * @param phase the phase the step will run in.
+     * @return tier preference override or empty.
+     */
+    static Optional<String> overrideTierPreference(String phase) {
+        // if we are mounting a searchable snapshot in the hot phase, then the index should be pinned to the hot nodes
+        if (TimeseriesLifecycleType.HOT_PHASE.equals(phase)) {
+            return Optional.of(DataTier.DATA_HOT);
+        }
+        return Optional.empty();
     }
 
     @Override

@@ -22,7 +22,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -33,12 +32,12 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -91,24 +90,16 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             .fields(request.getConfig().getAllFields().toArray(new String[0]));
         fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
 
-        client.fieldCaps(fieldCapsRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(FieldCapabilitiesResponse fieldCapabilitiesResponse) {
-                ActionRequestValidationException validationException = request.validateMappings(fieldCapabilitiesResponse.get());
-                if (validationException != null) {
-                    listener.onFailure(validationException);
-                    return;
-                }
-
-                RollupJob job = createRollupJob(request.getConfig(), threadPool);
-                createIndex(job, listener, persistentTasksService, client, logger);
+        client.fieldCaps(fieldCapsRequest, listener.delegateFailure((l, fieldCapabilitiesResponse) -> {
+            ActionRequestValidationException validationException = request.validateMappings(fieldCapabilitiesResponse.get());
+            if (validationException != null) {
+                l.onFailure(validationException);
+                return;
             }
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+            RollupJob job = createRollupJob(request.getConfig(), threadPool);
+            createIndex(job, l, persistentTasksService, client, logger);
+        }));
     }
 
     static void checkForDeprecatedTZ(PutRollupJobAction.Request request) {

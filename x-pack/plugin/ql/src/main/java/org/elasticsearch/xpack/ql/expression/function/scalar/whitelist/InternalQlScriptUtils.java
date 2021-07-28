@@ -22,6 +22,9 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.convert;
+import static org.elasticsearch.xpack.ql.type.DataTypes.fromTypeName;
+
 public class InternalQlScriptUtils {
 
     //
@@ -49,6 +52,10 @@ public class InternalQlScriptUtils {
 
     public static String nullSafeSortString(Object sort) {
         return sort == null ? StringUtils.EMPTY : sort.toString();
+    }
+
+    public static Number nullSafeCastNumeric(Number number, String typeName) {
+        return number == null || Double.isNaN(number.doubleValue()) ? null : (Number) convert(number, fromTypeName(typeName));
     }
 
 
@@ -115,8 +122,12 @@ public class InternalQlScriptUtils {
     // Regex
     //
     public static Boolean regex(String value, String pattern) {
+        return regex(value, pattern, Boolean.FALSE);
+    }
+
+    public static Boolean regex(String value, String pattern, Boolean caseInsensitive) {
         // TODO: this needs to be improved to avoid creating the pattern on every call
-        return RegexOperation.match(value, pattern);
+        return RegexOperation.match(value, pattern, caseInsensitive);
     }
 
     //

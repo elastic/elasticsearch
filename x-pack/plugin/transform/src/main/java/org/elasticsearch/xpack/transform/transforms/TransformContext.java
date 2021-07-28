@@ -84,8 +84,8 @@ class TransformContext {
         return currentCheckpoint.get();
     }
 
-    long getAndIncrementCheckpoint() {
-        return currentCheckpoint.getAndIncrement();
+    long incrementAndGetCheckpoint() {
+        return currentCheckpoint.incrementAndGet();
     }
 
     void setNumFailureRetries(int numFailureRetries) {
@@ -94,6 +94,10 @@ class TransformContext {
 
     int getNumFailureRetries() {
         return numFailureRetries;
+    }
+
+    int getFailureCount() {
+        return failureCount.get();
     }
 
     int getAndIncrementFailureCount() {

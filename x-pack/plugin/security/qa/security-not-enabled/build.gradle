@@ -9,9 +9,8 @@
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  javaRestTestImplementation project(path: xpackModule('core'))
-  javaRestTestImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 testClusters.all {
@@ -22,4 +21,5 @@ testClusters.all {
   // We run with a trial license, but do not enable security.
   // This means the security plugin is loaded and all feature are permitted, but they are not enabled
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'false'
 }

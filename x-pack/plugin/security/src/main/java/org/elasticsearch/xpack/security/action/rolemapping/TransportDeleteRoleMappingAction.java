@@ -31,16 +31,7 @@ public class TransportDeleteRoleMappingAction
 
     @Override
     protected void doExecute(Task task, DeleteRoleMappingRequest request, ActionListener<DeleteRoleMappingResponse> listener) {
-        roleMappingStore.deleteRoleMapping(request, new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean found) {
-                listener.onResponse(new DeleteRoleMappingResponse(found));
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                listener.onFailure(t);
-            }
-        });
+        roleMappingStore.deleteRoleMapping(request,
+                listener.delegateFailure((l, found) -> l.onResponse(new DeleteRoleMappingResponse(found))));
     }
 }

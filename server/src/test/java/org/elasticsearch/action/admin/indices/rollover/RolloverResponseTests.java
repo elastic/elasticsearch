@@ -10,7 +10,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ public class RolloverResponseTests extends AbstractWireSerializingTestCase<Rollo
         conditionSuppliers.add(() -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
         conditionSuppliers.add(() -> new MaxDocsCondition(randomNonNegativeLong()));
         conditionSuppliers.add(() -> new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
-        conditionSuppliers.add(() -> new MaxSinglePrimarySizeCondition(new ByteSizeValue(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
     }
 
     @Override

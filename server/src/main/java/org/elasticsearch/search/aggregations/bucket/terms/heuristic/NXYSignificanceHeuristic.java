@@ -10,7 +10,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -83,7 +83,7 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
     }
 
     protected static class Frequencies {
-        double N00, N01, N10, N11, N0_, N1_, N_0, N_1, N;
+        public double N00, N01, N10, N11, N0_, N1_, N_0, N_1, N;
     }
 
     protected Frequencies computeNxys(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize, String scoreFunctionName) {

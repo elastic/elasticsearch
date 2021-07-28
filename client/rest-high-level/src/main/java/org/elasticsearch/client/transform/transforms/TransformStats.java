@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -117,7 +117,7 @@ public class TransformStats {
 
     public enum State {
 
-        STARTED, INDEXING, ABORTING, STOPPING, STOPPED, FAILED;
+        STARTED, INDEXING, ABORTING, STOPPING, STOPPED, FAILED, WAITING;
 
         public static State fromString(String name) {
             return valueOf(name.trim().toUpperCase(Locale.ROOT));

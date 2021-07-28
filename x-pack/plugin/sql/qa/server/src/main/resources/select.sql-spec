@@ -54,6 +54,16 @@ sameConstantsWithLimitV2
 SELECT 5, 3, 3 FROM "test_emp" LIMIT 5;
 sameConstantsWithLimitV3
 SELECT 3, 5, 3, 3 FROM "test_emp" LIMIT 5;
+constantWithWhere
+SELECT 1 FROM "test_emp" WHERE gender = 'F';
+constantsWithWhere
+SELECT 1, 1, SUBSTRING('test', 1, 1) AS c FROM "test_emp" WHERE gender = 'F';
+constantWithWhereConjunction
+SELECT 1 FROM "test_emp" WHERE gender = 'F' AND SUBSTRING(first_name, 1, 1) = 'A';
+constantWithWhereOrderAndLimit
+SELECT 1 FROM "test_emp" WHERE gender = 'F' ORDER BY emp_no LIMIT 5;
+constantsWithWhereOrderAndLimit
+SELECT 1, SUBSTRING('test', 1, 1) AS c FROM "test_emp" WHERE gender = 'F' AND SUBSTRING(first_name, 1, 1) = 'A' ORDER BY emp_no;
 constantAndColumnWithLimit
 SELECT 3, first_name, last_name FROM "test_emp" ORDER BY emp_no LIMIT 5;
 constantComparisonWithLimit
@@ -126,3 +136,36 @@ selectMathPIFromIndexWithWhereEvaluatingToFalse
 SELECT PI() AS pi FROM test_emp WHERE PI()=5;
 selectMathPIFromIndexWithWhereEvaluatingToFalseAndWithLimit
 SELECT PI() AS pi FROM test_emp WHERE PI()=5 LIMIT 3;
+
+
+//
+// SELECT with collapsable subqueries
+//
+selectOrderByLimit1
+SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) LIMIT 5;
+selectOrderByLimit2
+SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC)) LIMIT 10;
+selectOrderByOrderByLimit1
+SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) ORDER BY emp_no ASC LIMIT 5;
+selectOrderByOrderByLimit2
+SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) ORDER BY emp_no ASC) LIMIT 5;
+selectOrderByOrderByOrderByLimit
+SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) ORDER BY emp_no ASC) ORDER BY emp_no DESC LIMIT 5;
+selectOrderByOrderByOrderByLimitLimit
+SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) ORDER BY emp_no ASC) ORDER BY emp_no DESC LIMIT 12) LIMIT 6;
+selectOrderByLimitSameOrderBy
+SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp LIMIT 10) ORDER BY emp_no) ORDER BY emp_no LIMIT 5;
+selectGroupByOrderByLimit
+SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages) ORDER BY max DESC LIMIT 3;
+selectGroupByOrderByLimitNulls
+SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages) ORDER BY max DESC NULLS FIRST LIMIT 3;
+selectGroupByLimitOrderByLimit
+SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp WHERE languages IS NOT NULL GROUP BY languages LIMIT 5) ORDER BY max DESC LIMIT 3;
+selectGroupByOrderByOrderByLimit
+SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC) ORDER BY max DESC NULLS FIRST LIMIT 4;
+selectGroupByOrderByOrderByLimitNulls
+SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC NULLS LAST) ORDER BY max DESC NULLS FIRST LIMIT 4;
+selectGroupByWithAliasedSubQuery
+SELECT max, languages FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC NULLS LAST) AS subquery;
+selectConstantFromSubQuery
+SELECT * FROM (SELECT * FROM (SELECT 1));

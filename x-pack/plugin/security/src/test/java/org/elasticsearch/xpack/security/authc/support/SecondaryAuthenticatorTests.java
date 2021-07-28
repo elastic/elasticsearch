@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -69,6 +70,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -126,8 +129,15 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final ApiKeyService apiKeyService = new ApiKeyService(settings, clock, client, licenseState,
                                                               securityIndex, clusterService,
                                                               mock(CacheInvalidatorRegistry.class),threadPool);
+        final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
+            listener.onResponse(null);
+            return null;
+        }).when(serviceAccountService).authenticateToken(any(), any(), any());
         authenticationService = new AuthenticationService(settings, realms, auditTrail, failureHandler, threadPool, anonymous,
-            tokenService, apiKeyService, OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
+            tokenService, apiKeyService, serviceAccountService, OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         authenticator = new SecondaryAuthenticator(securityContext, authenticationService);
     }
 

@@ -9,14 +9,14 @@
 * <<sql-rest-filtering>>
 * <<sql-rest-columnar>>
 * <<sql-rest-params>>
-* <<sql-rest-fields>>
+* <<sql-runtime-fields>>
+* <<sql-async>>
 
 [[sql-rest-overview]]
 === Overview
 
-The SQL REST API accepts SQL in a JSON document, executes it,
-and returns the results.
-For example:
+The <<sql-search-api,SQL search API>> accepts SQL in a JSON document, executes
+it, and returns the results. For example:
 
 [source,console]
 --------------------------------------------------
@@ -50,6 +50,7 @@ If you are using {kibana-ref}/console-kibana.html[Kibana Console]
 (which is highly recommended), take advantage of the
 triple quotes `"""` when creating the query. This not only automatically escapes double
 quotes (`"`) inside the query string but also support multi-line as shown below:
+
 image:images/sql/rest/console-triple-quotes.png[]
 ====
 
@@ -342,7 +343,7 @@ SQL may keep state in Elasticsearch to support the cursor. Unlike
 scroll, receiving the last page is enough to guarantee that the
 Elasticsearch state is cleared.
 
-To clear the state earlier, you can use the clear cursor command:
+To clear the state earlier, use the <<clear-sql-cursor-api,clear cursor API>>:
 
 [source,console]
 --------------------------------------------------
@@ -365,10 +366,10 @@ Which will like return the
 
 
 [[sql-rest-filtering]]
-=== Filtering using {es} query DSL
+=== Filtering using {es} Query DSL
 
 One can filter the results that SQL will run on using a standard
-{es} query DSL by specifying the query in the filter
+{es} Query DSL by specifying the query in the filter
 parameter.
 
 [source,console]
@@ -402,7 +403,7 @@ Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |1979-10-12T
 
 [TIP]
 =================
-A useful and less obvious usage for standard query DSL filtering is to search documents by a specific <<search-routing, routing key>>.
+A useful and less obvious usage for standard Query DSL filtering is to search documents by a specific <<search-routing, routing key>>.
 Because {es-sql} does not support a `routing` parameter, one can specify a <<mapping-routing-field, `terms` filter for the `_routing` field>> instead:
 
 [source,console]
@@ -522,64 +523,213 @@ POST /_sql?format=txt
 [IMPORTANT]
 The recommended way of passing values to a query is with question mark placeholders, to avoid any attempts of hacking or SQL injection.
 
-[[sql-rest-fields]]
-=== Supported REST parameters
+[[sql-runtime-fields]]
+=== Use runtime fields
 
-In addition to the `query` and `fetch_size`, a request a number of user-defined fields for specifying
-the request time-outs or localization information (such as timezone).
+Use the `runtime_mappings` parameter to extract and create <<runtime,runtime
+fields>>, or columns, from existing ones during a search.
 
-The table below lists the supported parameters:
+The following search creates a `release_day_of_week` runtime field from
+`release_date` and returns it in the response.
 
-[cols="^m,^m,^5"]
+[source,console]
+----
+POST _sql?format=txt
+{
+  "runtime_mappings": {
+    "release_day_of_week": {
+      "type": "keyword",
+      "script": """
+        emit(doc['release_date'].value.dayOfWeekEnum.toString())
+      """
+    }
+  },
+  "query": """
+    SELECT * FROM library WHERE page_count > 300 AND author = 'Frank Herbert'
+  """
+}
+----
+// TEST[setup:library]
 
-|===
+The API returns:
 
-s|name
-s|Default value
-s|Description
+[source,txt]
+----
+    author     |     name      |  page_count   |      release_date      |release_day_of_week
+---------------+---------------+---------------+------------------------+-------------------
+Frank Herbert  |Dune           |604            |1965-06-01T00:00:00.000Z|TUESDAY
+----
+// TESTRESPONSE[non_json]
 
-|query
-|Mandatory
-|SQL query to execute
+[[sql-async]]
+=== Run an async SQL search
 
-|fetch_size
-|1000
-|The maximum number of rows (or entries) to return in one response
+By default, SQL searches are synchronous. They wait for complete results before
+returning a response. However, results can take longer for searches across large
+data sets or <<data-tiers,frozen data>>.
 
-|filter
-|none
-|Optional {es} query DSL for additional <<sql-rest-filtering, filtering>>.
+To avoid long waits, run an async SQL search. Set `wait_for_completion_timeout`
+to a duration you’d like to wait for synchronous results.
 
-|request_timeout
-|90s
-|The timeout before the request fails.
+[source,console]
+----
+POST _sql?format=json
+{
+  "wait_for_completion_timeout": "2s",
+  "query": "SELECT * FROM library ORDER BY page_count DESC",
+  "fetch_size": 5
+}
+----
+// TEST[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
+// TEST[setup:library]
+// TEST[s/"wait_for_completion_timeout": "2s"/"wait_for_completion_timeout": "0"/]
 
-|page_timeout
-|45s
-|The timeout before a pagination request fails.
+If the search doesn’t finish within this period, the search becomes async. The
+API returns:
 
-|[[sql-rest-fields-timezone]]time_zone
-|`Z` (or `UTC`)
-|Time-zone in ISO 8601 used for executing the query on the server.
-More information available https://docs.oracle.com/javase/8/docs/api/java/time/ZoneId.html[here].
+* An `id` for the search.
+* An `is_partial` value of `true`, indicating the search results are incomplete.
+* An `is_running` value of `true`, indicating the search is still running in the
+background.
 
-|columnar
-|false
-|Return the results in a columnar fashion, rather than row-based fashion. Valid for `json`, `yaml`, `cbor` and `smile`.
+For CSV, TSV, and TXT responses, the API returns these values in the respective
+`Async-ID`, `Async-partial`, and `Async-running` HTTP headers instead.
 
-|field_multi_value_leniency
-|false
-|Throw an exception when encountering multiple values for a field (default) or be lenient and return the first value from the list (without any guarantees of what that will be - typically the first in natural ascending order).
+[source,console-result]
+----
+{
+  "id": "FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=",
+  "is_partial": true,
+  "is_running": true,
+  "rows": [ ]
+}
+----
+// TESTRESPONSE[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
+// TESTRESPONSE[s/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=/$body.id/]
+// TESTRESPONSE[s/"is_partial": true/"is_partial": $body.is_partial/]
+// TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
 
-|index_include_frozen
-|false
-|Whether to include <<frozen-indices, frozen-indices>> in the query execution or not (default).
+To check the progress of an async search, use the search ID with the
+<<get-async-sql-search-status-api,get async SQL search status API>>.
 
-|params
-|none
-|Optional list of parameters to replace question mark (`?`) placeholders inside the query.
+[source,console]
+----
+GET _sql/async/status/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=
+----
+// TEST[skip: no access to search ID]
 
-|===
+If `is_running` and `is_partial` are `false`, the async search has finished with
+complete results.
 
-Do note that most parameters (outside the timeout and `columnar` ones) make sense only during the initial query - any follow-up pagination request only requires the `cursor` parameter as explained in the <<sql-pagination, pagination>> chapter.
-That's because the query has already been executed and the calls are simply about returning the found results - thus the parameters are simply ignored.
+[source,console-result]
+----
+{
+  "id": "FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=",
+  "is_running": false,
+  "is_partial": false,
+  "expiration_time_in_millis": 1611690295000,
+  "completion_status": 200
+}
+----
+// TESTRESPONSE[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
+// TESTRESPONSE[s/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=/$body.id/]
+// TESTRESPONSE[s/"expiration_time_in_millis": 1611690295000/"expiration_time_in_millis": $body.expiration_time_in_millis/]
+
+To get the results, use the search ID with the <<get-async-sql-search-api,get
+async SQL search API>>. If the search is still running, specify how long you’d
+like to wait using `wait_for_completion_timeout`. You can also specify the
+response `format`.
+
+[source,console]
+----
+GET _sql/async/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=?wait_for_completion_timeout=2s&format=json
+----
+// TEST[skip: no access to search ID]
+
+[discrete]
+[[sql-async-retention]]
+==== Change the search retention period
+
+By default, {es} stores async SQL searches for five days. After this period,
+{es} deletes the search and its results, even if the search is still running. To
+change this retention period, use the `keep_alive` parameter.
+
+[source,console]
+----
+POST _sql?format=json
+{
+  "keep_alive": "2d",
+  "wait_for_completion_timeout": "2s",
+  "query": "SELECT * FROM library ORDER BY page_count DESC",
+  "fetch_size": 5
+}
+----
+// TEST[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
+// TEST[setup:library]
+
+You can use the get async SQL search API's `keep_alive` parameter to later
+change the retention period. The new period starts after the request runs.
+
+[source,console]
+----
+GET _sql/async/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxOTI=?keep_alive=5d&wait_for_completion_timeout=2s&format=json
+----
+// TEST[skip: no access to search ID]
+
+Use the <<delete-async-sql-search-api,delete async SQL search API>> to delete an
+async search before the `keep_alive` period ends. If the search is still
+running, {es} cancels it.
+
+[source,console]
+----
+DELETE _sql/async/delete/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxOTI=
+----
+// TEST[skip: no access to search ID]
+
+[discrete]
+[[sql-store-searches]]
+==== Store synchronous SQL searches
+
+By default, {es} only stores async SQL searches. To save a synchronous search,
+specify `wait_for_completion_timeout` and set `keep_on_completion` to `true`.
+
+[source,console]
+----
+POST _sql?format=json
+{
+  "keep_on_completion": true,
+  "wait_for_completion_timeout": "2s",
+  "query": "SELECT * FROM library ORDER BY page_count DESC",
+  "fetch_size": 5
+}
+----
+// TEST[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
+// TEST[setup:library]
+
+If `is_partial` and `is_running` are `false`, the search was synchronous and
+returned complete results.
+
+[source,console-result]
+----
+{
+  "id": "Fnc5UllQdUVWU0NxRFNMbWxNYXplaFEaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQTo0NzA=",
+  "is_partial": false,
+  "is_running": false,
+  "rows": ...,
+  "columns": ...,
+  "cursor": ...
+}
+----
+// TESTRESPONSE[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
+// TESTRESPONSE[s/Fnc5UllQdUVWU0NxRFNMbWxNYXplaFEaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQTo0NzA=/$body.id/]
+// TESTRESPONSE[s/"rows": \.\.\./"rows": $body.rows/]
+// TESTRESPONSE[s/"columns": \.\.\./"columns": $body.columns/]
+// TESTRESPONSE[s/"cursor": \.\.\./"cursor": $body.cursor/]
+
+You can get the same results later using the search ID with the
+<<get-async-sql-search-api,get async SQL search API>>.
+
+Saved synchronous searches are still subject to the `keep_alive` retention
+period. When this period ends, {es} deletes the search results. You can also
+delete saved searches using the <<delete-async-sql-search-api,delete async SQL
+search API>>.

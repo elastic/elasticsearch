@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -80,6 +81,8 @@ public class IndicesSegmentResponse extends BroadcastResponse {
 
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
+        assert Transports.assertNotTransportThread("segments are very numerous, too expensive to serialize on a transport thread");
+
         builder.startObject(Fields.INDICES);
 
         for (IndexSegments indexSegments : getIndices().values()) {

@@ -11,7 +11,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -565,7 +565,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
     private TestExtractor createExtractor(boolean includeSource, boolean supportsRowsWithMissingValues) {
         DataFrameDataExtractorContext context = new DataFrameDataExtractorContext(JOB_ID, extractedFields, indices, query, scrollSize,
-            headers, includeSource, supportsRowsWithMissingValues, trainTestSplitterFactory);
+            headers, includeSource, supportsRowsWithMissingValues, trainTestSplitterFactory, Collections.emptyMap());
         return new TestExtractor(client, context);
     }
 

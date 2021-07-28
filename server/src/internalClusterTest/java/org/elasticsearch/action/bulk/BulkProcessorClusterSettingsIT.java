@@ -8,13 +8,17 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
@@ -41,5 +45,13 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
             equalTo("[wontwork] org.elasticsearch.index.IndexNotFoundException: no such index [wontwork]"
                 + " and [action.auto_create_index] is [false]"));
         assertFalse("Operation on existing index should succeed", responses[2].isFailed());
+    }
+
+    public void testIndexWithDisabledAutoCreateIndex() {
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom("-*", "+.*")).build()).get());
+        final BulkItemResponse itemResponse =
+                client().prepareBulk().add(client().prepareIndex("test-index").setSource("foo", "bar")).get().getItems()[0];
+        assertThat(itemResponse.getFailure().getCause(), instanceOf(IndexNotFoundException.class));
     }
 }

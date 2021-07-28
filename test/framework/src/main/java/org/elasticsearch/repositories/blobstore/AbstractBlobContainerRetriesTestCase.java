@@ -12,14 +12,14 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpStatus;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
@@ -78,6 +78,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         @Nullable TimeValue readTimeout,
         @Nullable Boolean disableChunkedEncoding,
         @Nullable ByteSizeValue bufferSize);
+
+    protected org.hamcrest.Matcher<Object> readTimeoutExceptionMatcher() {
+        return either(instanceOf(SocketTimeoutException.class)).or(instanceOf(ConnectionClosedException.class))
+            .or(instanceOf(RuntimeException.class));
+    }
 
     public void testReadNonexistentBlobThrowsNoSuchFileException() {
         final BlobContainer blobContainer = createBlobContainer(between(1, 5), null, null, null);
@@ -236,8 +241,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 Streams.readFully(stream);
             }
         });
-        assertThat(exception, either(instanceOf(SocketTimeoutException.class)).or(instanceOf(ConnectionClosedException.class))
-            .or(instanceOf(RuntimeException.class)));
+        assertThat(exception, readTimeoutExceptionMatcher());
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), either(containsString("read timed out")).or(
             containsString("premature end of chunk coded message body: closing chunk expected")).or(containsString("Read timed out"))
             .or(containsString("unexpected end of file from server")));

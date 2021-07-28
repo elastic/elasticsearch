@@ -18,17 +18,9 @@ Deletes an existing {transform}.
 [[delete-transform-prereqs]]
 == {api-prereq-title}
 
+* Requires the `manage_transform` cluster privilege. This privilege is included 
+in the `transform_admin` built-in role.
 * Before you can delete the {transform}, you must stop it.
-
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
-
-* `manage_transform` 
-
-The built-in `transform_admin` role has this privilege. 
-
-For more information, see <<security-privileges>> and <<built-in-roles>>.
-
 
 [[delete-transform-path-parms]]
 == {api-path-parms-title}

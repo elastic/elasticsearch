@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -28,29 +28,31 @@ import java.util.Set;
 public abstract class SourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
-    private final String fieldName;
 
     public SourceValueFetcher(String fieldName, SearchExecutionContext context) {
         this(fieldName, context, null);
     }
 
     /**
-     * @param fieldName The name of the field.
-     * @param context The query shard context
-     * @param nullValue A optional substitute value if the _source value is 'null'.
+     * @param context   The query shard context
+     * @param nullValue An optional substitute value if the _source value is 'null'.
      */
     public SourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
-        this.sourcePaths = context.sourcePath(fieldName);
+        this(context.sourcePath(fieldName), nullValue);
+    }
+
+    /**
+     * @param sourcePaths   The paths to pull source values from
+     * @param nullValue     An optional substitute value if the _source value is `null`
+     */
+    public SourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
+        this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
-        this.fieldName = fieldName;
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup, Set<String> ignoredFields) {
+    public List<Object> fetchValues(SourceLookup lookup) {
         List<Object> values = new ArrayList<>();
-        if (ignoredFields.contains(fieldName)) {
-            return values;
-        }
         for (String path : sourcePaths) {
             Object sourceValue = lookup.extractValue(path, nullValue);
             if (sourceValue == null) {
@@ -64,11 +66,22 @@ public abstract class SourceValueFetcher implements ValueFetcher {
             while (queue.isEmpty() == false) {
                 Object value = queue.poll();
                 if (value instanceof List) {
-                    queue.addAll((List<?>) value);
+                    for (Object o : (List<?>) value) {
+                        if (o != null) {
+                            queue.add(o);
+                        }
+                    }
                 } else {
-                    Object parsedValue = parseSourceValue(value);
-                    if (parsedValue != null) {
-                        values.add(parsedValue);
+                    try {
+                        Object parsedValue = parseSourceValue(value);
+                        if (parsedValue != null) {
+                            values.add(parsedValue);
+                        }
+                    } catch (Exception e) {
+                        // if we get a parsing exception here, that means that the
+                        // value in _source would have also caused a parsing
+                        // exception at index time and the value ignored.
+                        // so ignore it here as well
                     }
                 }
             }
@@ -106,6 +119,19 @@ public abstract class SourceValueFetcher implements ValueFetcher {
             throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
         }
         return new SourceValueFetcher(fieldName, context) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value.toString();
+            }
+        };
+    }
+
+    /**
+     * Creates a {@link SourceValueFetcher} that converts source values to Strings
+     * @param sourcePaths   the paths to fetch values from in the source
+     */
+    public static SourceValueFetcher toString(Set<String> sourcePaths) {
+        return new SourceValueFetcher(sourcePaths, null) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return value.toString();

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -22,19 +23,20 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.index.store.SearchableSnapshotDirectory.unwrapDirectory;
+import static org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory.unwrapDirectory;
 
 public abstract class AbstractTransportSearchableSnapshotsAction<
     Request extends BroadcastRequest<Request>,
@@ -94,7 +96,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
             IndexMetadata indexMetaData = state.metadata().index(concreteIndex);
             if (indexMetaData != null) {
                 Settings indexSettings = indexMetaData.getSettings();
-                if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings)) {
+                if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
                     searchableSnapshotIndices.add(concreteIndex);
                 }
             }
@@ -106,13 +108,15 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
     }
 
     @Override
-    protected ShardOperationResult shardOperation(Request request, ShardRouting shardRouting) throws IOException {
-        SearchableSnapshots.ensureValidLicense(licenseState);
-        final IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
-        final SearchableSnapshotDirectory directory = unwrapDirectory(indexShard.store().directory());
-        assert directory != null;
-        assert directory.getShardId().equals(shardRouting.shardId());
-        return executeShardOperation(request, shardRouting, directory);
+    protected void shardOperation(Request request, ShardRouting shardRouting, Task task, ActionListener<ShardOperationResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            SearchableSnapshots.ensureValidLicense(licenseState);
+            final IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
+            final SearchableSnapshotDirectory directory = unwrapDirectory(indexShard.store().directory());
+            assert directory != null;
+            assert directory.getShardId().equals(shardRouting.shardId());
+            return executeShardOperation(request, shardRouting, directory);
+        });
     }
 
     protected abstract ShardOperationResult executeShardOperation(

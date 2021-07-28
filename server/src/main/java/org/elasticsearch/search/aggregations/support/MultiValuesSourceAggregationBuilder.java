@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -224,7 +224,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
 
-        MultiValuesSourceAggregationBuilder other = (MultiValuesSourceAggregationBuilder) obj;
+        MultiValuesSourceAggregationBuilder<?> other = (MultiValuesSourceAggregationBuilder<?>) obj;
         return Objects.equals(this.fields, other.fields)
             && Objects.equals(this.format, other.format)
             && Objects.equals(this.userValueTypeHint, other.userValueTypeHint);

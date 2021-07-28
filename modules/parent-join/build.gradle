@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -15,6 +16,6 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'bulk', 'cluster', 'nodes', 'indices', 'index', 'search'
+    include '_common', 'bulk', 'cluster', 'nodes', 'indices', 'index', 'search'
   }
 }

@@ -8,27 +8,25 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import java.io.IOException;
+import java.util.Map;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.hash.MurmurHash3;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-
-import java.io.IOException;
-import java.util.Map;
 
 /**
  * An aggregator that computes approximate counts of unique values
@@ -91,15 +89,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
         };
     }
 
-    @Override
-    protected void beforeBuildingResults(long[] ordsToCollect) throws IOException {
-        buildCountIfNeeded();
-    }
-
-    private void buildCountIfNeeded() throws IOException {
-        if (counts != null) {
-            return;
-        }
+    protected void doPostCollection() throws IOException {
         counts = new HyperLogLogPlusPlusSparse(precision, bigArrays, visitedOrds.size());
         try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
             try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
@@ -138,18 +128,12 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     @Override
     public double metric(long owningBucketOrd) {
-        try {
-            // Make sure all outstanding data has been synced down to the counts.
-            buildCountIfNeeded();
-        } catch (IOException e) {
-            throw new AggregationExecutionException("error collecting data in last segment", e);
-        }
         return counts.cardinality(owningBucketOrd);
     }
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (owningBucketOrdinal >= counts.maxOrd() || counts.cardinality(owningBucketOrdinal) == 0) {
+        if (counts == null || owningBucketOrdinal >= counts.maxOrd() || counts.cardinality(owningBucketOrdinal) == 0) {
             return buildEmptyAggregation();
         }
         // We need to build a copy because the returned Aggregation needs remain usable after

@@ -6,8 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -28,6 +30,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.COLD_PHASE;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.DELETE_PHASE;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.FROZEN_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.HOT_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_COLD_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_DELETE_ACTIONS;
@@ -36,9 +40,12 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_V
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_COLD_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_HOT_ACTIONS;
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_PHASES;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_PHASES;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_WARM_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateAllSearchableSnapshotActionsUseSameRepository;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateMonotonicallyIncreasingPhaseTimings;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateFrozenPhaseHasSearchableSnapshotAction;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,7 +59,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final DeleteAction TEST_DELETE_ACTION = new DeleteAction();
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
-    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null);
+    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
     private static final FreezeAction TEST_FREEZE_ACTION = new FreezeAction();
@@ -203,31 +210,85 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     }
 
     public void testActionsThatCannotFollowSearchableSnapshot() {
-        assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT.size(), is(5));
+        assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT.size(), is(4));
         assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT, containsInAnyOrder(ShrinkAction.NAME, FreezeAction.NAME,
-            ForceMergeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME));
+            ForceMergeAction.NAME, RollupILMAction.NAME));
     }
 
     public void testValidateActionsFollowingSearchableSnapshot() {
-        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
-        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
-        Phase coldPhase = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
+        {
+            Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+            Phase coldPhase = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(hotPhase, warmPhase, coldPhase)));
+            assertThat(e.getMessage(), is(
+                "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup] actions" +
+                    " which are not allowed after a managed index is mounted as a searchable snapshot"));
+        }
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(hotPhase, warmPhase, coldPhase)));
-        assertThat(e.getMessage(), is(
-            "phases [warm,cold] define one or more of [searchable_snapshot, forcemerge, freeze, shrink, rollup] actions" +
-            " which are not allowed after a managed index is mounted as a searchable snapshot"));
+        {
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO,
+                Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+            Phase coldPhase = new Phase("cold", TimeValue.ZERO,
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO,
+                Map.of(FreezeAction.NAME, new FreezeAction()));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(warmPhase, coldPhase, frozenPhase)));
+            assertThat(e.getMessage(), is(
+                "phases [frozen] define one or more of [forcemerge, freeze, shrink, rollup] actions" +
+                    " which are not allowed after a managed index is mounted as a searchable snapshot"));
+        }
+
+        {
+            Phase hotPhase = new Phase("hot", TimeValue.ZERO,
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO,
+                Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+            Phase coldPhase = new Phase("cold", TimeValue.ZERO,
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO,
+                Map.of(FreezeAction.NAME, new FreezeAction()));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(hotPhase, warmPhase, coldPhase,
+                    frozenPhase)));
+            assertThat(e.getMessage(), is(
+                "phases [warm,frozen] define one or more of [forcemerge, freeze, shrink, rollup] actions" +
+                    " which are not allowed after a managed index is mounted as a searchable snapshot"));
+        }
+
+        {
+            Phase hot = new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1L),
+            SearchableSnapshotAction.NAME, new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))));
+            Phase warm = new Phase("warm", TimeValue.ZERO, Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null)));
+            Phase cold = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(warm, hot, cold)));
+            assertThat(e.getMessage(), is(
+                "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup] actions" +
+                    " which are not allowed after a managed index is mounted as a searchable snapshot"));
+        }
+
+        {
+            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction(),
+                SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+            try {
+                TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(frozenPhase));
+            } catch (Exception e) {
+                fail("unexpected exception while validating phase [ "+ frozenPhase +" ] but got [" + e.getMessage()+ "]");
+            }
+        }
     }
 
     public void testGetOrderedPhases() {
         Map<String, Phase> phaseMap = new HashMap<>();
-        for (String phaseName : randomSubsetOf(randomIntBetween(0, VALID_PHASES.size()), VALID_PHASES)) {
+        for (String phaseName : randomSubsetOf(randomIntBetween(0, ORDERED_VALID_PHASES.size()), ORDERED_VALID_PHASES)) {
             phaseMap.put(phaseName, new Phase(phaseName, TimeValue.ZERO, Collections.emptyMap()));
         }
 
 
-        assertTrue(isSorted(TimeseriesLifecycleType.INSTANCE.getOrderedPhases(phaseMap), Phase::getName, VALID_PHASES));
+        assertTrue(isSorted(TimeseriesLifecycleType.INSTANCE.getOrderedPhases(phaseMap), Phase::getName, ORDERED_VALID_PHASES));
     }
 
     public void testGetOrderedPhasesInsertsMigrateAction() {
@@ -236,7 +297,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         phaseMap.put(WARM_PHASE, new Phase(WARM_PHASE, TimeValue.ZERO, Map.of()));
 
         List<Phase> orderedPhases = TimeseriesLifecycleType.INSTANCE.getOrderedPhases(phaseMap);
-        assertTrue(isSorted(orderedPhases, Phase::getName, VALID_PHASES));
+        assertTrue(isSorted(orderedPhases, Phase::getName, ORDERED_VALID_PHASES));
         Phase warmPhase = orderedPhases.get(1);
         assertThat(warmPhase, is(notNullValue()));
         assertThat(warmPhase.getActions().get(MigrateAction.NAME), is(notNullValue()));
@@ -514,6 +575,10 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertNextActionName("cold", SetPriorityAction.NAME, null, new String[] { SetPriorityAction.NAME });
         assertNextActionName("cold", SetPriorityAction.NAME, null, new String[] {});
 
+        assertNextActionName("cold", UnfollowAction.NAME, ReadOnlyAction.NAME,
+            new String[] {ReadOnlyAction.NAME, SearchableSnapshotAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME});
+        assertNextActionName("cold", UnfollowAction.NAME, SearchableSnapshotAction.NAME,
+            new String[] {SearchableSnapshotAction.NAME, AllocateAction.NAME, FreezeAction.NAME});
         assertNextActionName("cold", UnfollowAction.NAME, AllocateAction.NAME,
             new String[] {SetPriorityAction.NAME, AllocateAction.NAME, FreezeAction.NAME});
         assertNextActionName("cold", UnfollowAction.NAME, AllocateAction.NAME,
@@ -532,7 +597,6 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertInvalidAction("cold", "foo", new String[] { AllocateAction.NAME });
         assertInvalidAction("cold", DeleteAction.NAME, new String[] { AllocateAction.NAME });
         assertInvalidAction("cold", ForceMergeAction.NAME, new String[] { AllocateAction.NAME });
-        assertInvalidAction("cold", ReadOnlyAction.NAME, new String[] { AllocateAction.NAME });
         assertInvalidAction("cold", RolloverAction.NAME, new String[] { AllocateAction.NAME });
         assertInvalidAction("cold", ShrinkAction.NAME, new String[] { AllocateAction.NAME });
 
@@ -590,6 +654,192 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
+
+        {
+            // test phase defines a `searchable_snapshot` action
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            actions.put(TEST_SEARCHABLE_SNAPSHOT_ACTION.getWriteableName(), TEST_SEARCHABLE_SNAPSHOT_ACTION);
+            Phase phase = new Phase(COLD_PHASE, TimeValue.ZERO, actions);
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+
+        {
+            // test `frozen` phase defines a `searchable_snapshot` action
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            actions.put(TEST_SEARCHABLE_SNAPSHOT_ACTION.getWriteableName(), TEST_SEARCHABLE_SNAPSHOT_ACTION);
+            Phase phase = new Phase(FROZEN_PHASE, TimeValue.ZERO, actions);
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+
+    }
+
+    public void testValidatingSearchableSnapshotRepos() {
+        Map<String, LifecycleAction> hotActions = new HashMap<>();
+        Map<String, LifecycleAction> coldActions = new HashMap<>();
+        Map<String, LifecycleAction> frozenActions = new HashMap<>();
+
+        {
+            hotActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean()));
+            coldActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean()));
+            frozenActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean()));
+
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.ZERO, hotActions);
+            Phase coldPhase = new Phase(HOT_PHASE, TimeValue.ZERO, coldActions);
+            Phase frozenPhase = new Phase(HOT_PHASE, TimeValue.ZERO, frozenActions);
+
+            validateAllSearchableSnapshotActionsUseSameRepository(Arrays.asList(hotPhase, coldPhase, frozenPhase));
+        }
+
+        {
+            hotActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean()));
+            coldActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo2", randomBoolean()));
+            frozenActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean()));
+
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.ZERO, hotActions);
+            Phase coldPhase = new Phase(HOT_PHASE, TimeValue.ZERO, coldActions);
+            Phase frozenPhase = new Phase(HOT_PHASE, TimeValue.ZERO, frozenActions);
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> validateAllSearchableSnapshotActionsUseSameRepository(Arrays.asList(hotPhase, coldPhase, frozenPhase)));
+            assertThat(e.getMessage(), containsString("policy specifies [searchable_snapshot]" +
+                " action multiple times with differing repositories [repo2, repo1]," +
+                " the same repository must be used for all searchable snapshot actions"));
+        }
+    }
+
+    public void testValidatingIncreasingAges() {
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.ZERO, Collections.emptyMap());
+
+            assertFalse(Strings.hasText(validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase,
+                warmPhase, coldPhase, frozenPhase, deletePhase))));
+        }
+
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+
+            List<Phase> phases = new ArrayList<>();
+            phases.add(hotPhase);
+            if (randomBoolean()) {
+                phases.add(warmPhase);
+            }
+            if (randomBoolean()) {
+                phases.add(coldPhase);
+            }
+            if (randomBoolean()) {
+                phases.add(frozenPhase);
+            }
+            if (randomBoolean()) {
+                phases.add(deletePhase);
+            }
+            assertFalse(Strings.hasText(validateMonotonicallyIncreasingPhaseTimings(phases)));
+        }
+
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.timeValueHours(12), Collections.emptyMap());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.ZERO, Collections.emptyMap());
+
+            String err =
+                validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
+
+            assertThat(err,
+                containsString("Your policy is configured to run the cold phase "+
+                    "(min_age: 12h) before the hot phase (min_age: 1d). You should change "+
+                    "the phase timing so that the phases will execute in the order of hot, warm, then cold."));
+        }
+
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(3), Collections.emptyMap());
+            Phase coldPhase = new Phase(COLD_PHASE, null, Collections.emptyMap());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+
+            String err =
+                validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
+
+            assertThat(err,
+                containsString("Your policy is configured to run the frozen phase "+
+                    "(min_age: 1d) and the delete phase (min_age: 2d) before the warm phase (min_age: 3d)."+
+                    " You should change the phase timing so that the phases will execute in the order of hot, warm, then cold."));
+        }
+
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(3), Collections.emptyMap());
+            Phase coldPhase = new Phase(COLD_PHASE, null, Collections.emptyMap());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+
+            String err =
+                validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
+
+            assertThat(err,
+                containsString("Your policy is configured to run the frozen phase "+
+                    "(min_age: 2d) and the delete phase (min_age: 1d) before the warm phase (min_age: 3d)."+
+                    " You should change the phase timing so that the phases will execute in the order of hot, warm, then cold."));
+        }
+
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(3), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+            Phase coldPhase = new Phase(COLD_PHASE, null, Collections.emptyMap());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+
+            String err =
+                validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
+
+            assertThat(err,
+                containsString("Your policy is configured to run the frozen phase "+
+                    "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the hot phase (min_age: 3d)."+
+                    " You should change the phase timing so that the phases will execute in the order of hot, warm, then cold."));
+        }
+
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(3), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+
+            String err =
+                validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
+
+            assertThat(err,
+                containsString("Your policy is configured to run the cold phase (min_age: 2d), the frozen phase "+
+                    "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the hot phase (min_age: 3d)."+
+                    " You should change the phase timing so that the phases will execute in the order of hot, warm, then cold."));
+        }
+    }
+
+    public void testValidateFrozenPhaseHasSearchableSnapshot() {
+        {
+            Map<String, LifecycleAction> frozenActions = new HashMap<>();
+            frozenActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean()));
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.ZERO, frozenActions);
+            validateFrozenPhaseHasSearchableSnapshotAction(Collections.singleton(frozenPhase));
+        }
+
+        {
+            Map<String, LifecycleAction> frozenActions = new HashMap<>();
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.ZERO, frozenActions);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> validateFrozenPhaseHasSearchableSnapshotAction(Collections.singleton(frozenPhase)));
+            assertThat(e.getMessage(), containsString("policy specifies the [frozen] phase without a corresponding " +
+                "[searchable_snapshot] action, but a searchable snapshot action is required in the frozen phase"));
+        }
     }
 
     private void assertNextActionName(String phaseName, String currentAction, String expectedNextAction, String... availableActionNames) {
@@ -620,7 +870,11 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             case ReadOnlyAction.NAME:
                 return new ReadOnlyAction();
             case RolloverAction.NAME:
-                return new RolloverAction(ByteSizeValue.parseBytesSizeValue("0b", "test"), TimeValue.ZERO, 1L);
+                return new RolloverAction(
+                    ByteSizeValue.parseBytesSizeValue("0b", "test"),
+                    ByteSizeValue.parseBytesSizeValue("0b", "test"),
+                    TimeValue.ZERO,
+                    1L);
             case ShrinkAction.NAME:
                 return new ShrinkAction(1, null);
             case FreezeAction.NAME:
@@ -633,6 +887,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return new MigrateAction(true);
             case RollupILMAction.NAME:
                 return TEST_ROLLUP_ACTION;
+            case SearchableSnapshotAction.NAME:
+                return TEST_SEARCHABLE_SNAPSHOT_ACTION;
             }
             return new DeleteAction();
         }).collect(Collectors.toConcurrentMap(LifecycleAction::getWriteableName, Function.identity()));

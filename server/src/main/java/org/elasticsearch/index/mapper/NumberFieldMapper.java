@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
+
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
@@ -18,6 +19,7 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -36,7 +38,12 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.DoubleFieldScript;
+import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -45,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -73,29 +81,53 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final Parameter<Number> nullValue;
 
+        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).builder.script.get());
+        private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<Boolean> dimension;
+
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
+        private final ScriptCompiler scriptCompiler;
         private final NumberType type;
 
-        public Builder(String name, NumberType type, Settings settings) {
-            this(name, type, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
+        public Builder(String name, NumberType type, ScriptCompiler compiler, Settings settings) {
+            this(name, type, compiler, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
         }
 
         public static Builder docValuesOnly(String name, NumberType type) {
-            Builder builder = new Builder(name, type, false, false);
+            Builder builder = new Builder(name, type, ScriptCompiler.NONE, false, false);
             builder.indexed.setValue(false);
+            builder.dimension.setValue(false);
             return builder;
         }
 
-        public Builder(String name, NumberType type, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
+        public Builder(String name, NumberType type, ScriptCompiler compiler, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
             super(name);
             this.type = type;
+            this.scriptCompiler = Objects.requireNonNull(compiler);
+
             this.ignoreMalformed
                 = Parameter.explicitBoolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
             this.coerce
                 = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
             this.nullValue = new Parameter<>("null_value", false, () -> null,
                 (n, c, o) -> o == null ? null : type.parse(o, false), m -> toType(m).nullValue).acceptsNull();
+
+            this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
+                .setValidator(v -> {
+                    if (v && EnumSet.of(NumberType.INTEGER, NumberType.LONG, NumberType.BYTE, NumberType.SHORT).contains(type) == false) {
+                        throw new IllegalArgumentException("Parameter [dimension] cannot be set to numeric type [" + type.name + "]");
+                    }
+                    if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                        throw new IllegalArgumentException(
+                            "Field [dimension] requires that [" + indexed.name + "] and [" + hasDocValues.name + "] are true"
+                        );
+                    }
+                });
+
+            this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
+            addScriptValidation(script, indexed, hasDocValues);
         }
 
         Builder nullValue(Number number) {
@@ -108,9 +140,21 @@ public class NumberFieldMapper extends FieldMapper {
             return this;
         }
 
+        private FieldValues<Number> scriptValues() {
+            if (this.script.get() == null) {
+                return null;
+            }
+            return type.compile(name, script.get(), scriptCompiler);
+        }
+
+        public Builder dimension(boolean dimension) {
+            this.dimension.setValue(dimension);
+            return this;
+        }
+
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, meta);
+            return List.of(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, script, onScriptError, meta, dimension);
         }
 
         @Override
@@ -124,6 +168,18 @@ public class NumberFieldMapper extends FieldMapper {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
             public Float parse(Object value, boolean coerce) {
+                final float result = parseToFloat(value);
+                // Reduce the precision to what we actually index
+                return HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(result));
+            }
+
+            /**
+             * Parse a query parameter or {@code _source} value to a float,
+             * keeping float precision. Used by queries which need more
+             * precise control over their rounding behavior that
+             * {@link #parse(Object, boolean)} provides.
+             */
+            private float parseToFloat(Object value) {
                 final float result;
 
                 if (value instanceof Number) {
@@ -152,7 +208,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public Query termQuery(String field, Object value) {
-                float v = parse(value, false);
+                float v = parseToFloat(value);
                 return HalfFloatPoint.newExactQuery(field, v);
             }
 
@@ -161,7 +217,7 @@ public class NumberFieldMapper extends FieldMapper {
                 float[] v = new float[values.size()];
                 int pos = 0;
                 for (Object value: values) {
-                    v[pos++] = parse(value, false);
+                    v[pos++] = parseToFloat(value);
                 }
                 return HalfFloatPoint.newSetQuery(field, v);
             }
@@ -173,14 +229,14 @@ public class NumberFieldMapper extends FieldMapper {
                 float l = Float.NEGATIVE_INFINITY;
                 float u = Float.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
-                    l = parse(lowerTerm, false);
+                    l = parseToFloat(lowerTerm);
                     if (includeLower) {
                         l = HalfFloatPoint.nextDown(l);
                     }
                     l = HalfFloatPoint.nextUp(l);
                 }
                 if (upperTerm != null) {
-                    u = parse(upperTerm, false);
+                    u = parseToFloat(upperTerm);
                     if (includeUpper) {
                         u = HalfFloatPoint.nextUp(u);
                     }
@@ -333,6 +389,15 @@ public class NumberFieldMapper extends FieldMapper {
                 double parsed = parser.doubleValue(coerce);
                 validateParsed(parsed);
                 return parsed;
+            }
+
+            @Override
+            public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
+                DoubleFieldScript.Factory scriptFactory = compiler.compile(script, DoubleFieldScript.CONTEXT);
+                return (lookup, ctx, doc, consumer) -> scriptFactory
+                    .newFactory(fieldName, script.getParams(), lookup)
+                    .newInstance(ctx)
+                    .runForDoc(doc, consumer::accept);
             }
 
             @Override
@@ -639,6 +704,15 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
+                final LongFieldScript.Factory scriptFactory = compiler.compile(script, LongFieldScript.CONTEXT);
+                return (lookup, ctx, doc, consumer) -> scriptFactory
+                    .newFactory(fieldName, script.getParams(), lookup)
+                    .newInstance(ctx)
+                    .runForDoc(doc, consumer::accept);
+            }
+
+            @Override
             public Query termQuery(String field, Object value) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
@@ -708,7 +782,7 @@ public class NumberFieldMapper extends FieldMapper {
         NumberType(String name, NumericType numericType) {
             this.name = name;
             this.numericType = numericType;
-            this.parser = new TypeParser((n, c) -> new Builder(n, this, c.getSettings()));
+            this.parser = new TypeParser((n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings()));
         }
 
         /** Get the associated type name. */
@@ -732,6 +806,12 @@ public class NumberFieldMapper extends FieldMapper {
         public abstract Number parsePoint(byte[] value);
         public abstract List<Field> createFields(String name, Number value, boolean indexed,
                                                  boolean docValued, boolean stored);
+
+        public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
+            // only implemented for long and double fields
+            throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
+        }
+
         Number valueForSearch(Number value) {
             return value;
         }
@@ -885,22 +965,28 @@ public class NumberFieldMapper extends FieldMapper {
         private final NumberType type;
         private final boolean coerce;
         private final Number nullValue;
+        private final FieldValues<Number> scriptValues;
+        private final boolean isDimension;
 
         public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean isStored,
-                               boolean hasDocValues, boolean coerce, Number nullValue, Map<String, String> meta) {
+                               boolean hasDocValues, boolean coerce, Number nullValue, Map<String, String> meta,
+                               FieldValues<Number> script, boolean isDimension) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;
+            this.scriptValues = script;
+            this.isDimension = isDimension;
         }
 
         NumberFieldType(String name, Builder builder) {
             this(name, builder.type, builder.indexed.getValue(), builder.stored.getValue(), builder.hasDocValues.getValue(),
-                builder.coerce.getValue().value(), builder.nullValue.getValue(), builder.meta.getValue());
+                builder.coerce.getValue().value(), builder.nullValue.getValue(), builder.meta.getValue(),
+                builder.scriptValues(), builder.dimension.getValue());
         }
 
         public NumberFieldType(String name, NumberType type) {
-            this(name, type, true, false, true, true, null, Collections.emptyMap());
+            this(name, type, true, false, true, true, null, Collections.emptyMap(), null, false);
         }
 
         @Override
@@ -958,7 +1044,9 @@ public class NumberFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-
+            if (this.scriptValues != null) {
+                return FieldValues.valueFetcher(this.scriptValues, context);
+            }
             return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
@@ -991,8 +1079,16 @@ public class NumberFieldMapper extends FieldMapper {
         public CollapseType collapseType() {
             return CollapseType.NUMERIC;
         }
+
+        /**
+         * @return true if field has been marked as a dimension field
+         */
+        public boolean isDimension() {
+            return isDimension;
+        }
     }
 
+    private final Builder builder;
     private final NumberType type;
 
     private final boolean indexed;
@@ -1001,9 +1097,10 @@ public class NumberFieldMapper extends FieldMapper {
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> coerce;
     private final Number nullValue;
-
+    private final FieldValues<Number> scriptValues;
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
+    private final boolean dimension;
 
     private NumberFieldMapper(
             String simpleName,
@@ -1011,7 +1108,7 @@ public class NumberFieldMapper extends FieldMapper {
             MultiFields multiFields,
             CopyTo copyTo,
             Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -1021,6 +1118,9 @@ public class NumberFieldMapper extends FieldMapper {
         this.nullValue = builder.nullValue.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
+        this.scriptValues = builder.scriptValues();
+        this.dimension = builder.dimension.getValue();
+        this.builder = builder;
     }
 
     boolean coerce() {
@@ -1042,54 +1142,72 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        XContentParser parser = context.parser();
-        Object value;
-        Number numericValue = null;
-        if (context.externalValueSet()) {
-            value = context.externalValue();
-        } else if (parser.currentToken() == Token.VALUE_NULL) {
-            value = null;
-        } else if (coerce.value()
-                && parser.currentToken() == Token.VALUE_STRING
-                && parser.textLength() == 0) {
-            value = null;
-        } else {
-            try {
-                numericValue = fieldType().type.parse(parser, coerce.value());
-            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
-                if (ignoreMalformed.value() && parser.currentToken().isValue()) {
-                    context.addIgnoredField(mappedFieldType.name());
-                    return;
-                } else {
-                    throw e;
-                }
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        Number value;
+        try {
+            value = value(context.parser(), type, nullValue, coerce.value());
+        } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
+            if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
+                context.addIgnoredField(mappedFieldType.name());
+                return;
+            } else {
+                throw e;
             }
-            value = numericValue;
         }
-
-        if (value == null) {
-            value = nullValue;
+        if (value != null) {
+            indexValue(context, value);
         }
+    }
 
-        if (value == null) {
-            return;
+    /**
+     * Read the value at the current position of the parser.
+     * @throws InputCoercionException if xcontent couldn't convert the value in the required type, for example, integer overflow
+     * @throws JsonParseException if there was any error parsing the json
+     * @throws IllegalArgumentException if there was an error parsing the value from the json
+     * @throws IOException if there was any other IO error
+     */
+    private static Number value(XContentParser parser, NumberType numberType, Number nullValue, boolean coerce)
+        throws InputCoercionException, JsonParseException, IllegalArgumentException, IOException {
+
+        if (parser.currentToken() == Token.VALUE_NULL) {
+            return nullValue;
         }
-
-        if (numericValue == null) {
-            numericValue = fieldType().type.parse(value, coerce.value());
+        if (coerce && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
+            return nullValue;
         }
+        return numberType.parse(parser, coerce);
+    }
 
-        context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue,
-            indexed, hasDocValues, stored));
+    private void indexValue(DocumentParserContext context, Number numericValue) {
+        List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
+        if (dimension) {
+            // Check that a dimension field is single-valued and not an array
+            if (context.doc().getByKey(fieldType().name()) != null) {
+                throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
+            }
+            if (fields.size() > 0) {
+                // Add the first field by key so that we can validate if it has been added
+                context.doc().addWithKey(fieldType().name(), fields.get(0));
+                context.doc().addAll(fields.subList(1, fields.size()));
+            }
+        } else {
+            context.doc().addAll(fields);
+        }
 
         if (hasDocValues == false && (stored || indexed)) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 
     @Override
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
+        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
+    }
+
+    @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, ignoreMalformedByDefault, coerceByDefault).init(this);
+        return new Builder(simpleName(), type, builder.scriptCompiler, ignoreMalformedByDefault, coerceByDefault)
+            .dimension(dimension).init(this);
     }
 }

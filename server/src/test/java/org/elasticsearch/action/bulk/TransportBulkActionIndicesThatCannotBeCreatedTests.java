@@ -22,14 +22,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -38,7 +38,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -105,19 +104,19 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         when(localNode.isIngestNode()).thenReturn(randomBoolean());
 
         final ThreadPool threadPool = mock(ThreadPool.class);
-        final ExecutorService direct = EsExecutors.newDirectExecutorService();
-        when(threadPool.executor(anyString())).thenReturn(direct);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
-        final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)) {
-            @Override
-            public boolean hasIndexAbstraction(String indexAbstraction, ClusterState state) {
-                return shouldAutoCreate.apply(indexAbstraction) == false;
-            }
+        final IndexNameExpressionResolver indexNameExpressionResolver =
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE) {
+                @Override
+                public boolean hasIndexAbstraction(String indexAbstraction, ClusterState state) {
+                    return shouldAutoCreate.apply(indexAbstraction) == false;
+                }
         };
 
         TransportBulkAction action = new TransportBulkAction(threadPool, mock(TransportService.class), clusterService,
             null, null, mock(ActionFilters.class), indexNameExpressionResolver,
-            new IndexingPressure(Settings.EMPTY), new SystemIndices(Map.of())) {
+            new IndexingPressure(Settings.EMPTY), EmptySystemIndices.INSTANCE) {
             @Override
             void executeBulk(Task task, BulkRequest bulkRequest, long startTimeNanos, ActionListener<BulkResponse> listener,
                     AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {

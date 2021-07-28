@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -437,6 +438,19 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             "at line [" + lineNumber + "]"));
     }
 
+    public void testAddingDoWithWarningRegexWithoutSkipWarnings() {
+        int lineNumber = between(1, 10000);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        doSection.setExpectedWarningHeadersRegex(singletonList(Pattern.compile("foo")));
+        doSection.setApiCallSection(new ApiCallSection("test"));
+        ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertThat(e.getMessage(),
+            containsString("api/name:\nattempted to add a [do] with a [warnings_regex] section without a corresponding " +
+            "[\"skip\": \"features\": \"warnings_regex\"] so runners that do not support the [warnings_regex] section can skip the test " +
+            "at line [" + lineNumber + "]"));
+    }
+
     public void testAddingDoWithAllowedWarningWithoutSkipAllowedWarnings() {
         int lineNumber = between(1, 10000);
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
@@ -447,6 +461,18 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(e.getMessage(), containsString("api/name:\nattempted to add a [do] with a [allowed_warnings] " +
             "section without a corresponding [\"skip\": \"features\": \"allowed_warnings\"] so runners that do not " +
             "support the [allowed_warnings] section can skip the test at line [" + lineNumber + "]"));
+    }
+
+    public void testAddingDoWithAllowedWarningRegexWithoutSkipAllowedWarnings() {
+        int lineNumber = between(1, 10000);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        doSection.setAllowedWarningHeadersRegex(singletonList(Pattern.compile("foo")));
+        doSection.setApiCallSection(new ApiCallSection("test"));
+        ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertThat(e.getMessage(), containsString("api/name:\nattempted to add a [do] with a [allowed_warnings_regex] " +
+            "section without a corresponding [\"skip\": \"features\": \"allowed_warnings_regex\"] so runners that do not " +
+            "support the [allowed_warnings_regex] section can skip the test at line [" + lineNumber + "]"));
     }
 
 
@@ -539,6 +565,15 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         createTestSuite(skipSection, doSection).validate();
     }
 
+    public void testAddingDoWithWarningRegexWithSkip() {
+        int lineNumber = between(1, 10000);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        doSection.setExpectedWarningHeadersRegex(singletonList(Pattern.compile("foo")));
+        doSection.setApiCallSection(new ApiCallSection("test"));
+        SkipSection skipSection = new SkipSection(null, singletonList("warnings_regex"), emptyList(), null);
+        createTestSuite(skipSection, doSection).validate();
+    }
+
     public void testAddingDoWithNodeSelectorWithSkip() {
         int lineNumber = between(1, 10000);
         SkipSection skipSection = new SkipSection(null, singletonList("node_selector"), emptyList(), null);
@@ -567,6 +602,17 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             randomAlphaOfLength(randomIntBetween(3, 30)),
             randomDouble());
         createTestSuite(skipSection, containsAssertion).validate();
+    }
+
+    public void testAddingCloseToWithSkip() {
+        int lineNumber = between(1, 10000);
+        SkipSection skipSection = new SkipSection(null, singletonList("close_to"), emptyList(), null);
+        CloseToAssertion closeToAssertion = new CloseToAssertion(
+            new XContentLocation(lineNumber, 0),
+            randomAlphaOfLength(randomIntBetween(3, 30)),
+            randomDouble(),
+            randomDouble());
+        createTestSuite(skipSection, closeToAssertion).validate();
     }
 
     private static ClientYamlTestSuite createTestSuite(SkipSection skipSection, ExecutableSection executableSection) {

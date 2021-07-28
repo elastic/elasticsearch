@@ -123,23 +123,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
     static void ensureAuthenticatedUserIsSame(Authentication original, Authentication current, AuditTrailService auditTrailService,
                                               ShardSearchContextId id, String action, TransportRequest request, String requestId,
                                               AuthorizationInfo authorizationInfo) {
-        // this is really a best effort attempt since we cannot guarantee principal uniqueness
-        // and realm names can change between nodes.
-        final boolean samePrincipal = original.getUser().principal().equals(current.getUser().principal());
-        final boolean sameRealmType;
-        if (original.getUser().isRunAs()) {
-            if (current.getUser().isRunAs()) {
-                sameRealmType = original.getLookedUpBy().getType().equals(current.getLookedUpBy().getType());
-            } else {
-                sameRealmType = original.getLookedUpBy().getType().equals(current.getAuthenticatedBy().getType());
-            }
-        } else if (current.getUser().isRunAs()) {
-            sameRealmType = original.getAuthenticatedBy().getType().equals(current.getLookedUpBy().getType());
-        } else {
-            sameRealmType = original.getAuthenticatedBy().getType().equals(current.getAuthenticatedBy().getType());
-        }
-
-        final boolean sameUser = samePrincipal && sameRealmType;
+        final boolean sameUser = original.canAccessResourcesOf(current);
         if (sameUser == false) {
             auditTrailService.get().accessDenied(requestId, current, action, request, authorizationInfo);
             throw new SearchContextMissingException(id);

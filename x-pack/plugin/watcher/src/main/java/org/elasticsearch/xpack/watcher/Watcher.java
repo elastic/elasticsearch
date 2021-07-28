@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -17,16 +18,14 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -34,9 +33,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -145,8 +145,8 @@ import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction.Deact
 import org.elasticsearch.xpack.watcher.rest.action.RestDeleteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestGetWatchAction;
-import org.elasticsearch.xpack.watcher.rest.action.RestQueryWatchesAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestPutWatchAction;
+import org.elasticsearch.xpack.watcher.rest.action.RestQueryWatchesAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
@@ -156,13 +156,13 @@ import org.elasticsearch.xpack.watcher.transform.script.ScriptTransformFactory;
 import org.elasticsearch.xpack.watcher.transform.script.WatcherTransformScript;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransformFactory;
-import org.elasticsearch.xpack.watcher.transport.actions.TransportQueryWatchesAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportAckWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportActivateWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportDeleteWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportExecuteWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportGetWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportPutWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportQueryWatchesAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportWatcherServiceAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
@@ -201,6 +201,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
 public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, ReloadablePlugin {
@@ -227,7 +229,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
     public static final ScriptContext<TemplateScript.Factory> SCRIPT_TEMPLATE_CONTEXT
         = new ScriptContext<>("xpack_template", TemplateScript.Factory.class,
-        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple());
+        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple(), true);
 
     private static final Logger logger = LogManager.getLogger(Watcher.class);
     private WatcherIndexingListener listener;
@@ -236,15 +238,11 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
     protected final Settings settings;
     protected final boolean enabled;
-    protected List<NotificationService> reloadableServices = new ArrayList<>();
+    protected List<NotificationService<?>> reloadableServices = new ArrayList<>();
 
     public Watcher(final Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
-
-        if (enabled) {
-            validAutoCreateIndex(settings, logger);
-        }
     }
 
     // overridable by tests
@@ -294,7 +292,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         reloadableServices.add(pagerDutyService);
 
         TextTemplateEngine templateEngine = new TextTemplateEngine(scriptService);
-        Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
+        Map<String, EmailAttachmentParser<?>> emailAttachmentParsers = new HashMap<>();
         emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, templateEngine));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
         emailAttachmentParsers.put(ReportingAttachmentParser.TYPE,
@@ -328,7 +326,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             getLicenseState());
 
         // inputs
-        final Map<String, InputFactory> inputFactories = new HashMap<>();
+        final Map<String, InputFactory<?, ?, ?>> inputFactories = new HashMap<>();
         inputFactories.put(SearchInput.TYPE, new SearchInputFactory(settings, client, xContentRegistry, scriptService));
         inputFactories.put(SimpleInput.TYPE, new SimpleInputFactory());
         inputFactories.put(HttpInput.TYPE, new HttpInputFactory(settings, httpClient, templateEngine));
@@ -381,7 +379,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
                 logger.error("error executing bulk", failure);
             }
-        })
+        }, "watcher")
             .setFlushInterval(SETTING_BULK_FLUSH_INTERVAL.get(settings))
             .setBulkActions(SETTING_BULK_ACTIONS.get(settings))
             .setBulkSize(SETTING_BULK_SIZE.get(settings))
@@ -391,7 +389,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         HistoryStore historyStore = new HistoryStore(bulkProcessor);
 
         // schedulers
-        final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
+        final Set<Schedule.Parser<?>> scheduleParsers = new HashSet<>();
         scheduleParsers.add(new CronSchedule.Parser());
         scheduleParsers.add(new DailySchedule.Parser());
         scheduleParsers.add(new HourlySchedule.Parser());
@@ -401,10 +399,10 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         scheduleParsers.add(new YearlySchedule.Parser());
         final ScheduleRegistry scheduleRegistry = new ScheduleRegistry(scheduleParsers);
 
-        TriggerEngine manualTriggerEngine = new ManualTriggerEngine();
-        final TriggerEngine configuredTriggerEngine = getTriggerEngine(getClock(), scheduleRegistry);
+        TriggerEngine<?, ?> manualTriggerEngine = new ManualTriggerEngine();
+        final TriggerEngine<?, ?> configuredTriggerEngine = getTriggerEngine(getClock(), scheduleRegistry);
 
-        final Set<TriggerEngine> triggerEngines = new HashSet<>();
+        final Set<TriggerEngine<?, ?>> triggerEngines = new HashSet<>();
         triggerEngines.add(manualTriggerEngine);
         triggerEngines.add(configuredTriggerEngine);
         final TriggerService triggerService = new TriggerService(triggerEngines);
@@ -438,7 +436,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService);
     }
 
-    protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
+    protected TriggerEngine<?, ?> getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
         return new TickerScheduleTriggerEngine(settings, scheduleRegistry, clock);
     }
 
@@ -532,7 +530,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
      * @return A number between 5 and the number of processors
      */
     static int getWatcherThreadPoolSize(final Settings settings) {
-        return getWatcherThreadPoolSize(DiscoveryNode.isDataNode(settings), EsExecutors.allocatedProcessors(settings));
+        return getWatcherThreadPoolSize(DiscoveryNode.canContainData(settings), EsExecutors.allocatedProcessors(settings));
     }
 
     static int getWatcherThreadPoolSize(final boolean isDataNode, final int allocatedProcessors) {
@@ -597,57 +595,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         module.addIndexOperationListener(listener);
     }
 
-    static void validAutoCreateIndex(Settings settings, Logger logger) {
-        String value = settings.get("action.auto_create_index");
-        if (value == null) {
-            return;
-        }
-
-        String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
-                " restrictive. disable [action.auto_create_index] or set it to " +
-                "[{},{}]", (Object) value, Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME);
-        if (Booleans.isFalse(value)) {
-            throw new IllegalArgumentException(errorMessage);
-        }
-
-        if (Booleans.isTrue(value)) {
-            return;
-        }
-
-        String[] matches = Strings.commaDelimitedListToStringArray(value);
-        List<String> indices = new ArrayList<>();
-        indices.add(".watches");
-        indices.add(".triggered_watches");
-        for (String index : indices) {
-            boolean matched = false;
-            for (String match : matches) {
-                char c = match.charAt(0);
-                if (c == '-') {
-                    if (Regex.simpleMatch(match.substring(1), index)) {
-                        throw new IllegalArgumentException(errorMessage);
-                    }
-                } else if (c == '+') {
-                    if (Regex.simpleMatch(match.substring(1), index)) {
-                        matched = true;
-                        break;
-                    }
-                } else {
-                    if (Regex.simpleMatch(match, index)) {
-                        matched = true;
-                        break;
-                    }
-                }
-            }
-            if (matched == false) {
-                throw new IllegalArgumentException(errorMessage);
-            }
-        }
-        logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. " +
-                " for the next 6 months daily history indices are allowed to be created, but please make sure" +
-                " that any future history indices after 6 months with the pattern " +
-                "[.watcher-history-yyyy.MM.dd] are allowed to be created", value);
-    }
-
     // These are all old templates from pre 6.0 era, that need to be deleted
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
@@ -696,8 +643,196 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(
-            new SystemIndexDescriptor(Watch.INDEX, "Contains Watch definitions"),
-            new SystemIndexDescriptor(TriggeredWatchStoreField.INDEX_NAME, "Used to track current and queued Watch execution")
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(Watch.INDEX + "*")
+                .setPrimaryIndex(Watch.INDEX)
+                .setDescription("Contains Watch definitions")
+                .setMappings(getWatchesIndexMappings())
+                .setSettings(getWatchesIndexSettings())
+                .setVersionMetaKey("version")
+                .setOrigin(WATCHER_ORIGIN)
+                .build(),
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(TriggeredWatchStoreField.INDEX_NAME + "*")
+                .setPrimaryIndex(TriggeredWatchStoreField.INDEX_NAME)
+                .setDescription("Used to track current and queued Watch execution")
+                .setMappings(getTriggeredWatchesIndexMappings())
+                .setSettings(getTriggeredWatchesIndexSettings())
+                .setVersionMetaKey("version")
+                .setOrigin(WATCHER_ORIGIN)
+                .build()
         );
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "watcher";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages Watch definitions and state";
+    }
+
+    private Settings getWatchesIndexSettings() {
+        return Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.auto_expand_replicas", "0-1")
+            .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)
+            .put(IndexMetadata.SETTING_PRIORITY, 800)
+            .build();
+    }
+
+    private XContentBuilder getWatchesIndexMappings() {
+        try {
+            final XContentBuilder builder = jsonBuilder();
+
+            builder.startObject();
+            {
+                builder.startObject(SINGLE_MAPPING_NAME);
+                builder.field("dynamic", "strict");
+                {
+                    builder.startObject("_meta");
+                    builder.field("version", Version.CURRENT);
+                    builder.endObject();
+                }
+                {
+                    builder.startObject("properties");
+                    {
+                        builder.startObject("status");
+                        builder.field("type", "object");
+                        builder.field("enabled", false);
+                        builder.field("dynamic", true);
+                        builder.endObject();
+
+                        builder.startObject("trigger");
+                        builder.field("type", "object");
+                        builder.field("enabled", false);
+                        builder.field("dynamic", true);
+                        builder.endObject();
+
+                        builder.startObject("input");
+                        builder.field("type", "object");
+                        builder.field("enabled", false);
+                        builder.field("dynamic", true);
+                        builder.endObject();
+
+                        builder.startObject("condition");
+                        builder.field("type", "object");
+                        builder.field("enabled", false);
+                        builder.field("dynamic", true);
+                        builder.endObject();
+
+                        builder.startObject("throttle_period");
+                        builder.field("type", "keyword");
+                        builder.field("index", false);
+                        builder.field("doc_values", false);
+                        builder.endObject();
+
+                        builder.startObject("throttle_period_in_millis");
+                        builder.field("type", "long");
+                        builder.field("index", false);
+                        builder.field("doc_values", false);
+                        builder.endObject();
+
+                        builder.startObject("transform");
+                        builder.field("type", "object");
+                        builder.field("enabled", false);
+                        builder.field("dynamic", true);
+                        builder.endObject();
+
+                        builder.startObject("actions");
+                        builder.field("type", "object");
+                        builder.field("enabled", false);
+                        builder.field("dynamic", true);
+                        builder.endObject();
+
+                        builder.startObject("metadata");
+                        builder.field("type", "object");
+                        builder.field("dynamic", true);
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+
+            builder.endObject();
+            return builder;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build " + Watch.INDEX + " index mappings", e);
+        }
+    }
+
+    private Settings getTriggeredWatchesIndexSettings() {
+        return Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.auto_expand_replicas", "0-1")
+            .put("index.refresh_interval", "-1")
+            .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)
+            .put(IndexMetadata.SETTING_PRIORITY, 900)
+            .build();
+    }
+
+    private XContentBuilder getTriggeredWatchesIndexMappings() {
+        try {
+            final XContentBuilder builder = jsonBuilder();
+
+            builder.startObject();
+            {
+                builder.startObject(SINGLE_MAPPING_NAME);
+                builder.field("dynamic", "strict");
+                {
+                    builder.startObject("_meta");
+                    builder.field("version", Version.CURRENT);
+                    builder.endObject();
+                }
+                {
+                    builder.startObject("properties");
+                    {
+                        builder.startObject("trigger_event");
+                        {
+                            builder.field("type", "object");
+                            builder.field("dynamic", true);
+                            builder.field("enabled", false);
+                            builder.startObject("properties");
+                            {
+                                builder.startObject("schedule");
+                                {
+                                    builder.field("type", "object");
+                                    builder.field("dynamic", true);
+                                    builder.startObject("properties");
+                                    {
+                                        builder.startObject("triggered_time");
+                                        builder.field("type", "date");
+                                        builder.endObject();
+
+                                        builder.startObject("scheduled_time");
+                                        builder.field("type", "date");
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+
+                        builder.startObject("state");
+                        builder.field("type", "keyword");
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+
+            builder.endObject();
+            return builder;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build " + TriggeredWatchStoreField.INDEX_NAME + " index mappings", e);
+        }
     }
 }

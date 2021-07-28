@@ -60,17 +60,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
         validate(request);
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
-        reindexer.initTask(bulkByScrollTask, request, new ActionListener<>() {
-            @Override
-            public void onResponse(Void v) {
-                reindexer.execute(bulkByScrollTask, request, getBulkClient(), listener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        reindexer.initTask(bulkByScrollTask, request,
+                listener.delegateFailure((l, v) -> reindexer.execute(bulkByScrollTask, request, getBulkClient(), l)));
     }
 
     /**

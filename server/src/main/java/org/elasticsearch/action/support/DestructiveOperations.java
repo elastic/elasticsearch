@@ -24,7 +24,8 @@ public final class DestructiveOperations {
      * Setting which controls whether wildcard usage (*, prefix*, _all) is allowed.
      */
     public static final Setting<Boolean> REQUIRES_NAME_SETTING =
-        Setting.boolSetting("action.destructive_requires_name", false, Property.Dynamic, Property.NodeScope);
+        Setting.boolSetting("action.destructive_requires_name", true, Property.Dynamic, Property.NodeScope);
+
     /**
      * The "match none" pattern, "*,-*", will never actually be destructive
      * because it operates on no indices. If plugins or other components add

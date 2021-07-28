@@ -29,7 +29,7 @@ public class PageAllocator implements IntFunction<Page> {
     public Page apply(int length) {
         if (length >= RECYCLE_LOWER_THRESHOLD && length <= PageCacheRecycler.BYTE_PAGE_SIZE){
             Recycler.V<byte[]> bytePage = recycler.bytePage(false);
-            return new Page(ByteBuffer.wrap(bytePage.v(), 0, length), bytePage::close);
+            return new Page(ByteBuffer.wrap(bytePage.v(), 0, length), bytePage);
         } else {
             return new Page(ByteBuffer.allocate(length), () -> {});
         }

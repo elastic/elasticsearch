@@ -148,9 +148,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                 copy.from(0);
                 copy.size(10);
                 copy.fetchSource(null);
-                assert EMPTY_SOURCE.equals(copy) : "search request ["
-                    + Strings.toString(copy)
-                    + "] is using features that is not supported";
+                assert EMPTY_SOURCE.equals(copy)
+                    : "search request [" + Strings.toString(copy) + "] is using features that is not supported";
             }
             return true;
         }

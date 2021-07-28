@@ -18,12 +18,15 @@ import org.elasticsearch.painless.phase.DefaultIRTreeToASMBytesPhase;
 import org.elasticsearch.painless.phase.DefaultStaticConstantExtractionPhase;
 import org.elasticsearch.painless.phase.DefaultStringConcatenationOptimizationPhase;
 import org.elasticsearch.painless.phase.DocFieldsPhase;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.phase.PainlessSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.PainlessSemanticHeaderPhase;
 import org.elasticsearch.painless.phase.PainlessUserTreeToIRTreePhase;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
 import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.util.Printer;
 
 import java.lang.reflect.Method;
@@ -248,7 +251,6 @@ final class Compiler {
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
-        // TODO: Make this phase optional #60156
         new DocFieldsPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
         ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
@@ -257,6 +259,45 @@ final class Compiler {
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
         classNode.setDebugStream(debugStream);
         new DefaultIRTreeToASMBytesPhase().visitScript(classNode);
+
+        return classNode.getBytes();
+    }
+
+    /**
+     * Runs the two-pass compiler to generate a Painless script with option visitors for each major phase.
+     */
+    byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream,
+                   UserTreeVisitor<ScriptScope> semanticPhaseVisitor,
+                   UserTreeVisitor<ScriptScope> irPhaseVisitor,
+                   IRTreeVisitor<WriteScope> asmPhaseVisitor) {
+        String scriptName = Location.computeSourceName(name);
+        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
+        SClass root = Walker.buildPainlessTree(scriptName, source, settings);
+        ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
+
+        new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
+        new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
+        if (semanticPhaseVisitor != null) {
+            semanticPhaseVisitor.visitClass(root, scriptScope);
+        }
+
+        new DocFieldsPhase().visitClass(root, scriptScope);
+        new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
+        if (irPhaseVisitor != null) {
+            irPhaseVisitor.visitClass(root, scriptScope);
+        }
+
+        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
+        new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
+        classNode.setDebugStream(debugStream);
+
+        WriteScope writeScope = WriteScope.newScriptScope();
+        new DefaultIRTreeToASMBytesPhase().visitClass(classNode, writeScope);
+        if (asmPhaseVisitor != null) {
+            asmPhaseVisitor.visitClass(classNode, writeScope);
+        }
 
         return classNode.getBytes();
     }

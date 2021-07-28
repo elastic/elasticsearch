@@ -8,9 +8,8 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -165,23 +164,13 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         this.processorTag = in.readString();
         this.ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         this.failure = in.readException();
-        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-            this.description = in.readOptionalString();
+        this.description = in.readOptionalString();
+        this.type = in.readString();
+        boolean hasConditional = in.readBoolean();
+        if (hasConditional) {
+            this.conditionalWithResult = new Tuple<>(in.readString(), in.readBoolean());
         } else {
-            this.description = null;
-        }
-        //TODO: fix the version after backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.type = in.readString();
-            boolean hasConditional = in.readBoolean();
-            if (hasConditional) {
-                this.conditionalWithResult = new Tuple<>(in.readString(), in.readBoolean());
-            } else{
-                this.conditionalWithResult = null; //no condition exists
-            }
-        } else {
-            this.conditionalWithResult = null;
-            this.type = null;
+            this.conditionalWithResult = null; //no condition exists
         }
     }
 
@@ -190,17 +179,12 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         out.writeString(processorTag);
         out.writeOptionalWriteable(ingestDocument);
         out.writeException(failure);
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeOptionalString(description);
-        }
-        //TODO: fix the version after backport
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeString(type);
-            out.writeBoolean(conditionalWithResult != null);
-            if (conditionalWithResult != null) {
-                out.writeString(conditionalWithResult.v1());
-                out.writeBoolean(conditionalWithResult.v2());
-            }
+        out.writeOptionalString(description);
+        out.writeString(type);
+        out.writeBoolean(conditionalWithResult != null);
+        if (conditionalWithResult != null) {
+            out.writeString(conditionalWithResult.v1());
+            out.writeBoolean(conditionalWithResult.v2());
         }
     }
 

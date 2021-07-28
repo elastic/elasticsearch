@@ -10,9 +10,9 @@ package org.elasticsearch.packaging.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.After;
@@ -25,12 +25,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.packaging.util.Distribution.Platform.WINDOWS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 /**
@@ -49,7 +51,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
     @BeforeClass
     public static void filterDistros() {
         assumeTrue("only archives", distribution.isArchive());
-        assumeTrue("only default distribution", distribution.flavor == Distribution.Flavor.DEFAULT);
+        assumeFalse("not on windows", distribution.platform == WINDOWS);
     }
 
     @After

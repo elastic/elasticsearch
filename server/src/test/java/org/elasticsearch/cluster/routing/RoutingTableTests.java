@@ -17,16 +17,22 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -122,6 +128,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
 
     public void testIndex() {
         assertThat(clusterState.routingTable().index(TEST_INDEX_1).getIndex().getName(), is(TEST_INDEX_1));
+        assertThat(clusterState.routingTable().index(new Index(TEST_INDEX_1, UUIDs.randomBase64UUID())), is(nullValue()));
         assertThat(clusterState.routingTable().index("foobar"), is(nullValue()));
     }
 
@@ -389,6 +396,40 @@ public class RoutingTableTests extends ESAllocationTestCase {
             assertThat(routingTable.hasIndex(TEST_INDEX_1), is(true));
             assertThat(routingTable.allShards(TEST_INDEX_1).size(), is(this.shardsPerIndex));
             assertThat(routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size(), is(this.shardsPerIndex));
+        }
+    }
+
+    public void testRemoveReplicasInRightOrder() {
+        final List<ShardRoutingState> rightRemoveOrder = List.of(UNASSIGNED, INITIALIZING, STARTED);
+        Index index = new Index("index", "uuid");
+        ShardId shardId = new ShardId(index, 0);
+        List<ShardRouting> shards = new ArrayList<>();
+        shards.add(TestShardRouting.newShardRouting(shardId, "node1", true, STARTED));
+        shards.add(TestShardRouting.newShardRouting(shardId, null, false, UNASSIGNED));
+        shards.add(TestShardRouting.newShardRouting(shardId, "node2", false, INITIALIZING));
+        shards.add(TestShardRouting.newShardRouting(shardId, "node3", false, STARTED));
+
+        for (int removeReplicaNumber = 0; removeReplicaNumber <= rightRemoveOrder.size(); removeReplicaNumber++) {
+            IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(index);
+            Randomness.shuffle(shards);
+            for (ShardRouting shard: shards) {
+                builder.addShard(shard);
+            }
+            for (int round = 0; round < removeReplicaNumber; round++) {
+                builder.removeReplica();
+            }
+            IndexRoutingTable indexRoutingTable = builder.build();
+
+            for (ShardRoutingState state: rightRemoveOrder) {
+                int theRoundThisStateShouldBeRemoved = rightRemoveOrder.indexOf(state) + 1;
+                if (removeReplicaNumber < theRoundThisStateShouldBeRemoved) {
+                    assertThat(indexRoutingTable.prettyPrint(), indexRoutingTable.shard(0).replicaShardsWithState(state).size(),
+                        equalTo(1));
+                } else {
+                    assertThat(indexRoutingTable.prettyPrint(), indexRoutingTable.shard(0).replicaShardsWithState(state).size(),
+                        equalTo(0));
+                }
+            }
         }
     }
 

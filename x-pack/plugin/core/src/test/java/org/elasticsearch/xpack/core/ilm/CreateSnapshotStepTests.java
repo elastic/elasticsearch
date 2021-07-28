@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -22,8 +23,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshotStep> {
@@ -76,19 +75,10 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                 ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             CreateSnapshotStep createSnapshotStep = createRandomInstance();
-            createSnapshotStep.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-                @Override
-                public void onResponse(boolean complete) {
-                    fail("expecting a failure as the index doesn't have any snapshot name in its ILM execution state");
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    assertThat(e, instanceOf(IllegalStateException.class));
-                    assertThat(e.getMessage(),
-                        is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
-                }
-            });
+            Exception e = expectThrows(IllegalStateException.class, () -> PlainActionFuture.<Boolean, Exception>get(
+                    f -> createSnapshotStep.performAction(indexMetadata, clusterState, null, f)));
+            assertThat(e.getMessage(),
+                is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
         }
 
         {
@@ -101,19 +91,10 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                 ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             CreateSnapshotStep createSnapshotStep = createRandomInstance();
-            createSnapshotStep.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-                @Override
-                public void onResponse(boolean complete) {
-                    fail("expecting a failure as the index doesn't have any snapshot name in its ILM execution state");
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    assertThat(e, instanceOf(IllegalStateException.class));
-                    assertThat(e.getMessage(),
-                        is("snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]"));
-                }
-            });
+            Exception e = expectThrows(IllegalStateException.class, () -> PlainActionFuture.<Boolean, Exception>get(
+                f -> createSnapshotStep.performAction(indexMetadata, clusterState, null, f)));
+            assertThat(e.getMessage(),
+                is("snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]"));
         }
     }
 
@@ -137,9 +118,9 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
 
         try (NoOpClient client = getCreateSnapshotRequestAssertingClient(repository, snapshotName, indexName)) {
             CreateSnapshotStep step = new CreateSnapshotStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
+            step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
                 @Override
-                public void onResponse(boolean complete) {
+                public void onResponse(Boolean complete) {
                 }
 
                 @Override

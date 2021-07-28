@@ -28,7 +28,7 @@ import java.util.function.Consumer;
  */
 @Plugin(name = "DeprecationIndexingAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
 public class DeprecationIndexingAppender extends AbstractAppender {
-    public static final String DEPRECATION_MESSAGES_DATA_STREAM = ".logs-deprecation-elasticsearch";
+    public static final String DEPRECATION_MESSAGES_DATA_STREAM = ".logs-deprecation.elasticsearch-default";
 
     private final Consumer<IndexRequest> requestConsumer;
 

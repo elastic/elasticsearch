@@ -8,9 +8,9 @@
 
 package org.elasticsearch.common.xcontent.support;
 
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParseException;
@@ -47,17 +47,17 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     private final NamedXContentRegistry xContentRegistry;
     private final DeprecationHandler deprecationHandler;
-    private final RestApiCompatibleVersion restApiCompatibleVersion;
+    private final RestApiVersion restApiVersion;
 
     public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
-                                  RestApiCompatibleVersion restApiCompatibleVersion) {
+                                  RestApiVersion restApiVersion) {
         this.xContentRegistry = xContentRegistry;
         this.deprecationHandler = deprecationHandler;
-        this.restApiCompatibleVersion = restApiCompatibleVersion;
+        this.restApiVersion = restApiVersion;
     }
 
     public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler) {
-        this(xContentRegistry, deprecationHandler, RestApiCompatibleVersion.currentVersion());
+        this(xContentRegistry, deprecationHandler, RestApiVersion.current());
     }
 
     // The 3rd party parsers we rely on are known to silently truncate fractions: see
@@ -415,8 +415,8 @@ public abstract class AbstractXContentParser implements XContentParser {
     public abstract boolean isClosed();
 
     @Override
-    public RestApiCompatibleVersion getRestApiCompatibleVersion() {
-        return restApiCompatibleVersion;
+    public RestApiVersion getRestApiVersion() {
+        return restApiVersion;
     }
 
     @Override

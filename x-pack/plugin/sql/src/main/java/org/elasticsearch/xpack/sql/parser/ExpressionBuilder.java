@@ -10,9 +10,9 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalNotContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MatchQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MatchQueryOptionsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MultiMatchQueryContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NamedValueExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NullLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NumberContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.OrderByContext;
@@ -856,24 +857,19 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
      */
     private static Tuple<Source, String> withMinus(NumberContext ctx) {
         String string = ctx.getText();
-        Source source = minusAwareSource(ctx);
-
-        if (source != null) {
-            string = "-" + string;
-        } else {
-            source = source(ctx);
-        }
-
-        return new Tuple<>(source, string);
+        Tuple<Source, Boolean> tuple = minusAwareSource(ctx);
+        return new Tuple<>(tuple.v1(), (tuple.v2() ? "-" : "") + string);
     }
 
     /**
-     * Checks the presence of MINUS (-) in the parent and if found,
-     * returns the parent source or null otherwise.
+     * Checks the presence of MINUS (-) in the parent and if found, returns the parent source
+     * along with a boolean denoting if there is an odd number of MINUSes.
+     * If not found, returns the original source.
+     *
      * Parsing of the value should not depend on the returned source
      * as it might contain extra spaces.
      */
-    private static Source minusAwareSource(SqlBaseParser.NumberContext ctx) {
+    private static Tuple<Source, Boolean> minusAwareSource(SqlBaseParser.NumberContext ctx) {
         ParserRuleContext parentCtx = ctx.getParent();
         if (parentCtx != null) {
             if (parentCtx instanceof SqlBaseParser.NumericLiteralContext) {
@@ -883,40 +879,42 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                     if (parentCtx instanceof ValueExpressionDefaultContext) {
                         parentCtx = parentCtx.getParent();
 
-                        // Skip parentheses, e.g.: - (( (2.15) ) )
-                        while (parentCtx instanceof PredicatedContext) {
+                        ParserRuleContext returnCtx = null;
+                        boolean minus = false;
+                        while (parentCtx != null) {
+                            // Stop when we meet a higher level context to avoid unnecessary looping
+                            if (parentCtx instanceof ArithmeticBinaryContext
+                                || parentCtx instanceof ExtractTemplateContext
+                                || parentCtx instanceof NamedValueExpressionContext
+                                || parentCtx instanceof PredicateContext // Not PredicatedContext !!
+                                || parentCtx instanceof ComparisonContext) {
+                                break;
+                            }
+                            if (parentCtx instanceof ArithmeticUnaryContext) {
+                                returnCtx = parentCtx;
+                                if (((ArithmeticUnaryContext) parentCtx).MINUS() != null) {
+                                    minus ^= true;
+                                }
+                            }
                             parentCtx = parentCtx.getParent();
-                            if (parentCtx instanceof SqlBaseParser.BooleanDefaultContext) {
-                                parentCtx = parentCtx.getParent();
-                            }
-                            if (parentCtx instanceof SqlBaseParser.ExpressionContext) {
-                                parentCtx = parentCtx.getParent();
-                            }
-                            if (parentCtx instanceof SqlBaseParser.ParenthesizedExpressionContext) {
-                                parentCtx = parentCtx.getParent();
-                            }
-                            if (parentCtx instanceof ValueExpressionDefaultContext) {
-                                parentCtx = parentCtx.getParent();
-                            }
                         }
-                        if (parentCtx instanceof ArithmeticUnaryContext) {
-                            if (((ArithmeticUnaryContext) parentCtx).MINUS() != null) {
-                                return source(parentCtx);
-                            }
+                        if (returnCtx != null) {
+                            return new Tuple<>(source(returnCtx), minus);
                         }
                     }
                 }
-            } else if (parentCtx instanceof SqlBaseParser.IntervalContext) {
+            // Intervals and SysTypes can only have a single "-" as parentheses are not allowed there
+            } else if (parentCtx instanceof IntervalContext) {
                 IntervalContext ic = (IntervalContext) parentCtx;
                 if (ic.sign != null && ic.sign.getType() == SqlBaseParser.MINUS) {
-                    return source(ic);
+                    return new Tuple<>(source(ic), true);
                 }
-            } else if (parentCtx instanceof SqlBaseParser.SysTypesContext) {
+            } else if (parentCtx instanceof SysTypesContext) {
                 if (((SysTypesContext) parentCtx).MINUS() != null) {
-                    return source(parentCtx);
+                    return new Tuple<>(source(parentCtx), true);
                 }
             }
         }
-        return null;
+        return new Tuple<>(source(ctx), false);
     }
 }

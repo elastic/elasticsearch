@@ -26,8 +26,7 @@ public class RestAddIndexBlockAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(PUT, "/{index}/_block/{block}"));
+        return List.of(new Route(PUT, "/{index}/_block/{block}"));
     }
 
     @Override

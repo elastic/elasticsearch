@@ -35,6 +35,11 @@ public class PointFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
 
+        // Test a malformed single point
+        sourceValue = "foo";
+        assertEquals(List.of(), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(), fetchSourceValue(mapper, sourceValue, "wkt"));
+
         // Test a list of points in [x, y] array format.
         sourceValue = List.of(List.of(42.0, 27.1), List.of(30.0, 50.0));
         assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
@@ -44,5 +49,11 @@ public class PointFieldTypeTests extends FieldTypeTestCase {
         sourceValue = "POINT (42.0 27.1)";
         assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a list of points in [x, y] array format with a malformed entry
+        sourceValue = List.of(List.of(42.0, 27.1), List.of("a", "b"), List.of(30.0, 50.0));
+        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
     }
 }

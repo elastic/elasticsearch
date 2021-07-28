@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
@@ -310,14 +311,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
 
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;
-        if (context.externalValueSet()) {
-            value = context.externalValue();
-        } else if (parser.currentToken() == Token.VALUE_NULL) {
+        if (parser.currentToken() == Token.VALUE_NULL) {
             value = null;
         } else if (coerce.value()
                 && parser.currentToken() == Token.VALUE_STRING
@@ -364,7 +363,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         context.doc().addAll(fields);
 
         if (hasDocValues == false && (indexed || stored)) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 
@@ -517,9 +516,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValueFetcher.Leaf getLeafValueFetcher(DocValueFormat format) {
+        public FormattedDocValues getFormattedValues(DocValueFormat format) {
             SortedNumericDoubleValues values = getDoubleValues();
-            return new DocValueFetcher.Leaf() {
+            return new FormattedDocValues() {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     return values.advanceExact(docId);

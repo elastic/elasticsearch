@@ -9,12 +9,11 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.Index;
@@ -37,7 +36,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
 
     public static final String NAME = "generate-snapshot-name";
 
-    private static final Logger logger = LogManager.getLogger(CreateSnapshotStep.class);
+    private static final Logger logger = LogManager.getLogger(GenerateSnapshotNameStep.class);
 
     private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
         new IndexNameExpressionResolver.DateMathExpressionResolver();
@@ -88,6 +87,11 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), snapshotRepository);
     }
@@ -111,7 +115,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
      * still result in unique snapshot names.
      */
     public static String generateSnapshotName(String name) {
-        return generateSnapshotName(name, new ResolverContext());
+        return generateSnapshotName(name, new IndexNameExpressionResolver.ResolverContext());
     }
 
     public static String generateSnapshotName(String name, IndexNameExpressionResolver.Context context) {
@@ -121,31 +125,6 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         }
         // TODO: we are breaking the rules of UUIDs by lowercasing this here, find an alternative (snapshot names must be lowercase)
         return candidates.get(0) + "-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
-    }
-
-    /**
-     * This is a context for the DateMathExpressionResolver, which does not require
-     * {@code IndicesOptions} or {@code ClusterState} since it only uses the start
-     * time to resolve expressions
-     */
-    public static final class ResolverContext extends IndexNameExpressionResolver.Context {
-        public ResolverContext() {
-            this(System.currentTimeMillis());
-        }
-
-        public ResolverContext(long startTime) {
-            super(null, null, startTime, false, false, false, false, false);
-        }
-
-        @Override
-        public ClusterState getState() {
-            throw new UnsupportedOperationException("should never be called");
-        }
-
-        @Override
-        public IndicesOptions getOptions() {
-            throw new UnsupportedOperationException("should never be called");
-        }
     }
 
     @Nullable

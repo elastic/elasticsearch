@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.store;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.util.Objects;

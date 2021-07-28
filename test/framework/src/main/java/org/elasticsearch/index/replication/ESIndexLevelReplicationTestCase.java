@@ -50,10 +50,10 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -73,9 +73,10 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -159,7 +160,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         private volatile ReplicationTargets replicationTargets;
 
         private final PrimaryReplicaSyncer primaryReplicaSyncer = new PrimaryReplicaSyncer(
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
+            new MockTransport().createTransportService(Settings.EMPTY, threadPool,
+                    TransportService.NOOP_TRANSPORT_INTERCEPTOR, address -> null, null, Collections.emptySet()),
             (request, parentTask, primaryAllocationId, primaryTerm, listener) -> {
                 try {
                     new ResyncAction(request, listener, ReplicationGroup.this).execute();
@@ -476,6 +478,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public Iterator<IndexShard> iterator() {
             return Iterators.concat(replicas.iterator(), Collections.singleton(primary).iterator());
         }
@@ -689,7 +692,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     getPrimaryShard().getPendingPrimaryTerm(),
                     globalCheckpoint,
                     maxSeqNoOfUpdatesOrDeletes,
-                    ActionListener.delegateFailure(listener, (delegatedListener, releasable) -> {
+                    listener.delegateFailure((delegatedListener, releasable) -> {
                         try {
                             performOnReplica(request, replica);
                             releasable.close();

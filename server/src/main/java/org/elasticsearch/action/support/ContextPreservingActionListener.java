@@ -16,13 +16,12 @@ import java.util.function.Supplier;
  * Restores the given {@link org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext}
  * once the listener is invoked
  */
-public final class ContextPreservingActionListener<R> implements ActionListener<R> {
+public final class ContextPreservingActionListener<R> extends ActionListener.Delegating<R, R> {
 
-    private final ActionListener<R> delegate;
     private final Supplier<ThreadContext.StoredContext> context;
 
     public ContextPreservingActionListener(Supplier<ThreadContext.StoredContext> contextSupplier, ActionListener<R> delegate) {
-        this.delegate = delegate;
+        super(delegate);
         this.context = contextSupplier;
     }
 
@@ -38,11 +37,6 @@ public final class ContextPreservingActionListener<R> implements ActionListener<
         try (ThreadContext.StoredContext ignore = context.get()) {
             delegate.onFailure(e);
         }
-    }
-
-    @Override
-    public String toString() {
-        return getClass().getName() + "/" + delegate.toString();
     }
 
     /**

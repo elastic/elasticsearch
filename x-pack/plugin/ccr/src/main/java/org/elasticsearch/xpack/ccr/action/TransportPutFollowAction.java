@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -128,6 +129,11 @@ public final class TransportPutFollowAction
                 "] does not have soft deletes enabled"));
             return;
         }
+        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndexMetadata.getSettings())) {
+            listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() +
+                "] is a searchable snapshot index and cannot be used as a leader index for cross-cluster replication purpose"));
+            return;
+        }
 
         final Settings replicatedRequestSettings = TransportResumeFollowAction.filter(request.getSettings());
         if (replicatedRequestSettings.isEmpty() == false) {
@@ -184,10 +190,8 @@ public final class TransportPutFollowAction
 
             @Override
             protected void doRun() {
-                ActionListener<RestoreService.RestoreCompletionResponse> delegatelistener = ActionListener.delegateFailure(
-                    listener,
-                    (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)
-                );
+                ActionListener<RestoreService.RestoreCompletionResponse> delegatelistener = listener.delegateFailure(
+                        (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response));
                 if (remoteDataStream == null) {
                     restoreService.restoreSnapshot(restoreRequest, delegatelistener);
                 } else {
@@ -228,8 +232,8 @@ public final class TransportPutFollowAction
             listener = originalListener;
         }
 
-        RestoreClusterStateListener.createAndRegisterListener(clusterService, response,
-            ActionListener.delegateFailure(listener, (delegatedListener, restoreSnapshotResponse) -> {
+        RestoreClusterStateListener.createAndRegisterListener(clusterService, response, listener.delegateFailure(
+            (delegatedListener, restoreSnapshotResponse) -> {
                 RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
                 if (restoreInfo == null) {
                     // If restoreInfo is null then it is possible there was a master failure during the

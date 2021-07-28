@@ -206,22 +206,14 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                 } else {
                     attributes = Collections.singletonMap("server_name", configuredServerName);
                 }
-                DiscoveryNode node = new DiscoveryNode(id, resolved, attributes, DiscoveryNodeRole.BUILT_IN_ROLES,
+                DiscoveryNode node = new DiscoveryNode(id, resolved, attributes, DiscoveryNodeRole.roles(),
                     Version.CURRENT.minimumCompatibilityVersion());
 
-                connectionManager.connectToNode(node, null, clusterNameValidator, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void v) {
-                        compositeListener.onResponse(v);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.debug(new ParameterizedMessage("failed to open remote connection [remote cluster: {}, address: {}]",
+                connectionManager.connectToNode(node, null, clusterNameValidator, compositeListener.delegateResponse((l, e) -> {
+                    logger.debug(new ParameterizedMessage("failed to open remote connection [remote cluster: {}, address: {}]",
                             clusterAlias, resolved), e);
-                        compositeListener.onFailure(e);
-                    }
-                });
+                    l.onFailure(e);
+                }));
             }
         } else {
             int openConnections = connectionManager.size();

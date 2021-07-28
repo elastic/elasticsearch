@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
@@ -124,7 +124,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 //new ImplicitCasting()
                 );
         Batch finish = new Batch("Finish Analysis",
-                new PruneSubqueryAliases(),
+                new ReplaceSubQueryAliases(), // Should be run before pruning SubqueryAliases
+                new PruneSubQueryAliases(),
                 new AddMissingEqualsToBoolField(),
                 CleanAliases.INSTANCE
                 );
@@ -416,12 +417,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             for (NamedExpression ne : projections) {
                 if (ne instanceof UnresolvedStar) {
                     List<NamedExpression> expanded = expandStar((UnresolvedStar) ne, output);
+
                     // the field exists, but cannot be expanded (no sub-fields)
-                    if (expanded.isEmpty()) {
-                        result.add(ne);
-                    } else {
-                        result.addAll(expanded);
-                    }
+                    result.addAll(expanded);
                 } else if (ne instanceof UnresolvedAlias) {
                     UnresolvedAlias ua = (UnresolvedAlias) ne;
                     if (ua.child() instanceof UnresolvedStar) {
@@ -441,7 +439,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             // a qualifier is specified - since this is a star, it should be a CompoundDataType
             if (us.qualifier() != null) {
                 // resolve the so-called qualifier first
-                // since this is an unresolved start we don't know whether it's a path or an actual qualifier
+                // since this is an unresolved star we don't know whether it's a path or an actual qualifier
                 Attribute q = resolveAgainstList(us.qualifier(), output, true);
 
                 // the wildcard couldn't be expanded because the field doesn't exist at all
@@ -453,6 +451,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 // qualifier is unknown (e.g. unsupported type), bail out early
                 else if (q.resolved() == false) {
                     return singletonList(q);
+                }
+                // qualifier resolves to a non-struct field and cannot be expanded
+                else if (DataTypes.isPrimitive(q.dataType())) {
+                    return singletonList(us);
                 }
 
                 // now use the resolved 'qualifier' to match
@@ -638,12 +640,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     AttributeMap.Builder<Expression> builder = AttributeMap.builder();
                     // collect aliases
                     child.forEachUp(p -> p.forEachExpressionUp(Alias.class, a -> builder.put(a.toAttribute(), a.child())));
-                    final Map<Attribute, Expression> collectRefs = builder.build();
+                    final AttributeMap<Expression> collectRefs = builder.build();
 
                     referencesStream = referencesStream.filter(r -> {
                         for (Attribute attr : child.outputSet()) {
                             if (attr instanceof ReferenceAttribute) {
-                                Expression source = collectRefs.getOrDefault(attr, attr);
+                                Expression source = collectRefs.resolve(attr, attr);
                                 // found a match, no need to resolve it further
                                 // so filter it out
                                 if (source.equals(r.child())) {
@@ -709,14 +711,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                             ua -> resolveMetadataToMessage(ua, failedAttrs, "filter")
                         );
 
-                        return f.condition().equals(transformed) ? f : new Filter(f.source(), f.child(), transformed);
+                        return f.condition().equals(transformed) ? f : f.with(transformed);
                     }
 
-                    return new Project(f.source(), new Filter(f.source(), newChild, maybeResolved), f.child().output());
+                    return new Project(f.source(), f.with(newChild, maybeResolved), f.child().output());
                 }
 
                 if (maybeResolved.equals(f.condition()) == false) {
-                    return new Filter(f.source(), f.child(), maybeResolved);
+                    return f.with(maybeResolved);
                 }
             }
 
@@ -825,7 +827,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, p.projections());
                         if (newCondition != condition) {
-                            return new Project(p.source(), new Filter(f.source(), f.child(), newCondition), p.projections());
+                            return new Project(p.source(), f.with(newCondition), p.projections());
                         }
                     }
                 }
@@ -839,8 +841,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, a.aggregates());
                         if (newCondition != condition) {
-                            return new Aggregate(a.source(), new Filter(f.source(), f.child(), newCondition), a.groupings(),
-                                    a.aggregates());
+                            return new Aggregate(a.source(), f.with(newCondition), a.groupings(), a.aggregates());
                         }
                     }
                 }
@@ -1020,7 +1021,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
 
                 if (containsAggregate(f.condition())) {
-                    return new Filter(f.source(), new Aggregate(p.source(), p.child(), emptyList(), p.projections()), f.condition());
+                    return f.with(new Aggregate(p.source(), p.child(), emptyList(), p.projections()), f.condition());
                 }
             }
             return f;
@@ -1077,14 +1078,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 missing = findMissingAggregate(agg, condition);
 
                 if (missing.isEmpty() == false) {
-                    Aggregate newAgg = new Aggregate(agg.source(), agg.child(), agg.groupings(),
-                            combine(agg.aggregates(), missing));
-                    Filter newFilter = new Filter(f.source(), newAgg, condition);
+                    Aggregate newAgg = new Aggregate(agg.source(), agg.child(), agg.groupings(), combine(agg.aggregates(), missing));
+                    Filter newFilter = f.with(newAgg, condition);
                     // preserve old output
                     return new Project(f.source(), newFilter, f.output());
                 }
 
-                return new Filter(f.source(), f.child(), condition);
+                return f.with(condition);
             }
             return f;
         }
@@ -1218,7 +1218,33 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    public static class PruneSubqueryAliases extends AnalyzerRule<SubQueryAlias> {
+    public static class ReplaceSubQueryAliases extends AnalyzerRule<UnaryPlan> {
+
+        @Override
+        protected LogicalPlan rule(UnaryPlan plan) {
+            if (plan.child() instanceof SubQueryAlias) {
+                SubQueryAlias a = (SubQueryAlias) plan.child();
+                return plan.transformExpressionsDown(FieldAttribute.class, f -> {
+                   if (f.qualifier() != null && f.qualifier().equals(a.alias())) {
+                       // Find the underlying concrete relation (EsIndex) and its name as the new qualifier
+                       List<LogicalPlan> children = a.collectFirstChildren(p -> p instanceof EsRelation);
+                       if (children.isEmpty() == false) {
+                           return f.withQualifier(((EsRelation) children.get(0)).index().name());
+                       }
+                   }
+                   return f;
+                });
+            }
+            return plan;
+        }
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+    }
+
+    public static class PruneSubQueryAliases extends AnalyzerRule<SubQueryAlias> {
 
         @Override
         protected LogicalPlan rule(SubQueryAlias alias) {

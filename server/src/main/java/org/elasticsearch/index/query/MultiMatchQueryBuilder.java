@@ -12,7 +12,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,7 +48,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     public static final int DEFAULT_PHRASE_SLOP = MatchQueryParser.DEFAULT_PHRASE_SLOP;
     public static final int DEFAULT_PREFIX_LENGTH = FuzzyQuery.defaultPrefixLength;
     public static final int DEFAULT_MAX_EXPANSIONS = FuzzyQuery.defaultMaxExpansions;
-    public static final MatchQueryParser.ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
+    public static final ZeroTermsQueryOption DEFAULT_ZERO_TERMS_QUERY = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
     public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
 
     private static final ParseField SLOP_FIELD = new ParseField("slop");
@@ -81,7 +81,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private String fuzzyRewrite = null;
     private Float tieBreaker;
     private Boolean lenient;
-    private MatchQueryParser.ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
+    private ZeroTermsQueryOption zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
     private boolean autoGenerateSynonymsPhraseQuery = true;
     private boolean fuzzyTranspositions = DEFAULT_FUZZY_TRANSPOSITIONS;
 
@@ -222,7 +222,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         if (in.getVersion().before(Version.V_8_0_0)) {
             in.readOptionalFloat();
         }
-        zeroTermsQuery = MatchQueryParser.ZeroTermsQuery.readFromStream(in);
+        zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
         fuzzyTranspositions = in.readBoolean();
     }
@@ -473,7 +473,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         return lenient == null ? MatchQueryParser.DEFAULT_LENIENCY : lenient;
     }
 
-    public MultiMatchQueryBuilder zeroTermsQuery(MatchQueryParser.ZeroTermsQuery zeroTermsQuery) {
+    public MultiMatchQueryBuilder zeroTermsQuery(ZeroTermsQueryOption zeroTermsQuery) {
         if (zeroTermsQuery == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires zero terms query to be non-null");
         }
@@ -481,7 +481,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         return this;
     }
 
-    public MatchQueryParser.ZeroTermsQuery zeroTermsQuery() {
+    public ZeroTermsQueryOption zeroTermsQuery() {
         return zeroTermsQuery;
     }
 
@@ -567,7 +567,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         String fuzzyRewrite = null;
         Float tieBreaker = null;
         Boolean lenient = null;
-        MatchQueryParser.ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
+        ZeroTermsQueryOption zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
         boolean autoGenerateSynonymsPhraseQuery = true;
         boolean fuzzyTranspositions = DEFAULT_FUZZY_TRANSPOSITIONS;
 
@@ -620,9 +620,9 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 } else if (ZERO_TERMS_QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     String zeroTermsValue = parser.text();
                     if ("none".equalsIgnoreCase(zeroTermsValue)) {
-                        zeroTermsQuery = MatchQueryParser.ZeroTermsQuery.NONE;
+                        zeroTermsQuery = ZeroTermsQueryOption.NONE;
                     } else if ("all".equalsIgnoreCase(zeroTermsValue)) {
-                        zeroTermsQuery = MatchQueryParser.ZeroTermsQuery.ALL;
+                        zeroTermsQuery = ZeroTermsQueryOption.ALL;
                     } else {
                         throw new ParsingException(parser.getTokenLocation(),
                             "Unsupported zero_terms_query value [" + zeroTermsValue + "]");

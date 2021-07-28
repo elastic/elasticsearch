@@ -36,7 +36,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -185,7 +185,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                   randomAlphaOfLength(5),
                                   new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i),
                                   randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap,
-                                  singleton(randomFrom(DiscoveryNodeRole.BUILT_IN_ROLES)),
+                                  singleton(randomValueOtherThan(
+                                      DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE, () -> randomFrom(DiscoveryNodeRole.roles()))
+                                  ),
                                   Version.CURRENT));
         }
 
@@ -422,6 +424,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "      },"
                 + "      \"store\": {"
                 + "        \"size_in_bytes\": 0,"
+                + "        \"total_data_set_size_in_bytes\": 0,"
                 + "        \"reserved_in_bytes\": 0"
                 + "      },"
                 + "      \"fielddata\": {"
@@ -456,7 +459,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        \"file_sizes\": {}"
                 + "      },"
                 + "      \"mappings\":{"
-                + "        \"field_types\":[]"
+                + "        \"field_types\":[],"
+                + "        \"runtime_field_types\":[]"
                 + "      },"
                 + "      \"analysis\":{"
                 + "        \"char_filter_types\":[],"
@@ -475,9 +479,17 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        \"total\": 1,"
                 + "        \"coordinating_only\": 0,"
                 + "        \"data\": 0,"
+                + "        \"data_cold\": 0,"
+                + "        \"data_content\": 0,"
+                + "        \"data_frozen\": 0,"
+                + "        \"data_hot\": 0,"
+                + "        \"data_warm\": 0,"
                 + "        \"ingest\": 0,"
                 + "        \"master\": 1,"
-                + "        \"remote_cluster_client\": 0"
+                + "        \"ml\": 0,"
+                + "        \"remote_cluster_client\": 0,"
+                + "        \"transform\": 0,"
+                + "        \"voting_only\": 0"
                 + "      },"
                 + "      \"versions\": ["
                 + "        \"%s\""
@@ -597,7 +609,10 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        \"transport_address\": \"0.0.0.0:9300\","
                 + "        \"attributes\": {"
                 + "          \"attr\": \"value\""
-                + "        }"
+                + "        },"
+                + "        \"roles\" : ["
+                + "          \"master\""
+                + "        ]"
                 + "      }"
                 + "    }"
                 + "  },"

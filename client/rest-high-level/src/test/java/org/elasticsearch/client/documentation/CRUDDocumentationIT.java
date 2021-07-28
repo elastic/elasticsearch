@@ -55,7 +55,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -1554,7 +1554,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             BulkProcessor bulkProcessor = BulkProcessor.builder(
                     (request, bulkListener) ->
                         client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
-                    listener).build(); // <5>
+                    listener, "bulk-processor-name").build(); // <5>
             // end::bulk-processor-init
             assertNotNull(bulkProcessor);
 
@@ -1616,7 +1616,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             BulkProcessor.Builder builder = BulkProcessor.builder(
                     (request, bulkListener) ->
                         client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
-                    listener);
+                    listener, "bulk-processor-name");
             builder.setBulkActions(500); // <1>
             builder.setBulkSize(new ByteSizeValue(1L, ByteSizeUnit.MB)); // <2>
             builder.setConcurrentRequests(0); // <3>

@@ -101,6 +101,8 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
         } else {
             try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
                 consumer.accept(consumables.get(position++), this);
+            } catch (Exception e) {
+                onFailure(e);
             }
         }
     }
@@ -115,7 +117,11 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
                 if (position == consumables.size()) {
                     delegate.onResponse(finalResultFunction.apply(response));
                 } else {
-                    consumer.accept(consumables.get(position++), this);
+                    try {
+                        consumer.accept(consumables.get(position++), this);
+                    } catch (Exception e) {
+                        onFailure(e);
+                    }
                 }
             } else {
                 delegate.onResponse(finalResultFunction.apply(response));

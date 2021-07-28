@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,6 +44,8 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
     public static final PreviewTransformAction INSTANCE = new PreviewTransformAction();
     public static final String NAME = "cluster:admin/transform/preview";
 
+    public static final String DUMMY_DEST_INDEX_FOR_PREVIEW = "unused-transform-preview-index";
+
     private PreviewTransformAction() {
         super(NAME, PreviewTransformAction.Response::new);
     }
@@ -63,18 +65,15 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
 
         public static Request fromXContent(final XContentParser parser) throws IOException {
             Map<String, Object> content = parser.map();
-            // dest.index and ID are not required for Preview, so we just supply our own
+            // dest.index is not required for _preview, so we just supply our own
             Map<String, String> tempDestination = new HashMap<>();
-            tempDestination.put(DestConfig.INDEX.getPreferredName(), "unused-transform-preview-index");
+            tempDestination.put(DestConfig.INDEX.getPreferredName(), DUMMY_DEST_INDEX_FOR_PREVIEW);
             // Users can still provide just dest.pipeline to preview what their data would look like given the pipeline ID
             Object providedDestination = content.get(TransformField.DESTINATION.getPreferredName());
             if (providedDestination instanceof Map) {
                 @SuppressWarnings("unchecked")
-                Map<String, String> destMap = (Map<String, String>) providedDestination;
-                String pipeline = destMap.get(DestConfig.PIPELINE.getPreferredName());
-                if (pipeline != null) {
-                    tempDestination.put(DestConfig.PIPELINE.getPreferredName(), pipeline);
-                }
+                Map<String, String> providedDestinationAsMap = (Map<String, String>) providedDestination;
+                tempDestination.putAll(providedDestinationAsMap);
             }
             content.put(TransformField.DESTINATION.getPreferredName(), tempDestination);
             content.putIfAbsent(TransformField.ID.getPreferredName(), "transform-preview");

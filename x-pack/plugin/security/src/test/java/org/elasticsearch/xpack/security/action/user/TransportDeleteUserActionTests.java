@@ -17,25 +17,25 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserResponse;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -81,7 +81,8 @@ public class TransportDeleteUserActionTests extends ESTestCase {
         TransportDeleteUserAction action = new TransportDeleteUserAction(Settings.EMPTY, mock(ActionFilters.class),
             usersStore, transportService);
 
-        DeleteUserRequest request = new DeleteUserRequest(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
+        DeleteUserRequest request = new DeleteUserRequest(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal(),
+            XPackSecurityUser.INSTANCE.principal(), AsyncSearchUser.INSTANCE.principal()));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
@@ -143,15 +144,14 @@ public class TransportDeleteUserActionTests extends ESTestCase {
 
         final boolean found = randomBoolean();
         final DeleteUserRequest request = new DeleteUserRequest(user.principal());
-        doAnswer(new Answer() {
-            public Void answer(InvocationOnMock invocation) {
-                Object[] args = invocation.getArguments();
-                assert args.length == 2;
-                ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
-                listener.onResponse(found);
-                return null;
-            }
-        }).when(usersStore).deleteUser(eq(request), any(ActionListener.class));
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
+            listener.onResponse(found);
+            return null;
+        }).when(usersStore).deleteUser(eq(request), anyActionListener());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
@@ -170,7 +170,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(responseRef.get().found(), is(found));
         assertThat(throwableRef.get(), is(nullValue()));
-        verify(usersStore, times(1)).deleteUser(eq(request), any(ActionListener.class));
+        verify(usersStore, times(1)).deleteUser(eq(request), anyActionListener());
     }
 
     public void testException() {
@@ -183,15 +183,14 @@ public class TransportDeleteUserActionTests extends ESTestCase {
                 usersStore, transportService);
 
         final DeleteUserRequest request = new DeleteUserRequest(user.principal());
-        doAnswer(new Answer() {
-            public Void answer(InvocationOnMock invocation) {
-                Object[] args = invocation.getArguments();
-                assert args.length == 2;
-                ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
-                listener.onFailure(e);
-                return null;
-            }
-        }).when(usersStore).deleteUser(eq(request), any(ActionListener.class));
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
+            listener.onFailure(e);
+            return null;
+        }).when(usersStore).deleteUser(eq(request), anyActionListener());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
@@ -210,6 +209,6 @@ public class TransportDeleteUserActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(notNullValue()));
         assertThat(throwableRef.get(), sameInstance(e));
-        verify(usersStore, times(1)).deleteUser(eq(request), any(ActionListener.class));
+        verify(usersStore, times(1)).deleteUser(eq(request), anyActionListener());
     }
 }

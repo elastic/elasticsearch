@@ -61,9 +61,6 @@ final class JNACLibrary {
 
     static native String strerror(int errno);
 
-    // TODO: Bind POSIX fallocate as well to support non-Linux? (this would only apply to OSX in practice?)
-    static native int fallocate(int fd, int mode, long offset, long length);
-
     private JNACLibrary() {
     }
 }

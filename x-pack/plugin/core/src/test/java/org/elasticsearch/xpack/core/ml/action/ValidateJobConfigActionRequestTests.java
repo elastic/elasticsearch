@@ -43,7 +43,7 @@ public class ValidateJobConfigActionRequestTests extends AbstractWireSerializing
         jobConfiguration.setFinishedTime(new Date());
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        XContentBuilder xContentBuilder = jobConfiguration.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentBuilder xContentBuilder = jobConfiguration.build(new Date()).toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                         BytesReference.bytes(xContentBuilder).streamInput());

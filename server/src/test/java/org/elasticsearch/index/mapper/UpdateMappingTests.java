@@ -98,7 +98,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
             mapperService.merge("type", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
 
-        assertThat(((FieldMapper) mapperService.documentMapper().mapping().root().getMapper("foo")).fieldType().typeName(),
+        assertThat(((FieldMapper) mapperService.documentMapper().mapping().getRoot().getMapper("foo")).fieldType().typeName(),
                 equalTo("long"));
     }
 
@@ -116,7 +116,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
             mapperService.merge("type", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
 
-        assertThat(((FieldMapper) mapperService.documentMapper().mapping().root().getMapper("foo")).fieldType().typeName(),
+        assertThat(((FieldMapper) mapperService.documentMapper().mapping().getRoot().getMapper("foo")).fieldType().typeName(),
                 equalTo("long"));
     }
 

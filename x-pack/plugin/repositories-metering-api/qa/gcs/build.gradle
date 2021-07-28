@@ -5,8 +5,8 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.apache.tools.ant.filters.ReplaceTokens
 
 import java.nio.file.Files
 import java.security.KeyPair
@@ -22,14 +22,13 @@ final Project fixture = project(':test:fixtures:gcs-fixture')
 final Project repositoryPlugin = project(':plugins:repository-gcs')
 
 dependencies {
-  testImplementation project(path: xpackModule('repositories-metering-api'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
   testImplementation repositoryPlugin
 }
 
 restResources {
   restApi {
-    includeCore 'indices', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'repositories-metering-api'
+    include 'indices', 'bulk', 'snapshot', 'nodes', '_common', 'repositories-metering-api'
   }
 }
 
@@ -49,6 +48,10 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   throw new IllegalArgumentException("not all options specified to run tests against external GCS service are present")
 } else {
   serviceAccountFile = new File(gcsServiceAccount)
+}
+
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
 }
 
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
@@ -85,7 +88,7 @@ Map<String, Object> expansions = [
 
 tasks.named("processTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 if (useFixture) {

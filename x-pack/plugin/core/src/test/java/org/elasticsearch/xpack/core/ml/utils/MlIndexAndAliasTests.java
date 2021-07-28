@@ -19,7 +19,9 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
@@ -27,16 +29,21 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.junit.After;
 import org.junit.Before;
@@ -44,6 +51,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.stubbing.Answer;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -57,6 +66,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -81,6 +91,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
     private ArgumentCaptor<CreateIndexRequest> createRequestCaptor;
     private ArgumentCaptor<IndicesAliasesRequest> aliasesRequestCaptor;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setUpMocks() {
         threadPool = mock(ThreadPool.class);
@@ -96,7 +107,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         clusterAdminClient = mock(ClusterAdminClient.class);
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
             ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) invocationOnMock.getArguments()[1];
             listener.onResponse(new ClusterHealthResponse());
             return null;
@@ -109,6 +119,12 @@ public class MlIndexAndAliasTests extends ESTestCase {
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.admin()).thenReturn(adminClient);
+        doAnswer(invocationOnMock -> {
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(client).execute(any(PutComposableIndexTemplateAction.class), any(PutComposableIndexTemplateAction.Request.class),
+            any(ActionListener.class));
 
         listener = mock(ActionListener.class);
 
@@ -121,35 +137,94 @@ public class MlIndexAndAliasTests extends ESTestCase {
         verifyNoMoreInteractions(indicesAdminClient, listener);
     }
 
-    public void testInstallIndexTemplateIfRequired_GivenTemplateExists() {
-        ClusterState clusterState = createClusterState(Collections.emptyMap(),
-            Collections.singletonMap(InferenceIndexConstants.LATEST_INDEX_NAME,
-                createIndexTemplateMetaData(InferenceIndexConstants.LATEST_INDEX_NAME,
-                    Collections.singletonList(InferenceIndexConstants.LATEST_INDEX_NAME))));
+    public void testInstallIndexTemplateIfRequired_GivenTemplateLegacyTemplateExistsAndMixedCluster() throws UnknownHostException {
+        // TODO: this test can be removed from branches that will never need to talk to 7.13
+        ClusterState clusterState = createClusterState(Version.V_7_13_0, Collections.emptyMap(),
+            Collections.singletonMap(NotificationsIndex.NOTIFICATIONS_INDEX,
+                createLegacyIndexTemplateMetaData(NotificationsIndex.NOTIFICATIONS_INDEX,
+                    Collections.singletonList(NotificationsIndex.NOTIFICATIONS_INDEX))),
+            Collections.emptyMap());
 
-        IndexTemplateConfig inferenceTemplate = new IndexTemplateConfig(InferenceIndexConstants.LATEST_INDEX_NAME,
-            "not_a_real_file.json", Version.CURRENT.id, "xpack.ml.version",
-            Collections.singletonMap("xpack.ml.version.id", String.valueOf(Version.CURRENT.id)));
+        IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
+            "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json", Version.CURRENT.id, "xpack.ml.version",
+            Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+                "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
+        IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
+            "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
+            Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+                "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
 
-        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, inferenceTemplate, listener);
+        // ML didn't use composable templates in 7.13 and the legacy template exists, so nothing needs to be done
+        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, Version.CURRENT, legacyNotificationsTemplate,
+            notificationsTemplate, TimeValue.timeValueMinutes(1), listener);
         verify(listener).onResponse(true);
         verifyNoMoreInteractions(client);
     }
 
-    public void testInstallIndexTemplateIfRequired() {
-        ClusterState clusterState = createClusterState(Collections.emptyMap());
+    public void testInstallIndexTemplateIfRequired_GivenLegacyTemplateExistsAndModernCluster() throws UnknownHostException {
+        ClusterState clusterState = createClusterState(Version.CURRENT, Collections.emptyMap(),
+            Collections.singletonMap(NotificationsIndex.NOTIFICATIONS_INDEX,
+                createLegacyIndexTemplateMetaData(NotificationsIndex.NOTIFICATIONS_INDEX,
+                    Collections.singletonList(NotificationsIndex.NOTIFICATIONS_INDEX))),
+            Collections.emptyMap());
 
-        IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(InferenceIndexConstants.LATEST_INDEX_NAME,
+        IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
+            "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json", Version.CURRENT.id, "xpack.ml.version",
+            Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+                "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
+        IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
             "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
-            Collections.singletonMap("xpack.ml.version.id", String.valueOf(Version.CURRENT.id)));
+            Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+                "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
 
-        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, notificationsTemplate, listener);
-        InOrder inOrder = inOrder(indicesAdminClient, listener);
-        inOrder.verify(indicesAdminClient).putTemplate(any(), any());
+        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, Version.CURRENT, legacyNotificationsTemplate,
+            notificationsTemplate, TimeValue.timeValueMinutes(1), listener);
+        InOrder inOrder = inOrder(client, listener);
+        inOrder.verify(client).execute(same(PutComposableIndexTemplateAction.INSTANCE), any(), any());
         inOrder.verify(listener).onResponse(true);
     }
 
-    public void testCreateStateIndexAndAliasIfNecessary_CleanState() {
+    public void testInstallIndexTemplateIfRequired_GivenComposableTemplateExists() throws UnknownHostException {
+        ClusterState clusterState = createClusterState(Version.CURRENT, Collections.emptyMap(), Collections.emptyMap(),
+            Collections.singletonMap(NotificationsIndex.NOTIFICATIONS_INDEX,
+                createComposableIndexTemplateMetaData(NotificationsIndex.NOTIFICATIONS_INDEX,
+                    Collections.singletonList(NotificationsIndex.NOTIFICATIONS_INDEX))));
+
+        IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
+            "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json", Version.CURRENT.id, "xpack.ml.version",
+            Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+                "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
+        IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
+            "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
+            Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+                "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
+
+        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, Version.CURRENT, legacyNotificationsTemplate,
+            notificationsTemplate, TimeValue.timeValueMinutes(1), listener);
+        verify(listener).onResponse(true);
+        verifyNoMoreInteractions(client);
+    }
+
+    public void testInstallIndexTemplateIfRequired() throws UnknownHostException {
+        ClusterState clusterState = createClusterState(Collections.emptyMap());
+
+        IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
+            "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json", Version.CURRENT.id, "xpack.ml.version",
+            Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+                "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
+        IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
+            "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
+            Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+                "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
+
+        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, Version.CURRENT, legacyNotificationsTemplate,
+            notificationsTemplate, TimeValue.timeValueMinutes(1), listener);
+        InOrder inOrder = inOrder(client, listener);
+        inOrder.verify(client).execute(same(PutComposableIndexTemplateAction.INSTANCE), any(), any());
+        inOrder.verify(listener).onResponse(true);
+    }
+
+    public void testCreateStateIndexAndAliasIfNecessary_CleanState() throws UnknownHostException {
         ClusterState clusterState = createClusterState(Collections.emptyMap());
         createIndexAndAliasIfNecessary(clusterState);
 
@@ -163,26 +238,28 @@ public class MlIndexAndAliasTests extends ESTestCase {
         assertThat(createRequest.aliases(), equalTo(Collections.singleton(new Alias(TEST_INDEX_ALIAS).isHidden(true))));
     }
 
-    private void assertNoClientInteractionsWhenWriteAliasAlreadyExists(String indexName) {
+    private void assertNoClientInteractionsWhenWriteAliasAlreadyExists(String indexName) throws UnknownHostException {
         ClusterState clusterState = createClusterState(Collections.singletonMap(indexName, createIndexMetadataWithAlias(indexName)));
         createIndexAndAliasIfNecessary(clusterState);
 
         verify(listener).onResponse(false);
     }
 
-    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtInitialStateIndex() {
+    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtInitialStateIndex() throws UnknownHostException {
         assertNoClientInteractionsWhenWriteAliasAlreadyExists(FIRST_CONCRETE_INDEX);
     }
 
-    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtSubsequentStateIndex() {
+    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtSubsequentStateIndex()
+        throws UnknownHostException {
         assertNoClientInteractionsWhenWriteAliasAlreadyExists("test-000007");
     }
 
-    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtDummyIndex() {
+    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtDummyIndex() throws UnknownHostException {
         assertNoClientInteractionsWhenWriteAliasAlreadyExists("dummy-index");
     }
 
-    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtLegacyStateIndex() {
+    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtLegacyStateIndex()
+        throws UnknownHostException {
         ClusterState clusterState =
             createClusterState(
                 Collections.singletonMap(LEGACY_INDEX_WITHOUT_SUFFIX, createIndexMetadataWithAlias(LEGACY_INDEX_WITHOUT_SUFFIX)));
@@ -207,7 +284,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
                 AliasActions.remove().alias(TEST_INDEX_ALIAS).index(LEGACY_INDEX_WITHOUT_SUFFIX)));
     }
 
-    private void assertMlStateWriteAliasAddedToMostRecentMlStateIndex(List<String> existingIndexNames, String expectedWriteIndexName) {
+    private void assertMlStateWriteAliasAddedToMostRecentMlStateIndex(List<String> existingIndexNames, String expectedWriteIndexName)
+        throws UnknownHostException {
         ClusterState clusterState =
             createClusterState(
                 existingIndexNames.stream().collect(toMap(Function.identity(), MlIndexAndAliasTests::createIndexMetadata)));
@@ -224,22 +302,23 @@ public class MlIndexAndAliasTests extends ESTestCase {
             contains(AliasActions.add().alias(TEST_INDEX_ALIAS).index(expectedWriteIndexName).isHidden(true)));
     }
 
-    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButInitialStateIndexExists() {
+    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButInitialStateIndexExists() throws UnknownHostException {
         assertMlStateWriteAliasAddedToMostRecentMlStateIndex(
             Arrays.asList(FIRST_CONCRETE_INDEX), FIRST_CONCRETE_INDEX);
     }
 
-    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButSubsequentStateIndicesExist() {
+    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButSubsequentStateIndicesExist() throws UnknownHostException {
         assertMlStateWriteAliasAddedToMostRecentMlStateIndex(
             Arrays.asList("test-000003", "test-000040", "test-000500"), "test-000500");
     }
 
-    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButBothLegacyAndNewIndicesExist() {
+    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButBothLegacyAndNewIndicesExist()
+        throws UnknownHostException {
         assertMlStateWriteAliasAddedToMostRecentMlStateIndex(
             Arrays.asList(LEGACY_INDEX_WITHOUT_SUFFIX, "test-000003", "test-000040", "test-000500"), "test-000500");
     }
 
-    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButLegacyStateIndexExists() {
+    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButLegacyStateIndexExists() throws UnknownHostException {
         ClusterState clusterState =
             createClusterState(Collections.singletonMap(LEGACY_INDEX_WITHOUT_SUFFIX, createIndexMetadata(LEGACY_INDEX_WITHOUT_SUFFIX)));
         createIndexAndAliasIfNecessary(clusterState);
@@ -281,8 +360,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
     private void createIndexAndAliasIfNecessary(ClusterState clusterState) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
-            client, clusterState, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            TEST_INDEX_PREFIX, TEST_INDEX_ALIAS, listener);
+            client, clusterState, TestIndexNameExpressionResolver.newInstance(),
+            TEST_INDEX_PREFIX, TEST_INDEX_ALIAS, MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT, listener);
     }
 
     @SuppressWarnings("unchecked")
@@ -294,15 +373,25 @@ public class MlIndexAndAliasTests extends ESTestCase {
         };
     }
 
-    private static ClusterState createClusterState(Map<String, IndexMetadata> indices) {
-        return createClusterState(indices, Collections.emptyMap());
+    private static ClusterState createClusterState(Map<String, IndexMetadata> indices) throws UnknownHostException {
+        return createClusterState(Version.CURRENT, indices, Collections.emptyMap(), Collections.emptyMap());
     }
 
-    private static ClusterState createClusterState(Map<String, IndexMetadata> indices, Map<String, IndexTemplateMetadata> templates) {
+    private static ClusterState createClusterState(Version minNodeVersion,
+                                                   Map<String, IndexMetadata> indices,
+                                                   Map<String, IndexTemplateMetadata> legacyTemplates,
+                                                   Map<String, ComposableIndexTemplate> composableTemplates) throws UnknownHostException {
+        InetAddress inetAddress1 = InetAddress.getByAddress(new byte[]{(byte) 192, (byte) 168, (byte) 0, (byte) 1});
+        InetAddress inetAddress2 = InetAddress.getByAddress(new byte[]{(byte) 192, (byte) 168, (byte) 0, (byte) 2});
         return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder()
+                .add(new DiscoveryNode("foo", new TransportAddress(inetAddress1, 9201), Version.CURRENT))
+                .add(new DiscoveryNode("bar", new TransportAddress(inetAddress2, 9202), minNodeVersion))
+                .build())
             .metadata(Metadata.builder()
                 .indices(ImmutableOpenMap.<String, IndexMetadata>builder().putAll(indices).build())
-                .templates(ImmutableOpenMap.<String, IndexTemplateMetadata>builder().putAll(templates).build())
+                .templates(ImmutableOpenMap.<String, IndexTemplateMetadata>builder().putAll(legacyTemplates).build())
+                .indexTemplates(composableTemplates)
                 .build())
             .build();
     }
@@ -315,8 +404,12 @@ public class MlIndexAndAliasTests extends ESTestCase {
         return createIndexMetadata(indexName, true);
     }
 
-    private static IndexTemplateMetadata createIndexTemplateMetaData(String templateName, List<String> patterns) {
+    private static IndexTemplateMetadata createLegacyIndexTemplateMetaData(String templateName, List<String> patterns) {
         return IndexTemplateMetadata.builder(templateName).patterns(patterns).build();
+    }
+
+    private static ComposableIndexTemplate createComposableIndexTemplateMetaData(String templateName, List<String> patterns) {
+        return new ComposableIndexTemplate.Builder().indexPatterns(patterns).build();
     }
 
     private static IndexMetadata createIndexMetadata(String indexName, boolean withAlias) {

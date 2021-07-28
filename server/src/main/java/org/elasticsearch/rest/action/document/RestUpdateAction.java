@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -27,10 +28,17 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateAction extends BaseRestHandler {
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
+        + "document update requests is deprecated, use the endpoint /{index}/_update/{id} instead.";
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/{index}/_update/{id}"));
+        return List.of(
+            new Route(POST, "/{index}/_update/{id}"),
+            Route.builder(POST, "/{index}/{type}/{id}/_update")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build()
+            );
     }
 
     @Override
@@ -40,6 +48,9 @@ public class RestUpdateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
+            request.param("type");
+        }
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("id"));
         updateRequest.routing(request.param("routing"));
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));

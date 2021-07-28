@@ -10,7 +10,7 @@ import joptsimple.OptionSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -569,6 +569,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         assertThat(validateSignature(descriptor.getSignature()), equalTo(true));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75097")
     public void testDefaultOptionsWithSigningAndMultipleEncryptionKeys() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final KeyStoreWrapper usedKeyStore = randomFrom(keyStore, passwordProtectedKeystore);

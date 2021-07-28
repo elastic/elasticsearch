@@ -41,6 +41,7 @@ import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -88,6 +89,12 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         ingest.add(ingestWhitelist);
         map.put(IngestScript.CONTEXT, ingest);
 
+        // Functions available to runtime fields
+
+        for (ScriptContext<?> scriptContext : ScriptModule.RUNTIME_FIELDS_CONTEXTS) {
+            map.put(scriptContext, getRuntimeFieldWhitelist(scriptContext.name));
+        }
+
         // Execute context gets everything
         List<Whitelist> test = new ArrayList<>(Whitelist.BASE_WHITELISTS);
         test.add(movFnWhitelist);
@@ -97,6 +104,14 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         map.put(PainlessExecuteAction.PainlessTestScript.CONTEXT, test);
 
         whitelists = map;
+    }
+
+    private static List<Whitelist> getRuntimeFieldWhitelist(String contextName) {
+        List<Whitelist> scriptField = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        Whitelist whitelist = WhitelistLoader.loadFromResourceFiles(Whitelist.class,
+            "org.elasticsearch.script." + contextName + ".txt");
+        scriptField.add(whitelist);
+        return scriptField;
     }
 
     private final SetOnce<PainlessScriptEngine> painlessScriptEngine = new SetOnce<>();

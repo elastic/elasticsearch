@@ -67,7 +67,6 @@ public final class IngestDocument {
         if (versionType != null) {
             sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
         }
-
         this.ingestMetadata = new HashMap<>();
         this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
     }
@@ -714,7 +713,7 @@ public final class IngestDocument {
         return (Map<K, V>) deepCopy(source);
     }
 
-    private static Object deepCopy(Object value) {
+    public static Object deepCopy(Object value) {
         if (value instanceof Map) {
             Map<?, ?> mapValue = (Map<?, ?>) value;
             Map<Object, Object> copy = new HashMap<>(mapValue.size());
@@ -811,12 +810,14 @@ public final class IngestDocument {
 
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
+        TYPE("_type"),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),
         VERSION(VersionFieldMapper.NAME),
         VERSION_TYPE("_version_type"),
         IF_SEQ_NO("_if_seq_no"),
-        IF_PRIMARY_TERM("_if_primary_term");
+        IF_PRIMARY_TERM("_if_primary_term"),
+        DYNAMIC_TEMPLATES("_dynamic_templates");
 
         private final String fieldName;
 

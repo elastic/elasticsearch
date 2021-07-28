@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -11,6 +11,6 @@ archivesBaseName = 'x-pack-constant-keyword'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 

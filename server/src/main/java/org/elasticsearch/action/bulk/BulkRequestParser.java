@@ -12,10 +12,11 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -39,6 +41,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
  * Helper to parse bulk requests. This should be considered an internal class.
  */
 public final class BulkRequestParser {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
@@ -53,17 +56,22 @@ public final class BulkRequestParser {
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
     private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
+    private static final ParseField DYNAMIC_TEMPLATES = new ParseField("dynamic_templates");
 
     // TODO: Remove this parameter once the BulkMonitoring endpoint has been removed
-    private final boolean errorOnType;
+    // for CompatibleApi V7 this means to deprecate on type, for V8+ it means to throw an error
+    private final boolean deprecateOrErrorOnType;
+    private RestApiVersion restApiVersion;
 
     /**
      * Create a new parser.
      *
-     * @param errorOnType whether to allow _type information in the index line; used by BulkMonitoring
+     * @param deprecateOrErrorOnType whether to allow _type information in the index line; used by BulkMonitoring
+     * @param restApiVersion
      */
-    public BulkRequestParser(boolean errorOnType) {
-        this.errorOnType = errorOnType;
+    public BulkRequestParser(boolean deprecateOrErrorOnType, RestApiVersion restApiVersion) {
+        this.deprecateOrErrorOnType = deprecateOrErrorOnType;
+        this.restApiVersion = restApiVersion;
     }
 
     private static int findNextMarker(byte marker, int from, BytesReference data) {
@@ -114,6 +122,8 @@ public final class BulkRequestParser {
         // deduplicate duplicate strings parsed for these parameters. While it does not prevent instantiating the duplicate strings, it
         // reduces their lifetime to the lifetime of this parse call instead of the lifetime of the full bulk request.
         final Map<String, String> stringDeduplicator = new HashMap<>();
+        boolean typesDeprecationLogged = false;
+
         while (true) {
             int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
@@ -122,7 +132,7 @@ public final class BulkRequestParser {
             line++;
 
             // now parse the action
-            try (XContentParser parser = createParser(data, xContent, from, nextMarker)) {
+            try (XContentParser parser = createParser(data, xContent, from, nextMarker, restApiVersion)) {
                 // move pointers
                 from = nextMarker + 1;
 
@@ -156,6 +166,7 @@ public final class BulkRequestParser {
                 int retryOnConflict = 0;
                 String pipeline = defaultPipeline;
                 boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
+                Map<String, String> dynamicTemplates = Map.of();
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
                 // or START_OBJECT which will have another set of parameters
@@ -173,9 +184,17 @@ public final class BulkRequestParser {
                                 }
                                 index = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                if (errorOnType) {
+                                if (parser.getRestApiVersion().matches(RestApiVersion.equalTo(RestApiVersion.V_7))) {
+                                    // for bigger bulks, deprecation throttling might not be enough
+                                    if (deprecateOrErrorOnType && typesDeprecationLogged == false) {
+                                        deprecationLogger.compatibleApiWarning("bulk_with_types",
+                                            RestBulkAction.TYPES_DEPRECATION_MESSAGE);
+                                        typesDeprecationLogged = true;
+                                    }
+                                } else if (parser.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_8))
+                                    && deprecateOrErrorOnType) {
                                     throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter ["
-                                            + currentFieldName + "]");
+                                        + currentFieldName + "]");
                                 }
                                 type = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -206,7 +225,10 @@ public final class BulkRequestParser {
                             }
                         } else if (token == XContentParser.Token.START_ARRAY) {
                             throw new IllegalArgumentException("Malformed action/metadata line [" + line +
-                                    "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
+                                "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
+                        } else if (token == XContentParser.Token.START_OBJECT &&
+                            DYNAMIC_TEMPLATES.match(currentFieldName, parser.getDeprecationHandler())) {
+                            dynamicTemplates = parser.mapStrings();
                         } else if (token == XContentParser.Token.START_OBJECT && SOURCE.match(currentFieldName,
                                 parser.getDeprecationHandler())) {
                             fetchSourceContext = FetchSourceContext.fromXContent(parser);
@@ -221,6 +243,10 @@ public final class BulkRequestParser {
                 }
 
                 if ("delete".equals(action)) {
+                    if (dynamicTemplates.isEmpty() == false) {
+                        throw new IllegalArgumentException(
+                            "Delete request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES.getPreferredName());
+                    }
                     deleteRequestConsumer.accept(new DeleteRequest(index).id(id).routing(routing)
                             .version(version).versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm));
                 } else {
@@ -238,6 +264,7 @@ public final class BulkRequestParser {
                                     .version(version).versionType(versionType)
                                     .setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                                    .setDynamicTemplates(dynamicTemplates)
                                     .setRequireAlias(requireAlias), type);
                         } else {
                             indexRequestConsumer.accept(new IndexRequest(index).id(id).routing(routing)
@@ -252,11 +279,17 @@ public final class BulkRequestParser {
                                 .version(version).versionType(versionType)
                                 .create(true).setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                                .setDynamicTemplates(dynamicTemplates)
                                 .setRequireAlias(requireAlias), type);
                     } else if ("update".equals(action)) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException("Update requests do not support versioning. " +
                                     "Please use `if_seq_no` and `if_primary_term` instead");
+                        }
+                        // TODO: support dynamic_templates in update requests
+                        if (dynamicTemplates.isEmpty() == false) {
+                            throw new IllegalArgumentException(
+                                "Update request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES.getPreferredName());
                         }
                         UpdateRequest updateRequest = new UpdateRequest().index(index).id(id).routing(routing)
                                 .retryOnConflict(retryOnConflict)
@@ -264,7 +297,7 @@ public final class BulkRequestParser {
                                 .setRequireAlias(requireAlias)
                                 .routing(routing);
                         try (XContentParser sliceParser = createParser(
-                                sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContent)) {
+                                sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContent, restApiVersion)) {
                             updateRequest.fromXContent(sliceParser);
                         }
                         if (fetchSourceContext != null) {
@@ -284,35 +317,40 @@ public final class BulkRequestParser {
         }
     }
 
-    private static XContentParser createParser(BytesReference data, XContent xContent) throws IOException {
-        if (data instanceof BytesArray) {
-            return parseBytesArray(xContent, (BytesArray) data, 0, data.length());
+    private static XContentParser createParser(BytesReference data, XContent xContent, RestApiVersion restApiVersion) throws IOException {
+        if (data.hasArray()) {
+            return parseBytesArray(xContent, data, 0, data.length(), restApiVersion);
         } else {
-            return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, data.streamInput());
+            return xContent.createParserForCompatibility(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                data.streamInput(), restApiVersion);
         }
     }
 
     // Create an efficient parser of the given bytes, trying to directly parse a byte array if possible and falling back to stream wrapping
     // otherwise.
-    private static XContentParser createParser(BytesReference data, XContent xContent, int from, int nextMarker) throws IOException {
-        if (data instanceof BytesArray) {
-            return parseBytesArray(xContent, (BytesArray) data, from, nextMarker);
+    private static XContentParser createParser(BytesReference data, XContent xContent, int from, int nextMarker,
+                                               RestApiVersion restApiVersion) throws IOException {
+        if (data.hasArray()) {
+            return parseBytesArray(xContent, data, from, nextMarker, restApiVersion);
         } else {
             final int length = nextMarker - from;
             final BytesReference slice = data.slice(from, length);
-            if (slice instanceof BytesArray) {
-                return parseBytesArray(xContent, (BytesArray) slice, 0, length);
+            if (slice.hasArray()) {
+                return parseBytesArray(xContent, slice, 0, length, restApiVersion);
             } else {
                 // EMPTY is safe here because we never call namedObject
-                return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, slice.streamInput());
+                return xContent.createParserForCompatibility(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                    slice.streamInput(), restApiVersion);
             }
         }
     }
 
-    private static XContentParser parseBytesArray(XContent xContent, BytesArray array, int from, int nextMarker) throws IOException {
-        final int offset = array.offset();
+    private static XContentParser parseBytesArray(XContent xContent, BytesReference array, int from, int nextMarker,
+                                                  RestApiVersion restApiVersion) throws IOException {
+        assert array.hasArray();
+        final int offset = array.arrayOffset();
         // EMPTY is safe here because we never call namedObject
-        return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, array.array(),
-                offset + from, nextMarker - from);
+        return xContent.createParserForCompatibility(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, array.array(),
+                offset + from, nextMarker - from, restApiVersion);
     }
 }

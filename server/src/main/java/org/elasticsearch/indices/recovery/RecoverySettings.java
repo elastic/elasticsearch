@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 
@@ -43,7 +43,8 @@ public class RecoverySettings {
                     // if the node is not a data node, this value doesn't matter, use the default
                     return defaultMaxBytesPerSec.getStringRep();
                 }
-                if (dataRoles.stream().allMatch(dn -> dn.roleName().equals("data_cold") || dn.roleName().equals("data_frozen")) == false) {
+                if (dataRoles.stream().allMatch(dn -> dn.equals(DiscoveryNodeRole.DATA_COLD_NODE_ROLE)
+                    || dn.equals(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)) == false) {
                     // the node is not a dedicated cold and/or frozen node, use the default
                     return defaultMaxBytesPerSec.getStringRep();
                 }
@@ -79,7 +80,7 @@ public class RecoverySettings {
      * Controls the maximum number of file chunk requests that can be sent concurrently from the source node to the target node.
      */
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING =
-        Setting.intSetting("indices.recovery.max_concurrent_file_chunks", 2, 1, 5, Property.Dynamic, Property.NodeScope);
+        Setting.intSetting("indices.recovery.max_concurrent_file_chunks", 2, 1, 8, Property.Dynamic, Property.NodeScope);
 
     /**
      * Controls the maximum number of operation chunk requests that can be sent concurrently from the source node to the target node.

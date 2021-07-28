@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
@@ -19,9 +18,10 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -37,9 +37,12 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
@@ -70,7 +73,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private int relocatingShards = 0;
 
-    private final Map<String, ObjectIntHashMap<String>> nodesPerAttributeNames = new HashMap<>();
+    private final Map<String, Set<String>> attributeValuesByAttribute = new HashMap<>();
     private final Map<String, Recoveries> recoveriesPerNode = new HashMap<>();
 
     public RoutingNodes(ClusterState clusterState) {
@@ -229,18 +232,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesToShards.get(nodeId);
     }
 
-    public ObjectIntHashMap<String> nodesPerAttributesCounts(String attributeName) {
-        ObjectIntHashMap<String> nodesPerAttributesCounts = nodesPerAttributeNames.get(attributeName);
-        if (nodesPerAttributesCounts != null) {
-            return nodesPerAttributesCounts;
-        }
-        nodesPerAttributesCounts = new ObjectIntHashMap<>();
-        for (RoutingNode routingNode : this) {
-            String attrValue = routingNode.node().getAttributes().get(attributeName);
-            nodesPerAttributesCounts.addTo(attrValue, 1);
-        }
-        nodesPerAttributeNames.put(attributeName, nodesPerAttributesCounts);
-        return nodesPerAttributesCounts;
+    public Set<String> getAttributeValues(String attributeName) {
+        // Only ever accessed on the master service thread so no need for synchronization
+        assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
+                : Thread.currentThread().getName() + " should be the master service thread";
+        return attributeValuesByAttribute.computeIfAbsent(attributeName, ignored -> StreamSupport.stream(this.spliterator(), false)
+                .map(r -> r.node().getAttributes().get(attributeName)).filter(Objects::nonNull).collect(Collectors.toSet()));
     }
 
     /**

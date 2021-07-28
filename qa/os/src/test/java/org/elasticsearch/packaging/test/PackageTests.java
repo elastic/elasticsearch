@@ -83,7 +83,7 @@ public class PackageTests extends PackagingTestCase {
     private void assertRunsWithJavaHome() throws Exception {
         byte[] originalEnvFile = Files.readAllBytes(installation.envFile);
         try {
-            Files.write(installation.envFile, List.of("JAVA_HOME=" + systemJavaHome), APPEND);
+            Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), APPEND);
             startElasticsearch();
             runElasticsearchTests();
             stopElasticsearch();
@@ -350,9 +350,11 @@ public class PackageTests extends PackagingTestCase {
             // Make sure we don't pick up the journal entries for previous ES instances.
             Packages.JournaldWrapper journald = new Packages.JournaldWrapper(sh);
             runElasticsearchStartCommand(null, true, false);
-            final Result logs = journald.getLogs();
 
-            assertThat(logs.stdout, containsString("Failed to load settings from [elasticsearch.yml]"));
+            assertBusy(() -> {
+                final Result logs = journald.getLogs();
+                assertThat(logs.stdout, containsString("Failed to load settings from [elasticsearch.yml]"));
+            });
         });
     }
 }

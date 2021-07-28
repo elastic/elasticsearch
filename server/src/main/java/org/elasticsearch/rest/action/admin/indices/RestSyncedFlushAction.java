@@ -13,16 +13,15 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,15 +31,23 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSyncedFlushAction extends BaseRestHandler {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestSyncedFlushAction.class);
-
+    private static final String DEPRECATION_MESSAGE =
+    "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.";
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_flush/synced"),
-            new Route(POST, "/_flush/synced"),
-            new Route(GET, "/{index}/_flush/synced"),
-            new Route(POST, "/{index}/_flush/synced"));
+            Route.builder(GET, "/_flush/synced")
+                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/_flush/synced")
+                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, "/{index}/_flush/synced")
+                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/_flush/synced")
+                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build());
     }
 
     @Override
@@ -50,14 +57,12 @@ public class RestSyncedFlushAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        DEPRECATION_LOGGER.deprecate(DeprecationCategory.API, "synced_flush",
-            "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version.");
         final FlushRequest flushRequest = new FlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
         flushRequest.indicesOptions(IndicesOptions.fromRequest(request, flushRequest.indicesOptions()));
         return channel -> client.admin().indices().flush(flushRequest, new SimulateSyncedFlushResponseListener(channel));
     }
 
-    static final class SimulateSyncedFlushResponseListener extends RestToXContentListener<FlushResponse> {
+    static final class SimulateSyncedFlushResponseListener extends RestBuilderListener<FlushResponse> {
 
         SimulateSyncedFlushResponseListener(RestChannel channel) {
             super(channel);

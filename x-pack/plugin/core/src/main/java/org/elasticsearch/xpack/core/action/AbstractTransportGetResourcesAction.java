@@ -14,8 +14,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -56,8 +56,6 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
     Request extends AbstractGetResourcesRequest, Response extends AbstractGetResourcesResponse<Resource>>
     extends HandledTransportAction<Request, Response> {
 
-    private static final String ALL = "_all";
-
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
 
@@ -95,9 +93,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
         executeAsyncWithOrigin(client.threadPool().getThreadContext(),
             executionOrigin(),
             searchRequest,
-            new ActionListener<SearchResponse>() {
-                @Override
-                public void onResponse(SearchResponse response) {
+            listener.<SearchResponse>delegateFailure((l, response) -> {
                     List<Resource> docs = new ArrayList<>();
                     Set<String> foundResourceIds = new HashSet<>();
                     long totalHitCount = response.getHits().getTotalHits().value;
@@ -114,30 +110,23 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                                 foundResourceIds.add(id);
                             }
                         } catch (IOException e) {
-                            this.onFailure(e);
+                            l.onFailure(e);
                         }
                     }
                     ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, request.isAllowNoResources());
                     requiredMatches.filterMatchedIds(foundResourceIds);
                     if (requiredMatches.hasUnmatchedIds()) {
-                        listener.onFailure(notFoundException(requiredMatches.unmatchedIdsString()));
+                        l.onFailure(notFoundException(requiredMatches.unmatchedIdsString()));
                     } else {
                         // if only exact ids have been given, take the count from docs to avoid potential duplicates
                         // in versioned indexes (like transform)
                         if (requiredMatches.isOnlyExact()) {
-                            listener.onResponse(new QueryPage<>(docs, docs.size(), getResultsField()));
+                            l.onResponse(new QueryPage<>(docs, docs.size(), getResultsField()));
                         } else {
-                            listener.onResponse(new QueryPage<>(docs, totalHitCount, getResultsField()));
+                            l.onResponse(new QueryPage<>(docs, totalHitCount, getResultsField()));
                         }
                     }
-                }
-
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            },
+                }),
             client::search);
     }
 

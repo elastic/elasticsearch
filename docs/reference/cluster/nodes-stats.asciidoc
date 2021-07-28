@@ -141,6 +141,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
+
 [role="child_attributes"]
 [[cluster-nodes-stats-api-response-body]]
 ==== {api-response-body-title}
@@ -253,6 +255,18 @@ Total size of all shards assigned to the node.
 `size_in_bytes`::
 (integer)
 Total size, in bytes, of all shards assigned to the node.
+
+`total_data_set_size`::
+(<<byte-units,byte value>>)
+Total data set size of all shards assigned to the node.
+This includes the size of shards not stored fully on the node, such as the
+cache for <<partially-mounted,partially mounted indices>>.
+
+`total_data_set_size_in_bytes`::
+(integer)
+Total data set size, in bytes, of all shards assigned to the node.
+This includes the size of shards not stored fully on the node, such as the
+cache for <<partially-mounted,partially mounted indices>>.
 
 `reserved`::
 (<<byte-units,byte value>>)
@@ -945,6 +959,18 @@ Time by which recovery operations were delayed due to throttling.
 Time in milliseconds
 recovery operations were delayed due to throttling.
 =======
+
+`shards`::
+(object)
+Contains statistics about all shards assigned to the node.
++
+.Properties of `shards`
+[%collapsible%open]
+=======
+`total_count`::
+(integer)
+The total number of shards assigned to the node.
+=======
 ======
 
 [[cluster-nodes-stats-api-response-body-os]]
@@ -1187,7 +1213,7 @@ since the {wikipedia}/Unix_time[Unix Epoch].
 
 `open_file_descriptors`::
 (integer)
-Number of opened file descriptors associated with the current  or
+Number of opened file descriptors associated with the current or
 `-1` if not supported.
 
 `max_file_descriptors`::
@@ -1877,6 +1903,65 @@ Current number of open HTTP connections for the node.
 `total_opened`::
 (integer)
 Total number of HTTP connections opened for the node.
+
+`clients`::
+(array of objects)
+Information on current and recently-closed HTTP client connections.
++
+.Properties of `clients`
+[%collapsible%open]
+=======
+`id`::
+(integer)
+Unique ID for the HTTP client.
+
+`agent`::
+(string)
+Reported agent for the HTTP client. If unavailable, this property is not
+included in the response.
+
+`local_address`::
+(string)
+Local address for the HTTP client.
+
+`remote_address`::
+(string)
+Remote address for the HTTP client.
+
+`last_uri`::
+(string)
+The URI of the client's most recent request.
+
+`x_forwarded_for`::
+(string)
+Value from the client's `x-forwarded-for` HTTP header. If unavailable, this
+property is not included in the response.
+
+`x_opaque_id`::
+(string)
+Value from the client's `x-opaque-id` HTTP header. If unavailable, this property
+is not included in the response.
+
+`opened_time_millis`::
+(integer)
+Time at which the client opened the connection.
+
+`closed_time_millis`::
+(integer)
+Time at which the client closed the connection if the connection is closed.
+
+`last_request_time_millis`::
+(integer)
+Time of the most recent request from this client.
+
+`request_count`::
+(integer)
+Number of requests from this client.
+
+`request_size_bytes`::
+(integer)
+Cumulative size in bytes of all requests from this client.
+=======
 ======
 
 [[cluster-nodes-stats-api-response-body-breakers]]

@@ -8,14 +8,13 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -40,7 +39,8 @@ public class TransformConfigUpdate implements ToXContentObject {
             SyncConfig syncConfig = (SyncConfig) args[3];
             String description = (String) args[4];
             SettingsConfig settings = (SettingsConfig) args[5];
-            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description, settings);
+            RetentionPolicyConfig retentionPolicyConfig = (RetentionPolicyConfig) args[6];
+            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description, settings, retentionPolicyConfig);
         }
     );
 
@@ -48,17 +48,14 @@ public class TransformConfigUpdate implements ToXContentObject {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SourceConfig.PARSER.apply(p, null), TransformConfig.SOURCE);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> DestConfig.PARSER.apply(p, null), TransformConfig.DEST);
         PARSER.declareString(optionalConstructorArg(), TransformConfig.FREQUENCY);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseSyncConfig(p), TransformConfig.SYNC);
+        PARSER.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, c), TransformConfig.SYNC);
         PARSER.declareString(optionalConstructorArg(), TransformConfig.DESCRIPTION);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p), TransformConfig.SETTINGS);
-    }
-
-    private static SyncConfig parseSyncConfig(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-        SyncConfig syncConfig = parser.namedObject(SyncConfig.class, parser.currentName(), false);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-        return syncConfig;
+        PARSER.declareNamedObject(
+            optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(RetentionPolicyConfig.class, n, c),
+            TransformConfig.RETENTION_POLICY
+        );
     }
 
     private final SourceConfig source;
@@ -74,7 +71,8 @@ public class TransformConfigUpdate implements ToXContentObject {
         final TimeValue frequency,
         final SyncConfig syncConfig,
         final String description,
-        final SettingsConfig settings
+        final SettingsConfig settings,
+        final RetentionPolicyConfig retentionPolicyConfig
     ) {
         this.source = source;
         this.dest = dest;
@@ -184,6 +182,7 @@ public class TransformConfigUpdate implements ToXContentObject {
         private SyncConfig syncConfig;
         private String description;
         private SettingsConfig settings;
+        private RetentionPolicyConfig retentionPolicyConfig;
 
         public Builder setSource(SourceConfig source) {
             this.source = source;
@@ -215,8 +214,13 @@ public class TransformConfigUpdate implements ToXContentObject {
             return this;
         }
 
+        public Builder setRetentionPolicyConfig(RetentionPolicyConfig retentionPolicyConfig) {
+            this.retentionPolicyConfig = retentionPolicyConfig;
+            return this;
+        }
+
         public TransformConfigUpdate build() {
-            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description, settings);
+            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description, settings, retentionPolicyConfig);
         }
     }
 }

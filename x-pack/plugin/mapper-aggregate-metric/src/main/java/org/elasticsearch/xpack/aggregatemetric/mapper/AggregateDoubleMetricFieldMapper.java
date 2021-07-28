@@ -24,17 +24,18 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -184,9 +185,21 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
                 if (m == Metric.value_count) {
                     // value_count metric can only be an integer and not a double
-                    builder = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER, false, false);
+                    builder = new NumberFieldMapper.Builder(
+                        fieldName,
+                        NumberFieldMapper.NumberType.INTEGER,
+                        ScriptCompiler.NONE,
+                        false,
+                        false
+                    );
                 } else {
-                    builder = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE, false, true);
+                    builder = new NumberFieldMapper.Builder(
+                        fieldName,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        ScriptCompiler.NONE,
+                        false,
+                        true
+                    );
                 }
                 NumberFieldMapper fieldMapper = builder.build(context);
                 metricMappers.put(m, fieldMapper);
@@ -212,7 +225,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     public static final FieldMapper.TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()))
+        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())),
+        notInMultiFields(CONTENT_TYPE)
     );
 
     public static final class AggregateDoubleMetricFieldType extends SimpleMappedFieldType {
@@ -497,10 +511,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        if (context.externalValueSet()) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
-        }
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
 
         context.path().add(simpleName());
         XContentParser.Token token;

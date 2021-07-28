@@ -276,3 +276,32 @@ setup:
                }
              }
            }
+
+---
+"Test increasing phase timings validated":
+
+  - do:
+      catch: /Your policy is configured to run the delete phase \(min_age\:\ 5s\) before the warm phase \(min_age\:\ 10s\). You should change the phase timing so that the phases will execute in the order of hot, warm, then cold./
+      ilm.put_lifecycle:
+        policy: "bad_policy"
+        body: |
+           {
+             "policy": {
+               "phases": {
+                 "warm": {
+                   "min_age": "10s",
+                   "actions": {
+                     "forcemerge": {
+                       "max_num_segments": 10000
+                     }
+                   }
+                 },
+                 "delete": {
+                   "min_age": "5s",
+                   "actions": {
+                     "delete": {}
+                   }
+                 }
+               }
+             }
+           }

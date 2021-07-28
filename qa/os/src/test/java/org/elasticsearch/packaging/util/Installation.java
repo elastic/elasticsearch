@@ -185,9 +185,11 @@ public class Installation {
         public final Executable cronevalTool = new Executable("elasticsearch-croneval");
         public final Executable shardTool = new Executable("elasticsearch-shard");
         public final Executable nodeTool = new Executable("elasticsearch-node");
+        public final Executable securityConfigTool = new Executable("elasticsearch-security-config");
         public final Executable setupPasswordsTool = new Executable("elasticsearch-setup-passwords");
         public final Executable sqlCli = new Executable("elasticsearch-sql-cli");
         public final Executable syskeygenTool = new Executable("elasticsearch-syskeygen");
         public final Executable usersTool = new Executable("elasticsearch-users");
+        public final Executable serviceTokensTool = new Executable("elasticsearch-service-tokens");
     }
 }

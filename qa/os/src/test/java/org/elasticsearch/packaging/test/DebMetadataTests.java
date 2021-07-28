@@ -9,6 +9,7 @@
 package org.elasticsearch.packaging.test;
 
 import junit.framework.TestCase;
+
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
@@ -42,11 +43,7 @@ public class DebMetadataTests extends PackagingTestCase {
 
         TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(result.stdout).find());
 
-        String oppositePackageName = "elasticsearch";
-        if (distribution().isDefault()) {
-            oppositePackageName += "-oss";
-        }
-
+        String oppositePackageName = "elasticsearch-oss";
         TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: " + oppositePackageName + "$").matcher(result.stdout).find());
     }
 }

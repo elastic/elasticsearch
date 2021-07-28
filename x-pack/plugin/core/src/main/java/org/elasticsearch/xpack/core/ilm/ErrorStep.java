@@ -18,4 +18,10 @@ public class ErrorStep extends Step {
             throw new IllegalArgumentException("An error step must have a step key whose step name is " + NAME);
         }
     }
+
+    @Override
+    public boolean isRetryable() {
+        // this is marker step so it doesn't make sense to be retryable
+        return false;
+    }
 }

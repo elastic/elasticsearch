@@ -1,9 +1,9 @@
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(xpackModule('async-search'))
-  javaRestTestImplementation project(':x-pack:plugin:async-search:qa')
+  javaRestTestImplementation project(':test:framework')
 }
 
 testClusters.all {
@@ -12,9 +12,10 @@ testClusters.all {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   extraConfigFile 'roles.yml', file('roles.yml')
+  user username: "test_kibana_user", password: "x-pack-test-password", role: "kibana_system"
   user username: "test-admin", password: 'x-pack-test-password', role: "test-admin"
   user username: "user1", password: 'x-pack-test-password', role: "user1"
   user username: "user2", password: 'x-pack-test-password', role: "user2"
   user username: "user-dls", password: 'x-pack-test-password', role: "user-dls"
-  user username: "user-manage", password: 'x-pack-test-password', role: "user-manage"
+  user username: "user-cancel", password: 'x-pack-test-password', role: "user-cancel"
 }

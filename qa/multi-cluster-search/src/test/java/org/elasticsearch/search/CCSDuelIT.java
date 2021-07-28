@@ -10,6 +10,7 @@ package org.elasticsearch.search;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.action.ActionListener;
@@ -74,6 +75,7 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -193,7 +195,7 @@ public class CCSDuelIT extends ESRestTestCase {
                 public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
                     throw new AssertionError("Failed to execute bulk", failure);
                 }
-            }).build();
+            }, "CCSDuelIT").build();
 
         int numQuestions = randomIntBetween(50, 100);
         for (int i = 0; i < numQuestions; i++) {
@@ -206,8 +208,7 @@ public class CCSDuelIT extends ESRestTestCase {
         assertTrue(bulkProcessor.awaitClose(30, TimeUnit.SECONDS));
 
         RefreshResponse refreshResponse = restHighLevelClient.indices().refresh(new RefreshRequest(INDEX_NAME), RequestOptions.DEFAULT);
-        assertEquals(0, refreshResponse.getFailedShards());
-        assertEquals(numShards, refreshResponse.getSuccessfulShards());
+        ElasticsearchAssertions.assertNoFailures(refreshResponse);
     }
 
     private static IndexRequest buildIndexRequest(String id, String type, String questionId) {

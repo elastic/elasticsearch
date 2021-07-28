@@ -22,7 +22,9 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -104,16 +106,16 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected void doMasterOperation(GetIndexRequest request, String[] concreteIndices, ClusterState state,
-                                       ActionListener<GetIndexResponse> listener) {
+        protected void doMasterOperation(Task task, GetIndexRequest request, String[] concreteIndices, ClusterState state,
+                                         ActionListener<GetIndexResponse> listener) {
             ClusterState stateWithIndex = ClusterStateCreationUtils.state(indexName, 1, 1);
-            super.doMasterOperation(request, concreteIndices, stateWithIndex, listener);
+            super.doMasterOperation(task, request, concreteIndices, stateWithIndex, listener);
         }
     }
 
     static class Resolver extends IndexNameExpressionResolver {
         Resolver() {
-            super(new ThreadContext(Settings.EMPTY));
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
         }
 
         @Override

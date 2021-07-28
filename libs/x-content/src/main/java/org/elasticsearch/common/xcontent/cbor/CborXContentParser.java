@@ -9,7 +9,7 @@
 package org.elasticsearch.common.xcontent.cbor;
 
 import com.fasterxml.jackson.core.JsonParser;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -24,12 +24,17 @@ public class CborXContentParser extends JsonXContentParser {
 
     public CborXContentParser(NamedXContentRegistry xContentRegistry,
                               DeprecationHandler deprecationHandler, JsonParser parser,
-                              RestApiCompatibleVersion restApiCompatibleVersion) {
-        super(xContentRegistry, deprecationHandler, parser, restApiCompatibleVersion);
+                              RestApiVersion restApiVersion) {
+        super(xContentRegistry, deprecationHandler, parser, restApiVersion);
     }
 
     @Override
     public XContentType contentType() {
         return XContentType.CBOR;
+    }
+
+    @Override
+    public void allowDuplicateKeys(boolean allowDuplicateKeys) {
+        throw new UnsupportedOperationException("Allowing duplicate keys after the parser has been created is not possible for CBOR");
     }
 }

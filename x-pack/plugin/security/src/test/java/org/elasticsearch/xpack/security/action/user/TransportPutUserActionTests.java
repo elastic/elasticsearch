@@ -25,20 +25,21 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealmTests;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -47,7 +48,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -96,7 +96,8 @@ public class TransportPutUserActionTests extends ESTestCase {
         TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ActionFilters.class), usersStore, transportService);
 
         PutUserRequest request = new PutUserRequest();
-        request.username(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
+        request.username(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal(),
+            XPackSecurityUser.INSTANCE.principal(), AsyncSearchUser.INSTANCE.principal()));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
@@ -174,15 +175,14 @@ public class TransportPutUserActionTests extends ESTestCase {
             request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         }
         final boolean created = isCreate ? randomBoolean() : false; // updates should always return false for create
-        doAnswer(new Answer() {
-            public Void answer(InvocationOnMock invocation) {
-                Object[] args = invocation.getArguments();
-                assert args.length == 2;
-                ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
-                listener.onResponse(created);
-                return null;
-            }
-        }).when(usersStore).putUser(eq(request), any(ActionListener.class));
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
+            listener.onResponse(created);
+            return null;
+        }).when(usersStore).putUser(eq(request), anyActionListener());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
@@ -201,7 +201,7 @@ public class TransportPutUserActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(responseRef.get().created(), is(created));
-        verify(usersStore, times(1)).putUser(eq(request), any(ActionListener.class));
+        verify(usersStore, times(1)).putUser(eq(request), anyActionListener());
     }
 
     public void testInvalidUser() {
@@ -235,15 +235,14 @@ public class TransportPutUserActionTests extends ESTestCase {
 
         final PutUserRequest request = new PutUserRequest();
         request.username(user.principal());
-        doAnswer(new Answer() {
-            public Void answer(InvocationOnMock invocation) {
-                Object[] args = invocation.getArguments();
-                assert args.length == 2;
-                ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
-                listener.onFailure(e);
-                return null;
-            }
-        }).when(usersStore).putUser(eq(request), any(ActionListener.class));
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
+            listener.onFailure(e);
+            return null;
+        }).when(usersStore).putUser(eq(request), anyActionListener());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
@@ -262,6 +261,6 @@ public class TransportPutUserActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(notNullValue()));
         assertThat(throwableRef.get(), sameInstance(e));
-        verify(usersStore, times(1)).putUser(eq(request), any(ActionListener.class));
+        verify(usersStore, times(1)).putUser(eq(request), anyActionListener());
     }
 }

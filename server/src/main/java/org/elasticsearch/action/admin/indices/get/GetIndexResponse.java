@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +26,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 /**
  * A response for a get index action.
@@ -192,7 +196,14 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     if (indexMappings == null) {
                         builder.startObject("mappings").endObject();
                     } else {
-                        builder.field("mappings", indexMappings.sourceAsMap());
+                        if (builder.getRestApiVersion() == RestApiVersion.V_7 &&
+                            params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
+                            builder.startObject("mappings");
+                            builder.field(MapperService.SINGLE_MAPPING_NAME, indexMappings.sourceAsMap());
+                            builder.endObject();
+                        } else {
+                            builder.field("mappings", indexMappings.sourceAsMap());
+                        }
                     }
 
                     builder.startObject("settings");

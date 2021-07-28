@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.expression;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AttributeInput;
@@ -24,26 +24,6 @@ import java.util.function.Predicate;
 import static java.util.Collections.emptyList;
 
 public final class Expressions {
-
-    public enum ParamOrdinal {
-        DEFAULT,
-        FIRST,
-        SECOND,
-        THIRD,
-        FOURTH,
-        FIFTH;
-
-        public static ParamOrdinal fromIndex(int index) {
-            switch (index) {
-                case 0: return ParamOrdinal.FIRST;
-                case 1: return ParamOrdinal.SECOND;
-                case 2: return ParamOrdinal.THIRD;
-                case 3: return ParamOrdinal.FOURTH;
-                case 4: return ParamOrdinal.FIFTH;
-                default: return ParamOrdinal.DEFAULT;
-            }
-        }
-    }
 
 
     private Expressions() {}
@@ -93,8 +73,37 @@ public final class Expressions {
         return false;
     }
 
+    /**
+     * Return the logical AND of a list of {@code Nullability}
+     * <pre>
+     *  UNKNOWN AND TRUE/FALSE/UNKNOWN = UNKNOWN
+     *  FALSE AND FALSE = FALSE
+     *  TRUE AND FALSE/TRUE = TRUE
+     * </pre>
+     */
     public static Nullability nullable(List<? extends Expression> exps) {
-        return Nullability.and(exps.stream().map(Expression::nullable).toArray(Nullability[]::new));
+        Nullability value = Nullability.FALSE;
+        for (Expression exp : exps) {
+            switch (exp.nullable()) {
+                case UNKNOWN:
+                    return Nullability.UNKNOWN;
+                case TRUE:
+                    value = Nullability.TRUE;
+                    break;
+                default:
+                    // not nullable
+                    break;
+            }
+        }
+        return value;
+    }
+
+    public static List<Expression> canonicalize(List<? extends Expression> exps) {
+        List<Expression> canonical = new ArrayList<>(exps.size());
+        for (Expression exp : exps) {
+            canonical.add(exp.canonical());
+        }
+        return canonical;
     }
 
     public static boolean foldable(List<? extends Expression> exps) {

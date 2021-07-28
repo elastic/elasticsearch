@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.MapperService;
@@ -115,7 +115,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             IndexMetadata leaderIMD = createIMD("index1", 1, Settings.EMPTY, null);
             IndexMetadata followIMD = createIMD("index2", 1, Settings.EMPTY, customMetadata);
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
-            mapperService.updateMapping(null, followIMD);
+            mapperService.merge(followIMD, MapperService.MergeReason.MAPPING_RECOVERY);
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> validate(request, leaderIMD, followIMD, UUIDs, mapperService));
             assertThat(e.getMessage(), equalTo("the following index [index2] is not ready to follow; " +
@@ -128,7 +128,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             IndexMetadata followIMD = createIMD("index2", State.OPEN, "{\"properties\": {\"field\": {\"type\": \"text\"}}}", 5,
                 Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build(), customMetadata);
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
-            mapperService.updateMapping(null, followIMD);
+            mapperService.merge(followIMD, MapperService.MergeReason.MAPPING_RECOVERY);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, mapperService));
             assertThat(e.getMessage(), equalTo("mapper [field] cannot be changed from type [text] to [keyword]"));
         }
@@ -155,7 +155,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             IndexMetadata followIMD = createIMD("index2", 5, followingIndexSettings, customMetadata);
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
                 followingIndexSettings, "index2");
-            mapperService.updateMapping(null, followIMD);
+            mapperService.merge(followIMD, MapperService.MergeReason.MAPPING_RECOVERY);
             IllegalArgumentException error =
                     expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, mapperService));
             assertThat(error.getMessage(), equalTo("the following index [index2] is not ready to follow; " +
@@ -167,7 +167,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             IndexMetadata followIMD = createIMD("index2", 5, Settings.builder()
                 .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build(), customMetadata);
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
-            mapperService.updateMapping(null, followIMD);
+            mapperService.merge(followIMD, MapperService.MergeReason.MAPPING_RECOVERY);
             validate(request, leaderIMD, followIMD, UUIDs, mapperService);
         }
         {
@@ -182,7 +182,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build(), customMetadata);
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
                 followIMD.getSettings(), "index2");
-            mapperService.updateMapping(null, followIMD);
+            mapperService.merge(followIMD, MapperService.MergeReason.MAPPING_RECOVERY);
             validate(request, leaderIMD, followIMD, UUIDs, mapperService);
         }
         {
@@ -199,7 +199,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build(), customMetadata);
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
                 followIMD.getSettings(), "index2");
-            mapperService.updateMapping(null, followIMD);
+            mapperService.merge(followIMD, MapperService.MergeReason.MAPPING_RECOVERY);
             validate(request, leaderIMD, followIMD, UUIDs, mapperService);
         }
     }
@@ -216,6 +216,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         replicatedSettings.add(IndexSettings.MAX_NGRAM_DIFF_SETTING);
         replicatedSettings.add(IndexSettings.MAX_SHINGLE_DIFF_SETTING);
 

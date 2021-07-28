@@ -8,7 +8,9 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import com.carrotsearch.hppc.BitMixer;
+import java.io.IOException;
+import java.util.Map;
+import java.util.function.BiConsumer;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -17,17 +19,16 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.hash.MurmurHash3;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -35,9 +36,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.function.BiConsumer;
+import com.carrotsearch.hppc.BitMixer;
 
 /**
  * An aggregator that computes approximate counts of unique values.
@@ -136,18 +135,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     @Override
-    protected void beforeBuildingResults(long[] ordsToCollect) throws IOException {
+    protected void doPostCollection() throws IOException {
         postCollectLastCollector();
     }
 
     @Override
     public double metric(long owningBucketOrd) {
-        try {
-            // Make sure all outstanding data has been synced down to the counts.
-            postCollectLastCollector();
-        } catch (IOException e) {
-            throw new AggregationExecutionException("error collecting data in last segment", e);
-        }
         return counts == null ? 0 : counts.cardinality(owningBucketOrd);
     }
 

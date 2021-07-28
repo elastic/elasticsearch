@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -17,25 +18,33 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     public void testExplain_GivenMissingSourceIndex() {
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
-            .setSource(new DataFrameAnalyticsSource(new String[] {"missing_index"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"missing_index"}, null, null, Collections.emptyMap()))
             .setAnalysis(new OutlierDetection.Builder().build())
             .buildForExplain();
 
@@ -81,7 +90,8 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
             .setId(id)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
                 QueryProvider.fromParsedQuery(QueryBuilders.termQuery("filtered_field", "bingo")),
-                null))
+                null,
+                Collections.emptyMap()))
             .setAnalysis(new Classification("categorical"))
             .buildForExplain();
 
@@ -98,7 +108,8 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
             .setId("dfa-training-100-" + sourceIndex)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
                 QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()),
-                null))
+                null,
+                Collections.emptyMap()))
             .setAnalysis(new Regression(RegressionIT.DEPENDENT_VARIABLE_FIELD,
                 BoostedTreeParams.builder().build(),
                 null,
@@ -118,7 +129,8 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
             .setId("dfa-training-50-" + sourceIndex)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
                 QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()),
-                null))
+                null,
+                Collections.emptyMap()))
             .setAnalysis(new Regression(RegressionIT.DEPENDENT_VARIABLE_FIELD,
                 BoostedTreeParams.builder().build(),
                 null,
@@ -147,7 +159,8 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
             .setId("dfa-simultaneous-explain-" + sourceIndex)
             .setSource(new DataFrameAnalyticsSource(new String[]{sourceIndex},
                 QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()),
-                null))
+                null,
+                Collections.emptyMap()))
             .setAnalysis(new Regression(RegressionIT.DEPENDENT_VARIABLE_FIELD,
                 BoostedTreeParams.builder().build(),
                 null,
@@ -179,6 +192,57 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
             }
             previous = current;
         }
+    }
+
+    public void testRuntimeFields() {
+        String sourceIndex = "test-explain-runtime-fields";
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"mapped_field\": {\n" +
+            "          \"type\": \"double\"\n" +
+            "        }\n" +
+            "      },\n" +
+            "      \"runtime\": {\n" +
+            "        \"mapped_runtime_field\": {\n" +
+            "          \"type\": \"double\"\n," +
+            "          \"script\": \"emit(doc['mapped_field'].value + 10.0)\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+        client().admin().indices().prepareCreate(sourceIndex)
+            .setMapping(mapping)
+            .get();
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 10; i++) {
+            Object[] source = new Object[] {"mapped_field", i};
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source).opType(DocWriteRequest.OpType.CREATE);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        Map<String, Object> configRuntimeField = new HashMap<>();
+        configRuntimeField.put("type", "double");
+        configRuntimeField.put("script", "emit(doc['mapped_field'].value + 20.0)");
+        Map<String, Object> configRuntimeFields = Collections.singletonMap("config_runtime_field", configRuntimeField);
+
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId(sourceIndex + "-job")
+            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null, configRuntimeFields))
+            .setDest(new DataFrameAnalyticsDest(sourceIndex + "-results", null))
+            .setAnalysis(new OutlierDetection.Builder().build())
+            .build();
+
+        ExplainDataFrameAnalyticsAction.Response explainResponse = explainDataFrame(config);
+        List<FieldSelection> fieldSelection = explainResponse.getFieldSelection();
+
+        assertThat(fieldSelection.size(), equalTo(3));
+        assertThat(fieldSelection.stream().map(FieldSelection::getName).collect(Collectors.toList()),
+            contains("config_runtime_field", "mapped_field", "mapped_runtime_field"));
+        assertThat(fieldSelection.stream().map(FieldSelection::isIncluded).allMatch(isIncluded -> isIncluded), is(true));
     }
 
     @Override

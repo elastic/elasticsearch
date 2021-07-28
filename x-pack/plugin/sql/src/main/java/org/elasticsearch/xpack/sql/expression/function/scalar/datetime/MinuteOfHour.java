@@ -31,8 +31,4 @@ public class MinuteOfHour extends TimeFunction {
         return new MinuteOfHour(source(), newChild, zoneId());
     }
 
-    @Override
-    public String dateTimeFormat() {
-        return "m";
-    }
 }

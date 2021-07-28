@@ -133,29 +133,35 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     }
 
     @Override
-    protected DataStreamsStatsAction.DataStreamShardStats shardOperation(DataStreamsStatsAction.Request request, ShardRouting shardRouting)
-        throws IOException {
-        IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
-        IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-        // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
-        if (indexShard.routingEntry() == null) {
-            throw new ShardNotFoundException(indexShard.shardId());
-        }
-        StoreStats storeStats = indexShard.storeStats();
-        IndexAbstraction indexAbstraction = clusterService.state().getMetadata().getIndicesLookup().get(shardRouting.getIndexName());
-        assert indexAbstraction != null;
-        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
-        assert dataStream != null;
-        long maxTimestamp = 0L;
-        try (Engine.Searcher searcher = indexShard.acquireSearcher("data_stream_stats")) {
-            IndexReader indexReader = searcher.getIndexReader();
-            String fieldName = dataStream.getDataStream().getTimeStampField().getName();
-            byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, fieldName);
-            if (maxPackedValue != null) {
-                maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
+    protected void shardOperation(
+        DataStreamsStatsAction.Request request,
+        ShardRouting shardRouting,
+        Task task,
+        ActionListener<DataStreamsStatsAction.DataStreamShardStats> listener
+    ) {
+        ActionListener.completeWith(listener, () -> {
+            IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
+            IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
+            // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
+            if (indexShard.routingEntry() == null) {
+                throw new ShardNotFoundException(indexShard.shardId());
             }
-        }
-        return new DataStreamsStatsAction.DataStreamShardStats(indexShard.routingEntry(), storeStats, maxTimestamp);
+            StoreStats storeStats = indexShard.storeStats();
+            IndexAbstraction indexAbstraction = clusterService.state().getMetadata().getIndicesLookup().get(shardRouting.getIndexName());
+            assert indexAbstraction != null;
+            IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+            assert dataStream != null;
+            long maxTimestamp = 0L;
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("data_stream_stats")) {
+                IndexReader indexReader = searcher.getIndexReader();
+                String fieldName = dataStream.getDataStream().getTimeStampField().getName();
+                byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, fieldName);
+                if (maxPackedValue != null) {
+                    maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
+                }
+            }
+            return new DataStreamsStatsAction.DataStreamShardStats(indexShard.routingEntry(), storeStats, maxTimestamp);
+        });
     }
 
     @Override

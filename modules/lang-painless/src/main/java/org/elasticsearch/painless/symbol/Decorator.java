@@ -87,4 +87,12 @@ public class Decorator {
 
         return false;
     }
+
+    public Map<Class<? extends Decoration>, Decoration> getAllDecorations(int identifier) {
+        return decorations.get(identifier);
+    }
+
+    public Set<Class<? extends Condition>> getAllConditions(int identifier) {
+        return conditions.get(identifier);
+    }
 }

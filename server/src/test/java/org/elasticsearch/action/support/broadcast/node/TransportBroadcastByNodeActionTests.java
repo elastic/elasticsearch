@@ -10,6 +10,7 @@ package org.elasticsearch.action.support.broadcast.node;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -42,7 +43,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -72,6 +78,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.object.HasToString.hasToString;
 
 public class TransportBroadcastByNodeActionTests extends ESTestCase {
@@ -135,15 +142,17 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         }
 
         @Override
-        protected EmptyResult shardOperation(Request request, ShardRouting shardRouting) {
-            if (rarely()) {
-                shards.put(shardRouting, Boolean.TRUE);
-                return EmptyResult.INSTANCE;
-            } else {
-                ElasticsearchException e = new ElasticsearchException("operation failed");
-                shards.put(shardRouting, e);
-                throw e;
-            }
+        protected void shardOperation(Request request, ShardRouting shardRouting, Task task, ActionListener<EmptyResult> listener) {
+            ActionListener.completeWith(listener, () -> {
+                if (rarely()) {
+                    shards.put(shardRouting, Boolean.TRUE);
+                    return EmptyResult.INSTANCE;
+                } else {
+                    ElasticsearchException e = new ElasticsearchException("operation failed");
+                    shards.put(shardRouting, e);
+                    throw e;
+                }
+            });
         }
 
         @Override
@@ -166,9 +175,9 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         }
     }
 
-    class MyResolver extends IndexNameExpressionResolver {
+    static class MyResolver extends IndexNameExpressionResolver {
         MyResolver() {
-            super(new ThreadContext(Settings.EMPTY));
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
         }
 
         @Override
@@ -308,6 +317,30 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             // check one request was sent to each node
             assertEquals(1, entry.getValue().size());
         }
+    }
+
+    public void testNoShardOperationsExecutedIfTaskCancelled() throws Exception {
+        ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
+        Set<ShardRouting> shards = new HashSet<>();
+        String nodeId = shardIt.iterator().next().currentNodeId();
+        for (ShardRouting shard : shardIt) {
+            if (nodeId.equals(shard.currentNodeId())) {
+                shards.add(shard);
+            }
+        }
+        final TransportBroadcastByNodeAction.BroadcastByNodeTransportRequestHandler handler =
+                action.new BroadcastByNodeTransportRequestHandler();
+
+        final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
+        TestTransportChannel channel = new TestTransportChannel(future);
+
+        handler.messageReceived(
+            action.new NodeRequest(nodeId, new Request(), new ArrayList<>(shards)),
+            channel,
+            cancelledTask());
+        expectThrows(TaskCancelledException.class, future::actionGet);
+
+        assertThat(action.getResults(), anEmptyMap());
     }
 
     // simulate the master being removed from the cluster but before a new master is elected
@@ -464,4 +497,25 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         assertEquals("failed shards", totalFailedShards, response.getFailedShards());
         assertEquals("accumulated exceptions", totalFailedShards, response.getShardFailures().length);
     }
+
+    public void testNoResultAggregationIfTaskCancelled() {
+        Request request = new Request(new String[]{TEST_INDEX});
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        action.new AsyncAction(cancelledTask(), request, listener).start();
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
+
+        for (Map.Entry<String, List<CapturingTransport.CapturedRequest>> entry : capturedRequests.entrySet()) {
+            transport.handleRemoteError(entry.getValue().get(0).requestId, new ElasticsearchException("simulated"));
+        }
+
+        assertTrue(listener.isDone());
+        expectThrows(ExecutionException.class, TaskCancelledException.class, listener::get);
+    }
+
+    private static Task cancelledTask() {
+        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        TaskCancelHelper.cancel(task, "simulated");
+        return task;
+    }
+
 }

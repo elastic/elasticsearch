@@ -11,13 +11,16 @@ package org.elasticsearch.rest.action;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -50,9 +53,19 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
         fieldRequest.includeUnmapped(request.paramAsBoolean("include_unmapped", false));
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser != null) {
-                fieldRequest.indexFilter(RestActions.getQueryContent("index_filter", parser));
+                PARSER.parse(parser, fieldRequest, null);
             }
         });
         return channel -> client.fieldCaps(fieldRequest, new RestToXContentListener<>(channel));
+    }
+
+    private static ParseField INDEX_FILTER_FIELD = new ParseField("index_filter");
+    private static ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
+
+    private static final ObjectParser<FieldCapabilitiesRequest, Void> PARSER = new ObjectParser<>("field_caps_request");
+
+    static {
+        PARSER.declareObject(FieldCapabilitiesRequest::indexFilter, (p, c) -> parseInnerQueryBuilder(p), INDEX_FILTER_FIELD);
+        PARSER.declareObject(FieldCapabilitiesRequest::runtimeFields, (p, c) -> p.map(), RUNTIME_MAPPINGS_FIELD);
     }
 }

@@ -22,15 +22,18 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex;
 
 /**
  * This service is responsible for verifying index metadata when an index is introduced
@@ -50,15 +53,15 @@ public class IndexMetadataVerifier {
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
-    private final ScriptService scriptService;
+    private final ScriptCompiler scriptService;
 
     public IndexMetadataVerifier(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-                                 IndexScopedSettings indexScopedSettings, ScriptService scriptService) {
+                                 IndexScopedSettings indexScopedSettings, ScriptCompiler scriptCompiler) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
-        this.scriptService = scriptService;
+        this.scriptService = scriptCompiler;
     }
 
     /**
@@ -71,9 +74,15 @@ public class IndexMetadataVerifier {
     public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
         checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion);
 
-        // we have to run this first otherwise in we try to create IndexSettings
-        // with broken settings and fail in checkMappingsCompatibility
-        IndexMetadata newMetadata = archiveBrokenIndexSettings(indexMetadata);
+        // First convert any shared_cache searchable snapshot indices to only use _tier_preference: data_frozen
+        IndexMetadata newMetadata = convertSharedCacheTierPreference(indexMetadata);
+        // Remove _tier routing settings if available, because though these are technically not
+        // invalid settings, since they are now removed the FilterAllocationDecider treats them as
+        // regular attribute filters, and shards cannot be allocated.
+        newMetadata = removeTierFiltering(newMetadata);
+        // Next we have to run this otherwise if we try to create IndexSettings
+        // with broken settings it would fail in checkMappingsCompatibility
+        newMetadata = archiveBrokenIndexSettings(newMetadata);
         checkMappingsCompatibility(newMetadata);
         return newMetadata;
     }
@@ -185,6 +194,50 @@ public class IndexMetadataVerifier {
             return IndexMetadata.builder(indexMetadata).settings(newSettings).build();
         } else {
             return indexMetadata;
+        }
+    }
+
+    /**
+     * Convert shared_cache searchable snapshot indices to only specify
+     * _tier_preference: data_frozen, removing any pre-existing tier allocation rules.
+     */
+    IndexMetadata convertSharedCacheTierPreference(IndexMetadata indexMetadata) {
+        final Settings settings = indexMetadata.getSettings();
+        // Only remove these settings for a shared_cache searchable snapshot
+        if (isPartialSearchableSnapshotIndex(settings)) {
+            final Settings.Builder settingsBuilder = Settings.builder().put(settings);
+            // Clear any allocation rules other than preference for tier
+            settingsBuilder.remove("index.routing.allocation.include._tier");
+            settingsBuilder.remove("index.routing.allocation.exclude._tier");
+            settingsBuilder.remove("index.routing.allocation.require._tier");
+            // Override the tier preference to be only on frozen nodes, regardless of its current setting
+            settingsBuilder.put("index.routing.allocation.include._tier_preference", "data_frozen");
+            final Settings newSettings = settingsBuilder.build();
+            if (settings.equals(newSettings)) {
+                return indexMetadata;
+            } else {
+                return IndexMetadata.builder(indexMetadata).settings(newSettings).build();
+            }
+        } else {
+            return indexMetadata;
+        }
+    }
+
+    /**
+     * Removes index level ._tier allocation filters, if they exist
+     */
+    IndexMetadata removeTierFiltering(IndexMetadata indexMetadata) {
+        final Settings settings = indexMetadata.getSettings();
+        final Settings.Builder settingsBuilder = Settings.builder().put(settings);
+        // Clear any allocation rules other than preference for tier
+        settingsBuilder.remove("index.routing.allocation.include._tier");
+        settingsBuilder.remove("index.routing.allocation.exclude._tier");
+        settingsBuilder.remove("index.routing.allocation.require._tier");
+        final Settings newSettings = settingsBuilder.build();
+        if (settings.equals(newSettings)) {
+            return indexMetadata;
+        } else {
+            return IndexMetadata.builder(indexMetadata).settings(newSettings).build();
         }
     }
 }

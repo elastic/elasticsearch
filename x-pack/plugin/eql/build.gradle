@@ -1,5 +1,5 @@
-import org.elasticsearch.gradle.info.BuildParams
-apply plugin: 'elasticsearch.esplugin'
+import org.elasticsearch.gradle.internal.info.BuildParams
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-eql'
@@ -21,12 +21,12 @@ dependencies {
     exclude group: "org.ow2.asm"
   }
   api "org.antlr:antlr4-runtime:${antlrVersion}"
-  compileOnly project(path: xpackModule('ql'))
+  compileOnly project(xpackModule('ql'))
 
   testImplementation project(':test:framework')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('ql'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation(testArtifact(project(xpackModule('ql'))))
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
@@ -71,7 +71,7 @@ tasks.register("cleanGenerated", Delete) {
 
 tasks.register("regenParser", JavaExec) {
   dependsOn "cleanGenerated"
-  main = 'org.antlr.v4.Tool'
+  mainClass = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
   systemProperty 'user.language', 'en'

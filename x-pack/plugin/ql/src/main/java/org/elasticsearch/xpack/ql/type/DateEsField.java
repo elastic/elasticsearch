@@ -17,10 +17,6 @@ public class DateEsField extends EsField {
         return new DateEsField(name, DataTypes.DATETIME, properties, hasDocValues);
     }
 
-    public static DateEsField dateNanosEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
-        return new DateEsField(name, DataTypes.DATETIME_NANOS, properties, hasDocValues);
-    }
-
     private DateEsField(String name, DataType dataType, Map<String, EsField> properties, boolean hasDocValues) {
         super(name, dataType, properties, hasDocValues);
     }

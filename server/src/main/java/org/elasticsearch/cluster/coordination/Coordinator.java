@@ -34,17 +34,17 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -453,7 +453,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
                     // we do this in a couple of places including the cluster update thread. This one here is really just best effort
                     // to ensure we fail as fast as possible.
-                    JoinTaskExecutor.ensureMajorVersionBarrier(joinRequest.getSourceNode().getVersion(),
+                    JoinTaskExecutor.ensureVersionBarrier(
+                        joinRequest.getSourceNode().getVersion(),
                         stateForJoinValidation.getNodes().getMinNodeVersion());
                 }
                 sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
@@ -1006,6 +1007,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // expose last accepted cluster state as base state upon which the master service
             // speculatively calculates the next cluster state update
             final ClusterState clusterState = coordinationState.get().getLastAcceptedState();
+            assert clusterState.nodes().getLocalNode() != null;
             if (mode != Mode.LEADER || clusterState.term() != getCurrentTerm()) {
                 // the master service checks if the local node is the master node in order to fail execution of the state update early
                 return clusterStateWithNoMasterBlock(clusterState);
@@ -1421,7 +1423,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.
                     publishListener.onFailure(exception);
                 }
-            }, EsExecutors.newDirectExecutorService(), transportService.getThreadPool().getThreadContext());
+            }, EsExecutors.DIRECT_EXECUTOR_SERVICE, transportService.getThreadPool().getThreadContext());
         }
 
         private void cancelTimeoutHandlers() {

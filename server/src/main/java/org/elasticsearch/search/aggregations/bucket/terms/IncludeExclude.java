@@ -26,7 +26,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -153,7 +153,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
         @Override
         public boolean accept(long value) {
-            return ((valids == null) || (valids.contains(value))) && ((invalids == null) || (!invalids.contains(value)));
+            return (valids == null || valids.contains(value)) && (invalids == null || invalids.contains(value) == false);
         }
 
         private void addAccept(long val) {

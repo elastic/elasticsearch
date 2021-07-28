@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate;
 
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.Expression;
 
-public interface Negatable<T extends ScalarFunction> {
+public interface Negatable<T extends Expression> {
 
     T negate();
 

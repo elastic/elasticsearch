@@ -52,6 +52,11 @@ public class SystemIndexManager implements ClusterStateListener {
     private final Client client;
     private final AtomicBoolean isUpgradeInProgress;
 
+    /**
+     * Creates a new manager
+     * @param systemIndices the indices to manage
+     * @param client used to update the cluster
+     */
     public SystemIndexManager(SystemIndices systemIndices, Client client) {
         this.systemIndices = systemIndices;
         this.client = client;
@@ -73,7 +78,7 @@ public class SystemIndexManager implements ClusterStateListener {
             return;
         }
 
-        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+        if (state.nodes().getMaxNodeVersion().after(state.nodes().getSmallestNonClientNodeVersion())) {
             logger.debug("Skipping system indices up-to-date check as cluster has mixed versions");
             return;
         }
@@ -138,6 +143,11 @@ public class SystemIndexManager implements ClusterStateListener {
         // The messages below will be logged on every cluster state update, which is why even in the index closed / red
         // cases, the log levels are DEBUG.
 
+        if (indexState == null) {
+            logger.debug("Index {} does not exist yet", indexDescription);
+            return UpgradeStatus.UP_TO_DATE;
+        }
+
         if (indexState.indexState == IndexMetadata.State.CLOSE) {
             logger.debug("Index {} is closed. This is likely to prevent some features from functioning correctly", indexDescription);
             return UpgradeStatus.CLOSED;
@@ -198,10 +208,16 @@ public class SystemIndexManager implements ClusterStateListener {
 
     /**
      * Derives a summary of the current state of a system index, relative to the given cluster state.
+     * @param state the cluster state from which to derive the index state
+     * @param descriptor the system index to check
+     * @return a summary of the index state, or <code>null</code> if the index doesn't exist
      */
     State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
         final IndexMetadata indexMetadata = state.metadata().index(descriptor.getPrimaryIndex());
-        assert indexMetadata != null;
+
+        if (indexMetadata == null) {
+            return null;
+        }
 
         final boolean isIndexUpToDate = INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == descriptor.getIndexFormat();
 
@@ -252,14 +268,25 @@ public class SystemIndexManager implements ClusterStateListener {
                 throw new IllegalStateException("Cannot read version string in index " + indexName);
             }
 
-            final String versionString = (String) meta.get(descriptor.getVersionMetaKey());
+            final Object rawVersion = meta.get(descriptor.getVersionMetaKey());
+            if (rawVersion instanceof Integer) {
+                // This can happen with old system indices, such as .tasks, which were created before we used an Elasticsearch
+                // version here. We should just replace the template to be sure.
+                return Version.V_EMPTY;
+            }
+            final String versionString = rawVersion != null ? rawVersion.toString() : null;
             if (versionString == null) {
                 logger.warn("No value found in mappings for [_meta.{}]", descriptor.getVersionMetaKey());
+                // If we called `Version.fromString(null)`, it would return `Version.CURRENT` and we wouldn't update the mappings
+                return Version.V_EMPTY;
             }
             return Version.fromString(versionString);
         } catch (ElasticsearchParseException e) {
             logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
             throw new ElasticsearchException("Cannot parse the mapping for index [{}]", e, indexName);
+        } catch (IllegalArgumentException e) {
+            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
+            throw e;
         }
     }
 

@@ -35,7 +35,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationActionTe
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -43,6 +43,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
@@ -71,8 +72,8 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -112,9 +113,9 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), true)
             .build();
     }
@@ -491,7 +492,7 @@ public class TasksIT extends ESIntegTestCase {
                 .setActions(TestTaskPlugin.TestTaskAction.NAME).get();
         assertEquals(1, cancelTasksResponse.getTasks().size());
 
-        future.get();
+        expectThrows(TaskCancelledException.class, future::actionGet);
 
         logger.info("--> checking that test tasks are not running");
         assertEquals(0,
@@ -818,8 +819,19 @@ public class TasksIT extends ESIntegTestCase {
         CyclicBarrier b = new CyclicBarrier(2);
         TaskResultsService resultsService = internalCluster().getInstance(TaskResultsService.class);
         resultsService.storeResult(new TaskResult(
-                new TaskInfo(new TaskId("fake", 1), "test", "test", "", null, 0, 0, false, TaskId.EMPTY_TASK_ID, Collections.emptyMap()),
-                new RuntimeException("test")),
+                    new TaskInfo(
+                            new TaskId("fake", 1),
+                            "test",
+                            "test",
+                            "",
+                            null,
+                            0,
+                            0,
+                            false,
+                            false,
+                            TaskId.EMPTY_TASK_ID,
+                            Collections.emptyMap()),
+                     new RuntimeException("test")),
             new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void response) {

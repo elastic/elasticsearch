@@ -13,7 +13,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.MediaType;
@@ -63,8 +62,13 @@ public class SecurityRestFilter implements RestHandler {
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        if (licenseState.isSecurityEnabled() && request.method() != Method.OPTIONS) {
+        if (request.method() == Method.OPTIONS) {
             // CORS - allow for preflight unauthenticated OPTIONS request
+            restHandler.handleRequest(request, channel, client);
+            return;
+        }
+
+        if (licenseState.isSecurityEnabled()) {
             if (extractClientCertificate) {
                 HttpChannel httpChannel = request.getHttpChannel();
                 SSLEngineUtils.extractClientCertificates(logger, threadContext, httpChannel);
@@ -105,7 +109,10 @@ public class SecurityRestFilter implements RestHandler {
                 @Override
                 public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
                     if (headers.containsKey("Warning")) {
-                        return Maps.copyMapWithRemovedEntry(headers, "Warning");
+                        headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
+                    }
+                    if (headers.containsKey("X-elastic-product")) {
+                        headers = Maps.copyMapWithRemovedEntry(headers, "X-elastic-product");
                     }
                     return headers;
                 }
@@ -138,16 +145,6 @@ public class SecurityRestFilter implements RestHandler {
         return restHandler.routes();
     }
 
-    @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return restHandler.deprecatedRoutes();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        return restHandler.replacedRoutes();
-    }
-
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {
         if (restHandler instanceof RestRequestFilter) {
             return ((RestRequestFilter)restHandler).getFilteredRequest(restRequest);
@@ -158,10 +155,5 @@ public class SecurityRestFilter implements RestHandler {
     @Override
     public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
         return restHandler.validAcceptMediaTypes();
-    }
-
-    @Override
-    public RestApiCompatibleVersion compatibleWithVersion() {
-        return restHandler.compatibleWithVersion();
     }
 }

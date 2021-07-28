@@ -16,7 +16,9 @@ coming[8.0.0]
 * <<breaking_80_analysis_changes>>
 * <<breaking_80_breaker_changes>>
 * <<breaking_80_cluster_changes>>
+* <<breaking_80_ccr_changes>>
 * <<breaking_80_discovery_changes>>
+* <<breaking_80_eql_changes>>
 * <<breaking_80_http_changes>>
 * <<breaking_80_ilm_changes>>
 * <<breaking_80_indices_changes>>
@@ -60,7 +62,7 @@ enable <<deprecation-logging, deprecation logging>>.
 [%collapsible]
 ====
 *Details* +
-Elasticsearch 8.0 can read indices created in version 7.0 or above.  An
+Elasticsearch 8.0 can read indices created in version 7.0 or above. An
 Elasticsearch 8.0 node will not start in the presence of indices created in a
 version of Elasticsearch before 7.0.
 
@@ -90,7 +92,9 @@ include::migrate_8_0/allocation.asciidoc[]
 include::migrate_8_0/analysis.asciidoc[]
 include::migrate_8_0/breaker.asciidoc[]
 include::migrate_8_0/cluster.asciidoc[]
+include::migrate_8_0/ccr.asciidoc[]
 include::migrate_8_0/discovery.asciidoc[]
+include::migrate_8_0/eql.asciidoc[]
 include::migrate_8_0/http.asciidoc[]
 include::migrate_8_0/ilm.asciidoc[]
 include::migrate_8_0/indices.asciidoc[]

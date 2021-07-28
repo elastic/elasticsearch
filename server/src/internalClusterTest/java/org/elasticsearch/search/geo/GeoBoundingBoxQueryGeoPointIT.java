@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
@@ -16,7 +17,7 @@ import java.io.IOException;
 public class GeoBoundingBoxQueryGeoPointIT extends AbstractGeoBoundingBoxQueryIT {
 
     @Override
-    public XContentBuilder getMapping() throws IOException {
+    public XContentBuilder getMapping(Version version) throws IOException {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
             .startObject("properties").startObject("location").field("type", "geo_point");
         xContentBuilder.endObject().endObject().endObject().endObject();

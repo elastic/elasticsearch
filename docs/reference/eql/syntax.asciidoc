@@ -18,21 +18,20 @@ keyword connects them.
 event_category where condition
 ----
 
-For example, the following EQL query matches `process` events with a
-`process.name` field value of `svchost.exe`:
+An event category is an indexed value of the <<eql-required-fields,event
+category field>>. By default, the <<eql-search-api,EQL search API>> uses the
+`event.category` field from the {ecs-ref}[Elastic Common Schema (ECS)]. You can
+specify another event category field using the API's
+<<specify-a-timestamp-or-event-category-field,`event_category_field`>>
+parameter.
+
+For example, the following EQL query matches events with an event category of
+`process` and a `process.name` of `svchost.exe`:
 
 [source,eql]
 ----
 process where process.name == "svchost.exe"
 ----
-
-[discrete]
-[[eql-syntax-event-categories]]
-=== Event categories
-
-An event category is a valid, indexed value of the
-<<eql-required-fields,event category field>>. You can set the event category
-field using the `event_category_field` parameter of the EQL search API.
 
 [discrete]
 [[eql-syntax-match-any-event-category]]
@@ -77,7 +76,7 @@ escape event categories that:
 [[eql-syntax-escape-a-field-name]]
 === Escape a field name
 
-Use enclosing enclosing backticks (+++`+++) to escape field names that:
+Use enclosing backticks (+++`+++) to escape field names that:
 
 * Contain a hyphen (`-`)
 * Contain a space
@@ -125,32 +124,17 @@ the value to the right. Otherwise returns `false`.
 
 `==` (equal, case-sensitive)::
 Returns `true` if the values to the left and right of the operator are equal.
-Otherwise returns `false`. For strings, matching is case-sensitive. Wildcards
-are not supported.
+Otherwise returns `false`. Wildcards are not supported.
 
 `:` (equal, case-insensitive)::
 Returns `true` if strings to the left and right of the operator are equal.
-Otherwise returns `false`. Matching is case-insensitive and can only be used to
-compare strings. Supports <<eql-syntax-wildcards,wildcards>> and
-<<eql-syntax-lookup-operators,list lookups>>.
-
-[IMPORTANT]
-====
-Avoid using the `==` or `:` operators to perform exact matching on
-<<text,`text`>> field values.
-
-By default, {es} changes the values of `text` fields as part of <<analysis,
-analysis>>. This can make finding exact matches for `text` field values
-difficult.
-
-To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
-DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
-====
+Otherwise returns `false`. Can only be used to compare strings. Supports
+<<eql-syntax-wildcards,wildcards>> and <<eql-syntax-lookup-operators,list
+lookups>>.
 
 `!=` (not equal, case-sensitive)::
 Returns `true` if the values to the left and right of the operator are not
-equal. Otherwise returns `false`. For strings, matching is case-sensitive.
-Wildcards are not supported.
+equal. Otherwise returns `false`. Wildcards are not supported.
 
 `>=` (greater than or equal) ::
 Returns `true` if the value to the left of the operator is greater than or equal
@@ -164,13 +148,42 @@ the operator uses a case-sensitive lexicographic order.
 
 NOTE: `=` is not supported as an equal operator. Use `==` or `:` instead.
 
-You cannot chain comparison operators. Instead, use a
+[discrete]
+[[eql-syntax-pattern-comparison-keywords]]
+=== Pattern comparison keywords
+
+[source,eql]
+----
+my_field like  "VALUE*"         // case-sensitive wildcard matching
+my_field like~ "value*"         // case-insensitive wildcard matching
+
+my_field regex  "VALUE[^Z].?"   // case-sensitive regex matching
+my_field regex~ "value[^z].?"   // case-insensitive regex matching
+----
+
+`like` (case-sensitive)::
+Returns `true` if the string to the left of the keyword matches a
+<<eql-syntax-wildcards,wildcard pattern>> to the right. Supports
+<<eql-syntax-lookup-operators,list lookups>>. Can only be used to compare
+strings. For case-insensitive matching, use `like~`.
+
+`regex` (case-sensitive)::
+Returns `true` if the string to the left of the keyword matches a regular
+expression to the right. For supported regular expression syntax, see
+<<regexp-syntax>>. Supports <<eql-syntax-lookup-operators,list lookups>>. Can
+only be used to compare strings. For case-insensitive matching, use `regex~`.
+
+[discrete]
+[[limitations-for-comparisons]]
+=== Limitations for comparisons
+
+You cannot chain comparisons. Instead, use a
 <<eql-syntax-logical-operators,logical operator>> between comparisons. For
 example, `foo < bar <= baz` is not supported. However, you can rewrite the
 expression as `foo < bar and bar <= baz`, which is supported.
 
-You also cannot use comparison operators to compare a field to another field.
-This applies even if the fields are changed using a <<eql-functions,function>>.
+You also cannot compare a field to another field, even if the fields are changed
+using a <<eql-functions,function>>.
 
 *Example* +
 The following EQL query compares the `process.parent_name` field
@@ -219,32 +232,43 @@ Returns `true` if the condition to the right is `false`.
 
 [source,eql]
 ----
-user.name in ("Administrator", "SYSTEM", "NETWORK SERVICE")
-user.name in~ ("administrator", "system", "network service")
-user.name not in ("Administrator", "SYSTEM", "NETWORK SERVICE")
-user.name not in~ ("administrator", "system", "network service")
-user.name : ("administrator", "system", "network service")
+my_field in ("Value-1", "VALUE2", "VAL3")                 // case-sensitive
+my_field in~ ("value-1", "value2", "val3")                // case-insensitive
+
+my_field not in ("Value-1", "VALUE2", "VAL3")             // case-sensitive
+my_field not in~ ("value-1", "value2", "val3")            // case-insensitive
+
+my_field : ("value-1", "value2", "val3")                  // case-insensitive
+
+my_field like  ("Value-*", "VALUE2", "VAL?")              // case-sensitive
+my_field like~ ("value-*", "value2", "val?")              // case-insensitive
+
+my_field regex  ("[vV]alue-[0-9]", "VALUE[^2].?", "VAL3") // case-sensitive
+my_field regex~  ("value-[0-9]", "value[^2].?", "val3")   // case-sensitive
 ----
 
 `in` (case-sensitive)::
-Returns `true` if the value is contained in the provided list. For strings,
-matching is case-sensitive.
-
-`in~` (case-insensitive)::
-Returns `true` if the value is contained in the provided list. For strings,
-matching is case-insensitive.
+Returns `true` if the value is contained in the provided list. For
+case-insensitive matching, use `in~`.
 
 `not in` (case-sensitive)::
-Returns `true` if the value is not contained in the provided list. For strings,
-matching is case-sensitive.
-
-`not in~` (case-insensitive)::
-Returns `true` if the value is not contained in the provided list. For strings,
-matching is case-insensitive.
+Returns `true` if the value is not contained in the provided list. For
+case-insensitive matching, use `not in~`.
 
 `:` (case-insensitive)::
-Returns `true` if the value is contained in the provided list. Can only be used
+Returns `true` if the string is contained in the provided list. Can only be used
 to compare strings.
+
+`like` (case-sensitive)::
+Returns `true` if the string matches a <<eql-syntax-wildcards,wildcard pattern>>
+in the provided list. Can only be used to compare strings. For case-insensitive
+matching, use `like~`.
+
+`regex` (case-sensitive)::
+Returns `true` if the string matches a regular expression pattern in the
+provided list. For supported regular expression syntax, see <<regexp-syntax>>.
+Can only be used to compare strings. For case-insensitive matching, use
+`regex~`.
 
 [discrete]
 [[eql-syntax-math-operators]]
@@ -328,6 +352,29 @@ any where true
 ----
 
 [discrete]
+[[eql-syntax-check-field-exists]]
+=== Check if a field exists
+
+To match events containing any value for a field, compare the field to `null`
+using the `!=` operator:
+
+[source,eql]
+----
+my_field != null
+----
+
+To match events that do not contain a field value, compare the field to `null`
+using the `==` operator:
+
+[source,eql]
+----
+my_field == null
+----
+
+IMPORTANT: To avoid errors, the field must contain a non-`null` value in at
+least one document or be <<explicit-mapping,explicitly mapped>>.
+
+[discrete]
 [[eql-syntax-strings]]
 === Strings
 
@@ -355,12 +402,20 @@ double quote (`"`), must be escaped with a preceding backslash (`\`).
 [options="header"]
 |====
 | Escape sequence | Literal character
-|`\n`             | A newline (linefeed) character
-|`\r`             | A carriage return character
-|`\t`             | A tab character
-|`\\`             | A backslash (`\`) character
-|`\"`             | A double quote (`"`) character
+|`\n`             | Newline (linefeed)
+|`\r`             | Carriage return
+|`\t`             | Tab
+|`\\`             | Backslash (`\`)
+|`\"`             | Double quote (`"`)
 |====
+
+You can escape Unicode characters using a hexadecimal `\u{XXXXXXXX}` escape
+sequence. The hexadecimal value can be 2-8 characters and is case-insensitive.
+Values shorter than 8 characters are zero-padded. You can use these escape
+sequences to include non-printable or right-to-left (RTL) characters in your
+strings. For example, you can escape a
+{wikipedia}/Right-to-left_mark[right-to-left mark (RLM)] as `\u{200f}`,
+`\u{200F}`, or `\u{0000200f}`.
 
 IMPORTANT: The single quote (`'`) character is reserved for future use. You
 cannot use an escaped single quote (`\'`) for literal strings. Use an escaped
@@ -390,32 +445,39 @@ use a regular string with the `\"` escape sequence.
 [[eql-syntax-wildcards]]
 === Wildcards
 
-For string comparisons using the `:` operator, you can use the `*` and `?`
-wildcards to match specific patterns. The `*` wildcard matches zero or more
-characters:
+For string comparisons using the `:` operator or `like` keyword, you can use the
+`*` and `?` wildcards to match specific patterns. The `*` wildcard matches zero
+or more characters:
 
 [source,eql]
 ----
-my_field : "doc*"  // Matches "doc", "docs", or "document" but not "dos"
-my_field : "*doc"  // Matches "adoc" or "asciidoc"
-my_field : "d*c"   // Matches "doc" or "disc"
+my_field : "doc*"     // Matches "doc", "docs", or "document" but not "DOS"
+my_field : "*doc"     // Matches "adoc" or "asciidoc"
+my_field : "d*c"      // Matches "doc" or "disc"
+
+my_field like "DOC*"  // Matches "DOC", "DOCS", "DOCs", or "DOCUMENT" but not "DOS"
+my_field like "D*C"   // Matches "DOC", "DISC", or "DisC"
 ----
 
 The `?` wildcard matches exactly one character:
 
 [source,eql]
 ----
-my_field : "doc?"  // Matches "docs" but not "doc", "document", or "dos"
-my_field : "?doc"  // Matches "adoc" but not "asciidoc"
-my_field : "d?c"   // Matches "doc" but not "disc"
+my_field : "doc?"     // Matches "docs" but not "doc", "document", or "DOS"
+my_field : "?doc"     // Matches "adoc" but not "asciidoc"
+my_field : "d?c"      // Matches "doc" but not "disc"
+
+my_field like "DOC?"  // Matches "DOCS" or "DOCs" but not "DOC", "DOCUMENT", or "DOS"
+my_field like "D?c"   // Matches "DOC" but not "DISC"
 ----
 
-The `:` operator also supports wildcards in <<eql-syntax-lookup-operators,list
-lookups>>:
+The `:` operator and `like` keyword also support wildcards in
+<<eql-syntax-lookup-operators,list lookups>>:
 
 [source,eql]
 ----
 my_field : ("doc*", "f*o", "ba?", "qux")
+my_field like ("Doc*", "F*O", "BA?", "QUX")
 ----
 
 [discrete]
@@ -505,13 +567,13 @@ to:
 
 * Events with the same `user.name` value
 * `file` events with a `file.path` value equal to the following `process`
-   event's `process.path` value.
+   event's `process.executable` value.
 
 [source,eql]
 ----
 sequence
   [ file where file.extension == "exe" ] by user.name, file.path
-  [ process where true ] by user.name, process.path
+  [ process where true ] by user.name, process.executable
 ----
 
 Because the `user.name` field is shared across all events in the sequence, it
@@ -522,7 +584,7 @@ prior one.
 ----
 sequence by user.name
   [ file where file.extension == "exe" ] by file.path
-  [ process where true ] by process.path
+  [ process where true ] by process.executable
 ----
 
 You can combine the `sequence by` and `with maxspan` keywords to constrain a
@@ -547,7 +609,7 @@ keywords to match only a sequence of events that:
 ----
 sequence by user.name with maxspan=15m
   [ file where file.extension == "exe" ] by file.path
-  [ process where true ] by process.path
+  [ process where true ] by process.executable
 ----
 
 [discrete]
@@ -730,7 +792,16 @@ For a list of supported pipes, see <<eql-pipe-ref>>.
 [[eql-syntax-limitations]]
 === Limitations
 
-EQL does not support the following features and syntax.
+EQL has the following limitations.
+
+[discrete]
+[[eql-uses-fields-parameter]]
+==== EQL uses the `fields` parameter
+
+EQL retrieves field values using the search API's <<search-fields-param,`fields`
+parameter>>. Any limitations on the `fields` parameter also apply to EQL
+queries. For example, if `_source` is disabled for any returned fields or at
+index level, the values cannot be retrieved.
 
 [discrete]
 [[eql-compare-fields]]
@@ -739,6 +810,14 @@ EQL does not support the following features and syntax.
 You cannot use EQL comparison operators to compare a field to
 another field. This applies even if the fields are changed using a
 <<eql-functions,function>>.
+
+[discrete]
+[[eql-text-fields]]
+==== Text fields are not supported
+
+EQL searches do not support <<text,`text`>> fields. To a search a `text` field,
+use the EQL search API's <<eql-search-filter-query-dsl,Query DSL `filter`>>
+parameter.
 
 [discrete]
 [[eql-array-fields]]
@@ -763,15 +842,24 @@ sub-fields of a `nested` field. However, data streams and indices containing
 {es} EQL differs from the {eql-ref}/index.html[Elastic Endgame EQL syntax] as
 follows:
 
-* Most operators and functions in {es} EQL are case-sensitive by default. For
-case-insensitive equality comparisons, use the `:` operator. To make a function
-case-insensitive, use the `~` operator after the function name. See
-<<eql-case-insensitive-functions>>.
+* In {es} EQL, most operators are case-sensitive. For example,
+`process_name == "cmd.exe"` is not equivalent to
+`process_name == "Cmd.exe"`.
 
-* Comparisons using the `==` and `!=` operators do not expand wildcard
-characters. For example, `process_name == "cmd*.exe"` interprets `*` as a
-literal asterisk, not a wildcard. For case-sensitive wildcard matching, use the
-<<eql-fn-wildcard,`wildcard`>> function.
+* In {es} EQL, functions are case-sensitive. To make a function
+case-insensitive, use `~`, such as `endsWith~(process_name, ".exe")`.
+
+* For case-insensitive equality comparisons, use the `:` operator. Both `*` and
+`?` are recognized wildcard characters.
+
+* The `==` and `!=` operators do not expand wildcard characters. For example,
+`process_name == "cmd*.exe"` interprets `*` as a literal asterisk, not a
+wildcard.
+
+* For wildcard matching, use the `like` keyword when case-sensitive and
+`like~` when case-insensitive. The `:` operator is equivalent to `like~`.
+
+* For regular expression matching, use `regex` or `regex~`.
 
 * `=` cannot be substituted for the `==` operator.
 
@@ -820,7 +908,7 @@ recent sequence overwrites the older one.
 * If the query includes <<eql-by-keyword,`by` fields>>, the query uses a
 separate state machine for each unique `by` field value.
 
-.*Example* 
+.*Example*
 [%collapsible]
 ====
 A data set contains the following `process` events in ascending chronological
@@ -1030,5 +1118,4 @@ Pending sequence matches move through each machine's states as follows:
 // |  +-----------+     +-----------+     +------------+  |
 // +------------------------------------------------------+
 ----
-
 ====

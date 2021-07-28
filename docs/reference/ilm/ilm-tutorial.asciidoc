@@ -51,12 +51,12 @@ and the actions to perform in each phase. A lifecycle can have up to five phases
 For example, you might define a `timeseries_policy` that has two phases:
 
 * A `hot` phase that defines a rollover action to specify that an index rolls over when it
-reaches either a `max_size` of 50 gigabytes or a `max_age` of 30 days.
+reaches either a `max_primary_shard_size` of 50 gigabytes or a `max_age` of 30 days.
 * A `delete` phase that sets `min_age` to remove the index 90 days after rollover.
 Note that this value is relative to the rollover time, not the index creation time.
 
 You can create the policy through {kib} or with the
-<<ilm-put-lifecycle, put policy>> API.
+<<ilm-put-lifecycle,create or update policy>> API.
 To create the policy from {kib}, open the menu and go to *Stack Management >
 Index Lifecycle Policies*. Click *Create policy*.
 
@@ -72,18 +72,18 @@ PUT _ilm/policy/timeseries_policy
 {
   "policy": {
     "phases": {
-      "hot": {                      <1>
+      "hot": {                                <1>
         "actions": {
           "rollover": {
-            "max_size": "50GB",     <2>
+            "max_primary_shard_size": "50GB", <2>
             "max_age": "30d"
           }
         }
       },
       "delete": {
-        "min_age": "90d",           <3>
+        "min_age": "90d",                     <3>
         "actions": {
-          "delete": {}              <4>
+          "delete": {}                        <4>
         }
       }
     }
@@ -116,8 +116,8 @@ Templates* tab, click *Create template*.
 
 image::images/data-streams/create-index-template.png[Create template page]
 
-This wizard invokes the <<indices-put-template,put index template API>> to create
-the index template with the options you specify.
+This wizard invokes the <<indices-put-template,create or update index template
+API>> to create the index template with the options you specify.
 
 .API example
 [%collapsible]
@@ -232,7 +232,7 @@ is met.
           "min_age": "0ms",
           "actions": {
             "rollover": {
-              "max_size": "50gb",
+              "max_primary_shard_size": "50gb",
               "max_age": "30d"
             }
           }
@@ -314,7 +314,7 @@ when the rollover action is triggered for an index.
 
 You can use the {kib} Create template wizard to add the template. To access the
 wizard, open the menu and go to *Stack Management > Index Management*. In the
-the *Index Templates* tab, click *Create template*.
+*Index Templates* tab, click *Create template*.
 
 [role="screenshot"]
 image:images/ilm/create-template-wizard.png[Create template page]

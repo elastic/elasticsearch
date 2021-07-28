@@ -32,8 +32,4 @@ public class MinuteOfDay extends TimeFunction {
         return new MinuteOfDay(source(), newChild, zoneId());
     }
 
-    @Override
-    public String dateTimeFormat() {
-        return null;
-    }
 }

@@ -8,19 +8,16 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assume.assumeFalse;
-import static org.junit.Assume.assumeTrue;
 
 public class CronEvalCliTests extends PackagingTestCase {
 
     @Before
     public void filterDistros() {
-        assumeTrue("only default distro", distribution.flavor == Distribution.Flavor.DEFAULT);
         assumeFalse("no docker", distribution.isDocker());
     }
 

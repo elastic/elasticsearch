@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'Adds aggregations whose input are a list of numeric fields and output includes a matrix.'
@@ -14,6 +15,15 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'cluster', 'index', 'search', 'nodes'
+    include '_common', 'indices', 'cluster', 'index', 'search', 'nodes'
   }
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // search should be owned by server, this should be renamed to aggsmatrix
+  ignoreClasses 'org.elasticsearch.search.aggregations.support.ArrayValuesSource',
+    'org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregationBuilder',
+    'org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregatorFactory',
+    'org.elasticsearch.search.aggregations.support.ArrayValuesSourceParser',
+    'org.elasticsearch.search.aggregations.MatrixStatsAggregationBuilders'
 }

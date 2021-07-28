@@ -43,6 +43,10 @@ public class TimeProcessor extends DateTimeProcessor {
     private Object doProcess(OffsetTime time) {
         return extractor().extract(time);
     }
+    
+    public static Integer doProcess(OffsetTime dateTime, String tzId, String extractorName) {
+        return DateTimeProcessor.doProcess(asTimeAtZone(dateTime, ZoneId.of(tzId)), extractorName);
+    }
 
     @Override
     public int hashCode() {

@@ -9,13 +9,14 @@
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.AntFixture
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.AntFixture
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -31,15 +32,6 @@ testClusters.all {
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
-tasks.named("test").configure {
-  /*
-   * We have to disable setting the number of available processors as tests in the
-   * same JVM randomize processors and will step on each other if we allow them to
-   * set the number of available processors as it's set-once in Netty.
-   */
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
 dependencies {
   api project(":client:rest")
   api project(":libs:elasticsearch-ssl-config")
@@ -51,7 +43,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'get', 'search', 'mget', 'count',
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'get', 'search', 'mget', 'count',
                 'update_by_query', 'delete_by_query', 'reindex_rethrottle', 'tasks', 'reindex', 'put_script'
   }
 }
@@ -136,7 +128,12 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       dependsOn unzip
       executable = "${BuildParams.runtimeJavaHome}/bin/java"
       env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
+      // old versions of Elasticsearch need JAVA_HOME
       env 'JAVA_HOME', jdks.legacy.javaHomePath
+      // If we are running on certain arm systems we need to explicitly set the stack size to overcome JDK page size bug
+      if (Architecture.current() == Architecture.AARCH64) {
+        env 'ES_JAVA_OPTS', '-Xss512k'
+      }
       args 'oldes.OldElasticsearch',
         baseDir,
         unzip.get().temporaryDir,
@@ -157,4 +154,44 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
         nonInputProperties.systemProperty "es${version}.port", "${-> fixture.get().addressAndPort}"
     }
   }
+}
+tasks.named("transformV7RestTests").configure({ task ->
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+})
+
+def v7compatibilityNotSupportedTests = {
+  return [
+    'reindex/20_validation/reindex without source gives useful error message', // exception with a type. Not much benefit adding _doc there.
+    'update_by_query/20_validation/update_by_query without source gives useful error message' // exception with a type. Not much benefit adding _doc there.
+  ]
+}
+
+tasks.named("yamlRestCompatTest").configure {
+      systemProperty 'tests.rest.blacklist', v7compatibilityNotSupportedTests().join(',')
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // index is owned by server, move these to reindex specific
+  ignoreClasses 'org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollAction',
+    'org.elasticsearch.index.reindex.AbstractBaseReindexRestHandler',
+    'org.elasticsearch.index.reindex.AbstractBulkByQueryRestHandler',
+    'org.elasticsearch.index.reindex.AsyncDeleteByQueryAction',
+    'org.elasticsearch.index.reindex.BulkByScrollParallelizationHelper',
+    'org.elasticsearch.index.reindex.BulkIndexByScrollResponseContentListener',
+    'org.elasticsearch.index.reindex.ReindexPlugin',
+    'org.elasticsearch.index.reindex.ReindexSslConfig',
+    'org.elasticsearch.index.reindex.ReindexValidator',
+    'org.elasticsearch.index.reindex.Reindexer',
+    'org.elasticsearch.index.reindex.RestDeleteByQueryAction',
+    'org.elasticsearch.index.reindex.RestReindexAction',
+    'org.elasticsearch.index.reindex.RestRethrottleAction',
+    'org.elasticsearch.index.reindex.RestUpdateByQueryAction',
+    'org.elasticsearch.index.reindex.RethrottleAction',
+    'org.elasticsearch.index.reindex.RethrottleRequest',
+    'org.elasticsearch.index.reindex.RethrottleRequestBuilder',
+    'org.elasticsearch.index.reindex.TransportDeleteByQueryAction',
+    'org.elasticsearch.index.reindex.TransportReindexAction',
+    'org.elasticsearch.index.reindex.TransportRethrottleAction',
+    'org.elasticsearch.index.reindex.TransportUpdateByQueryAction',
+    'org.elasticsearch.index.reindex.package-info'
 }

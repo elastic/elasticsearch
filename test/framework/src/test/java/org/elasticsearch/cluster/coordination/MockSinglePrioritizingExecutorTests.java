@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
 import org.elasticsearch.test.ESTestCase;
@@ -17,7 +18,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class MockSinglePrioritizingExecutorTests extends ESTestCase {
 
     public void testPrioritizedEsThreadPoolExecutor() {
-        final DeterministicTaskQueue taskQueue = DeterministicTaskQueueTests.newTaskQueue();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+
         final PrioritizedEsThreadPoolExecutor executor = new MockSinglePrioritizingExecutor("test", taskQueue, taskQueue.getThreadPool());
         final AtomicBoolean called1 = new AtomicBoolean();
         final AtomicBoolean called2 = new AtomicBoolean();

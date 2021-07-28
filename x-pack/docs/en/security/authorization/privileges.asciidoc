@@ -12,6 +12,10 @@ This section lists the privileges that you can assign to a role.
 All cluster administration operations, like snapshotting, node shutdown/restart,
 settings update, rerouting, or managing users and roles.
 
+`cancel_task`::
+Privileges to cancel tasks and delete async searches.
+See <<delete-async-search,delete async search>> API for more informations.
+
 `create_snapshot`::
 Privileges to create snapshots for existing repositories. Can also list and view
 details on existing repositories and snapshots.
@@ -91,21 +95,9 @@ authenticated user. The operations include
 `manage_pipeline`::
 All operations on ingest pipelines.
 
-ifdef::permanently-unreleased-branch[]
-
-`manage_rollup`::
-All <<legacy-rollup-apis,legacy rollup>> operations, such as creating, starting,
-stopping, and deleting rollup jobs. This privilege is not required to use the
-{ilm-init} <<ilm-rollup,`rollup`>> action or <<rollup-api,rollup API>>.
-
-endif::[]
-ifndef::permanently-unreleased-branch[]
-
 `manage_rollup`::
 All rollup operations, including creating, starting, stopping and deleting
 rollup jobs.
-
-endif::[]
 
 `manage_saml`::
 Enables the use of internal {es} APIs to initiate and manage SAML authentication
@@ -114,6 +106,12 @@ on behalf of other users.
 `manage_security`::
 All security-related operations such as CRUD operations on users and roles and
 cache clearing.
+
+`manage_service_account`::
+All security-related operations on {es} service accounts including
+<<security-api-get-service-accounts>>,
+<<security-api-create-service-token>>, <<security-api-delete-service-token>>,
+and <<security-api-get-service-credentials>>.
 
 `manage_slm`::
 All {slm} ({slm-init}) actions, including creating and updating policies and
@@ -145,20 +143,9 @@ node info, node and cluster stats, and pending cluster tasks.
 All read-only {ml} operations, such as getting information about {dfeeds}, jobs,
 model snapshots, or results.
 
-ifdef::permanently-unreleased-branch[]
-
-`monitor_rollup`::
-All read-only operations for legacy rollups, such as viewing the list of
-historical and currently running rollup jobs and their capabilities.
-
-endif::[]
-ifndef::permanently-unreleased-branch[]
-
 `monitor_rollup`::
 All read-only rollup operations, such as viewing the list of historical and
 currently running rollup jobs and their capabilities.
-
-endif::[]
 
 `monitor_snapshot`::
 Privileges to list and view details on existing repositories and snapshots.
@@ -190,7 +177,7 @@ All read-only {slm-init} actions, such as getting policies and checking the
 {slm-init} status.
 
 `transport_client`::
-All privileges necessary for a transport client to connect.  Required by the remote
+All privileges necessary for a transport client to connect. Required by the remote
 cluster to enable <<cross-cluster-configuring,{ccs}>>.
 
 [[privileges-list-indices]]
@@ -209,7 +196,7 @@ non-existent index or data stream rather than an explicit
 auto-update of mappings on indices and data streams if they do not contradict
 existing mappings. An auto-update mapping action is the result of an index or
 bulk request on an index or data stream that contains new fields that may
-be mapped rather than an explicit <<indices-put-mapping,put mapping>> request.
+be mapped rather than an explicit <<indices-put-mapping,update mapping>> request.
 
 `create`::
 Privilege to index documents. Also grants access to the update mapping

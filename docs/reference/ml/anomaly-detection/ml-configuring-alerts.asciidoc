@@ -1,0 +1,103 @@
+[role="xpack"]
+[[ml-configuring-alerts]]
+= Generating alerts for {anomaly-jobs}
+
+beta::[]
+
+{kib} {alert-features} include support for {ml} rules, which run scheduled 
+checks on an {anomaly-job} or a group of jobs to detect anomalies with certain 
+conditions. If an anomaly meets the conditions, an alert is created and the 
+associated action is triggered. For example, you can create a rule to check an 
+{anomaly-job} every fifteen minutes for critical anomalies and to notify you in 
+an email. To learn more about {kib} {alert-features}, refer to 
+{kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting].
+
+
+[[creating-anomaly-alert-rules]]
+== Creating a rule
+
+You can create {ml} rules in the {anomaly-job} wizard after you start the job, 
+from the job list, or under **{stack-manage-app} > {alerts-ui}**. On the *Create 
+rule* window, select *{anomaly-detect-cap} alert* under the {ml} section, then 
+give a name to the rule and optionally provide tags.
+
+Specify the time interval for the rule to check detected anomalies. It is 
+recommended to select an interval that is close to the bucket span of the 
+associated job. You can also select a notification option by using the _Notify_ 
+selector. An alert remains active as long as anomalies are found for a 
+particular {anomaly-job} during the check interval. When there is no anomaly 
+found in the next interval, the `Recovered` action group is invoked and the 
+status of the alert changes to `OK`. For more details, refer to the 
+documentation of 
+{kibana-ref}/create-and-manage-rules.html#defining-rules-general-details[general rule details].
+  
+[role="screenshot"]
+image::images/ml-anomaly-alert-type.jpg["Creating a rule for an anomaly detection alert"]
+  
+Select the {anomaly-job} or the group of {anomaly-jobs} that is checked against 
+the rule. If you assign additional jobs to the group, the new jobs are 
+automatically checked the next time the conditions are checked.
+
+You can select the result type of the {anomaly-job} that is checked against the 
+rule. In particular, you can create rules based on bucket, record, or influencer 
+results.
+
+[role="screenshot"]
+image::images/ml-anomaly-alert-severity.jpg["Selecting result type, severity, and test interval"]
+
+For each rule, you can configure the `anomaly_score` that triggers the action. 
+The `anomaly_score` indicates the significance of a given anomaly compared to 
+previous anomalies. The default severity threshold is 75 which means every 
+anomaly with an `anomaly_score` of 75 or higher triggers the associated action.
+
+You can select whether you want to include interim results. Interim results are 
+created by the {anomaly-job} before a bucket is finalized. These results might 
+disappear after the bucket is fully processed. Include interim results if you 
+want to be notified earlier about a potential anomaly even if it might be a 
+false positive. If you want to get notified only about anomalies of fully 
+processed buckets, do not include interim results.
+
+You can also configure advanced settings. _Lookback interval_ sets an interval 
+that is used to query previous anomalies during each condition check. Its value 
+is derived from the bucket span of the job and the query delay of the {dfeed} by 
+default. It is not recommended to set the lookback interval lower than the 
+default value as it might result in missed anomalies. _Number of latest buckets_ 
+sets how many buckets to check to obtain the highest anomaly from all the 
+anomalies that are found during the _Lookback interval_. An alert is created 
+based on the anomaly with the highest anomaly score from the most anomalous 
+bucket.
+
+You can also test the configured conditions against your existing data and check 
+the sample results by providing a valid interval for your data. The generated 
+preview contains the number of potentially created alerts during the relative 
+time range you defined.
+
+
+[[defining-actions]]
+== Defining actions
+
+As a next step, connect your rule to actions that use supported built-in 
+integrations by selecting a connector type. Connectors are {kib} services or 
+third-party integrations that perform an action when the rule conditions are 
+met.
+
+[role="screenshot"]
+image::images/ml-anomaly-alert-actions.jpg["Selecting connector type"]
+
+For example, you can choose _Slack_ as a connector type and configure it to send 
+a message to a channel you selected. You can also create an index connector that 
+writes the JSON object you configure to a specific index. It's also possible to 
+customize the notification messages. A list of variables is available to include 
+in the message, like job ID, anomaly score, time, or top influencers.
+
+[role="screenshot"]
+image::images/ml-anomaly-alert-messages.jpg["Customizing your message"]
+
+After you save the configurations, the rule appears in the *{alerts-ui}* list 
+where you can check its status and see the overview of its configuration 
+information.
+
+The name of an alert is always the same as the job ID of the associated 
+{anomaly-job} that triggered it. You can mute the notifications for a particular 
+{anomaly-job} on the page of the rule that lists the individual alerts. You can 
+open it via *{alerts-ui}* by selecting the rule name.

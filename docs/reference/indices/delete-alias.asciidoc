@@ -1,51 +1,43 @@
 [[indices-delete-alias]]
-=== Delete index alias API
+=== Delete alias API
 ++++
-<titleabbrev>Delete index alias</titleabbrev>
+<titleabbrev>Delete alias</titleabbrev>
 ++++
 
-Deletes an existing index alias.
-
-include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
+Removes a data stream or index from an <<alias,alias>>.
 
 [source,console]
 ----
-DELETE /my-index-000001/_alias/alias1
+DELETE my-data-stream/_alias/my-alias
 ----
-// TEST[setup:my_index]
-// TEST[s/^/PUT my-index-000001\/_alias\/alias1\n/]
+// TEST[setup:my_data_stream]
+// TEST[s/^/PUT my-data-stream\/_alias\/my-alias\n/]
+// TEST[teardown:data_stream_cleanup]
 
 [[delete-alias-api-request]]
 ==== {api-request-title}
 
-`DELETE /<index>/_alias/<alias>`
+`DELETE <target>/_alias/<alias>`
 
-`DELETE /<index>/_aliases/<alias>`
+`DELETE <target>/_aliases/<alias>`
 
 [[delete-alias-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `manage`
-<<privileges-list-indices,index privilege>> for both the index and index alias.
+<<privileges-list-indices,index privilege>> for the alias and it data streams or
+indices.
 
 [[delete-alias-api-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
-(Required, string)
-Comma-separated list or wildcard expression of index names
-used to limit the request.
-+
-To include all indices in the cluster,
-use a value of `_all` or `*`.
-
 `<alias>`::
-(Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias]
-+
-To delete all aliases,
-use a value of `_all` or `*`.
+(Required, string) Comma-separated list of aliases to remove. Supports wildcards
+(`*`). To remove all aliases, use `*` or `_all`.
 
+`<target>`::
+(Required, string) Comma-separated list of data streams or indices used to limit
+the request. Supports wildcards (`*`).
 
 [[delete-alias-api-query-params]]
 ==== {api-query-parms-title}

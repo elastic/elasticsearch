@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,23 +32,34 @@ public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-
-        MappedFieldType mapper = new LegacyGeoShapeFieldMapper.Builder("field", Version.CURRENT, false, true)
+        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        MappedFieldType mapper = new LegacyGeoShapeFieldMapper.Builder("field", version, false, true)
             .build(new ContentPath()).fieldType();
 
         Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates",
             List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
+        Map<String, Object> jsonMalformed = Map.of("type", "LineString", "coordinates", "foo");
         String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
         String wktPoint = "POINT (14.0 15.0)";
+        String wktMalformed = "POINT foo";
 
         // Test a single shape in geojson format.
         Object sourceValue = jsonLineString;
         assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
 
+        // Test a malformed single shape in geojson format
+        assertEquals(List.of(), fetchSourceValue(mapper, jsonMalformed, null));
+        assertEquals(List.of(), fetchSourceValue(mapper, "POINT (a,b)", "wkt"));
+
         // Test a list of shapes in geojson format.
         sourceValue = List.of(jsonLineString, jsonPoint);
+        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a list of shapes with one malformed in geojson format
+        sourceValue = List.of(jsonLineString, jsonMalformed, jsonPoint);
         assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
 
@@ -56,9 +68,19 @@ public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
 
+        // Test a malformed single shape in wkt format
+        assertEquals(List.of(), fetchSourceValue(mapper, wktMalformed, null));
+        assertEquals(List.of(), fetchSourceValue(mapper, wktMalformed, "wkt"));
+
         // Test a list of shapes in wkt format.
         sourceValue = List.of(wktLineString, wktPoint);
         assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a list of shapes with one malformed in wkt format
+        sourceValue = List.of(wktLineString, wktMalformed, wktPoint);
+        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
     }
 }

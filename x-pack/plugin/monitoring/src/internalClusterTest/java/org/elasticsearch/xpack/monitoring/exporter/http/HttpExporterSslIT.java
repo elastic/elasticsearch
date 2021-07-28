@@ -10,7 +10,7 @@ import com.sun.net.httpserver.HttpsServer;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.TestEnvironment;
@@ -63,7 +63,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Path truststore = getDataPath("/org/elasticsearch/xpack/monitoring/exporter/http/testnode.jks");
         assertThat(Files.exists(truststore), CoreMatchers.is(true));
 
@@ -77,7 +77,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
 
         final String address = "https://" + webServer.getHostName() + ":" + webServer.getPort();
         final Settings.Builder builder = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("xpack.monitoring.exporters.plaintext.type", "http")
             .put("xpack.monitoring.exporters.plaintext.enabled", true)
             .put("xpack.monitoring.exporters.plaintext.host", address)

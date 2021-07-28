@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ssl;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -41,8 +41,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.getKeyStoreType;
 
 public class CertParsingUtils {
 
@@ -86,7 +84,7 @@ public class CertParsingUtils {
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         for (Path path : certPaths) {
             try (InputStream input = Files.newInputStream(path)) {
-                certificates.addAll((Collection<Certificate>) certFactory.generateCertificates(input));
+                certificates.addAll(certFactory.generateCertificates(input));
                 if (certificates.isEmpty()) {
                     throw new CertificateException("failed to parse any certificates from [" + path.toAbsolutePath() + "]");
                 }
@@ -95,6 +93,7 @@ public class CertParsingUtils {
         return certificates.toArray(new Certificate[0]);
     }
 
+    @SuppressWarnings("unchecked")
     public static X509Certificate[] readX509Certificates(List<Path> certPaths) throws CertificateException, IOException {
         Collection<X509Certificate> certificates = new ArrayList<>();
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
@@ -108,7 +107,7 @@ public class CertParsingUtils {
 
     public static List<Certificate> readCertificates(InputStream input) throws CertificateException, IOException {
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-        Collection<Certificate> certificates = (Collection<Certificate>) certFactory.generateCertificates(input);
+        Collection<? extends Certificate> certificates = certFactory.generateCertificates(input);
         return new ArrayList<>(certificates);
     }
 
@@ -133,7 +132,7 @@ public class CertParsingUtils {
         return readKeyPairsFromKeystore(store, keyPassword);
     }
 
-    static Map<Certificate, Key> readKeyPairsFromKeystore(KeyStore store, Function<String, char[]> keyPassword)
+    public static Map<Certificate, Key> readKeyPairsFromKeystore(KeyStore store, Function<String, char[]> keyPassword)
         throws KeyStoreException, NoSuchAlgorithmException, UnrecoverableKeyException {
         final Enumeration<String> enumeration = store.aliases();
         final Map<Certificate, Key> map = new HashMap<>(store.size());
@@ -166,7 +165,7 @@ public class CertParsingUtils {
         return keyManager(keyStore, password, KeyManagerFactory.getDefaultAlgorithm());
     }
 
-    private static KeyStore getKeyStore(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
+    public static KeyStore getKeyStore(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
         throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         keyStore.load(null, null);
@@ -207,7 +206,7 @@ public class CertParsingUtils {
     static KeyConfig createKeyConfig(X509KeyPairSettings keyPair, Settings settings, String trustStoreAlgorithm) {
         String keyPath = keyPair.keyPath.get(settings).orElse(null);
         String keyStorePath = keyPair.keystorePath.get(settings).orElse(null);
-        String keyStoreType = getKeyStoreType(keyPair.keystoreType, settings, keyStorePath);
+        String keyStoreType = SSLConfigurationSettings.getKeyStoreType(keyPair.keystoreType, settings, keyStorePath);
 
         if (keyPath != null && keyStorePath != null) {
             throw new IllegalArgumentException("you cannot specify a keystore and key file");
@@ -223,15 +222,21 @@ public class CertParsingUtils {
             return new PEMKeyConfig(keyPath, keyPassword, certPath);
         }
 
-        if (keyStorePath != null || keyStoreType.equalsIgnoreCase("pkcs11")) {
+        if (keyStorePath != null) {
             SecureString keyStorePassword = keyPair.keystorePassword.get(settings);
             String keyStoreAlgorithm = keyPair.keystoreAlgorithm.get(settings);
             SecureString keyStoreKeyPassword = keyPair.keystoreKeyPassword.get(settings);
             if (keyStoreKeyPassword.length() == 0) {
                 keyStoreKeyPassword = keyStorePassword;
             }
-            return new StoreKeyConfig(keyStorePath, keyStoreType, keyStorePassword, keyStoreKeyPassword, keyStoreAlgorithm,
-                trustStoreAlgorithm);
+            return new StoreKeyConfig(
+                keyStorePath,
+                keyStoreType,
+                keyStorePassword,
+                keyStoreKeyPassword,
+                keyStoreAlgorithm,
+                trustStoreAlgorithm
+            );
         }
         return null;
     }
@@ -248,7 +253,7 @@ public class CertParsingUtils {
         return trustManager(store, TrustManagerFactory.getDefaultAlgorithm());
     }
 
-    static KeyStore trustStore(Certificate[] certificates)
+    public static KeyStore trustStore(Certificate[] certificates)
         throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
         assert certificates != null : "Cannot create trust store with null certificates";
         KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());

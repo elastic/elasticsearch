@@ -1,6 +1,6 @@
 evaluationDependsOn(xpackModule('core'))
 
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -14,6 +14,6 @@ archivesBaseName = 'x-pack-mapper-version'
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':modules:lang-painless:spi')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('analytics'))
 }

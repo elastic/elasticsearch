@@ -30,7 +30,9 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -45,13 +47,13 @@ import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.tasks.TaskId;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -321,6 +323,7 @@ final class RequestConverters {
         parameters.withPipeline(indexRequest.getPipeline());
         parameters.withRefreshPolicy(indexRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(indexRequest.waitForActiveShards());
+        parameters.withRequireAlias(indexRequest.isRequireAlias());
 
         BytesRef source = indexRequest.source().toBytesRef();
         ContentType contentType = createContentType(indexRequest.getContentType());
@@ -347,6 +350,7 @@ final class RequestConverters {
         parameters.withRetryOnConflict(updateRequest.retryOnConflict());
         parameters.withVersion(updateRequest.version());
         parameters.withVersionType(updateRequest.versionType());
+        parameters.withRequireAlias(updateRequest.isRequireAlias());
 
         // The Java API allows update requests with different content types
         // set for the partial document and the upsert document. This client
@@ -399,7 +403,9 @@ final class RequestConverters {
         params.withPreference(searchRequest.preference());
         params.withIndicesOptions(searchRequest.indicesOptions());
         params.withSearchType(searchRequest.searchType().name().toLowerCase(Locale.ROOT));
-        params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
+        if (searchRequest.isCcsMinimizeRoundtrips() != SearchRequest.defaultCcsMinimizeRoundtrips(searchRequest)) {
+            params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
+        }
         if (searchRequest.getPreFilterShardSize() != null) {
             params.putParam("pre_filter_shard_size", Integer.toString(searchRequest.getPreFilterShardSize()));
         }
@@ -428,6 +434,23 @@ final class RequestConverters {
         return request;
     }
 
+    static Request openPointInTime(OpenPointInTimeRequest openRequest) {
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(openRequest.indices(), "_pit"));
+        Params params = new Params();
+        params.withIndicesOptions(openRequest.indicesOptions());
+        params.withRouting(openRequest.routing());
+        params.withPreference(openRequest.preference());
+        params.putParam("keep_alive", openRequest.keepAlive());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request closePointInTime(ClosePointInTimeRequest closeRequest) throws IOException {
+        Request request = new Request(HttpDelete.METHOD_NAME, "/_pit");
+        request.setEntity(createEntity(closeRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_msearch");
 
@@ -452,7 +475,7 @@ final class RequestConverters {
         } else {
             SearchRequest searchRequest = searchTemplateRequest.getRequest();
             String endpoint = endpoint(searchRequest.indices(), "_search/template");
-            request = new Request(HttpGet.METHOD_NAME, endpoint);
+            request = new Request(HttpPost.METHOD_NAME, endpoint);
 
             Params params = new Params();
             addSearchRequestParams(params, searchRequest);
@@ -568,7 +591,8 @@ final class RequestConverters {
             .withTimeout(reindexRequest.getTimeout())
             .withWaitForActiveShards(reindexRequest.getWaitForActiveShards())
             .withRequestsPerSecond(reindexRequest.getRequestsPerSecond())
-            .withSlices(reindexRequest.getSlices());
+            .withSlices(reindexRequest.getSlices())
+            .withRequireAlias(reindexRequest.getDestination().isRequireAlias());
 
         if (reindexRequest.getScrollTime() != null) {
             params.putParam("scroll", reindexRequest.getScrollTime());
@@ -999,6 +1023,13 @@ final class RequestConverters {
         Params withWaitForActiveShards(ActiveShardCount activeShardCount, ActiveShardCount defaultActiveShardCount) {
             if (activeShardCount != null && activeShardCount != defaultActiveShardCount) {
                 return putParam("wait_for_active_shards", activeShardCount.toString().toLowerCase(Locale.ROOT));
+            }
+            return this;
+        }
+
+        Params withRequireAlias(boolean requireAlias) {
+            if (requireAlias) {
+                return putParam("require_alias", Boolean.toString(requireAlias));
             }
             return this;
         }

@@ -72,7 +72,7 @@ public class CoordinationStateTests extends ESTestCase {
         return new DiscoveryNode("", id,
             UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
             address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
-            DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            DiscoveryNodeRole.roles(), Version.CURRENT);
     }
 
     public void testSetInitialState() {

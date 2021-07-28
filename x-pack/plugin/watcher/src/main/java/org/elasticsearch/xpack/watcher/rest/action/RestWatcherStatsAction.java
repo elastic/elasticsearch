@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -29,8 +30,11 @@ public class RestWatcherStatsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_watcher/stats"),
-            new Route(GET, "/_watcher/stats/{metric}"));
+            Route.builder(GET, "/_watcher/stats")
+                .replaces(GET, "/_xpack/watcher/stats", RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_watcher/stats/{metric}")
+                .replaces(GET, "/_xpack/watcher/stats/{metric}", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

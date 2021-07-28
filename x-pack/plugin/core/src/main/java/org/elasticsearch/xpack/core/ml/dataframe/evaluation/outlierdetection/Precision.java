@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -26,6 +26,7 @@ public class Precision extends AbstractConfusionMatrixMetric {
 
     public static final ParseField NAME = new ParseField("precision");
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Precision, Void> PARSER = new ConstructingObjectParser<>(NAME.getPreferredName(),
         a -> new Precision((List<Double>) a[0]));
 

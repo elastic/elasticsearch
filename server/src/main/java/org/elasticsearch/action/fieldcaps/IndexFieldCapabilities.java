@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -16,8 +15,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Describes the capabilities of a field in a single index.
@@ -26,6 +23,7 @@ public class IndexFieldCapabilities implements Writeable {
 
     private final String name;
     private final String type;
+    private final boolean isMetadatafield;
     private final boolean isSearchable;
     private final boolean isAggregatable;
     private final Map<String, String> meta;
@@ -38,52 +36,35 @@ public class IndexFieldCapabilities implements Writeable {
      * @param meta Metadata about the field.
      */
     IndexFieldCapabilities(String name, String type,
+                           boolean isMetadatafield,
                            boolean isSearchable, boolean isAggregatable,
                            Map<String, String> meta) {
 
         this.name = name;
         this.type = type;
+        this.isMetadatafield = isMetadatafield;
         this.isSearchable = isSearchable;
         this.isAggregatable = isAggregatable;
         this.meta = meta;
     }
 
     IndexFieldCapabilities(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            this.name = in.readString();
-            this.type = in.readString();
-            this.isSearchable = in.readBoolean();
-            this.isAggregatable = in.readBoolean();
-            this.meta = in.readMap(StreamInput::readString, StreamInput::readString);
-        } else {
-            // Previously we reused the FieldCapabilities class to represent index field capabilities.
-            FieldCapabilities fieldCaps = new FieldCapabilities(in);
-            this.name = fieldCaps.getName();
-            this.type = fieldCaps.getType();
-            this.isSearchable = fieldCaps.isSearchable();
-            this.isAggregatable = fieldCaps.isAggregatable();
-            this.meta = fieldCaps.meta().entrySet().stream().collect(Collectors.toMap(
-                Map.Entry::getKey,
-                entry -> entry.getValue().iterator().next()));
-        }
+        this.name = in.readString();
+        this.type = in.readString();
+        this.isMetadatafield = in.readBoolean();
+        this.isSearchable = in.readBoolean();
+        this.isAggregatable = in.readBoolean();
+        this.meta = in.readMap(StreamInput::readString, StreamInput::readString);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeString(name);
-            out.writeString(type);
-            out.writeBoolean(isSearchable);
-            out.writeBoolean(isAggregatable);
-            out.writeMap(meta, StreamOutput::writeString, StreamOutput::writeString);
-        } else {
-            // Previously we reused the FieldCapabilities class to represent index field capabilities.
-            Map<String, Set<String>> wrappedMeta = meta.entrySet().stream().collect(Collectors.toMap(
-                Map.Entry::getKey,
-                entry -> Set.of(entry.getValue())));
-            FieldCapabilities fieldCaps = new FieldCapabilities(name, type, isSearchable, isAggregatable, null, null, null, wrappedMeta);
-            fieldCaps.writeTo(out);
-        }
+        out.writeString(name);
+        out.writeString(type);
+        out.writeBoolean(isMetadatafield);
+        out.writeBoolean(isSearchable);
+        out.writeBoolean(isAggregatable);
+        out.writeMap(meta, StreamOutput::writeString, StreamOutput::writeString);
     }
 
     public String getName() {
@@ -92,6 +73,10 @@ public class IndexFieldCapabilities implements Writeable {
 
     public String getType() {
         return type;
+    }
+
+    public boolean isMetadatafield() {
+        return isMetadatafield;
     }
 
     public boolean isAggregatable() {
@@ -111,7 +96,8 @@ public class IndexFieldCapabilities implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndexFieldCapabilities that = (IndexFieldCapabilities) o;
-        return isSearchable == that.isSearchable &&
+        return isMetadatafield == that.isMetadatafield &&
+            isSearchable == that.isSearchable &&
             isAggregatable == that.isAggregatable &&
             Objects.equals(name, that.name) &&
             Objects.equals(type, that.type) &&
@@ -120,6 +106,6 @@ public class IndexFieldCapabilities implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, isSearchable, isAggregatable, meta);
+        return Objects.hash(name, type, isMetadatafield, isSearchable, isAggregatable, meta);
     }
 }

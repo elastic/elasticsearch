@@ -51,6 +51,56 @@ setup:
                 }
               ]
             }
+
+  - do:
+      security.put_role:
+        name: "dls_fls_role"
+        body: >
+          {
+            "cluster": ["monitor"],
+            "indices": [
+              {
+                "names": ["shared_index"],
+                "privileges": ["read", "read_cross_cluster"],
+                "query": "{ \"term\": { \"public\" : true } }",
+                "field_security": { "grant": ["*"], "except": ["secret"] }
+              }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "terms_enum_all_role"
+        body: >
+          {
+            "cluster": ["monitor"],
+            "indices": [
+              { "names": ["terms_enum_index"], "privileges": ["read"], "query": "{\"term\": {\"ck\": \"const\"}}" }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "terms_enum_none_role"
+        body: >
+          {
+            "cluster": ["monitor"],
+            "indices": [
+              { "names": ["terms_enum_index"], "privileges": ["read"], "query": "{\"term\": {\"ck\": \"dynamic\"}}" }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "terms_enum_fls_role"
+        body: >
+          {
+            "cluster": ["monitor"],
+            "indices": [
+              { "names": ["terms_enum_index"], "privileges": ["read"], "field_security" : {"grant" : [ "*"],"except": [ "foo" ]} }
+            ]
+          }
+
 ---
 "Index data and search on the remote cluster":
   - skip:
@@ -301,3 +351,47 @@ setup:
           - '{"index": {"_index": "point_in_time_index"}}'
           - '{"f": "r4", "created_at" : "2020-01-04"}'
 
+  - do:
+      indices.create:
+        index: shared_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "shared_index", "_id": 1}}'
+          - '{"public": true, "name": "doc 1", "secret": "sesame"}'
+          - '{"index": {"_index": "shared_index", "_id": 2}}'
+          - '{"public": false, "name": "doc 2", "secret": "sesame"}'
+
+  - do:
+      indices.create:
+        index: terms_enum_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              ck:
+                type: constant_keyword
+                value: const
+              foo:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "terms_enum_index"}}'
+          - '{"foo": "zar"}'
+          - '{"index": {"_index": "terms_enum_index"}}'
+          - '{"foo": "foo"}'
+          - '{"index": {"_index": "terms_enum_index"}}'
+          - '{"foo": "foobar"}'

@@ -9,7 +9,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.LazyInitializable;
 
@@ -48,7 +48,7 @@ public class DateFormatters {
     // it results in errors sent to status logger and startup to fail.
     // Hence a lazy initialization.
     private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
-        = new LazyInitializable(() -> DeprecationLogger.getLogger(FormatNames.class));
+        = new LazyInitializable<>(() -> DeprecationLogger.getLogger(FormatNames.class));
 
     public static final WeekFields WEEK_FIELDS_ROOT = WeekFields.of(Locale.ROOT);
 
@@ -57,8 +57,21 @@ public class DateFormatters {
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT);
 
+    private static final DateTimeFormatter STRICT_YEAR_MONTH_DAY_PRINTER = new DateTimeFormatterBuilder()
+        .appendValue(ChronoField.YEAR, 4, 9, SignStyle.EXCEEDS_PAD)
+        .optionalStart()
+        .appendLiteral("-")
+        .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendLiteral('-')
+        .appendValue(DAY_OF_MONTH, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalEnd()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT)
+        .withResolverStyle(ResolverStyle.STRICT);
+
     private static final DateTimeFormatter STRICT_YEAR_MONTH_DAY_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
         .optionalStart()
         .appendLiteral("-")
         .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
@@ -81,7 +94,7 @@ public class DateFormatters {
         .withResolverStyle(ResolverStyle.STRICT);
 
     private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER = new DateTimeFormatterBuilder()
-        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .append(STRICT_YEAR_MONTH_DAY_PRINTER)
         .appendLiteral('T')
         .optionalStart()
         .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
@@ -164,7 +177,7 @@ public class DateFormatters {
         .withResolverStyle(ResolverStyle.STRICT);
 
     private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS = new DateTimeFormatterBuilder()
-        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .append(STRICT_YEAR_MONTH_DAY_PRINTER)
         .appendLiteral('T')
         .optionalStart()
         .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
@@ -576,7 +589,7 @@ public class DateFormatters {
      */
     private static final DateFormatter STRICT_YEAR_MONTH = new JavaDateFormatter("strict_year_month",
         new DateTimeFormatterBuilder()
-            .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+            .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
             .appendLiteral("-")
             .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
             .toFormatter(Locale.ROOT)
@@ -586,7 +599,7 @@ public class DateFormatters {
      * A strict formatter that formats or parses a year, such as '2011'.
      */
     private static final DateFormatter STRICT_YEAR = new JavaDateFormatter("strict_year", new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT));
 
@@ -628,7 +641,7 @@ public class DateFormatters {
     );
 
     private static final DateTimeFormatter STRICT_ORDINAL_DATE_TIME_NO_MILLIS_BASE = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
         .appendLiteral('-')
         .appendValue(DAY_OF_YEAR, 3, 3, SignStyle.NOT_NEGATIVE)
         .appendLiteral('T')
@@ -759,7 +772,7 @@ public class DateFormatters {
         new JavaDateFormatter("strict_hour_minute", DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT));
 
     private static final DateTimeFormatter STRICT_ORDINAL_DATE_TIME_PRINTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
         .appendLiteral('-')
         .appendValue(DAY_OF_YEAR, 3, 3, SignStyle.NOT_NEGATIVE)
         .appendLiteral('T')
@@ -773,7 +786,7 @@ public class DateFormatters {
         .withResolverStyle(ResolverStyle.STRICT);
 
     private static final DateTimeFormatter STRICT_ORDINAL_DATE_TIME_FORMATTER_BASE = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
         .appendLiteral('-')
         .appendValue(DAY_OF_YEAR, 3, 3, SignStyle.NOT_NEGATIVE)
         .appendLiteral('T')
@@ -1014,7 +1027,7 @@ public class DateFormatters {
 
     private static final DateTimeFormatter STRICT_ORDINAL_DATE_FORMATTER = new DateTimeFormatterBuilder()
         .parseCaseInsensitive()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
         .appendLiteral('-')
         .appendValue(DAY_OF_YEAR, 3)
         .optionalStart()
@@ -1040,7 +1053,7 @@ public class DateFormatters {
     /////////////////////////////////////////
 
     private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 1, 5, SignStyle.NORMAL)
+        .appendValue(ChronoField.YEAR, 1, 9, SignStyle.NORMAL)
         .optionalStart()
         .appendLiteral('-')
         .appendValue(MONTH_OF_YEAR, 1, 2, SignStyle.NOT_NEGATIVE)

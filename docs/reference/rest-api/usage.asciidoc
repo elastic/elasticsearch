@@ -48,15 +48,7 @@ GET /_xpack/usage
 {
   "security" : {
     "available" : true,
-    "enabled" : false,
-    "ssl" : {
-      "http" : {
-        "enabled" : false
-      },
-      "transport" : {
-        "enabled" : false
-      }
-    }
+    "enabled" : false
   },
   "monitoring" : {
     "available" : true,
@@ -127,6 +119,15 @@ GET /_xpack/usage
     "data_frame_analytics_jobs" : {
       "_all" : {
         "count" : 0
+      },
+      "analysis_counts": { },
+      "memory_usage": {
+        "peak_usage_bytes": {
+          "min": 0.0,
+          "max": 0.0,
+          "avg": 0.0,
+          "total": 0.0
+        }
       }
     },
     "inference" : {
@@ -155,6 +156,25 @@ GET /_xpack/usage
       "trained_models" : {
         "_all" : {
           "count" : 0
+        },
+        "count": {
+          "total": 1,
+          "classification": 0,
+          "regression": 0,
+          "prepackaged": 1,
+          "other": 0
+        },
+        "estimated_heap_memory_usage_bytes": {
+          "min": 0.0,
+          "max": 0.0,
+          "avg": 0.0,
+          "total": 0.0
+        },
+        "estimated_operations": {
+          "min": 0.0,
+          "max": 0.0,
+          "avg": 0.0,
+          "total": 0.0
         }
       }
     },
@@ -252,12 +272,6 @@ GET /_xpack/usage
     "available" : true,
     "enabled" : true
   },
-  "vectors" : {
-    "available" : true,
-    "enabled" : true,
-    "dense_vector_fields_count" : 0,
-    "dense_vector_dims_avg_count" : 0
-  },
   "voting_only" : {
     "available" : true,
     "enabled" : true
@@ -265,7 +279,9 @@ GET /_xpack/usage
   "searchable_snapshots" : {
     "available" : true,
     "enabled" : true,
-    "indices_count" : 0
+    "indices_count" : 0,
+    "full_copy_indices_count" : 0,
+    "shared_cache_indices_count" : 0
   },
   "frozen_indices" : {
     "available" : true,
@@ -364,11 +380,6 @@ GET /_xpack/usage
   "aggregate_metric" : {
     "available" : true,
     "enabled" : true
-  },
-  "runtime_fields" : {
-    "available" : true,
-    "enabled" : true,
-    "field_types" : []
   }
 }
 ------------------------------------------------------------

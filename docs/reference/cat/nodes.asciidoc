@@ -25,7 +25,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
 `full_id`::
-(Optional, Boolean) If `true`, return the full node ID.  If `false`, return the
+(Optional, Boolean) If `true`, return the full node ID. If `false`, return the
 shortened node ID. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
@@ -48,11 +48,20 @@ Valid columns are:
 (Default) Used file descriptors percentage, such as `1`.
 
 `node.role`, `r`, `role`, `nodeRole`::
-(Default) Roles of the node. Returned values include `c` (cold node), `d` (data
-node), `h` (hot node), `i` (ingest node), `l` (machine learning node), `m`
-(master-eligible node), `r` (remote cluster client node), `s` (content node),
-`t` ({transform} node), `v` (voting-only node), `w` (warm node) and `-`
-(coordinating node only).
+(Default) Roles of the node. Returned values include
+`c` (cold node),
+`d` (data node),
+`f` (frozen node),
+`h` (hot node),
+`i` (ingest node),
+`l` (machine learning node),
+`m` (master-eligible node),
+`r` (remote cluster client node),
+`s` (content node),
+`t` ({transform} node),
+`v` (voting-only node),
+`w` (warm node), and
+`-` (coordinating node only).
 +
 For example, `dim` indicates a master-eligible data and ingest node. See
 <<modules-node>>.
@@ -307,6 +316,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
 [[cat-nodes-api-example]]
 ==== {api-examples-title}

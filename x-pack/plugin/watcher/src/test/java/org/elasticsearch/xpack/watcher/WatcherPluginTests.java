@@ -6,14 +6,13 @@
  */
 package org.elasticsearch.xpack.watcher;
 
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -24,7 +23,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -33,33 +31,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class WatcherPluginTests extends ESTestCase {
-
-    public void testValidAutoCreateIndex() {
-        Watcher.validAutoCreateIndex(Settings.EMPTY, logger);
-        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", true).build(), logger);
-
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build(), logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches]"));
-
-        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index",
-                ".watches,.triggered_watches,.watcher-history*").build(), logger);
-        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", "*w*").build(), logger);
-        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".w*,.t*").build(), logger);
-
-        exception = expectThrows(IllegalArgumentException.class,
-                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watches").build(), logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches]"));
-
-        exception = expectThrows(IllegalArgumentException.class,
-                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".triggered_watch").build(), logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches]"));
-
-        exception = expectThrows(IllegalArgumentException.class,
-                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watcher-history-*").build(),
-                        logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches]"));
-    }
 
     public void testWatcherDisabledTests() throws Exception {
         Settings settings = Settings.builder()
@@ -78,7 +49,7 @@ public class WatcherPluginTests extends ESTestCase {
         AnalysisRegistry registry = new AnalysisRegistry(TestEnvironment.newEnvironment(settings), emptyMap(), emptyMap(), emptyMap(),
                 emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap());
         IndexModule indexModule = new IndexModule(indexSettings, registry, new InternalEngineFactory(), Collections.emptyMap(),
-                () -> true, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), Collections.emptyMap());
+            () -> true, TestIndexNameExpressionResolver.newInstance(), Collections.emptyMap());
         // this will trip an assertion if the watcher indexing operation listener is null (which it is) but we try to add it
         watcher.onIndexModule(indexModule);
 
@@ -110,7 +81,7 @@ public class WatcherPluginTests extends ESTestCase {
             .put("xpack.watcher.enabled", true)
             .put("path.home", createTempDir())
             .build();
-        NotificationService mockService = mock(NotificationService.class);
+        NotificationService<?> mockService = mock(NotificationService.class);
         Watcher watcher = new TestWatcher(settings, mockService);
 
         watcher.reload(settings);
@@ -122,7 +93,7 @@ public class WatcherPluginTests extends ESTestCase {
             .put("xpack.watcher.enabled", false)
             .put("path.home", createTempDir())
             .build();
-        NotificationService mockService = mock(NotificationService.class);
+        NotificationService<?> mockService = mock(NotificationService.class);
         Watcher watcher = new TestWatcher(settings, mockService);
 
         watcher.reload(settings);
@@ -131,7 +102,7 @@ public class WatcherPluginTests extends ESTestCase {
 
     private class TestWatcher extends Watcher {
 
-        TestWatcher(Settings settings, NotificationService service) {
+        TestWatcher(Settings settings, NotificationService<?> service) {
             super(settings);
             reloadableServices.add(service);
         }

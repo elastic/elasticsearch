@@ -16,10 +16,13 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.FileNotFoundException;
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -35,9 +38,8 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -88,7 +90,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         Map<String, BlobMetadata> builder = new HashMap<>();
 
         blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(path, blobNamePrefix + "*")) {
+        try (DirectoryStream<Path> stream = newDirectoryStreamIfFound(blobNamePrefix)) {
             for (Path file : stream) {
                 final BasicFileAttributes attrs;
                 try {
@@ -103,6 +105,34 @@ public class FsBlobContainer extends AbstractBlobContainer {
             }
         }
         return unmodifiableMap(builder);
+    }
+
+    private DirectoryStream<Path> newDirectoryStreamIfFound(String blobNamePrefix) throws IOException {
+        try {
+            return Files.newDirectoryStream(path, blobNamePrefix + "*");
+        } catch (FileNotFoundException | NoSuchFileException e) {
+            // a nonexistent directory contains no blobs
+            return new DirectoryStream<>() {
+                @Override
+                public Iterator<Path> iterator() {
+                    return new Iterator<>() {
+                        @Override
+                        public boolean hasNext() {
+                            return false;
+                        }
+
+                        @Override
+                        public Path next() {
+                            return null;
+                        }
+                    };
+                }
+
+                @Override
+                public void close() {
+                }
+            };
+        }
     }
 
     @Override
@@ -129,8 +159,29 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
-        IOUtils.rm(blobNames.stream().map(path::resolve).toArray(Path[]::new));
+    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+        IOException ioe = null;
+        long suppressedExceptions = 0;
+        while (blobNames.hasNext()) {
+            try {
+                IOUtils.rm(path.resolve(blobNames.next()));
+            } catch (IOException e) {
+                // track up to 10 delete exceptions and try to continue deleting on exceptions
+                if (ioe == null) {
+                    ioe = e;
+                } else if (ioe.getSuppressed().length < 10) {
+                    ioe.addSuppressed(e);
+                } else {
+                    ++suppressedExceptions;
+                }
+            }
+        }
+        if (ioe != null) {
+            if (suppressedExceptions > 0) {
+                ioe.addSuppressed(new IOException("Failed to delete files, suppressed [" + suppressedExceptions + "] failures"));
+            }
+            throw ioe;
+        }
     }
 
     @Override
@@ -173,7 +224,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw faee;
             }
-            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
+            deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
             writeToPath(inputStream, file, blobSize);
         }
         IOUtils.fsync(path, true);
@@ -188,10 +239,53 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw faee;
             }
-            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
+            deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
             writeToPath(bytes, file);
         }
         IOUtils.fsync(path, true);
+    }
+
+    @Override
+    public void writeBlob(String blobName,
+                          boolean failIfAlreadyExists,
+                          boolean atomic,
+                          CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        if (atomic) {
+            final String tempBlob = tempBlobName(blobName);
+            try {
+                writeToPath(tempBlob, true, writer);
+                moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
+            } catch (IOException ex) {
+                try {
+                    deleteBlobsIgnoringIfNotExists(Iterators.single(tempBlob));
+                } catch (IOException e) {
+                    ex.addSuppressed(e);
+                }
+                throw ex;
+            }
+        } else {
+            writeToPath(blobName, failIfAlreadyExists, writer);
+        }
+        IOUtils.fsync(path, true);
+    }
+
+    private void writeToPath(String blobName, boolean failIfAlreadyExists, CheckedConsumer<OutputStream, IOException> writer)
+            throws IOException {
+        final Path file = path.resolve(blobName);
+        try {
+            try (OutputStream out = new BlobOutputStream(file)) {
+                writer.accept(out);
+            }
+        } catch (FileAlreadyExistsException faee) {
+            if (failIfAlreadyExists) {
+                throw faee;
+            }
+            deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
+            try (OutputStream out = new BlobOutputStream(file)) {
+                writer.accept(out);
+            }
+        }
+        IOUtils.fsync(file, false);
     }
 
     @Override
@@ -203,7 +297,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
         } catch (IOException ex) {
             try {
-                deleteBlobsIgnoringIfNotExists(Collections.singletonList(tempBlob));
+                deleteBlobsIgnoringIfNotExists(Iterators.single(tempBlob));
             } catch (IOException e) {
                 ex.addSuppressed(e);
             }
@@ -239,14 +333,14 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw new FileAlreadyExistsException("blob [" + targetBlobPath + "] already exists, cannot overwrite");
             } else {
-                deleteBlobsIgnoringIfNotExists(Collections.singletonList(targetBlobName));
+                deleteBlobsIgnoringIfNotExists(Iterators.single(targetBlobName));
             }
         }
         Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
     }
 
     public static String tempBlobName(final String blobName) {
-        return "pending-" + blobName + "-" + UUIDs.randomBase64UUID();
+        return TEMP_FILE_PREFIX + blobName + "-" + UUIDs.randomBase64UUID();
     }
 
     /**
@@ -256,5 +350,17 @@ public class FsBlobContainer extends AbstractBlobContainer {
      */
     public static boolean isTempBlobName(final String blobName) {
         return blobName.startsWith(TEMP_FILE_PREFIX);
+    }
+
+    private static class BlobOutputStream extends FilterOutputStream {
+
+        BlobOutputStream(Path file) throws IOException {
+            super(Files.newOutputStream(file, StandardOpenOption.CREATE_NEW));
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            out.write(b, off, len);
+        }
     }
 }

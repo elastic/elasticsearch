@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -63,13 +63,15 @@ import static org.hamcrest.Matchers.equalTo;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) { // simplify this and only use a single data path
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(Environment.PATH_DATA_SETTING.getKey(), createTempDir())
-                // by default this value is 1 sec in tests (30 sec in practice) but we adding disruption here
-                // which is between 1 and 2 sec can cause each of the shard deletion requests to timeout.
-                // to prevent this we are setting the timeout here to something highish ie. the default in practice
-                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(30, TimeUnit.SECONDS))
-                .build();
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) { // simplify this and only use a single data path
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir())
+            // by default this value is 1 sec in tests (30 sec in practice) but we adding disruption here
+            // which is between 1 and 2 sec can cause each of the shard deletion requests to timeout.
+            // to prevent this we are setting the timeout here to something highish ie. the default in practice
+            .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(30, TimeUnit.SECONDS))
+            .build();
     }
 
     @Override
@@ -450,16 +452,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
     private Path indexDirectory(String server, Index index) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        final Path[] paths = env.indexPaths(index);
-        assert paths.length == 1;
-        return paths[0];
+        return env.indexPath(index);
     }
 
     private Path shardDirectory(String server, Index index, int shard) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        final Path[] paths = env.availableShardPaths(new ShardId(index, shard));
-        assert paths.length == 1;
-        return paths[0];
+        return env.availableShardPath(new ShardId(index, shard));
     }
 
     private void assertShardDeleted(final String server, final Index index, final int shard) throws Exception {

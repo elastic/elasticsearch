@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -11,7 +11,13 @@ archivesBaseName = 'x-pack-searchbusinessrules'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(":test:framework")
 }
 
+tasks.named('splitPackagesAudit').configure {
+  // Lucene classes should be owned by Lucene!
+  ignoreClasses  'org.apache.lucene.search.CappedScoreQuery',
+    'org.apache.lucene.search.CappedScoreWeight',
+    'org.apache.lucene.search.CappedScorer'
+}

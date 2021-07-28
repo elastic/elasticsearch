@@ -30,8 +30,8 @@ public abstract class ESNetty4IntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         // randomize netty settings
         if (randomBoolean()) {
             builder.put(Netty4Transport.WORKER_COUNT.getKey(), random().nextInt(3) + 1);

@@ -68,7 +68,21 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "        \"name\" : \"\",\n" +
                     "        \"ephemeral_id\" : \"" + node0.getEphemeralId() + "\",\n" +
                     "        \"transport_address\" : \"0.0.0.0:9000\",\n" +
-                    "        \"attributes\" : { }\n" +
+                    "        \"attributes\" : { },\n" +
+                    "        \"roles\" : [\n" +
+                    "          \"data\",\n" +
+                    "          \"data_cold\",\n" +
+                    "          \"data_content\",\n" +
+                    "          \"data_frozen\",\n" +
+                    "          \"data_hot\",\n" +
+                    "          \"data_warm\",\n" +
+                    "          \"ingest\",\n" +
+                    "          \"master\",\n" +
+                    "          \"ml\",\n" +
+                    "          \"remote_cluster_client\",\n" +
+                    "          \"transform\",\n" +
+                    "          \"voting_only\"\n" +
+                    "        ]\n" +
                     "      }\n" +
                     "    },\n" +
                     "    \"metadata\" : {\n" +

@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -52,6 +52,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -100,9 +101,9 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
-        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition =
-            new MaxSinglePrimarySizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
-        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxSinglePrimarySizeCondition);
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition =
+            new MaxPrimaryShardSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition);
 
         long matchMaxDocs = randomIntBetween(100, 1000);
         long notMatchMaxDocs = randomIntBetween(0, 99);
@@ -135,7 +136,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(maxSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
-            } else if (entry.getKey().equals(maxSinglePrimarySizeCondition.toString())) {
+            } else if (entry.getKey().equals(maxPrimaryShardSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
             } else {
                 fail("unknown condition result found " + entry.getKey());
@@ -147,9 +148,9 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomNonNegativeLong());
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
-        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition =
-            new MaxSinglePrimarySizeCondition(new ByteSizeValue(randomNonNegativeLong()));
-        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxSinglePrimarySizeCondition);
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition =
+            new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition);
 
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -172,7 +173,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(maxSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
-            } else if (entry.getKey().equals(maxSinglePrimarySizeCondition.toString())) {
+            } else if (entry.getKey().equals(maxPrimaryShardSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
             } else {
                 fail("unknown condition result found " + entry.getKey());
@@ -184,9 +185,9 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
-        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition =
-            new MaxSinglePrimarySizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
-        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxSinglePrimarySizeCondition);
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition =
+            new MaxPrimaryShardSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition);
 
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -248,7 +249,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean())).thenReturn(stateBefore);
         when(mdIndexAliasesService.applyAliasActions(any(), any())).thenReturn(stateBefore);
         MetadataRolloverService rolloverService = new MetadataRolloverService(mockThreadPool, mockCreateIndexService,
-            mdIndexAliasesService, mockIndexNameExpressionResolver);
+            mdIndexAliasesService, mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(mockTransportService, mockClusterService,
             mockThreadPool, mockActionFilters, mockIndexNameExpressionResolver, rolloverService, mockClient);
 

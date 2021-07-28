@@ -6,7 +6,7 @@
 ++++
 
 Retrieves information about one or more <<data-streams,data streams>>.
-See <<get-info-about-a-data-stream>>.
+See <<get-info-about-data-stream>>.
 
 ////
 [source,console]
@@ -18,7 +18,7 @@ PUT /_ilm/policy/my-lifecycle-policy
       "hot": {
         "actions": {
           "rollover": {
-            "max_size": "25GB"
+            "max_primary_shard_size": "25GB"
           }
         }
       },
@@ -157,7 +157,7 @@ acts as a cumulative count of the stream's rollovers, starting at `1`.
 `_meta`::
 (object)
 Custom metadata for the stream, copied from the `_meta` object of the
-stream's matching <<create-a-data-stream-template,index template>>. If empty,
+stream's matching <<create-index-template,index template>>. If empty,
 the response omits this property.
 
 `status`::
@@ -186,7 +186,7 @@ One or more primary shards are unassigned, so some data is unavailable.
 Name of the index template used to create the data stream's backing indices.
 +
 The template's index pattern must match the name of this data stream. See
-<<create-a-data-stream-template>>.
+<<create-index-template,create an index template>>.
 
 `ilm_policy`::
 (string)
@@ -201,8 +201,12 @@ policies. To retrieve the lifecycle policy for individual backing indices,
 use the <<indices-get-settings,get index settings API>>.
 
 `hidden`::
+(Boolean) If `true`, the data stream is <<hidden,hidden>>.
+
+`system`::
 (Boolean)
-If `true`, the data stream is <<hidden-indices,hidden>>.
+If `true`, the data stream is created and managed by an Elastic stack component
+and cannot be modified through normal user interaction.
 ====
 
 [[get-data-stream-api-example]]
@@ -241,7 +245,8 @@ The API returns the following response:
       "status": "GREEN",
       "template": "my-index-template",
       "ilm_policy": "my-lifecycle-policy",
-      "hidden": false
+      "hidden": false,
+      "system": false
     },
     {
       "name": "my-data-stream-two",
@@ -261,7 +266,8 @@ The API returns the following response:
       "status": "YELLOW",
       "template": "my-index-template",
       "ilm_policy": "my-lifecycle-policy",
-      "hidden": false
+      "hidden": false,
+      "system": false
     }
   ]
 }

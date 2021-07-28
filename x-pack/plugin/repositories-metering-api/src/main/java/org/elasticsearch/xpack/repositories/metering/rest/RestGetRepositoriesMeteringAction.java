@@ -12,10 +12,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.xpack.repositories.metering.action.RepositoriesMeteringRequest;
 import org.elasticsearch.xpack.repositories.metering.action.RepositoriesMeteringAction;
+import org.elasticsearch.xpack.repositories.metering.action.RepositoriesMeteringRequest;
 
 import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public final class RestGetRepositoriesMeteringAction extends BaseRestHandler {
 
@@ -26,7 +28,7 @@ public final class RestGetRepositoriesMeteringAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "/_nodes/{nodeId}/_repositories_metering"));
+        return List.of(new Route(GET, "/_nodes/{nodeId}/_repositories_metering"));
     }
 
     @Override

@@ -6,14 +6,16 @@
  */
 package org.elasticsearch.xpack.datastreams.rest;
 
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestCreateDataStreamAction extends BaseRestHandler {
 
@@ -24,7 +26,7 @@ public class RestCreateDataStreamAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.PUT, "/_data_stream/{name}"));
+        return List.of(new Route(PUT, "/_data_stream/{name}"));
     }
 
     @Override

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.client;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -85,6 +86,24 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             assertEquals(1, bulkResponse.getBatches());
             assertEquals(0, bulkResponse.getBulkFailures().size());
             assertEquals(0, bulkResponse.getSearchFailures().size());
+        }
+        {
+            // set require_alias to true but the destination index is not an alias
+            ReindexRequest reindexRequest = new ReindexRequest();
+            reindexRequest.setSourceIndices(sourceIndex);
+            reindexRequest.setDestIndex(destinationIndex);
+            reindexRequest.setSourceQuery(new IdsQueryBuilder().addIds("1"));
+            reindexRequest.setRefresh(true);
+            reindexRequest.setRequireAlias(true);
+
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
+                execute(reindexRequest, highLevelClient()::reindex, highLevelClient()::reindexAsync);
+            });
+
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [" +
+                destinationIndex + "] and [require_alias] request flag is [true] and [" +
+                destinationIndex + "] is not an alias]", exception.getMessage());
         }
     }
 
@@ -244,6 +263,8 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             float requestsPerSecond = 1000f;
             ListTasksResponse response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
                 highLevelClient()::deleteByQueryRethrottle, highLevelClient()::deleteByQueryRethrottleAsync);
+            assertThat(response.getTaskFailures(), empty());
+            assertThat(response.getNodeFailures(), empty());
             assertThat(response.getTasks(), hasSize(1));
             assertEquals(taskIdToRethrottle, response.getTasks().get(0).getTaskId());
             assertThat(response.getTasks().get(0).getStatus(), instanceOf(RawTaskStatus.class));

@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put {anomaly-jobs} API
+=== Create {anomaly-jobs} API
 
 Creates a new {anomaly-job} in the cluster. The API accepts a +{request}+ object
 as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put {anomaly-jobs} request
+==== Request
 
 A +{request}+ requires the following argument:
 

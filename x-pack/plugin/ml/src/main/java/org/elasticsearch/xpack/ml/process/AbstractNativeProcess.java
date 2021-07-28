@@ -10,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler;
@@ -122,7 +122,12 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         // The log message doesn't say "crashed", as the process could have been killed
         // by a user or other process (e.g. the Linux OOM killer)
         String errors = cppLogHandler().getErrors();
-        String fullError = String.format(Locale.ROOT, "[%s] %s process stopped unexpectedly: %s", jobId, getName(), errors);
+        long pid = cppLogHandler().tryGetPid();
+
+        String fullError = pid > 0 ?
+            String.format(Locale.ROOT, "[%s] %s/%d process stopped unexpectedly: %s", jobId, getName(), pid, errors)
+            : String.format(Locale.ROOT, "[%s] %s process stopped unexpectedly before logging started: %s", jobId, getName(), errors);
+
         LOGGER.error(fullError);
         onProcessCrash.accept(fullError);
     }
@@ -177,6 +182,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
             if (processInStream() != null) {
                 processInStream().close();
             }
+            afterProcessInStreamClose();
             // wait for the process to exit by waiting for end-of-file on the named pipe connected
             // to the state processor - it may take a long time for all the model state to be
             // indexed
@@ -204,6 +210,14 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         } finally {
             deleteAssociatedFiles();
         }
+    }
+
+    /**
+     * Implementations can override this if they need to perform extra processing
+     * immediately after the native process's input stream is closed.
+     */
+    protected void afterProcessInStreamClose() {
+        // no-op by default
     }
 
     @Override
@@ -288,7 +302,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     }
 
     @Nullable
-    private OutputStream processInStream() {
+    protected OutputStream processInStream() {
         return processInStream.get();
     }
 
@@ -314,6 +328,10 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     }
 
     public void consumeAndCloseOutputStream() {
+        if (processOutStream.get() == null) {
+            return;
+        }
+
         try (InputStream outStream = processOutStream()) {
             byte[] buff = new byte[512];
             while (outStream.read(buff) >= 0) {

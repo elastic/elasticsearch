@@ -70,6 +70,7 @@ public class Mul extends SqlArithmeticOperation implements BinaryComparisonInver
         return new Mul(source(), newLeft, newRight);
     }
 
+    @Override
     public Mul swapLeftAndRight() {
         return new Mul(source(), right(), left());
     }
@@ -77,5 +78,10 @@ public class Mul extends SqlArithmeticOperation implements BinaryComparisonInver
     @Override
     public ArithmeticOperationFactory binaryComparisonInverse() {
         return Div::new;
+    }
+
+    @Override
+    protected boolean isCommutative() {
+        return true;
     }
 }

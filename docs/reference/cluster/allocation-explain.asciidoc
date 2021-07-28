@@ -4,13 +4,26 @@
 <titleabbrev>Cluster allocation explain</titleabbrev>
 ++++
 
-Provides explanations for shard allocations in the cluster.
+Provides an explanation for a shard's current allocation.
 
+[source,console]
+----
+GET _cluster/allocation/explain
+{
+  "index": "my-index-000001",
+  "shard": 0,
+  "primary": false,
+  "current_node": "my-node"
+}
+----
+// TEST[setup:my_index]
+// TEST[s/"primary": false,/"primary": false/]
+// TEST[s/"current_node": "my-node"//]
 
 [[cluster-allocation-explain-api-request]]
 ==== {api-request-title}
 
-`GET /_cluster/allocation/explain`
+`GET _cluster/allocation/explain`
 
 [[cluster-allocation-explain-api-prereqs]]
 ==== {api-prereq-title}
@@ -22,14 +35,13 @@ Provides explanations for shard allocations in the cluster.
 ==== {api-description-title}
 
 The purpose of the cluster allocation explain API is to provide
-explanations for shard allocations in the cluster.  For unassigned shards,
+explanations for shard allocations in the cluster. For unassigned shards,
 the explain API provides an explanation for why the shard is unassigned.
 For assigned shards, the explain API provides an explanation for why the
 shard is remaining on its current node and has not moved or rebalanced to
 another node. This API can be very useful when attempting to diagnose why a 
 shard is unassigned or why a shard continues to remain on its current node when 
 you might expect otherwise.
-
 
 [[cluster-allocation-explain-api-query-params]]
 ==== {api-query-parms-title}
@@ -41,7 +53,6 @@ you might expect otherwise.
 `include_yes_decisions`::
     (Optional, Boolean) If `true`, returns 'YES' decisions in explanation. 
     Defaults to `false`.
-
 
 [[cluster-allocation-explain-api-request-body]]
 ==== {api-request-body-title}
@@ -62,83 +73,42 @@ you might expect otherwise.
     (Optional, integer) Specifies the ID of the shard that you would like an 
     explanation for.
 
-You can also have {es} explain the allocation of the first unassigned shard that 
-it finds by sending an empty body for the request.
-
-
 [[cluster-allocation-explain-api-examples]]
 ==== {api-examples-title}
 
+===== Unassigned primary shard
 
-//////
+The following request gets an allocation explanation for an unassigned primary
+shard.
+
+////
 [source,console]
---------------------------------------------------	
-PUT /my-index-000001	
---------------------------------------------------	
-// TESTSETUP
-//////
-
-[source,console]
---------------------------------------------------
-GET /_cluster/allocation/explain
-{
-  "index": "my-index-000001",
-  "shard": 0,
-  "primary": true
-}
---------------------------------------------------
-
-
-===== Example of the current_node parameter
-
-[source,console]
---------------------------------------------------
-GET /_cluster/allocation/explain
-{
-  "index": "my-index-000001",
-  "shard": 0,
-  "primary": false,
-  "current_node": "nodeA"                         <1>
-}
---------------------------------------------------
-// TEST[skip:no way of knowing the current_node]
-
-<1> The node where shard 0 currently has a replica on
-
-
-===== Examples of unassigned primary shard explanations
-
-//////
-[source,console]
---------------------------------------------------	
-DELETE my-index-000001
---------------------------------------------------	
-//////
-
-[source,console]
---------------------------------------------------
-PUT /my-index-000001?master_timeout=1s&timeout=1s
+----
+PUT my-index-000001?master_timeout=1s&timeout=1s
 {
   "settings": {
-    "index.routing.allocation.include._name": "non_existent_node",
+    "index.routing.allocation.include._name": "nonexistent_node",
     "index.routing.allocation.include._tier_preference": null
   }
 }
+----
+////
 
-GET /_cluster/allocation/explain
+[source,console]
+----
+GET _cluster/allocation/explain
 {
   "index": "my-index-000001",
   "shard": 0,
   "primary": true
 }
---------------------------------------------------
+----
 // TEST[continued]
 
-
-The API returns the following response for an unassigned primary shard:
+The API response indicates the shard is allocated to a nonexistent node.
 
 [source,console-result]
---------------------------------------------------
+----
 {
   "index" : "my-index-000001",
   "shard" : 0,
@@ -163,13 +133,13 @@ The API returns the following response for an unassigned primary shard:
         {
           "decider" : "filter",                   <5>
           "decision" : "NO",
-          "explanation" : "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]"  <6>
+          "explanation" : "node does not match index setting [index.routing.allocation.include] filters [_name:\"nonexistent_node\"]"  <6>
         }
       ]
     }
   ]
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/"at" : "[^"]*"/"at" : $body.$_path/]
 // TESTRESPONSE[s/"node_id" : "[^"]*"/"node_id" : $body.$_path/]
 // TESTRESPONSE[s/"transport_address" : "[^"]*"/"transport_address" : $body.$_path/]
@@ -182,12 +152,11 @@ The API returns the following response for an unassigned primary shard:
 <5> The decider which led to the `no` decision for the node.
 <6> An explanation as to why the decider returned a `no` decision, with a helpful hint pointing to the setting that led to the decision.
 
-
-The API response output for an unassigned primary shard that had previously been
-allocated to a node in the cluster:
+The following response contains an allocation explanation for an unassigned
+primary shard that was previously allocated.
 
 [source,js]
---------------------------------------------------
+----
 {
   "index" : "my-index-000001",
   "shard" : 0,
@@ -202,17 +171,16 @@ allocated to a node in the cluster:
   "can_allocate" : "no_valid_shard_copy",
   "allocate_explanation" : "cannot allocate because a previous copy of the primary shard existed but can no longer be found on the nodes in the cluster"
 }
---------------------------------------------------
+----
 // NOTCONSOLE
 
+===== Unassigned replica shard
 
-===== Example of an unassigned replica shard explanation
-
-The API response output for a replica that is unassigned due to delayed 
-allocation:
+The following response contains an allocation explanation for a replica that's
+unassigned due to <<delayed-allocation,delayed allocation>>.
 
 [source,js]
---------------------------------------------------
+----
 {
   "index" : "my-index-000001",
   "shard" : 0,
@@ -256,20 +224,21 @@ allocation:
     }
   ]
 }
---------------------------------------------------
+----
 // NOTCONSOLE
+
 <1> The configured delay before allocating a replica shard that does not exist due to the node holding it leaving the cluster.
 <2> The remaining delay before allocating the replica shard.
 <3> Information about the shard data found on a node.
 
+===== Assigned shard
 
-===== Examples of allocated shard explanations
-
-The API response output for an assigned shard that is not allowed to remain on 
-its current node and is required to move:
+The following response contains an allocation explanation for an assigned shard.
+The response indicates the shard is not allowed to remain on its current node
+and must be reallocated.
 
 [source,js]
---------------------------------------------------
+----
 {
   "index" : "my-index-000001",
   "shard" : 0,
@@ -285,7 +254,7 @@ its current node and is required to move:
     {
       "decider" : "filter",
       "decision" : "NO",
-      "explanation" : "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]"
+      "explanation" : "node does not match index setting [index.routing.allocation.include] filters [_name:\"nonexistent_node\"]"
     }
   ],
   "can_move_to_other_node" : "no",                <3>
@@ -301,24 +270,25 @@ its current node and is required to move:
         {
           "decider" : "filter",
           "decision" : "NO",
-          "explanation" : "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]"
+          "explanation" : "node does not match index setting [index.routing.allocation.include] filters [_name:\"nonexistent_node\"]"
         }
       ]
     }
   ]
 }
---------------------------------------------------
+----
 // NOTCONSOLE
+
 <1> Whether the shard is allowed to remain on its current node.
 <2> The deciders that factored into the decision of why the shard is not allowed to remain on its current node.
 <3> Whether the shard is allowed to be allocated to another node.
 
-
-The API response output for an assigned shard that remains on its current node
-because moving the shard to another node does not form a better cluster balance:
+The following response contains an allocation explanation for a shard that must
+remain on its current node. Moving the shard to another node would not improve
+cluster balance.
 
 [source,js]
---------------------------------------------------
+----
 {
   "index" : "my-index-000001",
   "shard" : 0,
@@ -344,8 +314,22 @@ because moving the shard to another node does not form a better cluster balance:
     }
   ]
 }
---------------------------------------------------
+----
 // NOTCONSOLE
+
 <1> Whether rebalancing is allowed on the cluster.
 <2> Whether the shard can be rebalanced to another node.
 <3> The reason the shard cannot be rebalanced to the node, in this case indicating that it offers no better balance than the current node.
+
+===== No arguments
+
+If you call the API with no arguments, {es} retrieves an allocation explanation
+for an arbitrary unassigned primary or replica shard.
+
+[source,console]
+----
+GET _cluster/allocation/explain
+----
+// TEST[catch:bad_request]
+
+If the cluster contains no unassigned shards, the API returns a `400` error.

@@ -41,7 +41,7 @@ import org.elasticsearch.client.ilm.StopILMRequest;
 import org.elasticsearch.client.ilm.UnfollowAction;
 import org.elasticsearch.client.ilm.WaitForSnapshotAction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -138,7 +138,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
     public void testExplainLifecycle() throws Exception {
         Map<String, Phase> lifecyclePhases = new HashMap<>();
         Map<String, LifecycleAction> hotActions = new HashMap<>();
-        hotActions.put(RolloverAction.NAME, new RolloverAction(null, TimeValue.timeValueHours(50 * 24), null));
+        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, TimeValue.timeValueHours(50 * 24), null));
         Phase hotPhase = new Phase("hot", randomFrom(TimeValue.ZERO, null), hotActions);
         lifecyclePhases.put("hot", hotPhase);
 

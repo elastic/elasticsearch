@@ -18,8 +18,8 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -73,7 +73,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     /** Set the deferred collectors. */
     @Override
     public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
-        this.deferred = MultiBucketCollector.wrap(deferredCollectors);
+        this.deferred = MultiBucketCollector.wrap(true, deferredCollectors);
     }
 
     @Override
@@ -114,8 +114,14 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     @Override
+    public void postCollection() throws IOException {
+        runDeferredAggs();
+    }
+
+
+    @Override
     public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
-        runDeferredAggs();  // TODO should we only prepare the selected buckets?!
+        // no-op - deferred aggs processed in postCollection call
     }
 
     private void runDeferredAggs() throws IOException {
@@ -149,6 +155,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             // done with allDocs now, reclaim some memory
             circuitBreakerConsumer.accept(-12L * shardSize);
         }
+        deferred.postCollection();
     }
 
     class PerParentBucketSamples {

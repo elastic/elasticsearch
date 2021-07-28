@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -140,7 +140,7 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
      * Handle case where a disco node cannot be found in the routing table. Usually means that it's not a data node.
      */
     protected RerouteExplanation explainOrThrowMissingRoutingNode(RoutingAllocation allocation, boolean explain, DiscoveryNode discoNode) {
-        if (discoNode.isDataNode() == false) {
+        if (discoNode.canContainData() == false) {
             return explainOrThrowRejectedCommand(explain, allocation, "allocation can only be done on data nodes, not [" + node + "]");
         } else {
             return explainOrThrowRejectedCommand(explain, allocation, "could not find [" + node + "] among the routing nodes");

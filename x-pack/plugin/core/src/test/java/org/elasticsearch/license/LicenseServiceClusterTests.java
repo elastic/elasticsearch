@@ -9,11 +9,10 @@ package org.elasticsearch.license;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
@@ -32,24 +31,19 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return nodeSettingsBuilder(nodeOrdinal).build();
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return nodeSettingsBuilder(nodeOrdinal, otherSettings).build();
     }
 
-    @Override
-    protected boolean addMockHttpTransport() {
-        return false; // enable http
-    }
-
-    private Settings.Builder nodeSettingsBuilder(int nodeOrdinal) {
+    private Settings.Builder nodeSettingsBuilder(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(addRoles(super.nodeSettings(nodeOrdinal), Set.of(DiscoveryNodeRole.DATA_ROLE)))
+            .put(addRoles(super.nodeSettings(nodeOrdinal, otherSettings), Set.of(DiscoveryNodeRole.DATA_ROLE)))
             .put("resource.reload.interval.high", "500ms"); // for license mode file watcher
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, CommonAnalysisPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, CommonAnalysisPlugin.class);
     }
 
     public void testClusterRestartWithLicense() throws Exception {
@@ -121,26 +115,12 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         assertLicenseActive(true);
     }
 
-    public void testClusterRestartWhileGrace() throws Exception {
-        wipeAllLicenses();
-        internalCluster().startNode();
-        assertLicenseActive(true);
-        putLicense(TestUtils.generateSignedLicense(TimeValue.timeValueMillis(0)));
-        ensureGreen();
-        assertLicenseActive(true);
-        logger.info("--> restart node");
-        internalCluster().fullRestart();
-        ensureYellow();
-        logger.info("--> await node for grace_period");
-        assertLicenseActive(true);
-    }
-
     public void testClusterRestartWhileExpired() throws Exception {
         wipeAllLicenses();
         internalCluster().startNode();
         ensureGreen();
         assertLicenseActive(true);
-        putLicense(TestUtils.generateExpiredNonBasicLicense(System.currentTimeMillis() - LicenseService.GRACE_PERIOD_DURATION.getMillis()));
+        putLicense(TestUtils.generateExpiredNonBasicLicense(System.currentTimeMillis()));
         assertLicenseActive(false);
         logger.info("--> restart node");
         internalCluster().fullRestart();

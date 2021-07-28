@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
@@ -17,6 +17,10 @@ dependencies {
   testImplementation project(':modules:lang-mustache')
   testImplementation project(':modules:lang-painless')
   testImplementation project(':modules:reindex')
+}
+
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.named("testingConventions").configure {

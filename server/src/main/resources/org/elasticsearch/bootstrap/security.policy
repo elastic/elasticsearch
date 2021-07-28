@@ -153,4 +153,6 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
 
+  // system memory on Linux systems affected by JDK bug (#66629)
+  permission java.io.FilePermission "/proc/meminfo", "read";
 };

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -54,7 +53,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         Request(StreamInput in) throws IOException {
             super(in);
-            this.sorted = in.getVersion().onOrAfter(Version.V_7_10_0) ? in.readBoolean() : false;
+            this.sorted = in.readBoolean();
         }
 
         @Override
@@ -65,9 +64,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-                out.writeBoolean(sorted);
-            }
+            out.writeBoolean(sorted);
         }
 
         public boolean sorted() {

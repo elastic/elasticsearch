@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
@@ -17,8 +18,8 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.io.IOException;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -155,40 +156,20 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         return (FieldNamesFieldType) super.fieldType();
     }
 
-    static Iterable<String> extractFieldNames(final String fullPath) {
-        return new Iterable<String>() {
-            @Override
-            public Iterator<String> iterator() {
-                return new Iterator<>() {
-                    int endIndex = nextEndIndex(0);
+    @Override
+    public void postParse(DocumentParserContext context) throws IOException {
+        if (enabled.value() == false) {
+            return;
+        }
+        for (String field : context.getFieldNames()) {
+            assert noDocValues(field, context) : "Field " + field + " should not have docvalues";
+            context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
+        }
+    }
 
-                    private int nextEndIndex(int index) {
-                        while (index < fullPath.length() && fullPath.charAt(index) != '.') {
-                            index += 1;
-                        }
-                        return index;
-                    }
-
-                    @Override
-                    public boolean hasNext() {
-                        return endIndex <= fullPath.length();
-                    }
-
-                    @Override
-                    public String next() {
-                        final String result = fullPath.substring(0, endIndex);
-                        endIndex = nextEndIndex(endIndex + 1);
-                        return result;
-                    }
-
-                    @Override
-                    public void remove() {
-                        throw new UnsupportedOperationException();
-                    }
-
-                };
-            }
-        };
+    private static boolean noDocValues(String field, DocumentParserContext context) {
+        MappedFieldType ft = context.mappingLookup().getFieldType(field);
+        return ft == null || ft.hasDocValues() == false;
     }
 
     @Override

@@ -127,7 +127,8 @@
                 "segments",
                 "store",
                 "warmer",
-                "bulk"
+                "bulk",
+                "shards"
               ],
               "description":"Limit the information returned for `indices` metric to the specific index metrics. Isn't used if `indices` (or `all`) metric isn't specified."
             }
@@ -175,7 +176,8 @@
                 "segments",
                 "store",
                 "warmer",
-                "bulk"
+                "bulk",
+                "shards"
               ],
               "description":"Limit the information returned for `indices` metric to the specific index metrics. Isn't used if `indices` (or `all`) metric isn't specified."
             },
@@ -225,6 +227,11 @@
       "include_segment_file_sizes":{
         "type":"boolean",
         "description":"Whether to report the aggregated disk usage of each one of the Lucene index files (only applies if segment stats are requested)",
+        "default":false
+      },
+      "include_unloaded_segments":{
+        "type":"boolean",
+        "description":"If set to true segment stats will include stats for segments that are not currently loaded into memory",
         "default":false
       }
     }

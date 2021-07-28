@@ -30,6 +30,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class DiscoveryNodeFiltersTests extends ESTestCase {
 
@@ -275,6 +276,23 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
             .build());
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
         assertTrue(filters.match(node));
+    }
+
+    public void testOnlyAttributeValueFilter() {
+        List<String> keys = randomSubsetOf(DiscoveryNodeFilters.NON_ATTRIBUTE_NAMES);
+        if (keys.isEmpty() || randomBoolean()) {
+            keys.add("tag");
+        }
+        Settings.Builder builder = Settings.builder();
+        keys.forEach(key -> builder.put("xxx." + key, "1.2.3.4"));
+        DiscoveryNodeFilters discoveryNodeFilters = buildFromSettings(
+           DiscoveryNodeFilters.OpType.AND, "xxx.", builder.build()
+        );
+        DiscoveryNode node = new DiscoveryNode(
+            "", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "1.2.3.4"), emptySet(), null
+        );
+
+        assertThat(discoveryNodeFilters.isOnlyAttributeValueFilter(), is(discoveryNodeFilters.match(node)));
     }
 
     private Settings shuffleSettings(Settings source) {

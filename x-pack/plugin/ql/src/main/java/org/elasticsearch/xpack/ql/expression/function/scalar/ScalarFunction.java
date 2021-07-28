@@ -16,15 +16,18 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.DateUtils;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
+import static org.elasticsearch.xpack.ql.expression.gen.script.Scripts.PARAM;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 
 /**
  * A {@code ScalarFunction} is a {@code Function} that takes values from some
@@ -111,31 +114,42 @@ public abstract class ScalarFunction extends Function {
     }
 
     protected ScriptTemplate scriptWithAggregate(AggregateFunction aggregate) {
-        String template = basicTemplate(aggregate);
-        return new ScriptTemplate(processScript(template),
-                paramsBuilder().agg(aggregate).build(),
-                dataType());
+        String template = PARAM;
+        ParamsBuilder paramsBuilder = paramsBuilder().agg(aggregate);
+
+        DataType nullSafeCastDataType = null;
+        DataType dataType = aggregate.dataType();
+        if (dataType.name().equals("DATE") || dataType == DATETIME ||
+            // Aggregations on date_nanos are returned as string
+            aggregate.field().dataType() == DATETIME) {
+
+            template = "{sql}.asDateTime({})";
+        } else if (dataType.isInteger()) {
+            // MAX, MIN need to retain field's data type, so that possible operations on integral types (like division) work
+            // correctly -> perform a cast in the aggs filtering script, the bucket selector for HAVING.
+            // SQL function classes not available in QL: filter by name
+            String fn = aggregate.functionName();
+            if ("MAX".equals(fn) || "MIN".equals(fn)) {
+                nullSafeCastDataType = dataType;
+            } else if ("SUM".equals(fn)) {
+                // SUM(integral_type) requires returning a LONG value
+                nullSafeCastDataType = LONG;
+            }
+        }
+        if (nullSafeCastDataType != null) {
+            template = "{ql}.nullSafeCastNumeric({},{})";
+            paramsBuilder.variable(nullSafeCastDataType.name());
+        }
+        return new ScriptTemplate(processScript(template), paramsBuilder.build(), dataType());
     }
 
     // This method isn't actually used at the moment, since there is no grouping function (ie HISTOGRAM)
     // that currently results in a script being generated
     protected ScriptTemplate scriptWithGrouping(GroupingFunction grouping) {
-        String template = basicTemplate(grouping);
+        String template = PARAM;
         return new ScriptTemplate(processScript(template),
-                paramsBuilder().grouping(grouping).build(),
-                dataType());
-    }
-
-    // FIXME: this needs to be refactored to account for different datatypes in different projects (ie DATE from SQL)
-    private String basicTemplate(Function function) {
-        if (function.dataType().name().equals("DATE") || function.dataType() == DataTypes.DATETIME ||
-            // Aggregations on date_nanos are returned as double
-            (function instanceof AggregateFunction && ((AggregateFunction) function).field().dataType() == DATETIME_NANOS)) {
-
-            return "{sql}.asDateTime({})";
-        } else {
-            return "{}";
-        }
+            paramsBuilder().grouping(grouping).build(),
+            dataType());
     }
 
     protected ScriptTemplate scriptWithField(FieldAttribute field) {

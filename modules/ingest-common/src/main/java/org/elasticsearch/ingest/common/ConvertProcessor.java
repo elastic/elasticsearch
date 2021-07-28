@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -82,6 +83,13 @@ public final class ConvertProcessor extends AbstractProcessor {
                 } else {
                     throw new IllegalArgumentException("[" + value + "] is not a boolean value, cannot convert to boolean");
                 }
+            }
+        }, IP {
+            @Override
+            public Object convert(Object value) {
+                // IllegalArgumentException is thrown if unable to convert
+                InetAddresses.forString((String) value);
+                return value;
             }
         }, STRING {
             @Override

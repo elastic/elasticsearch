@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,14 +48,9 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(
-            new ReplacedRoute(GET, "/_security/user/_privileges", GET, "/_xpack/security/user/_privileges")
+        return List.of(
+            Route.builder(GET, "/_security/user/_privileges")
+                .replaces(GET, "/_xpack/security/user/_privileges", RestApiVersion.V_7).build()
         );
     }
 

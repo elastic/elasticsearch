@@ -7,12 +7,14 @@
  */
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
-apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
+apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
   testImplementation project(':client:rest-high-level')
@@ -28,6 +30,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
       version = v
       numberOfNodes = 2
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      setting 'xpack.security.enabled', 'false'
     }
   }
 
@@ -74,18 +77,4 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn tasks.named("${baseName}#Step4NewClusterTest")
   }
-}
-
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  testArtifacts testJar
 }

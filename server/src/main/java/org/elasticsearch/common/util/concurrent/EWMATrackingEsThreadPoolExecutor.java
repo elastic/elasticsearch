@@ -9,7 +9,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;

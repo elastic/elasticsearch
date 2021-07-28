@@ -36,11 +36,24 @@ import java.util.Set;
 public class TransportGetRepositoriesAction extends TransportMasterNodeReadAction<GetRepositoriesRequest, GetRepositoriesResponse> {
 
     @Inject
-    public TransportGetRepositoriesAction(TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetRepositoriesAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              GetRepositoriesRequest::new, indexNameExpressionResolver, GetRepositoriesResponse::new, ThreadPool.Names.SAME);
+    public TransportGetRepositoriesAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetRepositoriesAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetRepositoriesRequest::new,
+            indexNameExpressionResolver,
+            GetRepositoriesResponse::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
@@ -49,8 +62,12 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
     }
 
     @Override
-    protected void masterOperation(Task task, final GetRepositoriesRequest request, ClusterState state,
-                                   final ActionListener<GetRepositoriesResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        final GetRepositoriesRequest request,
+        ClusterState state,
+        final ActionListener<GetRepositoriesResponse> listener
+    ) {
         listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetadata(getRepositories(state, request.repositories()))));
     }
 

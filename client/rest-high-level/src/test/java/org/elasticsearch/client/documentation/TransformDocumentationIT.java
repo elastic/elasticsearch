@@ -34,8 +34,11 @@ import org.elasticsearch.client.transform.UpdateTransformResponse;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.NodeAttributes;
 import org.elasticsearch.client.transform.transforms.QueryConfig;
+import org.elasticsearch.client.transform.transforms.RetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.SettingsConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
+import org.elasticsearch.client.transform.transforms.SyncConfig;
+import org.elasticsearch.client.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
@@ -46,7 +49,7 @@ import org.elasticsearch.client.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -147,6 +150,18 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             .setMaxPageSearchSize(1000) // <1>
             .build();
         // end::put-transform-settings-config
+        // tag::put-transform-retention-policy-config
+        RetentionPolicyConfig retentionPolicy = TimeRetentionPolicyConfig.builder()
+            .setField("time-field") // <1>
+            .setMaxAge(TimeValue.timeValueDays(30)) // <2>
+            .build();
+        // end::put-transform-retention-policy-config
+        // tag::put-transform-sync-config
+        SyncConfig syncConfig = TimeSyncConfig.builder()
+            .setField("time-field") // <1>
+            .setDelay(TimeValue.timeValueSeconds(30)) // <2>
+            .build();
+        // end::put-transform-sync-config
         // tag::put-transform-config
         TransformConfig transformConfig = TransformConfig
             .builder()
@@ -157,6 +172,8 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             .setPivotConfig(pivotConfig) // <5>
             .setDescription("This is my test transform") // <6>
             .setSettings(settings) // <7>
+            .setRetentionPolicyConfig(retentionPolicy) // <8>
+            .setSyncConfig(syncConfig) // <9>
             .build();
         // end::put-transform-config
 
@@ -230,7 +247,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             .setSource(SourceConfig.builder().setIndex("source-data").setQueryConfig(queryConfig).build())
             .setDest(DestConfig.builder().setIndex("pivot-dest").build())
             .setPivotConfig(pivotConfig)
-            .setSyncConfig(new TimeSyncConfig("time-field", TimeValue.timeValueSeconds(120)))
+            .setSyncConfig(TimeSyncConfig.builder().setField("time-field").setDelay(TimeValue.timeValueSeconds(120)).build())
             .build();
 
         client.transform().putTransform(new PutTransformRequest(transformConfig), RequestOptions.DEFAULT);
@@ -246,9 +263,15 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setIndex("pivot-dest")
                 .build()) // <2>
             .setFrequency(TimeValue.timeValueSeconds(15)) // <3>
-            .setSyncConfig(new TimeSyncConfig("time-field",
-                TimeValue.timeValueSeconds(120))) // <4>
+            .setSyncConfig(TimeSyncConfig.builder()
+                .setField("time-field")
+                .setDelay(TimeValue.timeValueSeconds(120))
+                .build()) // <4>
             .setDescription("This is my updated transform") // <5>
+            .setRetentionPolicyConfig(TimeRetentionPolicyConfig.builder()
+                .setField("time-field")
+                .setMaxAge(TimeValue.timeValueDays(30))
+                .build()) // <6>
             .build();
         // end::update-transform-config
 

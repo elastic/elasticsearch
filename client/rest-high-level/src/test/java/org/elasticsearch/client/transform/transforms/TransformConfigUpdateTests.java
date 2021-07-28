@@ -10,7 +10,7 @@ package org.elasticsearch.client.transform.transforms;
 
 import org.elasticsearch.client.transform.TransformNamedXContentProvider;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
@@ -23,6 +23,8 @@ import java.util.List;
 import static org.elasticsearch.client.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.client.transform.transforms.SettingsConfigTests.randomSettingsConfig;
 import static org.elasticsearch.client.transform.transforms.SourceConfigTests.randomSourceConfig;
+import static org.elasticsearch.client.transform.transforms.TransformConfigTests.randomRetentionPolicyConfig;
+import static org.elasticsearch.client.transform.transforms.TransformConfigTests.randomSyncConfig;
 
 public class TransformConfigUpdateTests extends AbstractXContentTestCase<TransformConfigUpdate> {
 
@@ -33,12 +35,9 @@ public class TransformConfigUpdateTests extends AbstractXContentTestCase<Transfo
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            randomBoolean() ? null : randomSettingsConfig()
+            randomBoolean() ? null : randomSettingsConfig(),
+            randomBoolean() ? null : randomRetentionPolicyConfig()
         );
-    }
-
-    public static SyncConfig randomSyncConfig() {
-        return TimeSyncConfigTests.randomTimeSyncConfig();
     }
 
     @Override

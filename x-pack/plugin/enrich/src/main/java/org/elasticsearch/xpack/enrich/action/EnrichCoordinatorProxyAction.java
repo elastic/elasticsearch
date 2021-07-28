@@ -17,10 +17,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,8 +36,9 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * An internal action to locally manage the load of the search requests that originate from the enrich processor.
@@ -85,9 +86,9 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         final int maxNumberOfConcurrentRequests;
         final int queueCapacity;
         final BlockingQueue<Slot> queue;
-        final AtomicInteger remoteRequestsCurrent = new AtomicInteger(0);
-        volatile long remoteRequestsTotal = 0;
-        final AtomicLong executedSearchesTotal = new AtomicLong(0);
+        final Semaphore remoteRequestPermits;
+        final LongAdder remoteRequestsTotal = new LongAdder();
+        final LongAdder executedSearchesTotal = new LongAdder();
 
         public Coordinator(Client client, Settings settings) {
             this(
@@ -109,6 +110,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             this.maxNumberOfConcurrentRequests = maxNumberOfConcurrentRequests;
             this.queueCapacity = queueCapacity;
             this.queue = new ArrayBlockingQueue<>(queueCapacity);
+            this.remoteRequestPermits = new Semaphore(maxNumberOfConcurrentRequests);
         }
 
         void schedule(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
@@ -127,7 +129,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             if (accepted == false) {
                 listener.onFailure(
                     new EsRejectedExecutionException(
-                        "Could not perform enrichment, " + "enrich coordination queue at capacity [" + queueSize + "/" + queueCapacity + "]"
+                        "Could not perform enrichment, enrich coordination queue at capacity [" + queueSize + "/" + queueCapacity + "]"
                     )
                 );
             }
@@ -137,29 +139,38 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             return new CoordinatorStats(
                 nodeId,
                 queue.size(),
-                remoteRequestsCurrent.get(),
-                remoteRequestsTotal,
-                executedSearchesTotal.get()
+                getRemoteRequestsCurrent(),
+                remoteRequestsTotal.longValue(),
+                executedSearchesTotal.longValue()
             );
         }
 
-        synchronized void coordinateLookups() {
-            while (queue.isEmpty() == false && remoteRequestsCurrent.get() < maxNumberOfConcurrentRequests) {
+        int getRemoteRequestsCurrent() {
+            return maxNumberOfConcurrentRequests - remoteRequestPermits.availablePermits();
+        }
 
-                final List<Slot> slots = new ArrayList<>();
-                queue.drainTo(slots, maxLookupsPerRequest);
+        void coordinateLookups() {
+            while (true) {
+                if (remoteRequestPermits.tryAcquire() == false) {
+                    return;
+                }
+
+                final List<Slot> slots = new ArrayList<>(Math.min(queue.size(), maxLookupsPerRequest));
+                if (queue.drainTo(slots, maxLookupsPerRequest) == 0) {
+                    remoteRequestPermits.release();
+                    return;
+                }
+                assert slots.isEmpty() == false;
+                remoteRequestsTotal.increment();
                 final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
                 slots.forEach(slot -> multiSearchRequest.add(slot.searchRequest));
-
-                remoteRequestsCurrent.incrementAndGet();
-                remoteRequestsTotal++;
-                lookupFunction.accept(multiSearchRequest, (response, e) -> { handleResponse(slots, response, e); });
+                lookupFunction.accept(multiSearchRequest, (response, e) -> handleResponse(slots, response, e));
             }
         }
 
         void handleResponse(List<Slot> slots, MultiSearchResponse response, Exception e) {
-            remoteRequestsCurrent.decrementAndGet();
-            executedSearchesTotal.addAndGet(slots.size());
+            remoteRequestPermits.release();
+            executedSearchesTotal.add(slots.size());
 
             if (response != null) {
                 assert slots.size() == response.getResponses().length;

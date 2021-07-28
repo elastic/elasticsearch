@@ -35,7 +35,7 @@ public class ResizeRequest extends TimedRequest implements Validatable, ToXConte
     private final String targetIndex;
     private Settings settings = Settings.EMPTY;
     private Set<Alias> aliases = new HashSet<>();
-    private ByteSizeValue maxSinglePrimarySize;
+    private ByteSizeValue maxPrimaryShardSize;
 
     /**
      * Creates a new resize request
@@ -79,17 +79,17 @@ public class ResizeRequest extends TimedRequest implements Validatable, ToXConte
     }
 
     /**
-     * Sets the max single primary shard size of the target index
+     * Sets the max primary shard size of the target index
      */
-    public void setMaxSinglePrimarySize(ByteSizeValue maxSinglePrimarySize) {
-        this.maxSinglePrimarySize = maxSinglePrimarySize;
+    public void setMaxPrimaryShardSize(ByteSizeValue maxPrimaryShardSize) {
+        this.maxPrimaryShardSize = maxPrimaryShardSize;
     }
 
     /**
-     * Return the max single primary shard size of the target index
+     * Return the max primary shard size of the target index
      */
-    public ByteSizeValue getMaxSinglePrimarySize() {
-        return maxSinglePrimarySize;
+    public ByteSizeValue getMaxPrimaryShardSize() {
+        return maxPrimaryShardSize;
     }
 
     @Override

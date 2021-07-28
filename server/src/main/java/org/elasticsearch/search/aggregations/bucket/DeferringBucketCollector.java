@@ -19,6 +19,7 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.function.BiConsumer;
 
 /**
  * A {@link BucketCollector} that records collected doc IDs and buckets and
@@ -88,6 +89,12 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
+        public void collectDebugInfo(BiConsumer<String, Object> add) {
+            super.collectDebugInfo(add);
+            in.collectDebugInfo(add);
+        }
+
+        @Override
         public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
             throw new IllegalStateException(
                     "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
@@ -95,6 +102,12 @@ public abstract class DeferringBucketCollector extends BucketCollector {
 
         @Override
         public void preCollection() throws IOException {
+            throw new IllegalStateException(
+                    "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
+        }
+
+        @Override
+        public void postCollection() throws IOException {
             throw new IllegalStateException(
                     "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
         }

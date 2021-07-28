@@ -8,12 +8,13 @@
 
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
-apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.bwc-test'
 
 for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   String baseName = "v${bwcVersion}"
@@ -25,6 +26,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
       // some tests rely on the translog not being flushed
       setting 'indices.memory.shard_inactive_time', '60m'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      setting 'xpack.security.enabled', 'false'
     }
   }
 
@@ -58,18 +60,4 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn tasks.named("${baseName}#upgradedClusterTest")
   }
-}
-
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-
-TaskProvider testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  testArtifacts testJar
 }

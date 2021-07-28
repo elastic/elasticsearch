@@ -78,6 +78,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getUaParser().getOsPatterns().size(), greaterThan(0));
         assertThat(processor.getUaParser().getDevicePatterns().size(), greaterThan(0));
         assertThat(processor.getProperties(), equalTo(EnumSet.allOf(UserAgentProcessor.Property.class)));
+        assertFalse(processor.isExtractDeviceType());
         assertFalse(processor.isIgnoreMissing());
     }
 
@@ -125,6 +126,19 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getUaParser().getUaPatterns().size(), greaterThan(0));
         assertThat(processor.getUaParser().getOsPatterns().size(), greaterThan(0));
         assertThat(processor.getUaParser().getDevicePatterns().size(), equalTo(0));
+    }
+
+    public void testBuildExtractDeviceType() throws Exception {
+        UserAgentProcessor.Factory factory = new UserAgentProcessor.Factory(userAgentParsers);
+        boolean extractDeviceType = randomBoolean();
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("extract_device_type", extractDeviceType);
+
+        UserAgentProcessor processor = factory.create(null, null, null, config);
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.isExtractDeviceType(), equalTo(extractDeviceType));
     }
 
     public void testBuildNonExistingRegexFile() throws Exception {

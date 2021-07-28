@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.rest.action.compat;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -18,23 +19,18 @@ import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.compat.PutTransformActionDeprecated;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutTransformActionDeprecated extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return singletonList(new DeprecatedRoute(PUT, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED,
-                TransformMessages.REST_DEPRECATED_ENDPOINT));
+        return List.of(
+            Route.builder(PUT, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED)
+                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_8).build()
+        );
     }
 
     @Override

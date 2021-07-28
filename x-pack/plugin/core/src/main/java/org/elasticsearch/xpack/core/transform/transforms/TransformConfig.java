@@ -10,19 +10,21 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
@@ -32,6 +34,8 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -45,11 +49,23 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
+    /** Version in which {@code FieldCapabilitiesRequest.runtime_fields} field was introduced. */
+    private static final Version FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION = Version.V_7_12_0;
 
-    // types of transforms
-    public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
-    public static final ParseField LATEST_TRANSFORM = new ParseField("latest");
+    /** Specifies all the possible transform functions. */
+    public enum Function {
+        PIVOT, LATEST;
 
+        private final ParseField parseField;
+
+        Function() {
+            this.parseField = new ParseField(name().toLowerCase(Locale.ROOT));
+        }
+
+        public ParseField getParseField() {
+            return parseField;
+        }
+    }
     private static final ConstructingObjectParser<TransformConfig, String> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<TransformConfig, String> LENIENT_PARSER = createParser(true);
     static final int MAX_DESCRIPTION_LENGTH = 1_000;
@@ -144,8 +160,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         parser.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, c), TransformField.SYNC);
         parser.declareString(optionalConstructorArg(), TransformField.INDEX_DOC_TYPE);
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), HEADERS);
-        parser.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p, lenient), PIVOT_TRANSFORM);
-        parser.declareObject(optionalConstructorArg(), (p, c) -> LatestConfig.fromXContent(p, lenient), LATEST_TRANSFORM);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p, lenient), Function.PIVOT.getParseField());
+        parser.declareObject(optionalConstructorArg(), (p, c) -> LatestConfig.fromXContent(p, lenient), Function.LATEST.getParseField());
         parser.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
         parser.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, lenient), TransformField.SETTINGS);
         parser.declareNamedObject(
@@ -227,7 +243,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         } else {
             settings = new SettingsConfig();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_12_0
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
         } else {
             retentionPolicyConfig = null;
@@ -304,41 +320,36 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         return retentionPolicyConfig;
     }
 
+    /**
+     * Determines the minimum version of a cluster in multi-cluster setup that is needed to successfully run this transform config.
+     *
+     * @return version
+     */
+    public List<SourceDestValidation> getAdditionalSourceDestValidations() {
+        if ((source.getRuntimeMappings() == null || source.getRuntimeMappings().isEmpty()) == false) {
+            SourceDestValidation validation =
+                new SourceDestValidator.RemoteClusterMinimumVersionValidation(
+                    FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION, "source.runtime_mappings field was set");
+            return Collections.singletonList(validation);
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        validationException = source.validate(validationException);
+        validationException = dest.validate(validationException);
+        validationException = settings.validate(validationException);
         if (pivotConfig != null) {
             validationException = pivotConfig.validate(validationException);
         }
         if (latestConfig != null) {
             validationException = latestConfig.validate(validationException);
         }
-        validationException = settings.validate(validationException);
-
         if (retentionPolicyConfig != null) {
             validationException = retentionPolicyConfig.validate(validationException);
         }
-
         return validationException;
-    }
-
-    public boolean isValid() {
-        // todo: base this on validate
-        if (pivotConfig != null && pivotConfig.isValid() == false) {
-            return false;
-        }
-
-        if (latestConfig != null && latestConfig.validate(null) != null) {
-            return false;
-        }
-
-        if (syncConfig != null && syncConfig.isValid() == false) {
-            return false;
-        }
-
-        if (retentionPolicyConfig != null && retentionPolicyConfig.validate(null) != null) {
-            return false;
-        }
-
-        return settings.isValid() && source.isValid() && dest.isValid();
     }
 
     @Override
@@ -366,7 +377,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             settings.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_12_0
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalNamedWriteable(retentionPolicyConfig);
         }
     }
@@ -408,10 +419,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             builder.endObject();
         }
         if (pivotConfig != null) {
-            builder.field(PIVOT_TRANSFORM.getPreferredName(), pivotConfig);
+            builder.field(Function.PIVOT.getParseField().getPreferredName(), pivotConfig);
         }
         if (latestConfig != null) {
-            builder.field(LATEST_TRANSFORM.getPreferredName(), latestConfig);
+            builder.field(Function.LATEST.getParseField().getPreferredName(), latestConfig);
         }
         if (description != null) {
             builder.field(TransformField.DESCRIPTION.getPreferredName(), description);

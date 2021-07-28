@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -15,7 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
@@ -27,9 +28,6 @@ import java.util.Collections;
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCase<PauseFollowerIndexStep> {
 
@@ -56,22 +54,8 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             return null;
         }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
-        Boolean[] completed = new Boolean[1];
-        Exception[] failure = new Exception[1];
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                completed[0] = complete;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                failure[0] = e;
-            }
-        });
-        assertThat(completed[0], is(true));
-        assertThat(failure[0], nullValue());
+        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
     }
 
     public void testRequestNotAcknowledged() {
@@ -90,23 +74,10 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             return null;
         }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
-        Boolean[] completed = new Boolean[1];
-        Exception[] failure = new Exception[1];
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                completed[0] = complete;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                failure[0] = e;
-            }
-        });
-        assertThat(completed[0], nullValue());
-        assertThat(failure[0], notNullValue());
-        assertThat(failure[0].getMessage(), is("pause follow request failed to be acknowledged"));
+        Exception e = expectThrows(Exception.class,
+            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        assertThat(e.getMessage(), is("pause follow request failed to be acknowledged"));
     }
 
     public void testPauseFollowingIndexFailed() {
@@ -123,27 +94,15 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         Mockito.doAnswer(invocation -> {
             PauseFollowAction.Request request = (PauseFollowAction.Request) invocation.getArguments()[1];
             assertThat(request.getFollowIndex(), equalTo("follower-index"));
-            ActionListener listener = (ActionListener) invocation.getArguments()[2];
+            ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(error);
             return null;
         }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
-        Boolean[] completed = new Boolean[1];
-        Exception[] failure = new Exception[1];
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                completed[0] = complete;
-            }
+        assertSame(error, expectThrows(Exception.class,
+            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))));
 
-            @Override
-            public void onFailure(Exception e) {
-                failure[0] = e;
-            }
-        });
-        assertThat(completed[0], nullValue());
-        assertThat(failure[0], sameInstance(error));
         Mockito.verify(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
         Mockito.verifyNoMoreInteractions(client);
     }
@@ -166,21 +125,8 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
 
         PauseFollowerIndexStep step = newInstance(randomStepKey(), randomStepKey());
 
-        Boolean[] completed = new Boolean[1];
-        Exception[] failure = new Exception[1];
-        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                completed[0] = complete;
-            }
+        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
 
-            @Override
-            public void onFailure(Exception e) {
-                failure[0] = e;
-            }
-        });
-        assertThat(completed[0], is(true));
-        assertThat(failure[0], nullValue());
         Mockito.verifyZeroInteractions(client);
     }
 
@@ -197,26 +143,12 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        ClusterState clusterState = setupClusterStateWithFollowingIndex(followerIndex);
-        // add the managed index to the cluster state too
-        clusterState = ClusterState.builder(clusterState).metadata(Metadata.builder().put(managedIndex, false).build()).build();
+        final ClusterState clusterState = ClusterState.builder(
+            setupClusterStateWithFollowingIndex(followerIndex)).metadata(Metadata.builder().put(managedIndex, false).build()).build();
         PauseFollowerIndexStep step = newInstance(randomStepKey(), randomStepKey());
 
-        Boolean[] completed = new Boolean[1];
-        Exception[] failure = new Exception[1];
-        step.performAction(managedIndex, clusterState, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                completed[0] = complete;
-            }
+        assertTrue(PlainActionFuture.get(f -> step.performAction(managedIndex, clusterState, null, f)));
 
-            @Override
-            public void onFailure(Exception e) {
-                failure[0] = e;
-            }
-        });
-        assertThat(completed[0], is(true));
-        assertThat(failure[0], nullValue());
         Mockito.verifyZeroInteractions(client);
     }
 

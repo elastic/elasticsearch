@@ -12,20 +12,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 import static org.elasticsearch.xpack.sql.proto.Mode.JDBC;
@@ -35,7 +37,7 @@ import static org.elasticsearch.xpack.sql.proto.SqlVersion.isClientCompatible;
 /**
  * Response to perform an sql query
  */
-public class SqlQueryResponse extends ActionResponse implements ToXContentObject {
+public class SqlQueryResponse extends ActionResponse implements ToXContentObject, QlStatusResponse.AsyncStatus {
 
     // TODO: Simplify cursor handling
     private String cursor;
@@ -46,6 +48,10 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     // TODO investigate reusing Page here - it probably is much more efficient
     private List<List<Object>> rows;
     private static final String INTERVAL_CLASS_NAME = "Interval";
+    // async
+    private final @Nullable String asyncExecutionId;
+    private final boolean isPartial;
+    private final boolean isRunning;
 
     public SqlQueryResponse(StreamInput in) throws IOException {
         super(in);
@@ -75,6 +81,32 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             }
         }
         this.rows = unmodifiableList(rows);
+        columnar = in.readBoolean();
+        asyncExecutionId = in.readOptionalString();
+        isPartial = in.readBoolean();
+        isRunning = in.readBoolean();
+    }
+
+    public SqlQueryResponse(
+        String cursor,
+        Mode mode,
+        SqlVersion sqlVersion,
+        boolean columnar,
+        @Nullable List<ColumnInfo> columns,
+        List<List<Object>> rows,
+        @Nullable String asyncExecutionId,
+        boolean isPartial,
+        boolean isRunning
+    ) {
+        this.cursor = cursor;
+        this.mode = mode;
+        this.sqlVersion = sqlVersion != null ? sqlVersion : fromId(CURRENT.id);
+        this.columnar = columnar;
+        this.columns = columns;
+        this.rows = rows;
+        this.asyncExecutionId = asyncExecutionId;
+        this.isPartial = isPartial;
+        this.isRunning = isRunning;
     }
 
     public SqlQueryResponse(
@@ -85,12 +117,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         @Nullable List<ColumnInfo> columns,
         List<List<Object>> rows
     ) {
-        this.cursor = cursor;
-        this.mode = mode;
-        this.sqlVersion = sqlVersion != null ? sqlVersion : fromId(Version.CURRENT.id);
-        this.columnar = columnar;
-        this.columns = columns;
-        this.rows = rows;
+        this(cursor, mode, sqlVersion, columnar, columns, rows, null, false, false);
     }
 
     /**
@@ -157,12 +184,22 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
                 }
             }
         }
+        out.writeBoolean(columnar);
+        out.writeOptionalString(asyncExecutionId);
+        out.writeBoolean(isPartial);
+        out.writeBoolean(isRunning);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
+            if (hasId()) {
+                builder.field(Protocol.ID_NAME, asyncExecutionId);
+                builder.field(Protocol.IS_PARTIAL_NAME, isPartial);
+                builder.field(Protocol.IS_RUNNING_NAME, isRunning);
+            }
+
             if (columns != null) {
                 builder.startArray("columns");
                 {
@@ -216,7 +253,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         if (value instanceof ZonedDateTime) {
             ZonedDateTime zdt = (ZonedDateTime) value;
             // use the ISO format
-            if (mode == JDBC && isClientCompatible(sqlVersion)) {
+            if (mode == JDBC && isClientCompatible(SqlVersion.fromId(CURRENT.id), sqlVersion)) {
                 builder.value(StringUtils.toString(zdt, sqlVersion));
             } else {
                 builder.value(StringUtils.toString(zdt));
@@ -246,6 +283,25 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         out.writeString(columnInfo.name());
         out.writeString(columnInfo.esType());
         out.writeOptionalVInt(columnInfo.displaySize());
+    }
+
+    public boolean hasId() {
+        return Strings.hasText(asyncExecutionId);
+    }
+
+    @Override
+    public String id() {
+        return asyncExecutionId;
+    }
+
+    @Override
+    public boolean isRunning() {
+        return isRunning;
+    }
+
+    @Override
+    public boolean isPartial() {
+        return isPartial;
     }
 
     @Override

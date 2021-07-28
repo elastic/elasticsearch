@@ -48,6 +48,7 @@ public final class XPackField {
      */
     @Deprecated
     public static final String FLATTENED = "flattened";
+    @Deprecated
     /** Name constant for the vectors feature. */
     public static final String VECTORS = "vectors";
     /** Name constant for the voting-only-node feature. */
@@ -68,8 +69,6 @@ public final class XPackField {
     public static final String DATA_TIERS = "data_tiers";
     /** Name constant for the aggregate_metric plugin. */
     public static final String AGGREGATE_METRIC = "aggregate_metric";
-    /** Name constant for the runtime fields plugin. */
-    public static final String RUNTIME_FIELDS = "runtime_fields";
     /** Name constant for the operator privileges feature. */
     public static final String OPERATOR_PRIVILEGES = "operator_privileges";
 

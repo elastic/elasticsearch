@@ -18,7 +18,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -313,7 +313,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
             // System.out.println(source);
             logger.trace("executing expansion graph search request");
-            client.search(searchRequest, new ActionListener<SearchResponse>() {
+            client.search(searchRequest, new ActionListener.Delegating<>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     // System.out.println(searchResponse);
@@ -515,11 +515,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     }
                     return totalSignalOutput;
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-            }
             });
         }
 
@@ -660,7 +655,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 searchRequest.source(source);
                 // System.out.println(source);
                 logger.trace("executing initial graph search request");
-                client.search(searchRequest, new ActionListener<SearchResponse>() {
+                client.search(searchRequest, new ActionListener.Delegating<>(listener) {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
                         addShardFailures(searchResponse.getShardFailures());
@@ -717,11 +712,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                             }
                         }
                         return totalSignalStrength;
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
                     }
                 });
             } catch (Exception e) {

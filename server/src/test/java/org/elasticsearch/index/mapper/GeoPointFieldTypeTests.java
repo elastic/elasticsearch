@@ -8,14 +8,22 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.geo.GeoTestUtil;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SimpleFeatureFactory;
+import org.elasticsearch.script.ScriptCompiler;
+import org.hamcrest.Matchers;
+
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", false).build(new ContentPath()).fieldType();
+        MappedFieldType mapper
+            = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false).build(new ContentPath()).fieldType();
 
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
         Map<String, Object> otherJsonPoint = Map.of("type", "Point", "coordinates", List.of(30.0, 50.0));
@@ -37,9 +45,50 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
 
+        // Test a list of points in [lat,lon] array format with one malformed
+        sourceValue = List.of(List.of(42.0, 27.1), List.of("a", "b"), List.of(30.0, 50.0));
+        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
         // Test a single point in well-known text format.
         sourceValue = "POINT (42.0 27.1)";
         assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a malformed value
+        sourceValue = "malformed";
+        assertEquals(List.of(), fetchSourceValue(mapper, sourceValue, null));
+    }
+
+    public void testFetchVectorTile() throws IOException {
+        MappedFieldType mapper
+            = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false).build(new ContentPath()).fieldType();
+        final int z = randomIntBetween(1, 10);
+        int x = randomIntBetween(0, (1 << z) - 1);
+        int y = randomIntBetween(0, (1 << z) - 1);
+        final SimpleFeatureFactory featureFactory;
+        final String mvtString;
+        if (randomBoolean()) {
+            int extent = randomIntBetween(1 << 8, 1 << 14);
+            mvtString = "mvt(" + z + "/" + x + "/" + y + "@" + extent + ")";
+            featureFactory = new SimpleFeatureFactory(z, x, y, extent);
+        } else {
+            mvtString = "mvt(" + z + "/" + x + "/" + y + ")";
+            featureFactory = new SimpleFeatureFactory(z, x, y, 4096);
+        }
+        List<GeoPoint> geoPoints = new ArrayList<>();
+        List<List<Double>> values = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(1, 10); i++) {
+            final double lat = GeoTestUtil.nextLatitude();
+            final double lon = GeoTestUtil.nextLongitude();
+            List<?> sourceValue = fetchSourceValue(mapper, List.of(lon, lat), mvtString);
+            assertThat(sourceValue.size(), Matchers.equalTo(1));
+            assertThat(sourceValue.get(0), Matchers.equalTo(featureFactory.point(lon, lat)));
+            geoPoints.add(new GeoPoint(lat, lon));
+            values.add(List.of(lon, lat));
+        }
+        List<?> sourceValue = fetchSourceValue(mapper, values, mvtString);
+        assertThat(sourceValue.size(), Matchers.equalTo(1));
+        assertThat(sourceValue.get(0), Matchers.equalTo(featureFactory.points(geoPoints)));
     }
 }

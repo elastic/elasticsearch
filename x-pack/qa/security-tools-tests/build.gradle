@@ -2,7 +2,7 @@ apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
   testImplementation project(xpackModule('security'))
-  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
 }
@@ -18,6 +18,3 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.p12'
   exclude '**/*.der'
 }
-
-// these are just tests, no need to audit
-tasks.named("thirdPartyAudit").configure { enabled = false }

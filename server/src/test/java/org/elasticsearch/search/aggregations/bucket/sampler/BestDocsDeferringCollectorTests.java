@@ -63,6 +63,7 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
         collector.setDeferredCollector(Collections.singleton(testCollector(deferredCollectedDocIds)));
         collector.preCollection();
         indexSearcher.search(termQuery, collector);
+        collector.postCollection();
         collector.prepareSelectedBuckets(0);
 
         assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
@@ -88,6 +89,11 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
 
             @Override
             public void preCollection() throws IOException {
+
+            }
+
+            @Override
+            public void postCollection() throws IOException {
 
             }
 

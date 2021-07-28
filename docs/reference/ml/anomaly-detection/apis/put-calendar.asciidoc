@@ -16,15 +16,14 @@ Instantiates a calendar.
 [[ml-put-calendar-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-put-calendar-desc]]
 == {api-description-title}
 
 For more information, see
-{ml-docs}/ml-calendars.html[Calendars and scheduled events].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
 
 [[ml-put-calendar-path-parms]]
 == {api-path-parms-title}

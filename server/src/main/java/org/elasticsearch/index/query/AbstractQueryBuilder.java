@@ -11,10 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanBoostQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -92,9 +90,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         Query query = doToQuery(context);
         if (query != null) {
             if (boost != DEFAULT_BOOST) {
-                if (query instanceof SpanQuery) {
-                    query = new SpanBoostQuery((SpanQuery) query, boost);
-                } else if (query instanceof MatchNoDocsQuery == false) {
+                if (query instanceof MatchNoDocsQuery == false) {
                     query = new BoostQuery(query, boost);
                 }
             }

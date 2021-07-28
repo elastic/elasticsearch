@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -20,6 +19,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public class FieldCapabilitiesIndexRequest extends ActionRequest implements IndicesRequest {
@@ -31,6 +31,7 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
     private final OriginalIndices originalIndices;
     private final QueryBuilder indexFilter;
     private final long nowInMillis;
+    private final Map<String, Object> runtimeFields;
 
     private ShardId shardId;
 
@@ -41,15 +42,17 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         index = in.readOptionalString();
         fields = in.readStringArray();
         originalIndices = OriginalIndices.readOriginalIndices(in);
-        indexFilter = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
-        nowInMillis =  in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readLong() : 0L;
+        indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        nowInMillis =  in.readLong();
+        runtimeFields = in.readMap();
     }
 
     FieldCapabilitiesIndexRequest(String[] fields,
                                   String index,
                                   OriginalIndices originalIndices,
                                   QueryBuilder indexFilter,
-                                  long nowInMillis) {
+                                  long nowInMillis,
+                                  Map<String, Object> runtimeFields) {
         if (fields == null || fields.length == 0) {
             throw new IllegalArgumentException("specified fields can't be null or empty");
         }
@@ -58,6 +61,7 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         this.originalIndices = originalIndices;
         this.indexFilter = indexFilter;
         this.nowInMillis = nowInMillis;
+        this.runtimeFields = runtimeFields;
     }
 
     public String[] fields() {
@@ -82,6 +86,10 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         return indexFilter;
     }
 
+    public Map<String, Object> runtimeFields() {
+        return runtimeFields;
+    }
+
     public ShardId shardId() {
         return shardId;
     }
@@ -102,10 +110,9 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         out.writeOptionalString(index);
         out.writeStringArray(fields);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeOptionalNamedWriteable(indexFilter);
-            out.writeLong(nowInMillis);
-        }
+        out.writeOptionalNamedWriteable(indexFilter);
+        out.writeLong(nowInMillis);
+        out.writeMap(runtimeFields);
     }
 
     @Override

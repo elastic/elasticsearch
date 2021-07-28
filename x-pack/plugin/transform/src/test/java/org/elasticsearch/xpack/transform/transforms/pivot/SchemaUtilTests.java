@@ -29,7 +29,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.is;
 
 public class SchemaUtilTests extends ESTestCase {
 
@@ -92,7 +98,7 @@ public class SchemaUtilTests extends ESTestCase {
         try (Client client = new FieldCapsMockClient(getTestName())) {
             // fields is null
             this.<Map<String, String>>assertAsync(
-                listener -> SchemaUtil.getSourceFieldMappings(client, new String[] { "index-1", "index-2" }, null, listener),
+                listener -> SchemaUtil.getSourceFieldMappings(client, new String[] { "index-1", "index-2" }, null, emptyMap(), listener),
                 mappings -> {
                     assertNotNull(mappings);
                     assertTrue(mappings.isEmpty());
@@ -101,7 +107,8 @@ public class SchemaUtilTests extends ESTestCase {
 
             // fields is empty
             this.<Map<String, String>>assertAsync(
-                listener -> SchemaUtil.getSourceFieldMappings(client, new String[] { "index-1", "index-2" }, new String[] {}, listener),
+                listener ->
+                    SchemaUtil.getSourceFieldMappings(client, new String[] { "index-1", "index-2" }, new String[] {}, emptyMap(), listener),
                 mappings -> {
                     assertNotNull(mappings);
                     assertTrue(mappings.isEmpty());
@@ -110,7 +117,7 @@ public class SchemaUtilTests extends ESTestCase {
 
             // indices is null
             this.<Map<String, String>>assertAsync(
-                listener -> SchemaUtil.getSourceFieldMappings(client, null, new String[] { "field-1", "field-2" }, listener),
+                listener -> SchemaUtil.getSourceFieldMappings(client, null, new String[] { "field-1", "field-2" }, emptyMap(), listener),
                 mappings -> {
                     assertNotNull(mappings);
                     assertTrue(mappings.isEmpty());
@@ -119,7 +126,8 @@ public class SchemaUtilTests extends ESTestCase {
 
             // indices is empty
             this.<Map<String, String>>assertAsync(
-                listener -> SchemaUtil.getSourceFieldMappings(client, new String[] {}, new String[] { "field-1", "field-2" }, listener),
+                listener ->
+                    SchemaUtil.getSourceFieldMappings(client, new String[] {}, new String[] { "field-1", "field-2" }, emptyMap(), listener),
                 mappings -> {
                     assertNotNull(mappings);
                     assertTrue(mappings.isEmpty());
@@ -132,6 +140,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     new String[] { "index-1", "index-2" },
                     new String[] { "field-1", "field-2" },
+                    emptyMap(),
                     listener
                 ),
                 mappings -> {
@@ -139,6 +148,30 @@ public class SchemaUtilTests extends ESTestCase {
                     assertEquals(2, mappings.size());
                     assertEquals("long", mappings.get("field-1"));
                     assertEquals("long", mappings.get("field-2"));
+                }
+            );
+        }
+    }
+
+    public void testGetSourceFieldMappingsWithRuntimeMappings() throws InterruptedException {
+        Map<String, Object> runtimeMappings = new HashMap<>() {{
+            put("field-2", singletonMap("type", "keyword"));
+            put("field-3", singletonMap("type", "boolean"));
+        }};
+        try (Client client = new FieldCapsMockClient(getTestName())) {
+            this.<Map<String, String>>assertAsync(
+                listener -> SchemaUtil.getSourceFieldMappings(
+                    client,
+                    new String[] { "index-1", "index-2" },
+                    new String[] { "field-1", "field-2" },
+                    runtimeMappings,
+                    listener
+                ),
+                mappings -> {
+                    assertThat(mappings, is(aMapWithSize(3)));
+                    assertThat(
+                        mappings,
+                        allOf(hasEntry("field-1", "long"), hasEntry("field-2", "keyword"), hasEntry("field-3", "boolean")));
                 }
             );
         }
@@ -160,7 +193,12 @@ public class SchemaUtilTests extends ESTestCase {
                 FieldCapabilitiesRequest fieldCapsRequest = (FieldCapabilitiesRequest) request;
                 Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
                 for (String field : fieldCapsRequest.fields()) {
-                    responseMap.put(field, Collections.singletonMap(field, createFieldCapabilities(field, "long")));
+                    responseMap.put(field, singletonMap(field, createFieldCapabilities(field, "long")));
+                }
+                for (Map.Entry<String, Object> runtimeField : fieldCapsRequest.runtimeFields().entrySet()) {
+                    String field = runtimeField.getKey();
+                    String type = (String)((Map) runtimeField.getValue()).get("type");
+                    responseMap.put(field, singletonMap(field, createFieldCapabilities(field, type)));
                 }
 
                 final FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(fieldCapsRequest.indices(), responseMap);
@@ -176,6 +214,7 @@ public class SchemaUtilTests extends ESTestCase {
         return new FieldCapabilities(
             name,
             type,
+            false,
             true,
             true,
             Strings.EMPTY_ARRAY,

@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
@@ -357,9 +358,17 @@ public class FinalPipelineIT extends ESIntegTestCase {
                     new AbstractProcessor(tag, description) {
 
                         @Override
-                        public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
-                            ingestDocument.setFieldValue("default", true);
-                            return ingestDocument;
+                        public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+                            // randomize over sync and async execution
+                            randomFrom(parameters.genericExecutor, Runnable::run).accept(() -> {
+                                ingestDocument.setFieldValue("default", true);
+                                handler.accept(ingestDocument, null);
+                            });
+                        }
+
+                        @Override
+                        public IngestDocument execute(IngestDocument ingestDocument) {
+                            throw new AssertionError("should not be called");
                         }
 
                         @Override

@@ -1,6 +1,6 @@
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.InternalClusterTestPlugin
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
 import static org.elasticsearch.gradle.PropertyNormalization.DEFAULT
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
@@ -14,6 +14,7 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact-base'
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'
@@ -85,9 +86,18 @@ dependencies {
   testImplementation project(':test:fixtures:azure-fixture')
 }
 
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
+}
+
+tasks.named("internalClusterTestJar").configure {
+  // for the plugin-security.policy resource
+  from sourceSets.test.output
+}
+
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'snapshot', 'bulk', 'count', 'indices'
+    include '_common', 'cluster', 'nodes', 'snapshot', 'bulk', 'count', 'indices'
   }
 }
 
@@ -200,15 +210,6 @@ tasks.named("thirdPartyAudit").configure {
     // from io.netty.handler.codec.compression.LzmaFrameEncoder (netty-codec)
     'lzma.sdk.lzma.Encoder',
 
-    // from io.netty.handler.codec.compression.Lz4FrameDecoder (netty-codec)
-    'net.jpountz.lz4.LZ4Compressor',
-    'net.jpountz.lz4.LZ4Factory',
-    'net.jpountz.lz4.LZ4FastDecompressor',
-
-    // from io.netty.handler.codec.compression.Lz4XXHash32 (netty-codec)
-    'net.jpountz.xxhash.XXHash32',
-    'net.jpountz.xxhash.XXHashFactory',
-
     // from io.netty.handler.ssl.JettyAlpnSslEngin (netty-handler optional dependency)
     'org.eclipse.jetty.alpn.ALPN$ClientProvider',
     'org.eclipse.jetty.alpn.ALPN$ServerProvider',
@@ -230,6 +231,8 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.internal.tcnative.CertificateVerifier',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
+    'io.netty.internal.tcnative.SSLSession',
+    'io.netty.internal.tcnative.SSLSessionCache',
 
     // from io.netty.util.internal.Hidden (netty-common optional dependency)
     'reactor.blockhound.BlockHound$Builder',
@@ -321,14 +324,14 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
   testFixtures.useFixture ':test:fixtures:azure-fixture', 'azure-fixture'
 }
 
-Map<String, Object> expansions = [
+Map<String, String> expansions = [
   'container': azureContainer,
   'base_path': azureBasePath + "_integration_tests"
 ]
 
 tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 tasks.named("internalClusterTest").configure {
@@ -368,18 +371,3 @@ tasks.register("azureThirdPartyTest", Test) {
   }
 }
 tasks.named("check").configure { dependsOn("azureThirdPartyTest") }
-
-// test jar is exported by the integTestArtifacts configuration to be used in the encrypted Azure repository test
-configurations {
-  internalClusterTestArtifacts.extendsFrom internalClusterTestImplementation
-  internalClusterTestArtifacts.extendsFrom internalClusterTestRuntime
-}
-
-def internalClusterTestJar = tasks.register("internalClusterTestJar", Jar) {
-  appendix 'internalClusterTest'
-  from sourceSets.internalClusterTest.output
-}
-
-artifacts {
-  internalClusterTestArtifacts internalClusterTestJar
-}

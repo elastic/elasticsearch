@@ -11,11 +11,11 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -71,9 +71,9 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public DocValueFetcher.Leaf getLeafValueFetcher(DocValueFormat format) {
+    public FormattedDocValues getFormattedValues(DocValueFormat format) {
         SortedNumericDoubleValues values = getDoubleValues();
-        return new DocValueFetcher.Leaf() {
+        return new FormattedDocValues() {
             @Override
             public boolean advanceExact(int docId) throws IOException {
                 return values.advanceExact(docId);

@@ -9,6 +9,7 @@
 import org.apache.tools.ant.taskdefs.condition.Os
 
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -24,11 +25,35 @@ dependencies {
   api('com.maxmind.db:maxmind-db:1.3.1')
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'
+  internalClusterTestImplementation project(path: ":modules:reindex")
 }
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
+    include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
+  }
+}
+
+def useFixture = providers.environmentVariable("geoip_use_service")
+  .forUseAtConfigurationTime()
+  .map { s -> Boolean.parseBoolean(s) == false }
+  .getOrElse(true)
+
+def fixtureAddress = {
+  assert useFixture: 'closure should not be used without a fixture'
+  int ephemeralPort = tasks.getByPath(":test:fixtures:geoip-fixture:postProcessFixture").ext."test.fixtures.geoip-fixture.tcp.80"
+  assert ephemeralPort > 0
+  return "http://127.0.0.1:${ephemeralPort}/"
+}
+
+if (useFixture) {
+  apply plugin: 'elasticsearch.test.fixtures'
+  testFixtures.useFixture(':test:fixtures:geoip-fixture', 'geoip-fixture')
+}
+
+tasks.named("internalClusterTest").configure {
+  if (useFixture) {
+    nonInputProperties.systemProperty "geoip_endpoint", "${-> fixtureAddress()}"
   }
 }
 
@@ -47,21 +72,21 @@ tasks.named("bundlePlugin").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-          // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
-          'org.apache.http.HttpEntity',
-          'org.apache.http.HttpHost',
-          'org.apache.http.HttpResponse',
-          'org.apache.http.StatusLine',
-          'org.apache.http.auth.UsernamePasswordCredentials',
-          'org.apache.http.client.config.RequestConfig$Builder',
-          'org.apache.http.client.config.RequestConfig',
-          'org.apache.http.client.methods.CloseableHttpResponse',
-          'org.apache.http.client.methods.HttpGet',
-          'org.apache.http.client.utils.URIBuilder',
-          'org.apache.http.impl.auth.BasicScheme',
-          'org.apache.http.impl.client.CloseableHttpClient',
-          'org.apache.http.impl.client.HttpClientBuilder',
-          'org.apache.http.util.EntityUtils'
+    // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
+    'org.apache.http.HttpEntity',
+    'org.apache.http.HttpHost',
+    'org.apache.http.HttpResponse',
+    'org.apache.http.StatusLine',
+    'org.apache.http.auth.UsernamePasswordCredentials',
+    'org.apache.http.client.config.RequestConfig$Builder',
+    'org.apache.http.client.config.RequestConfig',
+    'org.apache.http.client.methods.CloseableHttpResponse',
+    'org.apache.http.client.methods.HttpGet',
+    'org.apache.http.client.utils.URIBuilder',
+    'org.apache.http.impl.auth.BasicScheme',
+    'org.apache.http.impl.client.CloseableHttpClient',
+    'org.apache.http.impl.client.HttpClientBuilder',
+    'org.apache.http.util.EntityUtils'
   )
 }
 
@@ -71,4 +96,14 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     // See https://github.com/maxmind/MaxMind-DB-Reader-java#file-lock-on-windows for more information
     systemProperty 'es.geoip.load_db_on_heap', 'true'
   }
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.mmdb'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /geoip.*/, to: 'maxmind-geolite2-eula'
+  mapping from: /maxmind-db.*/, to: 'maxmind-db-reader'
+  ignoreFile 'elastic-geoip-database-service-agreement-LICENSE.txt'
 }

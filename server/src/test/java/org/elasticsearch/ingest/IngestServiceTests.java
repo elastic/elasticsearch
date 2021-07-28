@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -66,7 +67,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -111,9 +112,8 @@ public class IngestServiceTests extends ESTestCase {
     @Before
     public void setup(){
         threadPool = mock(ThreadPool.class);
-        ExecutorService executorService = EsExecutors.newDirectExecutorService();
-        when(threadPool.generic()).thenReturn(executorService);
-        when(threadPool.executor(anyString())).thenReturn(executorService);
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
     public void testIngestPlugin() {
         Client client = mock(Client.class);
@@ -720,6 +720,28 @@ public class IngestServiceTests extends ESTestCase {
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
+    public void testDynamicTemplates() throws Exception {
+        IngestService ingestService = createWithProcessors(Collections.singletonMap(
+            "set", (factories, tag, description, config) ->
+                new FakeProcessor("set", "", "", (ingestDocument) -> ingestDocument.setFieldValue("_dynamic_templates",
+                    Map.of("foo", "bar", "foo.bar", "baz")))));
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id",
+            new BytesArray("{\"processors\": [{\"set\" : {}}]}"), XContentType.JSON);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        final IndexRequest indexRequest =
+            new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        CountDownLatch latch = new CountDownLatch(1);
+        final BiConsumer<Integer, Exception> failureHandler = (v, e) -> { throw new AssertionError("must never fail", e);};
+        final BiConsumer<Thread, Exception> completionHandler = (t, e) -> latch.countDown();
+        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler,
+            indexReq -> {}, Names.WRITE);
+        latch.await();
+        assertThat(indexRequest.getDynamicTemplates(), equalTo(Map.of("foo", "bar", "foo.bar", "baz")));
+    }
+
     public void testExecuteEmptyPipeline() throws Exception {
         IngestService ingestService = createWithProcessors(emptyMap());
         PutPipelineRequest putRequest =
@@ -765,6 +787,8 @@ public class IngestServiceTests extends ESTestCase {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifSeqNo);
                 } else if (metadata == IngestDocument.Metadata.IF_PRIMARY_TERM) {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifPrimaryTerm);
+                } else if (metadata == IngestDocument.Metadata.DYNAMIC_TEMPLATES) {
+                    ingestDocument.setFieldValue(metadata.getFieldName(), Map.of("foo", "bar"));
                 } else {
                     ingestDocument.setFieldValue(metadata.getFieldName(), "update" + metadata.getFieldName());
                 }
@@ -1353,6 +1377,24 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
     }
 
+    public void testResolveFinalPipelineWithDateMathExpression() {
+        final long epochMillis = randomLongBetween(1, System.currentTimeMillis());
+        final DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
+        IndexMetadata.Builder builder = IndexMetadata.builder("idx-" + dateFormatter.formatMillis(epochMillis))
+            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        Metadata metadata = Metadata.builder().put(builder).build();
+
+        // index name matches with IDM:
+        IndexRequest indexRequest = new IndexRequest("<idx-{now/d}>");
+        boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata, epochMillis);
+        assertThat(result, is(true));
+        assertThat(indexRequest.isPipelineResolved(), is(true));
+        assertThat(indexRequest.getPipeline(), equalTo("_none"));
+        assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+    }
+
     public void testResolveRequestOrDefaultPipelineAndFinalPipeline() {
         // no pipeline:
         {
@@ -1431,9 +1473,8 @@ public class IngestServiceTests extends ESTestCase {
 
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        ExecutorService executorService = EsExecutors.newDirectExecutorService();
-        when(threadPool.generic()).thenReturn(executorService);
-        when(threadPool.executor(anyString())).thenReturn(executorService);
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         return new IngestService(mock(ClusterService.class), threadPool, null, null,
             null, Collections.singletonList(new IngestPlugin() {
             @Override

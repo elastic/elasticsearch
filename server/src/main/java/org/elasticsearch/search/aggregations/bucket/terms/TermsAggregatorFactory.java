@@ -8,8 +8,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -36,6 +39,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.LongPredicate;
 
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
@@ -51,6 +55,22 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     /**
+     * The maximum number of global ordinals a field can have for us to try
+     * aggregating it "filter by filter". "Filter by filter" aggregation is
+     * generally faster when possible but takes more memory because we have
+     * to build the filters.
+     * <p>
+     * The value that we have here is a fairly wild guess. At the time of
+     * writing we figure each filter clause takes a couple of kb worth of
+     * accounting so this is in the neighborhood of one megabyte of memory.
+     * <p>
+     * Secondly, this is a fairly crude heuristic. If the terms agg was going
+     * to take up nearly as much memory anyway it might be worth it to use
+     * filters. More experiment is required.
+     */
+    static final long MAX_ORDS_TO_TRY_FILTERS = 1000;
+
+    /**
      * This supplier is used for all the field types that should be aggregated as bytes/strings,
      * including those that need global ordinals
      */
@@ -59,9 +79,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             @Override
             public Aggregator build(String name,
                                     AggregatorFactories factories,
-                                    ValuesSource valuesSource,
+                                    ValuesSourceConfig valuesSourceConfig,
                                     BucketOrder order,
-                                    DocValueFormat format,
                                     TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                     IncludeExclude includeExclude,
                                     String executionHint,
@@ -71,6 +90,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     boolean showTermDocCountError,
                                     CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
+                ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
                 ExecutionMode execution = null;
                 if (executionHint != null) {
                     execution = ExecutionMode.fromString(executionHint);
@@ -87,7 +107,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode = pickSubAggColectMode(factories, bucketCountThresholds.getShardSize(), maxOrd);
                 }
 
-                if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
+                if ((includeExclude != null) && (includeExclude.isRegexBased()) && valuesSourceConfig.format() != DocValueFormat.RAW) {
                     // TODO this exception message is not really accurate for the string case.  It's really disallowing regex + formatter
                     throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style "
                         + "include/exclude settings as they can only be applied to string fields. Use an array of values for "
@@ -95,7 +115,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
 
                 // TODO: [Zach] we might want refactor and remove ExecutionMode#create(), moving that logic outside the enum
-                return execution.create(name, factories, valuesSource, order, format, bucketCountThresholds, includeExclude,
+                return execution.create(name, factories, valuesSourceConfig, order, bucketCountThresholds, includeExclude,
                     context, parent, subAggCollectMode, showTermDocCountError, cardinality, metadata);
 
             }
@@ -111,9 +131,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             @Override
             public Aggregator build(String name,
                                     AggregatorFactories factories,
-                                    ValuesSource valuesSource,
+                                    ValuesSourceConfig valuesSourceConfig,
                                     BucketOrder order,
-                                    DocValueFormat format,
                                     TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                     IncludeExclude includeExclude,
                                     String executionHint,
@@ -134,7 +153,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode = pickSubAggColectMode(factories, bucketCountThresholds.getShardSize(), -1);
                 }
 
-                ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSource;
+                ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 IncludeExclude.LongFilter longFilter = null;
                 Function<NumericTermsAggregator, ResultStrategy<?, ?>> resultStrategy;
                 if (numericValuesSource.isFloatingPoint()) {
@@ -144,11 +163,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     resultStrategy = agg -> agg.new DoubleTermsResults(showTermDocCountError);
                 } else {
                     if (includeExclude != null) {
-                        longFilter = includeExclude.convertToLongFilter(format);
+                        longFilter = includeExclude.convertToLongFilter(valuesSourceConfig.format());
                     }
                     resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
                 }
-                return new NumericTermsAggregator(name, factories, resultStrategy, numericValuesSource, format, order,
+                return new NumericTermsAggregator(name, factories, resultStrategy, numericValuesSource, valuesSourceConfig.format(), order,
                     bucketCountThresholds, context, parent, subAggCollectMode, longFilter, cardinality, metadata);
             }
         };
@@ -230,9 +249,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         return aggregatorSupplier.build(
             name,
             factories,
-            config.getValuesSource(),
+            config,
             order,
-            config.format(),
             bucketCountThresholds,
             includeExclude,
             executionHint,
@@ -291,9 +309,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             @Override
             Aggregator create(String name,
                               AggregatorFactories factories,
-                              ValuesSource valuesSource,
+                              ValuesSourceConfig valuesSourceConfig,
                               BucketOrder order,
-                              DocValueFormat format,
                               TermsAggregator.BucketCountThresholds bucketCountThresholds,
                               IncludeExclude includeExclude,
                               AggregationContext context,
@@ -302,14 +319,16 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                               boolean showTermDocCountError,
                               CardinalityUpperBound cardinality,
                               Map<String, Object> metadata) throws IOException {
-                final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
+                IncludeExclude.StringFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToStringFilter(valuesSourceConfig.format());
                 return new MapStringTermsAggregator(
                     name,
                     factories,
-                    new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSource),
-                    a -> a.new StandardTermsResults(valuesSource),
+                    new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSourceConfig),
+                    a -> a.new StandardTermsResults(valuesSourceConfig.getValuesSource()),
                     order,
-                    format,
+                    valuesSourceConfig.format(),
                     bucketCountThresholds,
                     filter,
                     context,
@@ -326,9 +345,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             @Override
             Aggregator create(String name,
                               AggregatorFactories factories,
-                              ValuesSource valuesSource,
+                              ValuesSourceConfig valuesSourceConfig,
                               BucketOrder order,
-                              DocValueFormat format,
                               TermsAggregator.BucketCountThresholds bucketCountThresholds,
                               IncludeExclude includeExclude,
                               AggregationContext context, Aggregator parent,
@@ -337,13 +355,47 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                               CardinalityUpperBound cardinality,
                               Map<String, Object> metadata) throws IOException {
 
-                final long maxOrd = getMaxOrd(valuesSource, context.searcher());
-                assert maxOrd != -1;
+                assert valuesSourceConfig.getValuesSource() instanceof ValuesSource.Bytes.WithOrdinals;
+                ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSourceConfig
+                    .getValuesSource();
+                SortedSetDocValues values = globalOrdsValues(context, ordinalsValuesSource);
+                long maxOrd = values.getValueCount();
+                if (maxOrd > 0 && maxOrd <= MAX_ORDS_TO_TRY_FILTERS && context.enableRewriteToFilterByFilter()) {
+                    StringTermsAggregatorFromFilters adapted = StringTermsAggregatorFromFilters.adaptIntoFiltersOrNull(
+                        name,
+                        factories,
+                        context,
+                        parent,
+                        showTermDocCountError,
+                        cardinality,
+                        metadata,
+                        valuesSourceConfig,
+                        order,
+                        bucketCountThresholds,
+                        gloabalOrdsFilter(includeExclude, valuesSourceConfig.format(), values),
+                        values
+                    );
+                    if (adapted != null) {
+                        /*
+                         * We don't check the estimated cost here because we're
+                         * fairly sure that any field that has global ordinals
+                         * is going to be able to query fairly quickly. Mostly
+                         * checking the cost is a defense against runtime fields
+                         * which *have* queries but they are slow and have high
+                         * cost. But runtime fields don't have global ords
+                         * so we won't have got here anyway.
+                         *
+                         * It's totally possible that there might be a top level
+                         * query that was generated by a runtime field. That
+                         * query might indeed be slow, but we won't execute it
+                         * any more times doing filter-by-filter then we would
+                         * doing regular collection.
+                         */
+                        return adapted;
+                    }
+                }
+
                 final double ratio = maxOrd / ((double) context.searcher().getIndexReader().numDocs());
-
-                assert valuesSource instanceof ValuesSource.Bytes.WithOrdinals;
-                ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
-
                 if (factories == AggregatorFactories.EMPTY &&
                         includeExclude == null &&
                         cardinality == CardinalityUpperBound.ONE &&
@@ -359,13 +411,24 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                      *  - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
                      *  which directly linked to maxOrd, so we need to limit).
                      */
-                    return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories,
+                    return new GlobalOrdinalsStringTermsAggregator.LowCardinality(
+                        name,
+                        factories,
                         a -> a.new StandardTermsResults(),
-                        ordinalsValuesSource, order, format, bucketCountThresholds, context, parent, false,
-                        subAggCollectMode, showTermDocCountError, metadata);
+                        ordinalsValuesSource,
+                        values,
+                        order,
+                        valuesSourceConfig.format(),
+                        bucketCountThresholds,
+                        context,
+                        parent,
+                        false,
+                        subAggCollectMode,
+                        showTermDocCountError,
+                        metadata
+                    );
 
                 }
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 boolean remapGlobalOrds;
                 if (cardinality == CardinalityUpperBound.ONE && REMAP_GLOBAL_ORDS != null) {
                     /*
@@ -396,10 +459,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     factories,
                     a -> a.new StandardTermsResults(),
                     ordinalsValuesSource,
+                    values,
                     order,
-                    format,
+                    valuesSourceConfig.format(),
                     bucketCountThresholds,
-                    filter,
+                    gloabalOrdsFilter(includeExclude, valuesSourceConfig.format(), values),
                     context,
                     parent,
                     remapGlobalOrds,
@@ -430,9 +494,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
         abstract Aggregator create(String name,
                                    AggregatorFactories factories,
-                                   ValuesSource valuesSource,
+                                   ValuesSourceConfig valuesSourceConfig,
                                    BucketOrder order,
-                                   DocValueFormat format,
                                    TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                    IncludeExclude includeExclude,
                                    AggregationContext context,
@@ -448,4 +511,24 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
     }
 
+    public static SortedSetDocValues globalOrdsValues(AggregationContext context, ValuesSource.Bytes.WithOrdinals valuesSource)
+        throws IOException {
+        IndexReader reader = context.searcher().getIndexReader();
+        if (reader.leaves().isEmpty()) {
+            return DocValues.emptySortedSet();
+        }
+        return valuesSource.globalOrdinalsValues(reader.leaves().get(0));
+    }
+
+    public static LongPredicate gloabalOrdsFilter(
+        IncludeExclude includeExclude,
+        DocValueFormat format,
+        SortedSetDocValues values
+    ) throws IOException {
+
+        if (includeExclude == null) {
+            return GlobalOrdinalsStringTermsAggregator.ALWAYS_TRUE;
+        }
+        return includeExclude.convertToOrdinalsFilter(format).acceptedGlobalOrdinals(values)::get;
+    }
 }

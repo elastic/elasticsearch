@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -145,38 +145,39 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
     }
 
     /**
-     * Create a <code>categorization_analyzer</code> that mimics what the tokenizer and filters built into the ML C++
-     * code do.  This is the default analyzer for categorization to ensure that people upgrading from previous versions
+     * Create a <code>categorization_analyzer</code> that mimics what the tokenizer and filters built into the original ML
+     * C++ code do.  This is the default analyzer for categorization to ensure that people upgrading from old versions
      * get the same behaviour from their categorization jobs before and after upgrade.
      * @param categorizationFilters Categorization filters (if any) from the <code>analysis_config</code>.
      * @return The default categorization analyzer.
      */
     public static CategorizationAnalyzerConfig buildDefaultCategorizationAnalyzer(List<String> categorizationFilters) {
 
-        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder();
+        return new CategorizationAnalyzerConfig.Builder()
+            .addCategorizationFilters(categorizationFilters)
+            .setTokenizer("ml_classic")
+            .addDateWordsTokenFilter()
+            .build();
+    }
 
-        if (categorizationFilters != null) {
-            for (String categorizationFilter : categorizationFilters) {
-                Map<String, Object> charFilter = new HashMap<>();
-                charFilter.put("type", "pattern_replace");
-                charFilter.put("pattern", categorizationFilter);
-                builder.addCharFilter(charFilter);
-            }
-        }
+    /**
+     * Create a <code>categorization_analyzer</code> that will be used for newly created jobs where no categorization
+     * analyzer is explicitly provided.  This analyzer differs from the default one in that it uses the <code>ml_standard</code>
+     * tokenizer instead of the <code>ml_classic</code> tokenizer, and it only considers the first non-blank line of each message.
+     * This analyzer is <em>not</em> used for jobs that specify no categorization analyzer, as that would break jobs that were
+     * originally run in older versions.  Instead, this analyzer is explicitly added to newly created jobs once the entire cluster
+     * is upgraded to version 7.14 or above.
+     * @param categorizationFilters Categorization filters (if any) from the <code>analysis_config</code>.
+     * @return The standard categorization analyzer.
+     */
+    public static CategorizationAnalyzerConfig buildStandardCategorizationAnalyzer(List<String> categorizationFilters) {
 
-        builder.setTokenizer("ml_classic");
-
-        Map<String, Object> tokenFilter = new HashMap<>();
-        tokenFilter.put("type", "stop");
-        tokenFilter.put("stopwords", Arrays.asList(
-                "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
-                "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
-                "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
-                "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-                "GMT", "UTC"));
-        builder.addTokenFilter(tokenFilter);
-
-        return builder.build();
+        return new CategorizationAnalyzerConfig.Builder()
+            .addCharFilter("first_non_blank_line")
+            .addCategorizationFilters(categorizationFilters)
+            .setTokenizer("ml_standard")
+            .addDateWordsTokenFilter()
+            .build();
     }
 
     private final String analyzer;
@@ -311,6 +312,18 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             return this;
         }
 
+        public Builder addCategorizationFilters(List<String> categorizationFilters) {
+            if (categorizationFilters != null) {
+                for (String categorizationFilter : categorizationFilters) {
+                    Map<String, Object> charFilter = new HashMap<>();
+                    charFilter.put("type", "pattern_replace");
+                    charFilter.put("pattern", categorizationFilter);
+                    addCharFilter(charFilter);
+                }
+            }
+            return this;
+        }
+
         public Builder setTokenizer(String tokenizer) {
             this.tokenizer = new NameOrDefinition(tokenizer);
             return this;
@@ -328,6 +341,19 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
 
         public Builder addTokenFilter(Map<String, Object> tokenFilter) {
             this.tokenFilters.add(new NameOrDefinition(tokenFilter));
+            return this;
+        }
+
+        Builder addDateWordsTokenFilter() {
+            Map<String, Object> tokenFilter = new HashMap<>();
+            tokenFilter.put("type", "stop");
+            tokenFilter.put("stopwords", Arrays.asList(
+                "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+                "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+                "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+                "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+                "GMT", "UTC"));
+            addTokenFilter(tokenFilter);
             return this;
         }
 

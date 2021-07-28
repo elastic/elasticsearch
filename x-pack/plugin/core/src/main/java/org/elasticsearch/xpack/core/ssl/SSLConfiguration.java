@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -21,9 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.getKeyStoreType;
-
-
 /**
  * Represents the configuration for an SSLContext
  */
@@ -32,7 +29,7 @@ public final class SSLConfiguration {
     // These settings are never registered, but they exist so that we can parse the values defined under grouped settings. Also, some are
     // implemented as optional settings, which provides a declarative manner for fallback as we typically fallback to values from a
     // different configuration
-    static final SSLConfigurationSettings SETTINGS_PARSER = SSLConfigurationSettings.withoutPrefix();
+    static final SSLConfigurationSettings SETTINGS_PARSER = SSLConfigurationSettings.withoutPrefix(true);
 
     private final KeyConfig keyConfig;
     private final TrustConfig trustConfig;
@@ -48,7 +45,7 @@ public final class SSLConfiguration {
      *
      * @param settings the SSL specific settings; only the settings under a *.ssl. prefix
      */
-    SSLConfiguration(Settings settings) {
+    public SSLConfiguration(Settings settings) {
         this.keyConfig = createKeyConfig(settings);
         this.trustConfig = createTrustConfig(settings, keyConfig);
         this.ciphers = getListOrDefault(SETTINGS_PARSER.ciphers, settings, XPackSettings.DEFAULT_CIPHERS);
@@ -61,7 +58,7 @@ public final class SSLConfiguration {
     /**
      * The configuration for the key, if any, that will be used as part of this ssl configuration
      */
-    KeyConfig keyConfig() {
+    public KeyConfig keyConfig() {
         return keyConfig;
     }
 
@@ -169,7 +166,7 @@ public final class SSLConfiguration {
 
     private static TrustConfig createCertChainTrustConfig(Settings settings, KeyConfig keyConfig) {
         String trustStorePath = SETTINGS_PARSER.truststorePath.get(settings).orElse(null);
-        String trustStoreType = getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
+        String trustStoreType = SSLConfigurationSettings.getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
         List<String> caPaths = getListOrNull(SETTINGS_PARSER.caPaths, settings);
         if (trustStorePath != null && caPaths != null) {
             throw new IllegalArgumentException("you cannot specify a truststore and ca files");
@@ -180,7 +177,7 @@ public final class SSLConfiguration {
             return TrustAllConfig.INSTANCE;
         } else if (caPaths != null) {
             return new PEMTrustConfig(caPaths);
-        } else if (trustStorePath != null || trustStoreType.equalsIgnoreCase("pkcs11")) {
+        } else if (trustStorePath != null) {
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
             SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings);
             return new StoreTrustConfig(trustStorePath, trustStoreType, trustStorePassword, trustStoreAlgorithm);

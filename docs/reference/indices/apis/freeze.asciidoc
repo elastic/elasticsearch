@@ -6,6 +6,10 @@
 <titleabbrev>Freeze index</titleabbrev>
 ++++
 
+// tag::freeze-api-dep[]
+deprecated::[7.14, Frozen indices are no longer useful due to https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[recent improvements in heap memory usage].]
+// end::freeze-api-dep[]
+
 Freezes an index.
 
 [[freeze-index-api-request]]
@@ -25,11 +29,11 @@ Freezes an index.
 A frozen index has almost no overhead on the cluster (except for maintaining its
 metadata in memory) and is read-only. Read-only indices are blocked for write
 operations, such as <<indexing,docs-index_>> or <<indices-forcemerge,force
-merges>>. See <<frozen-indices>> and <<unfreeze-index-api>>.
+merges>>. See <<unfreeze-index-api>>.
 
 The current write index on a data stream cannot be frozen. In order to freeze
 the current write index, the data stream must first be
-<<rollover-data-stream-ex,rolled over>> so that a new write index is created
+<<data-streams-rollover,rolled over>> so that a new write index is created
 and then the previous write index can be frozen.
 
 IMPORTANT: Freezing an index will close the index and reopen it within the same
@@ -53,5 +57,6 @@ The following example freezes and unfreezes an index:
 POST /my-index-000001/_freeze
 POST /my-index-000001/_unfreeze
 --------------------------------------------------
+// TEST[skip:unable to ignore deprecation warning]
 // TEST[s/^/PUT my-index-000001\n/]
 

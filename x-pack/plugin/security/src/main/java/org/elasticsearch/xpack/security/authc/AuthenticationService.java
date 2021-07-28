@@ -14,15 +14,16 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
@@ -46,6 +47,8 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -88,6 +91,7 @@ public class AuthenticationService {
     private final Cache<String, Realm> lastSuccessfulAuthCache;
     private final AtomicLong numInvalidation = new AtomicLong();
     private final ApiKeyService apiKeyService;
+    private final ServiceAccountService serviceAccountService;
     private final OperatorPrivilegesService operatorPrivilegesService;
     private final boolean runAsEnabled;
     private final boolean isAnonymousUserEnabled;
@@ -96,6 +100,7 @@ public class AuthenticationService {
     public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrailService,
                                  AuthenticationFailureHandler failureHandler, ThreadPool threadPool,
                                  AnonymousUser anonymousUser, TokenService tokenService, ApiKeyService apiKeyService,
+                                 ServiceAccountService serviceAccountService,
                                  OperatorPrivilegesService operatorPrivilegesService) {
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.realms = realms;
@@ -115,6 +120,7 @@ public class AuthenticationService {
             this.lastSuccessfulAuthCache = null;
         }
         this.apiKeyService = apiKeyService;
+        this.serviceAccountService = serviceAccountService;
         this.operatorPrivilegesService = operatorPrivilegesService;
         this.authenticationSerializer = new AuthenticationContextSerializer();
     }
@@ -206,7 +212,9 @@ public class AuthenticationService {
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
         if (lastSuccessfulAuthCache != null) {
-            if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState)) {
+            if (isMoveFromRedToNonRed(previousState, currentState)
+                || isIndexDeleted(previousState, currentState)
+                || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false) {
                 expireAll();
             }
         }
@@ -327,24 +335,41 @@ public class AuthenticationService {
                         logger.trace("Found existing authentication [{}] in request [{}]", authentication, request);
                         listener.onResponse(authentication);
                     } else {
-                        tokenService.getAndValidateToken(threadContext, ActionListener.wrap(userToken -> {
-                            if (userToken != null) {
-                                writeAuthToContext(userToken.getAuthentication());
-                            } else {
-                                checkForApiKey();
-                            }
-                        }, e -> {
-                            logger.debug(new ParameterizedMessage("Failed to validate token authentication for request [{}]", request), e);
-                            if (e instanceof ElasticsearchSecurityException &&
-                                tokenService.isExpiredTokenException((ElasticsearchSecurityException) e) == false) {
-                                // intentionally ignore the returned exception; we call this primarily
-                                // for the auditing as we already have a purpose built exception
-                                request.tamperedRequest();
-                            }
-                            listener.onFailure(e);
-                        }));
+                        checkForBearerToken();
                     }
                 });
+            }
+        }
+
+        private void checkForBearerToken() {
+            final SecureString bearerString = tokenService.extractBearerTokenFromHeader(threadContext);
+            final ServiceAccountToken serviceAccountToken = ServiceAccountService.tryParseToken(bearerString);
+            if (serviceAccountToken != null) {
+                serviceAccountService.authenticateToken(serviceAccountToken, nodeName, ActionListener.wrap(authentication -> {
+                    assert authentication != null : "service account authenticate should return either authentication or call onFailure";
+                    this.authenticatedBy = authentication.getAuthenticatedBy();
+                    writeAuthToContext(authentication);
+                }, e -> {
+                    logger.debug(new ParameterizedMessage("Failed to validate service account token for request [{}]", request), e);
+                    listener.onFailure(request.exceptionProcessingRequest(e, serviceAccountToken));
+                }));
+            } else {
+                tokenService.tryAuthenticateToken(bearerString, ActionListener.wrap(userToken -> {
+                    if (userToken != null) {
+                        writeAuthToContext(userToken.getAuthentication());
+                    } else {
+                        checkForApiKey();
+                    }
+                }, e -> {
+                    logger.debug(new ParameterizedMessage("Failed to validate token authentication for request [{}]", request), e);
+                    if (e instanceof ElasticsearchSecurityException
+                        && false == tokenService.isExpiredTokenException((ElasticsearchSecurityException) e)) {
+                        // intentionally ignore the returned exception; we call this primarily
+                        // for the auditing as we already have a purpose built exception
+                        request.tamperedRequest();
+                    }
+                    listener.onFailure(e);
+                }));
             }
         }
 

@@ -14,7 +14,7 @@ import org.elasticsearch.painless.phase.UserTreeVisitor;
 import java.util.Objects;
 
 /**
- * Represents a function reference.
+ * Represents a function reference for creating a new array (eg Double[]::new)
  */
 public class ENewArrayFunctionRef extends AExpression {
 

@@ -8,7 +8,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchMatchers;
@@ -20,9 +20,9 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RestCompatibleVersionHelperTests extends ESTestCase {
-    int CURRENT_VERSION = RestApiCompatibleVersion.currentVersion().major;
-    int PREVIOUS_VERSION = RestApiCompatibleVersion.currentVersion().major - 1;
-    int OBSOLETE_VERSION = RestApiCompatibleVersion.currentVersion().major - 2;
+    int CURRENT_VERSION = RestApiVersion.current().major;
+    int PREVIOUS_VERSION = RestApiVersion.current().major - 1;
+    int OBSOLETE_VERSION = RestApiVersion.current().major - 2;
 
     public void testAcceptAndContentTypeCombinations() {
         assertThat(requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyPresent()), isCompatible());
@@ -322,11 +322,11 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
 
     }
 
-    private Matcher<RestApiCompatibleVersion> isCompatible() {
+    private Matcher<RestApiVersion> isCompatible() {
         return requestHasVersion(PREVIOUS_VERSION);
     }
 
-    private Matcher<RestApiCompatibleVersion> requestHasVersion(int version) {
+    private Matcher<RestApiVersion> requestHasVersion(int version) {
         return ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(v -> (int) v.major, equalTo(version));
     }
 
@@ -361,7 +361,7 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
         return null;
     }
 
-    private RestApiCompatibleVersion requestWith(String accept, String contentType, String body) {
+    private RestApiVersion requestWith(String accept, String contentType, String body) {
         ParsedMediaType parsedAccept = ParsedMediaType.parseMediaType(accept);
         ParsedMediaType parsedContentType = ParsedMediaType.parseMediaType(contentType);
         return RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, body.isEmpty() == false);

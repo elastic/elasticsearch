@@ -26,10 +26,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -66,10 +68,27 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             cause = "api";
         }
 
-        final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
 
-        final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
-        final boolean isSystemIndex = descriptor != null && descriptor.isAutomaticallyManaged();
+        final long resolvedAt = System.currentTimeMillis();
+        final String indexName  = indexNameExpressionResolver.resolveDateMathExpression(request.index(), resolvedAt);
+
+        final SystemIndexDescriptor mainDescriptor = systemIndices.findMatchingDescriptor(indexName);
+        final boolean isSystemIndex = mainDescriptor != null && mainDescriptor.isAutomaticallyManaged();
+        if (mainDescriptor != null && mainDescriptor.isNetNew()) {
+            final SystemIndexAccessLevel systemIndexAccessLevel = systemIndices.getSystemIndexAccessLevel(threadPool.getThreadContext());
+            if (systemIndexAccessLevel != SystemIndexAccessLevel.ALL) {
+                if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
+                    if (systemIndices.getProductSystemIndexNamePredicate(threadPool.getThreadContext()).test(indexName) == false) {
+                        throw systemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
+                    }
+                } else {
+                    // BACKWARDS_COMPATIBLE_ONLY should never be a possibility here, it cannot be returned from getSystemIndexAccessLevel
+                    assert systemIndexAccessLevel == SystemIndexAccessLevel.NONE :
+                        "Expected no system index access but level is " + systemIndexAccessLevel;
+                    throw systemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
+                }
+            }
+        }
 
         final CreateIndexClusterStateUpdateRequest updateRequest;
 
@@ -78,27 +97,31 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         // We check this via the request's origin. Eventually, `SystemIndexManager` will reconfigure
         // the index to the latest settings.
         if (isSystemIndex && Strings.isNullOrEmpty(request.origin())) {
-            final String message = descriptor.checkMinimumNodeVersion("create index", state.nodes().getMinNodeVersion());
-            if (message != null) {
+            final SystemIndexDescriptor descriptor =
+                mainDescriptor.getDescriptorCompatibleWith(state.nodes().getSmallestNonClientNodeVersion());
+            if (descriptor == null) {
+                final String message = mainDescriptor.getMinimumNodeVersionMessage("create index");
                 logger.warn(message);
                 listener.onFailure(new IllegalStateException(message));
                 return;
             }
             updateRequest = buildSystemIndexUpdateRequest(request, cause, descriptor);
         } else {
-            updateRequest = buildUpdateRequest(request, cause, indexName);
+            updateRequest = buildUpdateRequest(request, cause, indexName, resolvedAt);
         }
 
         createIndexService.createIndex(updateRequest, listener.map(response ->
             new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)));
     }
 
-    private CreateIndexClusterStateUpdateRequest buildUpdateRequest(CreateIndexRequest request, String cause, String indexName) {
+    private CreateIndexClusterStateUpdateRequest buildUpdateRequest(CreateIndexRequest request, String cause,
+                                                                    String indexName, long nameResolvedAt) {
         return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .settings(request.settings())
             .mappings(request.mappings())
             .aliases(request.aliases())
+            .nameResolvedInstant(nameResolvedAt)
             .waitForActiveShards(request.waitForActiveShards());
     }
 

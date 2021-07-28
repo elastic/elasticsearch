@@ -18,7 +18,6 @@ import java.io.IOException;
  */
 public class RepositoryVerificationException extends RepositoryException {
 
-
     public RepositoryVerificationException(String repository, String msg) {
         super(repository, msg);
     }
@@ -32,8 +31,13 @@ public class RepositoryVerificationException extends RepositoryException {
         return RestStatus.INTERNAL_SERVER_ERROR;
     }
 
-    public RepositoryVerificationException(StreamInput in) throws IOException{
+    public RepositoryVerificationException(StreamInput in) throws IOException {
         super(in);
     }
-}
 
+    @Override
+    public synchronized Throwable fillInStackTrace() {
+        // stack trace for a verification failure is uninteresting, the message has all the information we need
+        return this;
+    }
+}

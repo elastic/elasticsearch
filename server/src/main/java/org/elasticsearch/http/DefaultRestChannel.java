@@ -9,13 +9,13 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -75,7 +75,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     @Override
     public void sendResponse(RestResponse restResponse) {
         // We're sending a response so we know we won't be needing the request content again and release it
-        Releasables.closeWhileHandlingException(httpRequest::release);
+        httpRequest.release();
 
         final ArrayList<Releasable> toClose = new ArrayList<>(3);
         if (HttpUtils.shouldCloseConnection(httpRequest)) {
@@ -90,6 +90,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             if (content instanceof Releasable) {
                 toClose.add((Releasable) content);
             }
+            toClose.add(this::releaseOutputBuffer);
 
             BytesReference finalContent = content;
             try {
@@ -121,11 +122,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             setHeaderField(httpResponse, CONTENT_LENGTH, contentLength, false);
 
             addCookies(httpResponse);
-
-            BytesStreamOutput bytesStreamOutput = bytesOutputOrNull();
-            if (bytesStreamOutput instanceof ReleasableBytesStreamOutput) {
-                toClose.add((Releasable) bytesStreamOutput);
-            }
 
             ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
             httpChannel.sendResponse(httpResponse, listener);

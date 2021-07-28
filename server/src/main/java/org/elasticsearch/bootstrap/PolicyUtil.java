@@ -8,8 +8,8 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.script.ClassPermission;
@@ -91,8 +91,10 @@ public class PolicyUtil {
     private static final PermissionMatcher ALLOWED_MODULE_PERMISSIONS;
     static {
         List<Permission> namedPermissions = List.of(
+            // TODO: remove read permission, see https://github.com/elastic/elasticsearch/issues/69464
+            createFilePermission("<<ALL FILES>>", "read"),
+
             new ReflectPermission("suppressAccessChecks"),
-            new RuntimePermission("createClassLoader"),
             new RuntimePermission("getClassLoader"),
             new RuntimePermission("setContextClassLoader"),
             new RuntimePermission("setFactory"),
@@ -160,6 +162,7 @@ public class PolicyUtil {
         // but that we do not think plugins in general should need.
         List<Permission> modulePermissions = List.of(
             createFilePermission("<<ALL FILES>>", "read,write"),
+            new RuntimePermission("createClassLoader"),
             new RuntimePermission("getFileStoreAttributes"),
             new RuntimePermission("accessUserInformation"),
             new AuthPermission("modifyPrivateCredentials")

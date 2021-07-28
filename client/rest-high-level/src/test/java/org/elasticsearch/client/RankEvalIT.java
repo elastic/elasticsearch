@@ -17,13 +17,13 @@ import org.elasticsearch.index.rankeval.EvaluationMetric;
 import org.elasticsearch.index.rankeval.ExpectedReciprocalRank;
 import org.elasticsearch.index.rankeval.MeanReciprocalRank;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
-import org.elasticsearch.index.rankeval.RecallAtK;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedDocument;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RatedSearchHit;
+import org.elasticsearch.index.rankeval.RecallAtK;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.Before;
 
@@ -68,7 +68,7 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
         RankEvalResponse response = execute(rankEvalRequest, highLevelClient()::rankEval, highLevelClient()::rankEvalAsync);
         // the expected Prec@ for the first query is 5/7 and the expected Prec@ for the second is 1/7, divided by 2 to get the average
         double expectedPrecision = (1.0 / 7.0 + 5.0 / 7.0) / 2.0;
-        assertEquals(expectedPrecision, response.getMetricScore(), Double.MIN_VALUE);
+        assertEquals(expectedPrecision, response.getMetricScore(), 0.00000000001);
         Map<String, EvalQueryQuality> partialResults = response.getPartialResults();
         assertEquals(2, partialResults.size());
         EvalQueryQuality amsterdamQueryQuality = partialResults.get("amsterdam_query");
@@ -129,7 +129,7 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
 
             RankEvalRequest rankEvalRequest = new RankEvalRequest(spec, new String[] { "index", "index2" });
             RankEvalResponse response = execute(rankEvalRequest, highLevelClient()::rankEval, highLevelClient()::rankEvalAsync);
-            assertEquals(expectedScores[i], response.getMetricScore(), Double.MIN_VALUE);
+            assertEquals(expectedScores[i], response.getMetricScore(), 0.00000000001);
             i++;
         }
     }

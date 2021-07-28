@@ -87,7 +87,7 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
             .ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .indices(concreteIndices);
-        indexStateService.addIndexBlock(addBlockRequest, ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
+        indexStateService.addIndexBlock(addBlockRequest, listener.delegateResponse((delegatedListener, t) -> {
             logger.debug(() -> new ParameterizedMessage("failed to mark indices as readonly [{}]", (Object) concreteIndices), t);
             delegatedListener.onFailure(t);
         }));

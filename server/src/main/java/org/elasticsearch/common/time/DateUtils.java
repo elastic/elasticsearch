@@ -30,6 +30,9 @@ import static org.elasticsearch.common.time.DateUtilsRounding.getYear;
 import static org.elasticsearch.common.time.DateUtilsRounding.utcMillisAtStartOfYear;
 
 public class DateUtils {
+    public static  final long MAX_MILLIS_BEFORE_9999 = 253402300799999L; // end of year 9999
+    public static  final long MAX_MILLIS_BEFORE_MINUS_9999 = -377705116800000L; // beginning of year -9999
+
     public static DateTimeZone zoneIdToDateTimeZone(ZoneId zoneId) {
         if (zoneId == null) {
             return null;
@@ -194,9 +197,14 @@ public class DateUtils {
         return ZoneId.of(zoneId).normalized();
     }
 
-    static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
+    /**
+     * The maximum nanosecond resolution date we can properly handle.
+     */
+    public static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
 
     static final long MAX_NANOSECOND_IN_MILLIS = MAX_NANOSECOND_INSTANT.toEpochMilli();
+
+    public static final long MAX_NANOSECOND = toLong(MAX_NANOSECOND_INSTANT);
 
     /**
      * convert a java time instant to a long value which is stored in lucene

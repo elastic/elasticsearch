@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -21,12 +22,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
-
 public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE =
-            basicAuthHeaderValue("test_user", SecuritySettingsSourceField.TEST_PASSWORD);
+            basicAuthHeaderValue("test_user", new SecureString(SecuritySettingsSourceField.TEST_PASSWORD));
 
     protected static final Version UPGRADE_FROM_VERSION =
         Version.fromString(System.getProperty("tests.upgrade_from_version"));
@@ -38,6 +37,11 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     @Override
     protected boolean preserveReposUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveSnapshotsUponCompletion() {
         return true;
     }
 
@@ -58,6 +62,11 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     @Override
     protected boolean preserveDataStreamsUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveSearchableSnapshotsIndicesUponCompletion() {
         return true;
     }
 
@@ -86,6 +95,12 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     protected Settings restClientSettings() {
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
+
+                // increase the timeout here to 90 seconds to handle long waits for a green
+                // cluster health. the waits for green need to be longer than a minute to
+                // account for delayed shards
+                .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
+
                 .build();
     }
 

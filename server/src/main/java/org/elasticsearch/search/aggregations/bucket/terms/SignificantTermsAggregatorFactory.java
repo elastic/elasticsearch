@@ -8,7 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.common.ParseField;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -56,7 +57,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             @Override
             public Aggregator build(String name,
                                     AggregatorFactories factories,
-                                    ValuesSource valuesSource,
+                                    ValuesSourceConfig valuesSourceConfig,
                                     DocValueFormat format,
                                     TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                     IncludeExclude includeExclude,
@@ -72,7 +73,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 if (executionHint != null) {
                     execution = ExecutionMode.fromString(executionHint, deprecationLogger);
                 }
-                if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
+                if (valuesSourceConfig.hasOrdinals() == false) {
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
@@ -85,7 +86,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                         + "include/exclude clauses");
                 }
 
-                return execution.create(name, factories, valuesSource, format, bucketCountThresholds, includeExclude, context, parent,
+                return execution.create(name, factories, valuesSourceConfig, format, bucketCountThresholds, includeExclude, context, parent,
                     significanceHeuristic, lookup, cardinality, metadata);
             }
         };
@@ -100,7 +101,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             @Override
             public Aggregator build(String name,
                                     AggregatorFactories factories,
-                                    ValuesSource valuesSource,
+                                    ValuesSourceConfig valuesSourceConfig,
                                     DocValueFormat format,
                                     TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                     IncludeExclude includeExclude,
@@ -118,7 +119,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                         "values for include/exclude clauses used to filter numeric fields");
                 }
 
-                ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSource;
+                ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 if (numericValuesSource.isFloatingPoint()) {
                     throw new UnsupportedOperationException("No support for examining floating point numerics");
                 }
@@ -217,7 +218,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         return aggregatorSupplier.build(
             name,
             factories,
-            config.getValuesSource(),
+            config,
             config.format(),
             bucketCountThresholds,
             includeExclude,
@@ -238,7 +239,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             @Override
             Aggregator create(String name,
                               AggregatorFactories factories,
-                              ValuesSource valuesSource,
+                              ValuesSourceConfig valuesSourceConfig,
                               DocValueFormat format,
                               TermsAggregator.BucketCountThresholds bucketCountThresholds,
                               IncludeExclude includeExclude,
@@ -253,7 +254,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 return new MapStringTermsAggregator(
                     name,
                     factories,
-                    new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSource),
+                    new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSourceConfig),
                     a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
                     null,
                     format,
@@ -275,7 +276,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             @Override
             Aggregator create(String name,
                               AggregatorFactories factories,
-                              ValuesSource valuesSource,
+                              ValuesSourceConfig valuesSourceConfig,
                               DocValueFormat format,
                               TermsAggregator.BucketCountThresholds bucketCountThresholds,
                               IncludeExclude includeExclude,
@@ -286,7 +287,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               CardinalityUpperBound cardinality,
                               Map<String, Object> metadata) throws IOException {
 
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 boolean remapGlobalOrd = true;
                 if (cardinality == CardinalityUpperBound.ONE && factories == AggregatorFactories.EMPTY && includeExclude == null) {
                     /*
@@ -298,15 +298,19 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     remapGlobalOrd = false;
                 }
 
+                ValuesSource.Bytes.WithOrdinals.FieldData ordinalsValuesSource =
+                    (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSourceConfig.getValuesSource();
+                SortedSetDocValues values = TermsAggregatorFactory.globalOrdsValues(context, ordinalsValuesSource);
                 return new GlobalOrdinalsStringTermsAggregator(
                     name,
                     factories,
                     a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
-                    (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource,
+                    ordinalsValuesSource,
+                    values,
                     null,
                     format,
                     bucketCountThresholds,
-                    filter,
+                    TermsAggregatorFactory.gloabalOrdsFilter(includeExclude, format, values),
                     context,
                     parent,
                     remapGlobalOrd,
@@ -339,7 +343,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
         abstract Aggregator create(String name,
                                    AggregatorFactories factories,
-                                   ValuesSource valuesSource,
+                                   ValuesSourceConfig valuesSourceConfig,
                                    DocValueFormat format,
                                    TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                    IncludeExclude includeExclude,

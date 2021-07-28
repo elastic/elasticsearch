@@ -15,7 +15,7 @@ public class TimestampFieldHitExtractor extends FieldHitExtractor {
     }
 
     @Override
-    protected Object parseDateString(Object values) {
-        return Long.parseLong(values.toString());
+    protected Object parseEpochMillisAsString(String str) {
+        return Long.parseLong(str);
     }
 }

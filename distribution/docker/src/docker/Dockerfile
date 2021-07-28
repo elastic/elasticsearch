@@ -72,7 +72,7 @@ RUN chmod 0755 /bin/tini
 # Stage 1. Build curl statically. Installing it from RPM on CentOS pulls in too
 # many dependencies.
 ################################################################################
-FROM alpine:latest AS curl
+FROM alpine:3.13 AS curl
 
 ENV VERSION 7.71.0
 ENV TARBALL_URL https://curl.haxx.se/download/curl-\${VERSION}.tar.xz
@@ -99,11 +99,15 @@ RUN gpg --import --always-trust "curl-gpg.pub" && \\
     gpg --verify "\${TARBALL_PATH}.asc" "\${TARBALL_PATH}"
 
 # Unpack and build
-RUN tar xfJ "\${TARBALL_PATH}" && \\
-    cd "curl-\${VERSION}" && \\
-    ./configure --disable-shared --with-ca-fallback --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt && \\
-    make curl_LDFLAGS="-all-static" && \\
-    cp src/curl /work/curl && \\
+RUN set -e ; \\
+    tar xfJ "\${TARBALL_PATH}" ; \\
+    cd "curl-\${VERSION}" ; \\
+    if ! ./configure --disable-shared --with-ca-fallback --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt ; then \\
+        [[ -e config.log ]] && cat config.log ; \\
+        exit 1 ; \\
+    fi ; \\
+    make curl_LDFLAGS="-all-static" ; \\
+    cp src/curl /work/curl ; \\
     strip /work/curl
 
 ################################################################################
@@ -112,7 +116,6 @@ RUN tar xfJ "\${TARBALL_PATH}" && \\
 ################################################################################
 FROM ${base_image} AS rootfs
 
-ENV BUSYBOX_VERSION 1.31.0
 ENV TINI_VERSION 0.19.0
 
 # Start off with an up-to-date system
@@ -151,14 +154,14 @@ RUN ${package_manager} --installroot=/rootfs --releasever=/ --setopt=tsflags=nod
 # all kinds of stuff we don't want.
 RUN set -e ; \\
     TINI_BIN="" ; \\
-    BUSYBOX_ARCH="" ; \\
+    BUSYBOX_COMMIT="" ; \\
     case "\$(arch)" in \\
         aarch64) \\
-            BUSYBOX_ARCH='armv8l' ; \\
+            BUSYBOX_COMMIT='8a500845daeaeb926b25f73089c0668cac676e97' ; \\
             TINI_BIN='tini-arm64' ; \\
             ;; \\
         x86_64) \\
-            BUSYBOX_ARCH='x86_64' ; \\
+            BUSYBOX_COMMIT='cc81bf8a3c979f596af2d811a3910aeaa230e8ef' ; \\
             TINI_BIN='tini-amd64' ; \\
             ;; \\
         *) echo >&2 "Unsupported architecture \$(arch)" ; exit 1 ;; \\
@@ -169,15 +172,11 @@ RUN set -e ; \\
     rm "\${TINI_BIN}.sha256sum" ; \\
     mv "\${TINI_BIN}" /rootfs/bin/tini ; \\
     chmod +x /rootfs/bin/tini ; \\
-    curl --retry 10 -L -o /rootfs/bin/busybox \\
-      "https://busybox.net/downloads/binaries/\${BUSYBOX_VERSION}-defconfig-multiarch-musl/busybox-\${BUSYBOX_ARCH}" ; \\
-    chmod +x /rootfs/bin/busybox
-
-# Add links for most of the Busybox utilities
-RUN set -e ; \\
-    for path in \$( /rootfs/bin/busybox --list-full | grep -v bin/sh | grep -v telnet | grep -v unzip); do \\
-      ln /rootfs/bin/busybox /rootfs/\$path ; \\
-    done
+    curl --retry 10 -L -O \\
+      # Here we're fetching the same binaries used for the official busybox docker image from their GtiHub repository
+      "https://github.com/docker-library/busybox/raw/\${BUSYBOX_COMMIT}/stable/musl/busybox.tar.xz" ; \\
+    tar -xf busybox.tar.xz -C /rootfs/bin --strip=2 ./bin ; \\
+    rm busybox.tar.xz ;
 
 # Curl needs files under here. More importantly, we change Elasticsearch's
 # bundled JDK to use /etc/pki/ca-trust/extracted/java/cacerts instead of
@@ -222,33 +221,39 @@ FROM ${base_image} AS builder
 RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
-<% /* Fetch or copy the appropriate Elasticsearch distribution for this architecture */ %>
-${source_elasticsearch}
+<% /*
+  Fetch the appropriate Elasticsearch distribution for this architecture.
+  Keep this command on one line - it is replaced with a `COPY` during local builds.
+  It uses the `arch` command to fetch the correct distro for the build machine.
+*/ %>
+RUN curl --retry 10 -S -L --output /opt/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
 
 RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
 
 # The distribution includes a `config` directory, no need to create it
 COPY ${config_dir}/elasticsearch.yml config/
-COPY ${bin_dir}/transform-log4j-config-${version}.jar /tmp/
+COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
 
-# 1. Configure the distribution for Docker
-# 2. Ensure directories are created. Most already are, but make sure
-# 3. Apply correct permissions
-# 4. Move the distribution's default logging config aside
-# 5. Generate a docker logging config, to be used by default
-# 6. Apply more correct permissions
-# 7. The JDK's directories' permissions don't allow `java` to be executed under a different
-#    group to the default. Fix this.
-# 8. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
-# 9. Ensure all files are world-readable by default. It should be possible to
-#    examine the contents of the image under any UID:GID
+#  1. Configure the distribution for Docker
+#  2. Ensure directories are created. Most already are, but make sure
+#  3. Apply correct permissions
+#  4. Move the distribution's default logging config aside
+#  5. Generate a docker logging config, to be used by default
+#  6. Apply more correct permissions
+#  7. The JDK's directories' permissions don't allow `java` to be executed under a different
+#     group to the default. Fix this.
+#  8. Remove write permissions from all files under `lib`, `bin`, `jdk` and `modules`
+#  9. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
+# 10. Ensure all files are world-readable by default. It should be possible to
+#     examine the contents of the image under any UID:GID
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir -p config/jvm.options.d data logs plugins && \\
     chmod 0775 config config/jvm.options.d data logs plugins && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\
-    jdk/bin/java -jar /tmp/transform-log4j-config-${version}.jar config/log4j2.file.properties > config/log4j2.properties && \\
+    mv config/log4j2.docker.properties config/log4j2.properties && \\
     chmod 0660 config/elasticsearch.yml config/log4j2*.properties && \\
     find ./jdk -type d -exec chmod 0755 {} + && \\
+    chmod -R a-w lib bin jdk modules && \\
     find . -xdev -perm -4000 -exec chmod ug-s {} + && \\
     find . -type f -exec chmod o+r {} +
 
@@ -281,7 +286,7 @@ RUN <%= retry.loop(
 %>
 RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
     ${package_manager} install --setopt=tsflags=nodocs -y \\
-      nc shadow-utils zip unzip && \\
+      nc shadow-utils zip findutils unzip procps-ng && \\
     ${package_manager} clean all
 
 <% } %>
@@ -372,8 +377,8 @@ LABEL name="Elasticsearch" \\
 <% if (docker_base == 'ubi') { %>
 RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
 <% } else if (docker_base == 'iron_bank') { %>
-RUN mkdir /licenses
-COPY LICENSE /licenses/LICENSE
+RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
+COPY LICENSE /licenses/LICENSE.addendum
 <% } %>
 
 USER elasticsearch:root

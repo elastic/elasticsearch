@@ -25,6 +25,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
@@ -242,17 +243,12 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                      long endTime = randomLongBetween(startTime, Long.MAX_VALUE);
                      return new CreateSnapshotResponse(
                          new SnapshotInfo(
-                             new SnapshotId(req.snapshot(), "uuid"),
+                             new Snapshot(req.repository(), new SnapshotId(req.snapshot(), "uuid")),
                              Arrays.asList(req.indices()),
                              Collections.emptyList(),
-                             startTime,
-                             "snapshot started",
-                             endTime,
-                             3,
-                             Collections.singletonList(
+                             Collections.emptyList(), "snapshot started", endTime, 3, Collections.singletonList(
                                  new SnapshotShardFailure("nodeId", new ShardId("index", "uuid", 0), "forced failure")),
-                             req.includeGlobalState(),
-                             req.userMetadata()
+                             req.includeGlobalState(), req.userMetadata(), startTime, Collections.emptyMap()
                          ));
                  })) {
             final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);

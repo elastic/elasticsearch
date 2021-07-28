@@ -6,7 +6,7 @@
 
 
 Similar to the <<grok-processor,Grok Processor>>, dissect also extracts structured fields out of a single text field
-within a document.  However unlike the <<grok-processor,Grok Processor>>, dissect does not use
+within a document. However unlike the <<grok-processor,Grok Processor>>, dissect does not use
 {wikipedia}/Regular_expression[Regular Expressions]. This allows dissect's syntax to be simple and for
 some cases faster than the <<grok-processor,Grok Processor>>.
 

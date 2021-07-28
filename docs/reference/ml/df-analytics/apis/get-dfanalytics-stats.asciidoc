@@ -9,7 +9,6 @@
 
 Retrieves usage information for {dfanalytics-jobs}.
 
-beta::[]
 
 [[ml-get-dfanalytics-stats-request]]
 == {api-request-title}
@@ -28,12 +27,9 @@ beta::[]
 [[ml-get-dfanalytics-stats-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
-* cluster: `monitor_ml`
-  
-For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
 
 [[ml-get-dfanalytics-stats-path-params]]
 == {api-path-parms-title}
@@ -532,11 +528,12 @@ values: `failed`, `started`, `starting`,`stopping`, `stopped`.
 == {api-examples-title}
 
 The following API retrieves usage information for the
-{ml-docs}/ecommerce-outliers.html[{oldetection} {dfanalytics-job} example]:
+// {ml-docs}/ml-dfa-finding-outliers.html#weblogs-outliers[{oldetection} {dfanalytics-job} example]:
+{ml-docs}/ml-dfa-finding-outliers.html[{oldetection} {dfanalytics-job} example]:
 
 [source,console]
 --------------------------------------------------
-GET _ml/data_frame/analytics/ecommerce/_stats
+GET _ml/data_frame/analytics/weblog-outliers/_stats
 --------------------------------------------------
 // TEST[skip:Kibana sample data]
 
@@ -546,7 +543,7 @@ GET _ml/data_frame/analytics/ecommerce/_stats
   "count" : 1,
   "data_frame_analytics" : [
     {
-      "id" : "ecommerce",
+      "id" : "weblog-outliers",
       "state" : "stopped",
       "progress" : [
         {
@@ -558,7 +555,7 @@ GET _ml/data_frame/analytics/ecommerce/_stats
           "progress_percent" : 100
         },
         {
-          "phase" : "analyzing",
+          "phase" : "computing_outliers",
           "progress_percent" : 100
         },
         {
@@ -567,17 +564,18 @@ GET _ml/data_frame/analytics/ecommerce/_stats
         }
       ],
       "data_counts" : {
-        "training_docs_count" : 3321,
+        "training_docs_count" : 1001,
         "test_docs_count" : 0,
         "skipped_docs_count" : 0
       },
       "memory_usage" : {
-        "timestamp" : 1586905058000,
-        "peak_usage_bytes" : 279484
+        "timestamp" : 1626264770206,
+        "peak_usage_bytes" : 328011,
+        "status" : "ok"
       },
       "analysis_stats" : {
         "outlier_detection_stats" : {
-          "timestamp" : 1586905058000,
+          "timestamp" : 1626264770206,
           "parameters" : {
             "n_neighbors" : 0,
             "method" : "ensemble",
@@ -587,7 +585,7 @@ GET _ml/data_frame/analytics/ecommerce/_stats
             "standardization_enabled" : true
           },
           "timing_stats" : {
-            "elapsed_time" : 245
+            "elapsed_time" : 32
           }
         }
       }

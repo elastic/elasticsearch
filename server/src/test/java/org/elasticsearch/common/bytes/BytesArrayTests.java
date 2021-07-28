@@ -45,7 +45,7 @@ public class BytesArrayTests extends AbstractBytesReferenceTestCase {
             BytesArray pbr = (BytesArray) newBytesReference(sizes[i]);
             byte[] array = pbr.array();
             assertNotNull(array);
-            assertEquals(sizes[i], array.length - pbr.offset());
+            assertEquals(sizes[i], array.length - pbr.arrayOffset());
             assertSame(array, pbr.array());
         }
     }
@@ -53,6 +53,6 @@ public class BytesArrayTests extends AbstractBytesReferenceTestCase {
     public void testArrayOffset() throws IOException {
         int length = randomInt(PAGE_SIZE * randomIntBetween(2, 5));
         BytesArray pbr = (BytesArray) newBytesReferenceWithOffsetOfZero(length);
-        assertEquals(0, pbr.offset());
+        assertEquals(0, pbr.arrayOffset());
     }
 }

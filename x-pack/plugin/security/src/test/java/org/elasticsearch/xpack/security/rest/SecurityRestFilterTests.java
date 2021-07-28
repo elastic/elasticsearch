@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -87,11 +88,11 @@ public class SecurityRestFilterTests extends ESTestCase {
         when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
         Authentication authentication = mock(Authentication.class);
         doAnswer((i) -> {
-            ActionListener callback =
-                (ActionListener) i.getArguments()[1];
+            @SuppressWarnings("unchecked")
+            ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(request), any(ActionListener.class));
+        }).when(authcService).authenticate(eq(request), anyActionListener());
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
         verifyZeroInteractions(channel);
@@ -107,19 +108,21 @@ public class SecurityRestFilterTests extends ESTestCase {
         when(primaryAuthentication.encode()).thenReturn(randomAlphaOfLengthBetween(12, 36));
         doAnswer(i -> {
             final Object[] arguments = i.getArguments();
-            ActionListener callback = (ActionListener) arguments[arguments.length - 1];
+            @SuppressWarnings("unchecked")
+            ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
             callback.onResponse(primaryAuthentication);
             return null;
-        }).when(authcService).authenticate(eq(request), any(ActionListener.class));
+        }).when(authcService).authenticate(eq(request), anyActionListener());
 
         Authentication secondaryAuthentication = mock(Authentication.class);
         when(secondaryAuthentication.encode()).thenReturn(randomAlphaOfLengthBetween(12, 36));
         doAnswer(i -> {
             final Object[] arguments = i.getArguments();
-            ActionListener callback = (ActionListener) arguments[arguments.length - 1];
+            @SuppressWarnings("unchecked")
+            ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
             callback.onResponse(secondaryAuthentication);
             return null;
-        }).when(authcService).authenticate(eq(request), eq(false), any(ActionListener.class));
+        }).when(authcService).authenticate(eq(request), eq(false), anyActionListener());
 
         SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         AtomicReference<SecondaryAuthentication> secondaryAuthRef = new AtomicReference<>();
@@ -166,7 +169,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     private void testProcessAuthenticationFailed(Exception authnException, RestStatus expectedRestStatus, boolean errorTrace,
                                                  boolean detailedErrorsEnabled, boolean traceExists) throws Exception {
         RestRequest request;
-        if (errorTrace != !ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT || randomBoolean()) {
+        if (errorTrace != ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT == false || randomBoolean()) {
             request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                     .withParams(Map.of("error_trace", Boolean.toString(errorTrace))).build();
         } else {
@@ -174,11 +177,10 @@ public class SecurityRestFilterTests extends ESTestCase {
             request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
         }
         doAnswer((i) -> {
-            ActionListener callback =
-                (ActionListener) i.getArguments()[1];
+            ActionListener<?> callback = (ActionListener<?>) i.getArguments()[1];
             callback.onFailure(authnException);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(request), any(ActionListener.class));
+        }).when(authcService).authenticate(eq(request), anyActionListener());
         RestChannel channel = mock(RestChannel.class);
         when(channel.detailedErrorsEnabled()).thenReturn(detailedErrorsEnabled);
         when(channel.request()).thenReturn(request);
@@ -224,12 +226,12 @@ public class SecurityRestFilterTests extends ESTestCase {
         };
         SetOnce<RestRequest> authcServiceRequest = new SetOnce<>();
         doAnswer((i) -> {
-            ActionListener callback =
-                (ActionListener) i.getArguments()[1];
+            @SuppressWarnings("unchecked")
+            ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
             authcServiceRequest.set((RestRequest) i.getArguments()[0]);
             callback.onResponse(new Authentication(XPackUser.INSTANCE, new RealmRef("test", "test", "t"), null));
             return Void.TYPE;
-        }).when(authcService).authenticate(any(RestRequest.class), any(ActionListener.class));
+        }).when(authcService).authenticate(any(RestRequest.class), anyActionListener());
         filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false);
 
         filter.handleRequest(restRequest, channel, null);
@@ -251,11 +253,6 @@ public class SecurityRestFilterTests extends ESTestCase {
                 authcServiceRequest.get().content().streamInput()).map();
         assertEquals(1, map.size());
         assertEquals("bar", map.get("foo"));
-    }
-
-    public void testDelegationForCompatibleWithMethod() throws Exception {
-        filter.compatibleWithVersion();
-        verify(restHandler).compatibleWithVersion();
     }
 
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {

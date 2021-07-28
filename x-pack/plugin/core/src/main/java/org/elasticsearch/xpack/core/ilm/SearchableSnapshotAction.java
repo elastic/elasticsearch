@@ -8,22 +8,19 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
@@ -31,6 +28,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 
 /**
  * A {@link LifecycleAction} that will convert the index into a searchable snapshot, by taking a snapshot of the index, creating a
@@ -44,7 +44,6 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     public static final ParseField SNAPSHOT_REPOSITORY = new ParseField("snapshot_repository");
     public static final ParseField FORCE_MERGE_INDEX = new ParseField("force_merge_index");
-    public static final ParseField STORAGE = new ParseField("storage");
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
     public static final String CONDITIONAL_SKIP_ACTION_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_SKIP_GENERATE_AND_CLEAN = BranchingStep.NAME + "-check-existing-snapshot";
@@ -53,21 +52,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public static final String PARTIAL_RESTORED_INDEX_PREFIX = "partial-";
 
     private static final ConstructingObjectParser<SearchableSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        a -> {
-            String storageName = (String) a[2];
-            final MountSearchableSnapshotRequest.Storage storageType;
-            if (storageName == null) {
-                storageType = null;
-            } else {
-                storageType = MountSearchableSnapshotRequest.Storage.fromString(storageName);
-            }
-            return new SearchableSnapshotAction((String) a[0], a[1] == null || (boolean) a[1], storageType);
-        });
+        a -> new SearchableSnapshotAction((String) a[0], a[1] == null || (boolean) a[1]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_REPOSITORY);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FORCE_MERGE_INDEX);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), STORAGE);
     }
 
 
@@ -77,48 +66,40 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     private final String snapshotRepository;
     private final boolean forceMergeIndex;
-    @Nullable
-    private final MountSearchableSnapshotRequest.Storage storageType;
 
-    public SearchableSnapshotAction(String snapshotRepository, boolean forceMergeIndex,
-                                    @Nullable MountSearchableSnapshotRequest.Storage type) {
+    public SearchableSnapshotAction(String snapshotRepository, boolean forceMergeIndex) {
         if (Strings.hasText(snapshotRepository) == false) {
             throw new IllegalArgumentException("the snapshot repository must be specified");
         }
         this.snapshotRepository = snapshotRepository;
         this.forceMergeIndex = forceMergeIndex;
-        this.storageType = type;
     }
 
     public SearchableSnapshotAction(String snapshotRepository) {
-        this(snapshotRepository, true, null);
+        this(snapshotRepository, true);
     }
 
     public SearchableSnapshotAction(StreamInput in) throws IOException {
         this.snapshotRepository = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            this.forceMergeIndex = in.readBoolean();
-        } else {
-            this.forceMergeIndex = true;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            this.storageType = in.readOptionalEnum(MountSearchableSnapshotRequest.Storage.class);
-        } else {
-            this.storageType = null;
-        }
+        this.forceMergeIndex = in.readBoolean();
     }
 
     boolean isForceMergeIndex() {
         return forceMergeIndex;
     }
 
-    @Nullable
-    public MountSearchableSnapshotRequest.Storage getStorageType() {
-        return storageType;
+    public String getSnapshotRepository() {
+        return snapshotRepository;
     }
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
+        assert false;
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<Step> toSteps(Client client, String phase, StepKey nextStepKey, XPackLicenseState licenseState) {
         StepKey preActionBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_ACTION_STEP);
         StepKey checkNoWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
@@ -128,6 +109,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey generateSnapshotNameKey = new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME);
         StepKey cleanSnapshotKey = new StepKey(phase, NAME, CleanupSnapshotStep.NAME);
         StepKey createSnapshotKey = new StepKey(phase, NAME, CreateSnapshotStep.NAME);
+        StepKey waitForDataTierKey = new StepKey(phase, NAME, WaitForDataTierStep.NAME);
         StepKey mountSnapshotKey = new StepKey(phase, NAME, MountSnapshotStep.NAME);
         StepKey waitForGreenRestoredIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
@@ -143,7 +125,6 @@ public class SearchableSnapshotAction implements LifecycleAction {
         // here before generating snapshots that can't be used if the user doesn't have the right license level.
         BranchingStep conditionalSkipActionStep = new BranchingStep(preActionBranchingKey, checkNoWriteIndex, nextStepKey,
             (index, clusterState) -> {
-                XPackLicenseState licenseState = XPackPlugin.getSharedLicenseState();
                 if (licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS) == false) {
                     logger.error("[{}] action is not available in the current license", SearchableSnapshotAction.NAME);
                     throw LicenseUtils.newComplianceException("searchable-snapshots");
@@ -154,10 +135,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     // The index is already a searchable snapshot, let's see if the repository matches
-                    // TODO: move the searchable snapshot settings into x-pack
-                    //  core in the future, so the Settings can be used instead
-                    //  of strings here
-                    String repo = indexMetadata.getSettings().get("index.store.snapshot.repository_name");
+                    String repo = indexMetadata.getSettings().get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
                     if (this.snapshotRepository.equals(repo) == false) {
                         // Okay, different repo, we need to go ahead with the searchable snapshot
                         logger.debug("[{}] action is configured for index [{}] in policy [{}] which is already mounted as a searchable " +
@@ -168,7 +146,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                     }
 
                     // Check to the storage type to see if we need to convert between full <-> partial
-                    boolean partial = indexMetadata.getSettings().getAsBoolean("index.store.snapshot.partial", false);
+                    final boolean partial = indexMetadata.getSettings().getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false);
                     MountSearchableSnapshotRequest.Storage existingType =
                         partial ? MountSearchableSnapshotRequest.Storage.SHARED_CACHE : MountSearchableSnapshotRequest.Storage.FULL_COPY;
                     MountSearchableSnapshotRequest.Storage type = getConcreteStorageType(preActionBranchingKey);
@@ -200,7 +178,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         // Branch, deciding whether there is an existing searchable snapshot snapshot that can be used for mounting the index
         // (in which case, skip generating a new name and the snapshot cleanup), or if we need to generate a new snapshot
         BranchingStep skipGeneratingSnapshotStep =
-            new BranchingStep(skipGeneratingSnapshotKey, keyForSnapshotGeneration, mountSnapshotKey, (index, clusterState) -> {
+            new BranchingStep(skipGeneratingSnapshotKey, keyForSnapshotGeneration, waitForDataTierKey, (index, clusterState) -> {
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
                 LifecycleExecutionState lifecycleExecutionState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
@@ -233,18 +211,21 @@ public class SearchableSnapshotAction implements LifecycleAction {
             snapshotRepository);
         CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, createSnapshotKey, client);
         AsyncActionBranchingStep createSnapshotBranchingStep = new AsyncActionBranchingStep(
-            new CreateSnapshotStep(createSnapshotKey, mountSnapshotKey, client), cleanSnapshotKey, client);
+            new CreateSnapshotStep(createSnapshotKey, waitForDataTierKey, client), cleanSnapshotKey, client);
 
-        // Now mount the snapshot to create the new index, if the skipGeneratingSnapshotStep determined a snapshot already existed that
+        MountSearchableSnapshotRequest.Storage storageType = getConcreteStorageType(mountSnapshotKey);
+
+        // If the skipGeneratingSnapshotStep determined a snapshot already existed that
         // can be used, it jumps directly here, skipping the snapshot generation steps above.
+        WaitForDataTierStep waitForDataTierStep =
+            new WaitForDataTierStep(waitForDataTierKey, mountSnapshotKey,
+                MountSnapshotStep.overrideTierPreference(phase).orElse(storageType.defaultDataTiersPreference()));
         MountSnapshotStep mountSnapshotStep = new MountSnapshotStep(mountSnapshotKey, waitForGreenRestoredIndexKey,
-            client, getRestoredIndexPrefix(mountSnapshotKey), getConcreteStorageType(mountSnapshotKey));
+            client, getRestoredIndexPrefix(mountSnapshotKey), storageType);
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(waitForGreenRestoredIndexKey,
             copyMetadataKey, ClusterHealthStatus.GREEN, getRestoredIndexPrefix(waitForGreenRestoredIndexKey));
-        // a policy with only the cold phase will have a null "nextStepKey", hence the "null" nextStepKey passed in below when that's the
-        // case
         CopyExecutionStateStep copyMetadataStep = new CopyExecutionStateStep(copyMetadataKey, copyLifecyclePolicySettingKey,
-            getRestoredIndexPrefix(copyMetadataKey), nextStepKey != null ? nextStepKey.getName() : "null");
+            (index, executionState) -> getRestoredIndexPrefix(copyMetadataKey) + index, nextStepKey);
         CopySettingsStep copySettingsStep = new CopySettingsStep(copyLifecyclePolicySettingKey, dataStreamCheckBranchingKey,
             getRestoredIndexPrefix(copyLifecyclePolicySettingKey), LifecycleSettings.LIFECYCLE_NAME);
         BranchingStep isDataStreamBranchingStep = new BranchingStep(dataStreamCheckBranchingKey, swapAliasesKey, replaceDataStreamIndexKey,
@@ -254,7 +235,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                 return indexAbstraction.getParentDataStream() != null;
             });
         ReplaceDataStreamBackingIndexStep replaceDataStreamBackingIndex = new ReplaceDataStreamBackingIndexStep(replaceDataStreamIndexKey,
-            deleteIndexKey, getRestoredIndexPrefix(replaceDataStreamIndexKey));
+            deleteIndexKey, (index, executionState) -> getRestoredIndexPrefix(replaceDataStreamIndexKey) + index);
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, null, client);
         // sending this step to null as the restored index (which will after this step essentially be the source index) was sent to the next
         // key after we restored the lifecycle execution state
@@ -273,6 +254,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         steps.add(generateSnapshotNameStep);
         steps.add(cleanupSnapshotStep);
         steps.add(createSnapshotBranchingStep);
+        steps.add(waitForDataTierStep);
         steps.add(mountSnapshotStep);
         steps.add(waitForGreenIndexHealthStep);
         steps.add(copyMetadataStep);
@@ -288,28 +270,15 @@ public class SearchableSnapshotAction implements LifecycleAction {
      * Resolves the prefix to be used for the mounted index depending on the provided key
      */
     String getRestoredIndexPrefix(StepKey currentKey) {
-        if (storageType == null) {
-            if (currentKey.getPhase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
-                return PARTIAL_RESTORED_INDEX_PREFIX;
-            } else {
-                return FULL_RESTORED_INDEX_PREFIX;
-            }
-        }
-        switch (storageType) {
-            case FULL_COPY:
-                return FULL_RESTORED_INDEX_PREFIX;
-            case SHARED_CACHE:
-                return PARTIAL_RESTORED_INDEX_PREFIX;
-            default:
-                throw new IllegalArgumentException("unexpected storage type: " + storageType);
+        if (currentKey.getPhase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
+            return PARTIAL_RESTORED_INDEX_PREFIX;
+        } else {
+            return FULL_RESTORED_INDEX_PREFIX;
         }
     }
 
-    // Resolves the storage type from a Nullable to non-Nullable type
+    // Resolves the storage type depending on which phase the index is in
     MountSearchableSnapshotRequest.Storage getConcreteStorageType(StepKey currentKey) {
-        if (storageType != null) {
-            return storageType;
-        }
         if (currentKey.getPhase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
             return MountSearchableSnapshotRequest.Storage.SHARED_CACHE;
         } else {
@@ -330,12 +299,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(snapshotRepository);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeBoolean(forceMergeIndex);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalEnum(storageType);
-        }
+        out.writeBoolean(forceMergeIndex);
     }
 
     @Override
@@ -343,9 +307,6 @@ public class SearchableSnapshotAction implements LifecycleAction {
         builder.startObject();
         builder.field(SNAPSHOT_REPOSITORY.getPreferredName(), snapshotRepository);
         builder.field(FORCE_MERGE_INDEX.getPreferredName(), forceMergeIndex);
-        if (storageType != null) {
-            builder.field(STORAGE.getPreferredName(), storageType);
-        }
         builder.endObject();
         return builder;
     }
@@ -359,12 +320,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
             return false;
         }
         SearchableSnapshotAction that = (SearchableSnapshotAction) o;
-        return Objects.equals(snapshotRepository, that.snapshotRepository) &&
-            Objects.equals(storageType, that.storageType);
+        return Objects.equals(snapshotRepository, that.snapshotRepository);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotRepository, storageType);
+        return Objects.hash(snapshotRepository);
     }
 }

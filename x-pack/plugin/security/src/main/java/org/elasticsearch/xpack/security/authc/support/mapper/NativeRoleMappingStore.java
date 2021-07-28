@@ -268,20 +268,12 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         if (names == null || names.isEmpty()) {
             getMappings(listener);
         } else {
-            getMappings(new ActionListener<List<ExpressionRoleMapping>>() {
-                @Override
-                public void onResponse(List<ExpressionRoleMapping> mappings) {
-                    final List<ExpressionRoleMapping> filtered = mappings.stream()
-                            .filter(m -> names.contains(m.getName()))
-                            .collect(Collectors.toList());
-                    listener.onResponse(filtered);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            getMappings(listener.delegateFailure((l, mappings) -> {
+                final List<ExpressionRoleMapping> filtered = mappings.stream()
+                        .filter(m -> names.contains(m.getName()))
+                        .collect(Collectors.toList());
+                l.onResponse(filtered);
+            }));
         }
     }
 
@@ -326,8 +318,10 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     }
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
-        if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState) ||
-            previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
+        if (isMoveFromRedToNonRed(previousState, currentState)
+            || isIndexDeleted(previousState, currentState)
+            || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false
+            || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
             refreshRealms(NO_OP_ACTION_LISTENER, null);
         }
     }

@@ -58,6 +58,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -306,6 +307,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 checkSame.accept(AbstractHighlighterBuilder::postTags, FieldOptions::postTags);
                 checkSame.accept(AbstractHighlighterBuilder::options, FieldOptions::options);
                 checkSame.accept(AbstractHighlighterBuilder::order, op -> op.scoreOrdered() ? Order.SCORE : Order.NONE);
+                checkSame.accept(AbstractHighlighterBuilder::maxAnalyzedOffset, FieldOptions::maxAnalyzedOffset);
                 assertEquals(fieldBuilder.fragmentOffset, fieldOptions.fragmentOffset());
                 if (fieldBuilder.matchedFields != null) {
                     String[] copy = Arrays.copyOf(fieldBuilder.matchedFields, fieldBuilder.matchedFields.length);
@@ -451,6 +453,13 @@ public class HighlightBuilderTests extends ESTestCase {
         assertEquals("pre_tags are set but post_tags are not set", e.getCause().getCause().getMessage());
     }
 
+    public void testInvalidMaxAnalyzedOffset() throws IOException {
+        XContentParseException e = expectParseThrows(XContentParseException.class,
+                "{ \"max_analyzed_offset\" : " + randomIntBetween(-100, 0) + "}");
+        assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + MAX_ANALYZED_OFFSET_FIELD.toString() +"]"));
+        assertThat(e.getCause().getMessage(), containsString("[max_analyzed_offset] must be a positive integer"));
+    }
+
     /**
      * test ordinals of {@link Order}, since serialization depends on it
      */
@@ -583,6 +592,9 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.phraseLimit(randomIntBetween(0, 10));
         }
         if (randomBoolean()) {
+            highlightBuilder.maxAnalyzedOffset(randomIntBetween(1, 100));
+        }
+        if (randomBoolean()) {
             int items = randomIntBetween(0, 5);
             Map<String, Object> options = new HashMap<>(items);
             for (int i = 0; i < items; i++) {
@@ -608,64 +620,71 @@ public class HighlightBuilderTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static void mutateCommonOptions(AbstractHighlighterBuilder highlightBuilder) {
-        switch (randomIntBetween(1, 16)) {
-        case 1:
-            highlightBuilder.preTags(randomStringArray(4, 6));
-            break;
-        case 2:
-            highlightBuilder.postTags(randomStringArray(4, 6));
-            break;
-        case 3:
-            highlightBuilder.fragmentSize(randomIntBetween(101, 200));
-            break;
-        case 4:
-            highlightBuilder.numOfFragments(randomIntBetween(11, 20));
-            break;
-        case 5:
-            highlightBuilder.highlighterType(randomAlphaOfLengthBetween(11, 20));
-            break;
-        case 6:
-            highlightBuilder.fragmenter(randomAlphaOfLengthBetween(11, 20));
-            break;
-        case 7:
-            highlightBuilder.highlightQuery(new TermQueryBuilder(randomAlphaOfLengthBetween(11, 20), randomAlphaOfLengthBetween(11, 20)));
-            break;
-        case 8:
-            if (highlightBuilder.order() == Order.NONE) {
-                highlightBuilder.order(Order.SCORE);
-            } else {
-                highlightBuilder.order(Order.NONE);
-            }
-            break;
-        case 9:
-            highlightBuilder.highlightFilter(toggleOrSet(highlightBuilder.highlightFilter()));
-            break;
-        case 10:
-            highlightBuilder.forceSource(toggleOrSet(highlightBuilder.forceSource()));
-            break;
-        case 11:
-            highlightBuilder.boundaryMaxScan(randomIntBetween(11, 20));
-            break;
-        case 12:
-            highlightBuilder.boundaryChars(randomAlphaOfLengthBetween(11, 20).toCharArray());
-            break;
-        case 13:
-            highlightBuilder.noMatchSize(randomIntBetween(11, 20));
-            break;
-        case 14:
-            highlightBuilder.phraseLimit(randomIntBetween(11, 20));
-            break;
-        case 15:
-            int items = 6;
-            Map<String, Object> options = new HashMap<>(items);
-            for (int i = 0; i < items; i++) {
-                options.put(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
-            }
-            highlightBuilder.options(options);
-            break;
-        case 16:
-            highlightBuilder.requireFieldMatch(toggleOrSet(highlightBuilder.requireFieldMatch()));
-            break;
+        switch (randomIntBetween(1, 17)) {
+            case 1:
+                highlightBuilder.preTags(randomStringArray(4, 6));
+                break;
+            case 2:
+                highlightBuilder.postTags(randomStringArray(4, 6));
+                break;
+            case 3:
+                highlightBuilder.fragmentSize(randomIntBetween(101, 200));
+                break;
+            case 4:
+                highlightBuilder.numOfFragments(randomIntBetween(11, 20));
+                break;
+            case 5:
+                highlightBuilder.highlighterType(randomAlphaOfLengthBetween(11, 20));
+                break;
+            case 6:
+                highlightBuilder.fragmenter(randomAlphaOfLengthBetween(11, 20));
+                break;
+            case 7:
+                highlightBuilder.highlightQuery(
+                    new TermQueryBuilder(randomAlphaOfLengthBetween(11, 20), randomAlphaOfLengthBetween(11, 20))
+                );
+                break;
+            case 8:
+                if (highlightBuilder.order() == Order.NONE) {
+                    highlightBuilder.order(Order.SCORE);
+                } else {
+                    highlightBuilder.order(Order.NONE);
+                }
+                break;
+            case 9:
+                highlightBuilder.highlightFilter(toggleOrSet(highlightBuilder.highlightFilter()));
+                break;
+            case 10:
+                highlightBuilder.forceSource(toggleOrSet(highlightBuilder.forceSource()));
+                break;
+            case 11:
+                highlightBuilder.boundaryMaxScan(randomIntBetween(11, 20));
+                break;
+            case 12:
+                highlightBuilder.boundaryChars(randomAlphaOfLengthBetween(11, 20).toCharArray());
+                break;
+            case 13:
+                highlightBuilder.noMatchSize(randomIntBetween(11, 20));
+                break;
+            case 14:
+                highlightBuilder.phraseLimit(randomIntBetween(11, 20));
+                break;
+            case 15:
+                int items = 6;
+                Map<String, Object> options = new HashMap<>(items);
+                for (int i = 0; i < items; i++) {
+                    options.put(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
+                }
+                highlightBuilder.options(options);
+                break;
+            case 16:
+                highlightBuilder.requireFieldMatch(toggleOrSet(highlightBuilder.requireFieldMatch()));
+                break;
+            case 17:
+                highlightBuilder.maxAnalyzedOffset(
+                    randomValueOtherThan(highlightBuilder.maxAnalyzedOffset(), () -> randomIntBetween(1, 100))
+                );
+                break;
         }
     }
 

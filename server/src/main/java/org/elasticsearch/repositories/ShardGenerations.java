@@ -8,7 +8,7 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.util.Arrays;
@@ -42,7 +42,7 @@ public final class ShardGenerations {
     private final Map<IndexId, List<String>> shardGenerations;
 
     private ShardGenerations(Map<IndexId, List<String>> shardGenerations) {
-        this.shardGenerations = shardGenerations;
+        this.shardGenerations = Map.copyOf(shardGenerations);
     }
 
     private static final Pattern IS_NUMBER = Pattern.compile("^\\d+$");
@@ -76,7 +76,7 @@ public final class ShardGenerations {
      * @return indices for which shard generations are tracked
      */
     public Collection<IndexId> indices() {
-        return Collections.unmodifiableSet(shardGenerations.keySet());
+        return shardGenerations.keySet();
     }
 
     /**
@@ -135,8 +135,7 @@ public final class ShardGenerations {
     }
 
     public List<String> getGens(IndexId indexId) {
-        final List<String> existing = shardGenerations.get(indexId);
-        return existing == null ? Collections.emptyList() : Collections.unmodifiableList(existing);
+        return shardGenerations.getOrDefault(indexId, Collections.emptyList());
     }
 
     @Override
@@ -200,7 +199,7 @@ public final class ShardGenerations {
                 for (int i = 0; i < gens.size(); i++) {
                     final String gen = gens.get(i);
                     if (gen != null) {
-                        put(indexId, i, gens.get(i));
+                        put(indexId, i, gen);
                     }
                 }
             });
@@ -208,24 +207,23 @@ public final class ShardGenerations {
         }
 
         public Builder put(IndexId indexId, int shardId, String generation) {
-            generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
+            String existingGeneration = generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
+            assert generation != null || existingGeneration == null
+                : "must not overwrite existing generation with null generation [" + existingGeneration + "]";
             return this;
         }
 
         public ShardGenerations build() {
-            return new ShardGenerations(generations.entrySet().stream().collect(Collectors.toMap(
-                Map.Entry::getKey,
-                entry -> {
-                    final Set<Integer> shardIds = entry.getValue().keySet();
-                    assert shardIds.isEmpty() == false;
-                    final int size = shardIds.stream().mapToInt(i -> i).max().getAsInt() + 1;
-                    // Create a list that can hold the highest shard id as index and leave null values for shards that don't have
-                    // a map entry.
-                    final String[] gens = new String[size];
-                    entry.getValue().forEach((shardId, generation) -> gens[shardId] = generation);
-                    return Arrays.asList(gens);
-                }
-            )));
+            return new ShardGenerations(generations.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> {
+                final Set<Integer> shardIds = entry.getValue().keySet();
+                assert shardIds.isEmpty() == false;
+                final int size = shardIds.stream().mapToInt(i -> i).max().getAsInt() + 1;
+                // Create a list that can hold the highest shard id as index and leave null values for shards that don't have
+                // a map entry.
+                final String[] gens = new String[size];
+                entry.getValue().forEach((shardId, generation) -> gens[shardId] = generation);
+                return Collections.unmodifiableList(Arrays.asList(gens));
+            })));
         }
     }
 }

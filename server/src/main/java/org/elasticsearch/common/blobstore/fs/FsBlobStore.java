@@ -16,6 +16,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 public class FsBlobStore implements BlobStore {
 
@@ -70,15 +71,13 @@ public class FsBlobStore implements BlobStore {
     }
 
     private Path buildPath(BlobPath path) {
-        String[] paths = path.toArray();
-        if (paths.length == 0) {
+        List<String> paths = path.parts();
+        if (paths.isEmpty()) {
             return path();
         }
-        Path blobPath = this.path.resolve(paths[0]);
-        if (paths.length > 1) {
-            for (int i = 1; i < paths.length; i++) {
-                blobPath = blobPath.resolve(paths[i]);
-            }
+        Path blobPath = this.path.resolve(paths.get(0));
+        for (int i = 1; i < paths.size(); i++) {
+            blobPath = blobPath.resolve(paths.get(i));
         }
         return blobPath;
     }

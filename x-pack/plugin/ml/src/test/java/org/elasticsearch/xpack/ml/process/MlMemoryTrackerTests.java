@@ -21,6 +21,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -109,6 +110,13 @@ public class MlMemoryTrackerTests extends ESTestCase {
             tasks.put(task.getId(), task);
         }
 
+        int numTrainedModelTasks = randomIntBetween(2, 5);
+        for (int i = 1; i <= numTrainedModelTasks; ++i) {
+            String id = "trained_model_" + i;
+            PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestTrainedModelTask(id, randomLongBetween(1000, 1000000));
+            tasks.put(task.getId(), task);
+        }
+
         PersistentTasksCustomMetadata persistentTasks =
             new PersistentTasksCustomMetadata(numAnomalyDetectorJobTasks + numDataFrameAnalyticsTasks, tasks);
 
@@ -119,7 +127,14 @@ public class MlMemoryTrackerTests extends ESTestCase {
             return null;
         }).when(jobResultsProvider).getEstablishedMemoryUsage(anyString(), any(), any(), any(), any());
 
-        memoryTracker.refresh(persistentTasks, ActionListener.wrap(aVoid -> {}, ESTestCase::assertNull));
+        if (isMaster) {
+            memoryTracker.refresh(persistentTasks, ActionListener.wrap(aVoid -> {}, ESTestCase::assertNull));
+        } else {
+            AtomicReference<Exception> exception = new AtomicReference<>();
+            memoryTracker.refresh(persistentTasks,
+                ActionListener.wrap(e -> fail("Expected failure response"), exception::set));
+            assertEquals("Request to refresh anomaly detector memory requirement on non-master node", exception.get().getMessage());
+        }
 
         if (isMaster) {
             for (int i = 1; i <= numAnomalyDetectorJobTasks; ++i) {
@@ -186,10 +201,10 @@ public class MlMemoryTrackerTests extends ESTestCase {
             return null;
         }).when(configProvider).getConfigsForJobsWithTasksLeniently(any(), any());
 
-        AtomicBoolean gotSuccessResponse = new AtomicBoolean(false);
+        AtomicReference<Exception> exception = new AtomicReference<>();
         memoryTracker.refresh(persistentTasks,
-            ActionListener.wrap(aVoid -> gotSuccessResponse.set(true), e -> fail("Expected success response")));
-        assertTrue(gotSuccessResponse.get());
+            ActionListener.wrap(e -> fail("Expected failure response"), exception::set));
+        assertEquals("Request to refresh anomaly detector memory requirement on non-master node", exception.get().getMessage());
     }
 
     public void testRefreshOneAnomalyDetectorJob() {
@@ -223,10 +238,10 @@ public class MlMemoryTrackerTests extends ESTestCase {
             return null;
         }).when(jobManager).getJob(eq(jobId), any());
 
-        AtomicReference<Long> refreshedMemoryRequirement = new AtomicReference<>();
-        memoryTracker.refreshAnomalyDetectorJobMemory(jobId, ActionListener.wrap(refreshedMemoryRequirement::set, ESTestCase::assertNull));
-
         if (isMaster) {
+            AtomicReference<Long> refreshedMemoryRequirement = new AtomicReference<>();
+            memoryTracker.refreshAnomalyDetectorJobMemory(jobId,
+                ActionListener.wrap(refreshedMemoryRequirement::set, ESTestCase::assertNull));
             if (haveEstablishedModelMemory) {
                 assertEquals(Long.valueOf(modelBytes + Job.PROCESS_MEMORY_OVERHEAD.getBytes()),
                     memoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId));
@@ -236,11 +251,14 @@ public class MlMemoryTrackerTests extends ESTestCase {
                 assertEquals(Long.valueOf(ByteSizeValue.ofMb(expectedModelMemoryLimit).getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes()),
                     memoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId));
             }
+            assertEquals(memoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId), refreshedMemoryRequirement.get());
         } else {
+            AtomicReference<Exception> exception = new AtomicReference<>();
+            memoryTracker.refreshAnomalyDetectorJobMemory(jobId,
+                ActionListener.wrap(e -> fail("Expected failure response"), exception::set));
+            assertEquals("Request to refresh anomaly detector memory requirement on non-master node", exception.get().getMessage());
             assertNull(memoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId));
         }
-
-        assertEquals(memoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId), refreshedMemoryRequirement.get());
 
         memoryTracker.removeAnomalyDetectorJob(jobId);
         assertNull(memoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId));
@@ -264,11 +282,20 @@ public class MlMemoryTrackerTests extends ESTestCase {
             new OpenJobAction.JobParams(jobId), 0, PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT);
     }
 
-    private
-    PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>
-    makeTestDataFrameAnalyticsTask(String id, boolean allowLazyStart) {
+    private PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> makeTestDataFrameAnalyticsTask(
+        String id, boolean allowLazyStart) {
         return new PersistentTasksCustomMetadata.PersistentTask<>(MlTasks.dataFrameAnalyticsTaskId(id),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT, allowLazyStart),
             0, PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT);
+    }
+
+    private PersistentTasksCustomMetadata.PersistentTask<StartTrainedModelDeploymentAction.TaskParams> makeTestTrainedModelTask(
+        String id, long memUsage) {
+        return new PersistentTasksCustomMetadata.PersistentTask<>(MlTasks.trainedModelDeploymentTaskId(id),
+            MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME,
+            new StartTrainedModelDeploymentAction.TaskParams(id, randomAlphaOfLength(10), memUsage),
+            0,
+            PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT
+        );
     }
 }

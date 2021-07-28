@@ -1,6 +1,6 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
@@ -14,7 +14,7 @@ String pagerDutyServiceKey = System.getenv('pagerduty_service_api_key')
 
 restResources {
   restApi {
-    includeXpack 'watcher'
+    include 'watcher'
   }
 }
 

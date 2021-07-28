@@ -5,6 +5,21 @@ teardown:
         id: "my_pipeline"
         ignore: 404
 
+  - do:
+      ingest.delete_pipeline:
+        id: "final_pipeline_1"
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: "final_pipeline_2"
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: "change_target_index"
+        ignore: 404
+
 ---
 "Test index with final pipeline":
   - do:
@@ -164,3 +179,97 @@ teardown:
   - match: { docs.5._source.bytes_source_field: "3kb" }
   - match: { docs.5._source.bytes_target_field: 3072 }
   - match: { docs.5._source.ran_script: true }
+
+---
+"Test final pipeline when target index is changed":
+  - do:
+      ingest.put_pipeline:
+        id: "final_pipeline_1"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "final_pipeline_1",
+                  "value" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "final_pipeline_2"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "final_pipeline_2",
+                  "value" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "change_target_index"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "_index",
+                  "value" : "index_with_final_pipeline_2"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create:
+        index: index_with_final_pipeline_1
+        body:
+          settings:
+            index:
+              final_pipeline: "final_pipeline_1"
+
+  - do:
+      indices.create:
+        index: index_with_final_pipeline_2
+        body:
+          settings:
+            index:
+              final_pipeline: "final_pipeline_2"
+
+  # changing the target index will change the final pipeline to the re-targeted index
+  - do:
+      index:
+        index: index_with_final_pipeline_1
+        id: 1
+        pipeline: "change_target_index"
+        body: {foo: "bar"}
+
+  # document not present in index that was replaced with re-targeted index
+  - do:
+      catch: missing
+      get:
+        index: index_with_final_pipeline_1
+        id: 1
+  - match: { found: false }
+
+  # document present in re-targeted index and re-targeted index's final pipeline was executed
+  - do:
+      get:
+        index: index_with_final_pipeline_2
+        id: 1
+  - match: { _source.foo: "bar" }
+  - match: { _source.final_pipeline_2: true }
+  - is_false: _source.final_pipeline_1

@@ -9,10 +9,9 @@ package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -23,6 +22,7 @@ import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
@@ -83,7 +83,7 @@ public final class RestGrantApiKeyAction extends SecurityBaseRestHandler impleme
                 grantRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refresh));
             }
             return channel -> client.execute(GrantApiKeyAction.INSTANCE, grantRequest,
-                ActionListener.delegateResponse(new RestToXContentListener<>(channel), (listener, ex) -> {
+                new RestToXContentListener<CreateApiKeyResponse>(channel).delegateResponse((listener, ex) -> {
                     RestStatus status = ExceptionsHelper.status(ex);
                     if (status == RestStatus.UNAUTHORIZED) {
                         listener.onFailure(

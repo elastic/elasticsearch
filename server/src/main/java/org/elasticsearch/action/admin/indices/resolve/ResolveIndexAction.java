@@ -26,8 +26,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -125,6 +125,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         public IndicesRequest indices(String... indices) {
             this.names = indices;
             return this;
+        }
+
+        @Override
+        public boolean allowsRemoteIndices() {
+            return true;
         }
 
         @Override
@@ -558,10 +563,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                             index.getParentDataStream() == null ? null : index.getParentDataStream().getName()));
                         break;
                     case ALIAS:
-                        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) ia;
-                        String[] indexNames = alias.getIndices().stream().map(i -> i.getIndex().getName()).toArray(String[]::new);
+                        String[] indexNames = ia.getIndices().stream().map(i -> i.getIndex().getName()).toArray(String[]::new);
                         Arrays.sort(indexNames);
-                        aliases.add(new ResolvedAlias(alias.getName(), indexNames));
+                        aliases.add(new ResolvedAlias(ia.getName(), indexNames));
                         break;
                     case DATA_STREAM:
                         IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) ia;

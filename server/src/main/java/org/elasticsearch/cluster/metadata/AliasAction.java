@@ -10,7 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 
 /**
@@ -196,6 +196,70 @@ public abstract class AliasAction {
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    public static class AddDataStreamAlias extends AliasAction {
+
+        private final String aliasName;
+        private final String dataStreamName;
+        private final Boolean isWriteDataStream;
+        private final String filter;
+
+        public AddDataStreamAlias(String aliasName, String dataStreamName, Boolean isWriteDataStream, String filter) {
+            super(dataStreamName);
+            this.aliasName = aliasName;
+            this.dataStreamName = dataStreamName;
+            this.isWriteDataStream = isWriteDataStream;
+            this.filter = filter;
+        }
+
+        public String getAliasName() {
+            return aliasName;
+        }
+
+        public String getDataStreamName() {
+            return dataStreamName;
+        }
+
+        public Boolean getWriteDataStream() {
+            return isWriteDataStream;
+        }
+
+        @Override
+        boolean removeIndex() {
+            return false;
+        }
+
+        @Override
+        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
+            aliasValidator.validate(aliasName, null, filter, isWriteDataStream);
+            return metadata.put(aliasName, dataStreamName, isWriteDataStream, filter);
+        }
+    }
+
+    public static class RemoveDataStreamAlias extends AliasAction {
+
+        private final String aliasName;
+        private final Boolean mustExist;
+        private final String dataStreamName;
+
+        public RemoveDataStreamAlias(String aliasName, String dataStreamName, Boolean mustExist) {
+            super(dataStreamName);
+            this.aliasName = aliasName;
+            this.mustExist = mustExist;
+            this.dataStreamName = dataStreamName;
+        }
+
+        @Override
+        boolean removeIndex() {
+            return false;
+        }
+
+        @Override
+        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
+            boolean mustExist = this.mustExist != null ? this.mustExist : false;
+            return metadata.removeDataStreamAlias(aliasName, dataStreamName, mustExist);
         }
     }
 }

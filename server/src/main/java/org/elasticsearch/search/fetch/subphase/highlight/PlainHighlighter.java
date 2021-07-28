@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
 import static org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter.convertFieldValue;
 
 public class PlainHighlighter implements Highlighter {
@@ -89,8 +90,12 @@ public class PlainHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-        Analyzer analyzer = context.getSearchExecutionContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER);
         final int maxAnalyzedOffset = context.getSearchExecutionContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
+        Integer queryMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzedOffset();
+        Analyzer analyzer = wrapAnalyzer(
+            context.getSearchExecutionContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER),
+            queryMaxAnalyzedOffset
+        );
 
         textsToHighlight
             = HighlightUtils.loadFieldValues(fieldType, context.getSearchExecutionContext(), hitContext, fieldContext.forceSource);
@@ -98,14 +103,14 @@ public class PlainHighlighter implements Highlighter {
         for (Object textToHighlight : textsToHighlight) {
             String text = convertFieldValue(fieldType, textToHighlight);
             int textLength = text.length();
-            if (textLength > maxAnalyzedOffset) {
+            if ((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset > maxAnalyzedOffset) && (textLength > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
-                    "The length of [" + fieldContext.fieldName + "] field of [" + hitContext.hit().getId() +
-                        "] doc of [" + context.getIndexName() + "] index " +
-                        "has exceeded [" + maxAnalyzedOffset + "] - maximum allowed to be analyzed for highlighting. " +
-                        "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() +
-                        "] index level setting. " + "For large texts, indexing with offsets or term vectors, and highlighting " +
-                        "with unified or fvh highlighter is recommended!");
+                    "The length [" + textLength + "] of field [" + field +"] in doc[" + hitContext.hit().getId() + "]/index["
+                        + context.getIndexName() +"] exceeds the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] "
+                        + "limit [" + maxAnalyzedOffset + "]. To avoid this error, set the query parameter ["
+                        + MAX_ANALYZED_OFFSET_FIELD.toString() + "] to a value less than index setting [" + maxAnalyzedOffset + "] and "
+                        + "this will tolerate long field values by truncating them."
+                );
             }
 
             try (TokenStream tokenStream = analyzer.tokenStream(fieldType.name(), text)) {
@@ -130,8 +135,9 @@ public class PlainHighlighter implements Highlighter {
             }
         }
 
-        if (field.fieldOptions().scoreOrdered()) {
-            CollectionUtil.introSort(fragsList, (o1, o2) -> Math.round(o2.getScore() - o1.getScore()));
+        // fragments are ordered by score by default since we add them in best
+        if (field.fieldOptions().scoreOrdered() == false) {
+            CollectionUtil.introSort(fragsList, (o1, o2) -> o1.getFragNum() - o2.getFragNum());
         }
         String[] fragments;
         // number_of_fragments is set to 0 but we have a multivalued field
@@ -194,5 +200,12 @@ public class PlainHighlighter implements Highlighter {
             // We've exhausted the token stream so we should just highlight everything.
             return end;
         }
+    }
+
+    private Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
+        if (maxAnalyzedOffset != null) {
+            return new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset);
+        }
+        return analyzer;
     }
 }

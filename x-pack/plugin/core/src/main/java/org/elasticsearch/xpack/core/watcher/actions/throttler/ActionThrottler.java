@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.watcher.actions.throttler;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 

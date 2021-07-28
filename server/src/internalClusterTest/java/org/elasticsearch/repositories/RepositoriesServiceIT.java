@@ -41,18 +41,18 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
         final String repositoryName = "test-repo";
 
         final Client client = client();
-        final RepositoriesService repositoriesService =
-            cluster.getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
+        final RepositoriesService repositoriesService = cluster.getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
 
         final Settings.Builder repoSettings = Settings.builder().put("location", randomRepoPath());
 
-        assertAcked(client.admin().cluster().preparePutRepository(repositoryName)
-                .setType(FsRepository.TYPE)
-                .setSettings(repoSettings)
-                .get());
+        assertAcked(
+            client.admin().cluster().preparePutRepository(repositoryName).setType(FsRepository.TYPE).setSettings(repoSettings).get()
+        );
 
-        final GetRepositoriesResponse originalGetRepositoriesResponse =
-            client.admin().cluster().prepareGetRepositories(repositoryName).get();
+        final GetRepositoriesResponse originalGetRepositoriesResponse = client.admin()
+            .cluster()
+            .prepareGetRepositories(repositoryName)
+            .get();
 
         assertThat(originalGetRepositoriesResponse.repositories(), hasSize(1));
         RepositoryMetadata originalRepositoryMetadata = originalGetRepositoriesResponse.repositories().get(0);
@@ -65,13 +65,14 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
         final boolean updated = randomBoolean();
         final String updatedRepositoryType = updated ? "mock" : FsRepository.TYPE;
 
-        assertAcked(client.admin().cluster().preparePutRepository(repositoryName)
-                .setType(updatedRepositoryType)
-                .setSettings(repoSettings)
-                .get());
+        assertAcked(
+            client.admin().cluster().preparePutRepository(repositoryName).setType(updatedRepositoryType).setSettings(repoSettings).get()
+        );
 
-        final GetRepositoriesResponse updatedGetRepositoriesResponse =
-            client.admin().cluster().prepareGetRepositories(repositoryName).get();
+        final GetRepositoriesResponse updatedGetRepositoriesResponse = client.admin()
+            .cluster()
+            .prepareGetRepositories(repositoryName)
+            .get();
 
         assertThat(updatedGetRepositoriesResponse.repositories(), hasSize(1));
         final RepositoryMetadata updatedRepositoryMetadata = updatedGetRepositoriesResponse.repositories().get(0);

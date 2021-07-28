@@ -11,7 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -131,8 +131,8 @@ public final class MockIndexEventListener {
         }
 
         @Override
-        public void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
-            delegate.beforeIndexShardCreated(shardId, indexSettings);
+        public void beforeIndexShardCreated(ShardRouting shardrouting, Settings indexSettings) {
+            delegate.beforeIndexShardCreated(shardrouting, indexSettings);
         }
 
         @Override

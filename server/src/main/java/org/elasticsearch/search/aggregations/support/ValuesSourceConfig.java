@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -360,8 +360,11 @@ public class ValuesSourceConfig {
         return valuesSource.roundingPreparer();
     }
 
-    public boolean hasGlobalOrdinals() {
-        return valuesSource.hasGlobalOrdinals();
+    /**
+     * Check if this values source supports using global and segment ordinals.
+     */
+    public boolean hasOrdinals() {
+        return valuesSource.hasOrdinals();
     }
 
     /**

@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.Locale;
 
@@ -44,4 +47,11 @@ public class CcrMultiClusterLicenseIT extends ESCCRRestTestCase {
         assertThat(e, hasToString(containsString(expected)));
     }
 
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
+    }
 }

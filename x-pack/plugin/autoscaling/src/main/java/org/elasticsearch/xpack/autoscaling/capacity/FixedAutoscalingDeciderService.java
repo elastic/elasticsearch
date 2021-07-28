@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,10 +17,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class FixedAutoscalingDeciderService implements AutoscalingDeciderService {
 
@@ -30,13 +28,10 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
     public static final Setting<ByteSizeValue> STORAGE = Setting.byteSizeSetting("storage", ByteSizeValue.ofBytes(-1));
     public static final Setting<ByteSizeValue> MEMORY = Setting.byteSizeSetting("memory", ByteSizeValue.ofBytes(-1));
     public static final Setting<Integer> NODES = Setting.intSetting("nodes", 1, 0);
-    private final List<DiscoveryNodeRole> appliesToRoles;
 
     @Inject
     public FixedAutoscalingDeciderService() {
-        ArrayList<DiscoveryNodeRole> appliesToRoles = new ArrayList<>(DiscoveryNode.getPossibleRoles());
-        appliesToRoles.add(EMPTY_ROLES);
-        this.appliesToRoles = Collections.unmodifiableList(appliesToRoles);
+
     }
 
     @Override
@@ -77,7 +72,12 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
 
     @Override
     public List<DiscoveryNodeRole> roles() {
-        return appliesToRoles;
+        return DiscoveryNodeRole.roles().stream().collect(Collectors.toUnmodifiableList());
+    }
+
+    @Override
+    public boolean appliesToEmptyRoles() {
+        return true;
     }
 
     @Override

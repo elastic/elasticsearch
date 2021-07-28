@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -118,13 +119,13 @@ public class MockNode extends Node {
     protected SearchService newSearchService(ClusterService clusterService, IndicesService indicesService,
                                              ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays,
                                              FetchPhase fetchPhase, ResponseCollectorService responseCollectorService,
-                                             CircuitBreakerService circuitBreakerService) {
+                                             CircuitBreakerService circuitBreakerService, ExecutorSelector executorSelector) {
         if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
             return super.newSearchService(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase,
-                responseCollectorService, circuitBreakerService);
+                responseCollectorService, circuitBreakerService, executorSelector);
         }
         return new MockSearchService(clusterService, indicesService, threadPool, scriptService,
-            bigArrays, fetchPhase, circuitBreakerService);
+            bigArrays, fetchPhase, responseCollectorService, circuitBreakerService, executorSelector);
     }
 
     @Override

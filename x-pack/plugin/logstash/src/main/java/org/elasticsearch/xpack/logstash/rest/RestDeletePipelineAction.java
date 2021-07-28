@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.xpack.logstash.action.DeletePipelineAction;
@@ -22,6 +21,8 @@ import org.elasticsearch.xpack.logstash.action.DeletePipelineResponse;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeletePipelineAction extends BaseRestHandler {
 
@@ -32,7 +33,7 @@ public class RestDeletePipelineAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(Method.DELETE, "/_logstash/pipeline/{id}"));
+        return List.of(new Route(DELETE, "/_logstash/pipeline/{id}"));
     }
 
     @Override

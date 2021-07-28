@@ -10,8 +10,8 @@ package org.elasticsearch.action.admin.indices.template.post;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;

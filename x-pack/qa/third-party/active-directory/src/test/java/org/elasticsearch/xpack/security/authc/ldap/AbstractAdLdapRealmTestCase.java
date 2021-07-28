@@ -13,7 +13,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -112,10 +112,10 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final RealmConfig realm = AbstractAdLdapRealmTestCase.realmConfig;
         Settings.Builder builder = Settings.builder();
-        builder.put(super.nodeSettings(nodeOrdinal), true);
+        builder.put(super.nodeSettings(nodeOrdinal, otherSettings), true);
         builder.put(buildRealmSettings(realm, roleMappings, getNodeTrustedCertificates()));
         return builder.build();
     }

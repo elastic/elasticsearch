@@ -11,6 +11,10 @@ aggregation is very similar to the <<search-aggregations-bucket-terms-aggregatio
 it will be slower than the terms aggregation and will consume more memory. Therefore, if the same set of fields is constantly used,
 it would be more efficient to index a combined key for this fields as a separate field and use the terms aggregation on this field.
 
+The multi_term aggregations are the most useful when you need to sort by a number of document or a metric aggregation on a composite
+key and get top N results. If sorting is not required and all values are expected to be retrieved using nested terms aggregation or
+<<search-aggregations-bucket-composite-aggregation, `composite aggregations`>> will be a faster and more memory efficient solution.
+
 //////////////////////////
 
 [source,js]
@@ -165,19 +169,22 @@ collect_mode::                Optional. Specifies the strategy for data collecti
 
 Generating the terms using a script:
 
-[source,console,id=multi-terms-aggregation-script-example]
---------------------------------------------------
+[source,console,id=multi-terms-aggregation-runtime-field-example]
+----
 GET /products/_search
 {
+  "runtime_mappings": {
+    "genre.length": {
+      "type": "long",
+      "script": "emit(doc['genre'].value.length())"
+    }
+  },
   "aggs": {
     "genres_and_products": {
       "multi_terms": {
         "terms": [
           {
-            "script": {
-              "source": "doc['genre'].value.length()",
-              "lang": "painless"
-            }
+            "field": "genre.length"
           },
           {
             "field": "product"
@@ -187,7 +194,7 @@ GET /products/_search
     }
   }
 }
---------------------------------------------------
+----
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
@@ -203,7 +210,7 @@ Response:
       "buckets" : [
         {
           "key" : [
-            "4",
+            4,
             "Product A"
           ],
           "key_as_string" : "4|Product A",
@@ -211,7 +218,7 @@ Response:
         },
         {
           "key" : [
-            "4",
+            4,
             "Product B"
           ],
           "key_as_string" : "4|Product B",
@@ -219,7 +226,7 @@ Response:
         },
         {
           "key" : [
-            "10",
+            10,
             "Product B"
           ],
           "key_as_string" : "10|Product B",

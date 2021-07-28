@@ -548,7 +548,7 @@ public class SSLService {
         final String enabledSetting = prefix + ".enabled";
         if (settings.getAsBoolean(enabledSetting, false)) {
             // Client Authentication _should_ be required, but if someone turns it off, then this check is no longer relevant
-            final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(prefix + ".");
+            final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(prefix + ".", true);
             if (isConfigurationValidForServerUsage(configuration) == false) {
                 throw new ElasticsearchSecurityException("invalid SSL configuration for " + prefix +
                     " - server ssl configuration requires a key and certificate, but these have not been configured; you must set either " +
@@ -791,6 +791,10 @@ public class SSLService {
 
     public SSLConfiguration getHttpTransportSSLConfiguration() {
         return getSSLConfiguration(XPackSettings.HTTP_SSL_PREFIX);
+    }
+
+    public SSLConfiguration getTransportSSLConfiguration() {
+        return getSSLConfiguration(XPackSettings.TRANSPORT_SSL_PREFIX);
     }
 
     private static Map<String, Settings> getMonitoringExporterSettings(Settings settings) {

@@ -45,7 +45,7 @@ index:
 --------------------------------------------------
 // NOTCONSOLE
 
-You can use the full Elasticsearch <<query-dsl,query DSL>> to perform
+You can use the full Elasticsearch <<query-dsl,Query DSL>> to perform
 more sophisticated searches. For example, the following `http` input retrieves 
 all documents that contain `event` in the `category` field:
 
@@ -164,7 +164,7 @@ and restrict the results to documents added within the last five minutes:
 
 ==== Accessing the HTTP response
 
-If the response body is formatted in  JSON or YAML, it is parsed and loaded into
+If the response body is formatted in JSON or YAML, it is parsed and loaded into
 the execution context. If the response body is not formatted in JSON or YAML, it 
 is loaded into the payload's `_value` field. 
 

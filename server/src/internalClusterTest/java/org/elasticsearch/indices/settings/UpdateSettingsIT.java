@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
@@ -124,8 +124,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
      * Needed by {@link UpdateSettingsIT#testEngineGCDeletesSetting()}
      */
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("thread_pool.estimated_time_interval", 0)
             .build();
     }
@@ -692,6 +692,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth()
             .setWaitForGreenStatus()
             .setWaitForNoInitializingShards(true)
+            .setWaitForNoRelocatingShards(true)
             .setWaitForEvents(Priority.LANGUID)
             .setTimeout(TimeValue.MAX_VALUE)
             .get();

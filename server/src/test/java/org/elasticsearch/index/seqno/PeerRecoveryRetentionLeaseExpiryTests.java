@@ -12,9 +12,8 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.shard.ShardId;
@@ -106,10 +105,9 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         currentTimeMillis.set(currentTimeMillis.get() + randomLongBetween(0, Long.MAX_VALUE - currentTimeMillis.get()));
         safeCommitInfo = randomSafeCommitInfo();
 
-        final Tuple<Boolean, RetentionLeases> retentionLeases = replicationTracker.getRetentionLeases(true);
-        assertFalse(retentionLeases.v1());
+        final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases(true);
 
-        final Set<String> leaseIds = retentionLeases.v2().leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
+        final Set<String> leaseIds = retentionLeases.leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
         assertThat(leaseIds, hasSize(2));
         assertThat(leaseIds, equalTo(replicationTracker.routingTable.shards().stream()
             .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId).collect(Collectors.toSet())));
@@ -125,10 +123,9 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
         safeCommitInfo = randomSafeCommitInfoSuitableForOpsBasedRecovery(globalCheckpoint);
 
-        final Tuple<Boolean, RetentionLeases> retentionLeases = replicationTracker.getRetentionLeases(true);
-        assertFalse("should not have expired anything", retentionLeases.v1());
+        final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases(true);
 
-        final Set<String> leaseIds = retentionLeases.v2().leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
+        final Set<String> leaseIds = retentionLeases.leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
         assertThat(leaseIds, hasSize(3));
         assertThat(leaseIds, equalTo(Stream.concat(Stream.of(ReplicationTracker.getPeerRecoveryRetentionLeaseId(unknownNodeId)),
             replicationTracker.routingTable.shards().stream()
@@ -150,10 +147,9 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
         safeCommitInfo = randomSafeCommitInfoSuitableForOpsBasedRecovery(globalCheckpoint);
 
-        final Tuple<Boolean, RetentionLeases> retentionLeases = replicationTracker.getRetentionLeases(true);
-        assertTrue("should have expired something", retentionLeases.v1());
+        final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases(true);
 
-        final Set<String> leaseIds = retentionLeases.v2().leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
+        final Set<String> leaseIds = retentionLeases.leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
         assertThat(leaseIds, hasSize(2));
         assertThat(leaseIds, equalTo(replicationTracker.routingTable.shards().stream()
             .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId).collect(Collectors.toSet())));
@@ -171,10 +167,9 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
                 : randomLongBetween(0, Long.MAX_VALUE - currentTimeMillis.get())));
         safeCommitInfo = randomSafeCommitInfo();
 
-        final Tuple<Boolean, RetentionLeases> retentionLeases = replicationTracker.getRetentionLeases(true);
-        assertTrue(retentionLeases.v1());
+        final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases(true);
 
-        final Set<String> leaseIds = retentionLeases.v2().leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
+        final Set<String> leaseIds = retentionLeases.leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
         assertThat(leaseIds, hasSize(2));
         assertThat(leaseIds, equalTo(replicationTracker.routingTable.shards().stream()
             .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId).collect(Collectors.toSet())));
@@ -191,10 +186,9 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
         safeCommitInfo = randomSafeCommitInfoSuitableForFileBasedRecovery(globalCheckpoint);
 
-        final Tuple<Boolean, RetentionLeases> retentionLeases = replicationTracker.getRetentionLeases(true);
-        assertTrue("should have expired something", retentionLeases.v1());
+        final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases(true);
 
-        final Set<String> leaseIds = retentionLeases.v2().leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
+        final Set<String> leaseIds = retentionLeases.leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
         assertThat(leaseIds, hasSize(2));
         assertThat(leaseIds, equalTo(replicationTracker.routingTable.shards().stream()
             .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId).collect(Collectors.toSet())));

@@ -156,15 +156,12 @@ public class SecurityActionFilter implements ActionFilter {
                     if (authc != null) {
                         final String requestId = AuditUtil.extractRequestId(threadContext);
                         assert Strings.hasText(requestId);
-                        authorizeRequest(authc, securityAction, request, ActionListener.delegateFailure(listener,
-                                (ignore, aVoid) -> {
-                                    chain.proceed(task, action, request, ActionListener.delegateFailure(listener,
-                                            (ignore2, response) -> {
-                                                auditTrailService.get().coordinatingActionResponse(requestId, authc, action, request,
-                                                        response);
-                                                listener.onResponse(response);
-                                            }));
-                                }));
+                        authorizeRequest(authc, securityAction, request, listener.delegateFailure(
+                                (ll, aVoid) -> chain.proceed(task, action, request, ll.delegateFailure((l, response) -> {
+                                    auditTrailService.get().coordinatingActionResponse(requestId, authc, action, request,
+                                            response);
+                                    l.onResponse(response);
+                                }))));
                     } else if (licenseState.isSecurityEnabled() == false) {
                         listener.onResponse(null);
                     } else {

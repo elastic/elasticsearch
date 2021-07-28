@@ -9,7 +9,7 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase {

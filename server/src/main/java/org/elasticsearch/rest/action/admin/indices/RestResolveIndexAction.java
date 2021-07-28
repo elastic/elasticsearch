@@ -19,6 +19,8 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 public class RestResolveIndexAction extends BaseRestHandler {
 
     @Override
@@ -29,7 +31,7 @@ public class RestResolveIndexAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(RestRequest.Method.GET, "/_resolve/index/{name}")
+            new Route(GET, "/_resolve/index/{name}")
         );
     }
 

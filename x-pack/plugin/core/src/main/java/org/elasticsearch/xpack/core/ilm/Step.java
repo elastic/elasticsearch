@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,9 +42,7 @@ public abstract class Step {
     /**
      * Indicates if the step can be automatically retried when it encounters an execution error.
      */
-    public boolean isRetryable() {
-        return false;
-    }
+    public abstract boolean isRetryable();
 
     @Override
     public int hashCode() {

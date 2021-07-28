@@ -38,12 +38,12 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
         return false;
     }
 
-    public abstract XContentBuilder getMapping() throws IOException;
+    public abstract XContentBuilder getMapping(Version version) throws IOException;
 
     public void testSimpleBoundingBoxTest() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = getMapping();
+        XContentBuilder xContentBuilder = getMapping(version);
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
@@ -100,7 +100,7 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
         }
 
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(geoBoundingBoxQuery("location").setCorners(40.73, -74.1, 40.717, -73.99).type("indexed"))
+                .setQuery(geoBoundingBoxQuery("location").setCorners(40.73, -74.1, 40.717, -73.99))
                 .get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
@@ -121,7 +121,7 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
     public void testLimit2BoundingBox() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = getMapping();
+        XContentBuilder xContentBuilder = getMapping(version);
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
@@ -150,8 +150,7 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch()
                 .setQuery(
                         boolQuery().must(termQuery("userid", 880)).filter(
-                                geoBoundingBoxQuery("location").setCorners(74.579421999999994, 143.5, -66.668903999999998, 113.96875)
-                                        .type("indexed"))
+                                geoBoundingBoxQuery("location").setCorners(74.579421999999994, 143.5, -66.668903999999998, 113.96875))
                 ).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
@@ -164,8 +163,7 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch()
                 .setQuery(
                         boolQuery().must(termQuery("userid", 534)).filter(
-                                geoBoundingBoxQuery("location").setCorners(74.579421999999994, 143.5, -66.668903999999998, 113.96875)
-                                        .type("indexed"))
+                                geoBoundingBoxQuery("location").setCorners(74.579421999999994, 143.5, -66.668903999999998, 113.96875))
                 ).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
@@ -188,7 +186,7 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
     public void testCompleteLonRange() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = getMapping();
+        XContentBuilder xContentBuilder = getMapping(version);
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
@@ -216,7 +214,6 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch()
                 .setQuery(
                         geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(50, -180, -50, 180)
-                            .type("indexed")
                 ).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         searchResponse = client().prepareSearch()
@@ -227,7 +224,6 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch()
                 .setQuery(
                         geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(90, -180, -90, 180)
-                            .type("indexed")
                 ).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
 
@@ -239,7 +235,6 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch()
                 .setQuery(
                         geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(50, 0, -50, 360)
-                                .type("indexed")
                 ).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         searchResponse = client().prepareSearch()
@@ -250,7 +245,6 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch()
                 .setQuery(
                         geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(90, 0, -90, 360)
-                                .type("indexed")
                 ).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
 

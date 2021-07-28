@@ -1,5 +1,5 @@
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.build'
 
@@ -16,8 +16,7 @@ dependencies {
   }
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
   testImplementation project(":test:framework")
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-}
+testImplementation(testArtifact(project(xpackModule('core'))))}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'

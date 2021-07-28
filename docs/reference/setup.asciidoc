@@ -28,7 +28,7 @@ https://openjdk.java.net[OpenJDK] from the JDK maintainers (GPLv2+CE)
 within each distribution. The bundled JVM is the recommended JVM and
 is located within the `jdk` directory of the Elasticsearch home directory.
 
-To use your own version of Java, set the `JAVA_HOME` environment variable.
+To use your own version of Java, set the `ES_JAVA_HOME` environment variable.
 If you must use a version of Java that is different from the bundled JVM,
 we recommend using a link:/support/matrix[supported]
 https://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
@@ -41,7 +41,8 @@ include::setup/install.asciidoc[]
 
 include::setup/configuration.asciidoc[]
 
-include::setup/jvm-options.asciidoc[]
+include::setup/important-settings.asciidoc[]
+
 
 include::setup/secure-settings.asciidoc[]
 
@@ -96,11 +97,7 @@ include::modules/threadpool.asciidoc[]
 include::settings/notification-settings.asciidoc[]
 
 include::setup/advanced-configuration.asciidoc[]
-
-include::setup/important-settings.asciidoc[]
-
 include::setup/sysconfig.asciidoc[]
-
 include::setup/bootstrap-checks.asciidoc[]
 
 include::setup/bootstrap-checks-xes.asciidoc[]

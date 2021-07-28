@@ -1,20 +1,3 @@
-ifdef::permanently-unreleased-branch[]
-
-[role="xpack"]
-[testenv="basic"]
-[[rollup-get-rollup-index-caps]]
-=== Get legacy rollup index capabilities API
-++++
-<titleabbrev>Get legacy rollup index caps</titleabbrev>
-++++
-
-include::put-job.asciidoc[tag=legacy-rollup-admon]
-
-Returns the capabilities of rollup jobs for a legacy rollup index.
-
-endif::[]
-ifndef::permanently-unreleased-branch[]
-
 [role="xpack"]
 [testenv="basic"]
 [[rollup-get-rollup-index-caps]]
@@ -27,8 +10,6 @@ Returns the rollup capabilities of all jobs inside of a rollup index (e.g. the
 index where rollup data is stored).
 
 experimental[]
-
-endif::[]
 
 [[rollup-get-rollup-index-caps-request]]
 ==== {api-request-title}
@@ -64,7 +45,7 @@ Wildcard (`*`) expressions are supported.
 [[rollup-get-rollup-index-caps-example]]
 ==== {api-examples-title}
 
-Imagine we have an index named `sensor-1` full of raw data.  We know that the
+Imagine we have an index named `sensor-1` full of raw data. We know that the
 data will grow over time, so there will be a `sensor-2`, `sensor-3`, etc. 
 Let's create a {rollup-job} that stores its data in `sensor_rollup`:
 
@@ -110,7 +91,7 @@ GET /sensor_rollup/_rollup/data
 // TEST[continued]
 
 Note how we are requesting the concrete rollup index name (`sensor_rollup`) as
-the first part of the URL. This  will yield the following response:
+the first part of the URL. This will yield the following response:
 
 [source,console-result]
 ----

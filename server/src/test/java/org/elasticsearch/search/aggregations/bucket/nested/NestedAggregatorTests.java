@@ -27,14 +27,15 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -87,6 +88,22 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.nested;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Tests for the Nested aggregator.
+ *
+ * <p>
+ * Notes to people wanting to add nested aggregation tests to other test classes:
+ * <ul>
+ *     <li>Nested aggregations require a different {@link DirectoryReader} implementation than we usually use in aggregation tests.  You'll
+ *     need to override {@link AggregatorTestCase#wrapDirectoryReader} as is done in this class</li>
+ *     <li>Nested aggregations  also require object mappers to be configured.  You can mock this by overriding
+ *     {@link AggregatorTestCase#objectMappers()} as seen below</li>
+ *     <li>In a production nested field setup, we'll automatically prefix the nested path to the leaf document field names.  This helps
+ *     prevent name collisions between "levels" of nested docs.  This mechanism isn't invoked during unit tests, so preventing field name
+ *     collisions should be done by hand. For the closest approximation of how it looks in prod, leaf docs should have field names
+ *     prefixed with the nested path: nestedPath + "." + fieldName</li>
+ * </ul>
+ */
 public class NestedAggregatorTests extends AggregatorTestCase {
 
     private static final String VALUE_FIELD_NAME = "number";
@@ -161,8 +178,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
                     Document document = new Document();
                     document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(new Field(NestedPathFieldMapper.NAME, "test",
-                        NestedPathFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                     document.add(sequenceIDFields.primaryTerm);
                     documents.add(document);
                     iw.addDocuments(documents);
@@ -884,7 +900,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         nestedObject("nested_field")
     );
 
-    public static ObjectMapper nestedObject(String path) {
-        return new ObjectMapper.Builder(path, Version.CURRENT).nested(ObjectMapper.Nested.newNested()).build(new ContentPath());
+    public static NestedObjectMapper nestedObject(String path) {
+        return new NestedObjectMapper.Builder(path, Version.CURRENT).build(new ContentPath());
     }
 }

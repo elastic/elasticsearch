@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.action.admin.indices.shrink;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -16,7 +15,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -36,22 +35,22 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements IndicesRequest, ToXContentObject {
 
     public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request");
-    private static final ParseField MAX_SINGLE_PRIMARY_SIZE = new ParseField("max_single_primary_size");
+    private static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
     static {
         PARSER.declareField((parser, request, context) -> request.getTargetIndexRequest().settings(parser.map()),
             new ParseField("settings"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.getTargetIndexRequest().aliases(parser.map()),
             new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField(ResizeRequest::setMaxSinglePrimarySize,
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SINGLE_PRIMARY_SIZE.getPreferredName()),
-            MAX_SINGLE_PRIMARY_SIZE, ObjectParser.ValueType.STRING);
+        PARSER.declareField(ResizeRequest::setMaxPrimaryShardSize,
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_PRIMARY_SHARD_SIZE.getPreferredName()),
+            MAX_PRIMARY_SHARD_SIZE, ObjectParser.ValueType.STRING);
     }
 
     private CreateIndexRequest targetIndexRequest;
     private String sourceIndex;
     private ResizeType type = ResizeType.SHRINK;
     private Boolean copySettings = true;
-    private ByteSizeValue maxSinglePrimarySize;
+    private ByteSizeValue maxPrimaryShardSize;
 
     public ResizeRequest(StreamInput in) throws IOException {
         super(in);
@@ -59,10 +58,8 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         sourceIndex = in.readString();
         type = in.readEnum(ResizeType.class);
         copySettings = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            if (in.readBoolean()) {
-                maxSinglePrimarySize = new ByteSizeValue(in);
-            }
+        if (in.readBoolean()) {
+            maxPrimaryShardSize = new ByteSizeValue(in);
         }
     }
 
@@ -88,8 +85,8 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         if (type == ResizeType.SPLIT && IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings()) == false) {
             validationException = addValidationError("index.number_of_shards is required for split operations", validationException);
         }
-        if (maxSinglePrimarySize != null && maxSinglePrimarySize.getBytes() <= 0) {
-            validationException = addValidationError("max_single_primary_size must be greater than 0", validationException);
+        if (maxPrimaryShardSize != null && maxPrimaryShardSize.getBytes() <= 0) {
+            validationException = addValidationError("max_primary_shard_size must be greater than 0", validationException);
         }
         assert copySettings == null || copySettings;
         return validationException;
@@ -106,9 +103,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         out.writeString(sourceIndex);
         out.writeEnum(type);
         out.writeOptionalBoolean(copySettings);
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalWriteable(maxSinglePrimarySize);
-        }
+        out.writeOptionalWriteable(maxPrimaryShardSize);
     }
 
     @Override
@@ -192,22 +187,22 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     }
 
     /**
-     * Sets the max single primary shard size of the target index.
+     * Sets the max primary shard size of the target index.
      * It's used to calculate an optimum shards number of the target index according to storage of
      * the source index, each shard's storage of the target index will not be greater than this parameter,
      * while the shards number of the target index still be a factor of the source index's shards number.
      *
-     * @param maxSinglePrimarySize the max single primary shard size of the target index
+     * @param maxPrimaryShardSize the max primary shard size of the target index
      */
-    public void setMaxSinglePrimarySize(ByteSizeValue maxSinglePrimarySize) {
-        this.maxSinglePrimarySize = maxSinglePrimarySize;
+    public void setMaxPrimaryShardSize(ByteSizeValue maxPrimaryShardSize) {
+        this.maxPrimaryShardSize = maxPrimaryShardSize;
     }
 
     /**
-     * Returns the max single primary shard size of the target index
+     * Returns the max primary shard size of the target index
      */
-    public ByteSizeValue getMaxSinglePrimarySize() {
-        return maxSinglePrimarySize;
+    public ByteSizeValue getMaxPrimaryShardSize() {
+        return maxPrimaryShardSize;
     }
 
     @Override
@@ -226,6 +221,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
                 }
             }
             builder.endObject();
+            if (maxPrimaryShardSize != null) {
+                builder.field(MAX_PRIMARY_SHARD_SIZE.getPreferredName(), maxPrimaryShardSize);
+            }
         }
         builder.endObject();
         return builder;
@@ -233,5 +231,22 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
 
     public void fromXContent(XContentParser parser) throws IOException {
         PARSER.parse(parser, this, null);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        ResizeRequest that = (ResizeRequest) obj;
+        return Objects.equals(targetIndexRequest, that.targetIndexRequest) &&
+            Objects.equals(sourceIndex, that.sourceIndex) &&
+            Objects.equals(type, that.type) &&
+            Objects.equals(copySettings, that.copySettings) &&
+            Objects.equals(maxPrimaryShardSize, that.maxPrimaryShardSize);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(targetIndexRequest, sourceIndex, type, copySettings, maxPrimaryShardSize);
     }
 }

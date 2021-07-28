@@ -26,8 +26,6 @@ import java.util.function.Supplier;
  */
 public final class TextParams {
 
-    public static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
-
     private TextParams() {}
 
     public static final class Analyzers {
@@ -47,9 +45,11 @@ public final class TextParams {
             this.searchAnalyzer
                 = Parameter.analyzerParam("search_analyzer", true,
                 m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(), () -> {
-                    NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME);
-                    if (defaultAnalyzer != null) {
-                        return defaultAnalyzer;
+                    if (indexAnalyzer.isConfigured() == false) {
+                        NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME);
+                        if (defaultAnalyzer != null) {
+                            return defaultAnalyzer;
+                        }
                     }
                     return indexAnalyzer.get();
                 })
@@ -58,17 +58,19 @@ public final class TextParams {
             this.searchQuoteAnalyzer
                 = Parameter.analyzerParam("search_quote_analyzer", true,
                 m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(), () -> {
-                    NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME);
-                    if (defaultAnalyzer != null) {
-                        return defaultAnalyzer;
+                    if (searchAnalyzer.isConfigured() == false && indexAnalyzer.isConfigured() == false) {
+                        NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME);
+                        if (defaultAnalyzer != null) {
+                            return defaultAnalyzer;
+                        }
                     }
                     return searchAnalyzer.get();
                 })
                 .setValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
             this.positionIncrementGap = Parameter.intParam("position_increment_gap", false,
-                m -> analyzerInitFunction.apply(m).positionIncrementGap.get(), POSITION_INCREMENT_GAP_USE_ANALYZER)
+                m -> analyzerInitFunction.apply(m).positionIncrementGap.get(), TextFieldMapper.Defaults.POSITION_INCREMENT_GAP)
                 .setValidator(v -> {
-                    if (v != POSITION_INCREMENT_GAP_USE_ANALYZER && v < 0) {
+                    if (v < 0) {
                         throw new MapperParsingException("[position_increment_gap] must be positive, got [" + v + "]");
                     }
                 });
@@ -88,7 +90,7 @@ public final class TextParams {
         }
 
         private NamedAnalyzer wrapAnalyzer(NamedAnalyzer a) {
-            if (positionIncrementGap.get() == POSITION_INCREMENT_GAP_USE_ANALYZER) {
+            if (positionIncrementGap.isConfigured() == false) {
                 return a;
             }
             return new NamedAnalyzer(a, positionIncrementGap.get());

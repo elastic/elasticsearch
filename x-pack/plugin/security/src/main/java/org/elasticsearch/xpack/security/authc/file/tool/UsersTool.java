@@ -382,7 +382,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
                 Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
                 String[] markedRoles = markUnknownRoles(roles, unknownRoles);
                 terminal.println(String.format(Locale.ROOT, "%-15s: %s", entry.getKey(), String.join(",", markedRoles)));
-                unknownRolesFound = unknownRolesFound || !unknownRoles.isEmpty();
+                unknownRolesFound = unknownRolesFound || unknownRoles.isEmpty() == false;
                 usersExist = true;
             }
             // list users without roles

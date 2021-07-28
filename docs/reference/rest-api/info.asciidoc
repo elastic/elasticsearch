@@ -114,10 +114,6 @@ Example response:
          "available": true,
          "enabled": true
       },
-      "runtime_fields": {
-         "available": true,
-         "enabled": true
-      },
       "searchable_snapshots" : {
          "available" : true,
          "enabled" : true
@@ -143,10 +139,6 @@ Example response:
          "enabled" : true
       },
       "transform" : {
-         "available" : true,
-         "enabled" : true
-      },
-      "vectors" : {
          "available" : true,
          "enabled" : true
       },

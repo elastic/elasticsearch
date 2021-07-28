@@ -1,11 +1,68 @@
 [[painless-runtime-fields-context]]
 === Runtime fields context
-beta::[]
 Use a Painless script to calculate and emit
 <<painless-runtime-fields,runtime field>> values.
 
 See the {ref}/runtime.html[runtime fields] documentation for more information
 about how to use runtime fields.
+
+*Methods*
+
+--
+[[runtime-emit-method]]
+// tag::runtime-field-emit[]
+`emit`:: (Required)
+        Accepts the values from the script valuation. Scripts can call the
+        `emit` method multiple times to emit multiple values.
++
+The `emit` method applies only to scripts used in a 
+<<painless-execute-runtime-context,runtime fields context>>.
++
+IMPORTANT: The `emit` method cannot accept `null` values. Do not call this
+method if the referenced fields do not have any values.
++
+.Signatures of `emit`
+[%collapsible%open]
+====
+The signature for `emit` depends on the `type` of the field.
+
+[horizontal]
+`boolean`::   `emit(boolean)`
+`date`::      `emit(long)`
+`double`::    `emit(double)`
+`geo_point`:: `emit(double lat, double long)`
+`ip`::        `emit(String)`
+`long`::      `emit(long)`
+`keyword`::   `emit(String)`
+====
+// end::runtime-field-emit[]
+--
+
+--
+`grok`::
+        Defines a {ref}/grok-processor.html[grok pattern] to extract structured fields out of a single text field within a document. A grok pattern is like a regular expression that supports aliased expressions that can be reused. See {ref}/runtime-examples.html#runtime-examples-grok[Define a runtime field with a grok pattern].
++
+.Properties of `grok`
+[%collapsible%open]
+====
+`extract`::
+        Indicates the values to return. This method applies only to `grok` and
+        `dissect` methods.
+====
+--
+
+--
+`dissect`::
+        Defines a {ref}/dissect-processor.html[dissect pattern]. Dissect operates much like grok, but does not accept regular expressions. See {ref}/runtime-examples.html#runtime-examples-dissect[Define a runtime field with a dissect pattern].
++
+.Properties of `dissect`
+[%collapsible%open]
+====
+`extract`::
+        Indicates the values to return. This method applies only to `grok` and
+        `dissect` methods.
+====
+--
 
 *Variables*
 

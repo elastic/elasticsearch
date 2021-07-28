@@ -13,7 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -67,10 +67,9 @@ public class XContentHelper {
             }
             return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
         } else {
-            if (bytes instanceof BytesArray) {
-                final BytesArray array = (BytesArray) bytes;
+            if (bytes.hasArray()) {
                 return xContentType.xContent().createParser(
-                        xContentRegistry, deprecationHandler, array.array(), array.offset(), array.length());
+                        xContentRegistry, deprecationHandler, bytes.array(), bytes.arrayOffset(), bytes.length());
             }
             return xContentType.xContent().createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
         }
@@ -78,6 +77,12 @@ public class XContentHelper {
 
     /**
      * Converts the given bytes into a map that is optionally ordered.
+     * <p>
+     * Important: This can lose precision on numbers with a decimal point. It
+     * converts numbers like {@code "n": 1234.567} to a {@code double} which
+     * only has 52 bits of precision in the mantissa. This will come up most
+     * frequently when folks write nanosecond precision dates as a decimal
+     * number.
      * @deprecated this method relies on auto-detection of content type. Use {@link #convertToMap(BytesReference, boolean, XContentType)}
      *             instead with the proper {@link XContentType}
      */
@@ -89,6 +94,12 @@ public class XContentHelper {
 
     /**
      * Converts the given bytes into a map that is optionally ordered. The provided {@link XContentType} must be non-null.
+     * <p>
+     * Important: This can lose precision on numbers with a decimal point. It
+     * converts numbers like {@code "n": 1234.567} to a {@code double} which
+     * only has 52 bits of precision in the mantissa. This will come up most
+     * frequently when folks write nanosecond precision dates as a decimal
+     * number.
      */
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
         throws ElasticsearchParseException {
@@ -103,11 +114,10 @@ public class XContentHelper {
                 }
                 input = compressedStreamInput;
                 contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
-            } else if (bytes instanceof BytesArray) {
-                final BytesArray arr = (BytesArray) bytes;
-                final byte[] raw = arr.array();
-                final int offset = arr.offset();
-                final int length = arr.length();
+            } else if (bytes.hasArray()) {
+                final byte[] raw = bytes.array();
+                final int offset = bytes.arrayOffset();
+                final int length = bytes.length();
                 contentType = xContentType != null ? xContentType : XContentFactory.xContentType(raw, offset, length);
                 return new Tuple<>(Objects.requireNonNull(contentType),
                         convertToMap(XContentFactory.xContent(contentType), raw, offset, length, ordered));
@@ -203,10 +213,9 @@ public class XContentHelper {
         }
 
         // It is safe to use EMPTY here because this never uses namedObject
-        if (bytes instanceof BytesArray) {
-            final BytesArray array = (BytesArray) bytes;
+        if (bytes.hasArray()) {
             try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
-                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, array.array(), array.offset(), array.length())) {
+                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.array(), bytes.arrayOffset(), bytes.length())) {
                 return toJsonString(prettyPrint, parser);
             }
         } else {
@@ -412,9 +421,8 @@ public class XContentHelper {
      */
     @Deprecated
     public static XContentType xContentType(BytesReference bytes) {
-        if (bytes instanceof BytesArray) {
-            final BytesArray array = (BytesArray) bytes;
-            return XContentFactory.xContentType(array.array(), array.offset(), array.length());
+        if (bytes.hasArray()) {
+            return XContentFactory.xContentType(bytes.array(), bytes.arrayOffset(), bytes.length());
         }
         try {
             final InputStream inputStream = bytes.streamInput();

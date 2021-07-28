@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -25,7 +24,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -101,9 +100,9 @@ public class TransportSearchIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("indices.breaker.request.type", "memory")
             .build();
     }
@@ -575,7 +574,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         @Override
         public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-            throw new CollectionTerminatedException();
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
         @Override
@@ -585,6 +584,9 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         @Override
         public void preCollection() throws IOException {}
+
+        @Override
+        public void postCollection() throws IOException {}
 
         @Override
         public Aggregator[] subAggregators() {

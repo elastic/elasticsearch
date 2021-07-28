@@ -12,15 +12,20 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -28,7 +33,7 @@ import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -66,6 +71,7 @@ import org.elasticsearch.search.aggregations.metrics.WeightedAvg;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -563,7 +569,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         assertEquals(1, searchResponse.getAggregations().asList().size());
         Terms terms = searchResponse.getAggregations().get("top-tags");
-        assertEquals(0, terms.getDocCountError());
+        assertEquals(0, terms.getDocCountError().longValue());
         assertEquals(0, terms.getSumOfOtherDocCounts());
         assertEquals(3, terms.getBuckets().size());
         for (Terms.Bucket bucket : terms.getBuckets()) {
@@ -575,7 +581,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertEquals(2, children.getDocCount());
             assertEquals(1, children.getAggregations().asList().size());
             Terms leafTerms = children.getAggregations().get("top-names");
-            assertEquals(0, leafTerms.getDocCountError());
+            assertEquals(0, leafTerms.getDocCountError().longValue());
             assertEquals(0, leafTerms.getSumOfOtherDocCounts());
             assertEquals(2, leafTerms.getBuckets().size());
             assertEquals(2, leafTerms.getBuckets().size());
@@ -1247,11 +1253,11 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(2, ratingResponse.size());
 
         FieldCapabilities expectedKeywordCapabilities = new FieldCapabilities(
-            "rating", "keyword", true, true, new String[]{"index2"}, null, null, Collections.emptyMap());
+            "rating", "keyword", false, true, true, new String[]{"index2"}, null, null, Collections.emptyMap());
         assertEquals(expectedKeywordCapabilities, ratingResponse.get("keyword"));
 
         FieldCapabilities expectedLongCapabilities = new FieldCapabilities(
-            "rating", "long", true, true, new String[]{"index1"}, null, null, Collections.emptyMap());
+            "rating", "long", false, true, true, new String[]{"index1"}, null, null, Collections.emptyMap());
         assertEquals(expectedLongCapabilities, ratingResponse.get("long"));
 
         // Check the capabilities for the 'field' field.
@@ -1260,7 +1266,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(1, fieldResponse.size());
 
         FieldCapabilities expectedTextCapabilities = new FieldCapabilities(
-            "field", "text", true, false, null, null, null, Collections.emptyMap());
+            "field", "text", false, true, false, null, null, null, Collections.emptyMap());
         assertEquals(expectedTextCapabilities, fieldResponse.get("text"));
     }
 
@@ -1361,13 +1367,62 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     public void testSearchWithBasicLicensedQuery() throws IOException {
         SearchRequest searchRequest = new SearchRequest("index");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        PinnedQueryBuilder pinnedQuery = new PinnedQueryBuilder(new MatchAllQueryBuilder(), "2", "1");
-        searchSourceBuilder.query(pinnedQuery);
-        searchRequest.source(searchSourceBuilder);
-        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
-        assertSearchHeader(searchResponse);
-        assertFirstHit(searchResponse, hasId("2"));
-        assertSecondHit(searchResponse, hasId("1"));
+        {
+            PinnedQueryBuilder pinnedQuery = new PinnedQueryBuilder(new MatchAllQueryBuilder(), "2", "1");
+            searchSourceBuilder.query(pinnedQuery);
+            searchRequest.source(searchSourceBuilder);
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            assertSearchHeader(searchResponse);
+            assertFirstHit(searchResponse, hasId("2"));
+            assertSecondHit(searchResponse, hasId("1"));
+        }
+        {
+            PinnedQueryBuilder pinnedQuery = new PinnedQueryBuilder(new MatchAllQueryBuilder(),
+                new PinnedQueryBuilder.Item("index", "2"), new PinnedQueryBuilder.Item("index", "1"));
+            searchSourceBuilder.query(pinnedQuery);
+            searchRequest.source(searchSourceBuilder);
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            assertSearchHeader(searchResponse);
+            assertFirstHit(searchResponse, hasId("2"));
+            assertSecondHit(searchResponse, hasId("1"));
+        }
+    }
+
+    public void testPointInTime() throws Exception {
+        int numDocs = between(50, 100);
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest indexRequest = new IndexRequest("test-index").id(Integer.toString(i)).source("field", i);
+            highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
+        }
+        highLevelClient().indices().refresh(new RefreshRequest("test-index"), RequestOptions.DEFAULT);
+
+        OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest("test-index").keepAlive(TimeValue.timeValueMinutes(between(1, 5)));
+        String pitID = execute(openRequest, highLevelClient()::openPointInTime, highLevelClient()::openPointInTimeAsync).getPointInTimeId();
+        try {
+            int totalHits = 0;
+            SearchResponse searchResponse = null;
+            do {
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(between(5, 10)).sort("field");
+                PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(pitID);
+                if (randomBoolean()) {
+                    pointInTimeBuilder.setKeepAlive(TimeValue.timeValueMinutes(between(1, 5)));
+                }
+                searchSourceBuilder.pointInTimeBuilder(pointInTimeBuilder);
+                if (searchResponse != null) {
+                    SearchHit last = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length - 1];
+                    searchSourceBuilder.searchAfter(last.getSortValues());
+                }
+                SearchRequest searchRequest = new SearchRequest().source(searchSourceBuilder);
+                searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+                assertThat(searchResponse.pointInTimeId(), equalTo(pitID));
+                totalHits += searchResponse.getHits().getHits().length;
+            } while (searchResponse.getHits().getHits().length > 0);
+            assertThat(totalHits, equalTo(numDocs));
+        } finally {
+            ClosePointInTimeResponse closeResponse = execute(new ClosePointInTimeRequest(pitID),
+                highLevelClient()::closePointInTime, highLevelClient()::closePointInTimeAsync);
+            assertTrue(closeResponse.isSucceeded());
+        }
     }
 
     private static void assertCountHeader(CountResponse countResponse) {

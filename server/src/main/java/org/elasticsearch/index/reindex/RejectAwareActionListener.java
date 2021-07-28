@@ -9,7 +9,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 
 import java.util.function.Consumer;
 

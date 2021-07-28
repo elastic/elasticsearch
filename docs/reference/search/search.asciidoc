@@ -339,31 +339,59 @@ pattern].
 For other field data types, this parameter is not supported.
 ====
 
+[[search-api-fields]]
 `fields`::
 (Optional, array of strings and objects)
 Array of wildcard (`*`) patterns. The request returns values for field names
 matching these patterns in the `hits.fields` property of the response.
 +
 You can specify items in the array as a string or object.
-See <<search-fields-param>> for more details.
 +
 .Properties of `fields` objects
 [%collapsible%open]
 ====
+// tag::fields-api-props[]
 `field`::
-(Required, string)
-Wildcard pattern. The request returns values for field names matching this pattern.
+(Required, string) Field to return. Supports wildcards (`*`).
 
 `format`::
 (Optional, string)
-Format in which the values are returned.
+Format for date and geospatial fields. Other field data types do not support
+this parameter.
 +
-The date fields <<date,`date`>> and <<date_nanos, `date_nanos`>> accept a
-<<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>> accept either
-`geojson` for http://www.geojson.org[GeoJSON] (the default) or `wkt` for
-{wikipedia}/Well-known_text_representation_of_geometry[Well Known Text].
+--
+<<date,`date`>> and <<date_nanos, `date_nanos`>> fields accept a
+<<mapping-date-format,date format>>. <<geo-point,`geo_point`>> and
+<<geo-shape,`geo_shape`>> fields accept:
+
+`geojson` (default):::
+http://www.geojson.org[GeoJSON]
+
+`wkt`:::
+{wikipedia}/Well-known_text_representation_of_geometry[Well Known Text]
+
+`mvt(<zoom>/<x>/<y>@<extent>)` or `mvt(<zoom>/<x>/<y>)`:::
+Binary https://docs.mapbox.com/vector-tiles/specification[Mapbox vector tile].
+The API returns the tile as a base64-encoded string.
 +
-For other field data types, this parameter is not supported.
+.`mvt` parameters
+[%collapsible%open]
+========
+`<zoom>`::
+(Required, integer) Zoom level for the tile. Accepts `0`-`29`.
+
+`<x>`::
+(Required, integer) X coordinate for the tile.
+
+`<y>`::
+(Required, integer) Y coordinate for the tile.
+
+`<extent>`::
+(Optional, integer) Size, in pixels, of a side of the tile. Vector tiles are
+square with equal sides. Defaults to `4096`.
+========
+--
+// end::fields-api-props[]
 ====
 
 [[request-body-search-explain]]

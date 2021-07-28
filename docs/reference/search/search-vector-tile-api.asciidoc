@@ -264,17 +264,7 @@ You can specify fields in the array as a string or object.
 .Properties of `fields` objects
 [%collapsible%open]
 ====
-`field`::
-(Required, string) Field to return. Supports wildcards (`*`).
-
-`format`::
-(Optional, string) Format for the field. <<date,`date`>> and <<date_nanos,
-`date_nanos`>> fields accept a <<mapping-date-format,date format>>.
-<<spatial_datatypes, Spatial fields>> accept either `geojson` for
-http://www.geojson.org[GeoJSON] (the default) or `wkt` for
-{wikipedia}/Well-known_text_representation_of_geometry[Well Known Text].
-+
-Other field data types do not support this parameter.
+include::search.asciidoc[tag=fields-api-props]
 ====
 
 include::search-vector-tile-api.asciidoc[tag=grid-precision]

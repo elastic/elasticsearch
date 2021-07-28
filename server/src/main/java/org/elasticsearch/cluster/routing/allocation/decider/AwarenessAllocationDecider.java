@@ -121,6 +121,11 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     }
 
     @Override
+    public Decision canForceDuringVacate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocate(shardRouting, node, allocation);
+    }
+
+    @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return underCapacity(shardRouting, node, allocation, false);
     }

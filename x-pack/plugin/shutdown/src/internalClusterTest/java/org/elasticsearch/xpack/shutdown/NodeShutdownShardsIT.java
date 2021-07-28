@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -20,8 +24,10 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.COMPLETE;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.STALLED;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -135,6 +141,110 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         ).get();
 
         assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+    }
+
+    public void testNodeReplacementOverridesFilters() throws Exception {
+        String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
+        // Create an index and pin it to nodeA, when we replace it with nodeB,
+        // it'll move the data, overridding the `_name` allocation filter
+        createIndex(
+            "myindex",
+            Settings.builder()
+                .put("index.routing.allocation.require._name", nodeA)
+                .put("index.number_of_shards", 3)
+                .put("index.number_of_replicas", 0)
+                .build()
+        );
+        final String nodeAId = getNodeId(nodeA);
+        final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
+
+        // Mark the nodeA as being replaced
+        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            nodeAId,
+            SingleNodeShutdownMetadata.Type.REPLACE,
+            this.getTestName(),
+            null,
+            nodeB
+        );
+        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
+        assertTrue(putShutdownResponse.isAcknowledged());
+
+        GetShutdownStatusAction.Response getResp = client().execute(
+            GetShutdownStatusAction.INSTANCE,
+            new GetShutdownStatusAction.Request(nodeAId)
+        ).get();
+
+        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(STALLED));
+
+        internalCluster().startNode(Settings.builder().put("node.name", nodeB));
+        final String nodeBId = getNodeId(nodeB);
+
+        logger.info("--> NodeA: {} -- {}", nodeA, nodeAId);
+        logger.info("--> NodeB: {} -- {}", nodeB, nodeBId);
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+            for (ShardRouting sr : state.routingTable().allShards("myindex")) {
+                assertThat(
+                    "expected shard on nodeB (" + nodeBId + ") but it was on a different node",
+                    sr.currentNodeId(),
+                    equalTo(nodeBId)
+                );
+            }
+        });
+
+        assertBusy(() -> {
+            GetShutdownStatusAction.Response shutdownStatus = client().execute(
+                GetShutdownStatusAction.INSTANCE,
+                new GetShutdownStatusAction.Request(nodeAId)
+            ).get();
+            assertThat(shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+        });
+
+        final String nodeC = internalCluster().startNode();
+
+        createIndex("other", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+
+        ensureYellow("other");
+
+        // Explain the replica for the "other" index
+        ClusterAllocationExplainResponse explainResponse = client().admin()
+            .cluster()
+            .prepareAllocationExplain()
+            .setIndex("other")
+            .setShard(0)
+            .setPrimary(false)
+            .get();
+
+        // Validate that the replica cannot be allocated to nodeB because it's the target of a node replacement
+        explainResponse.getExplanation()
+            .getShardAllocationDecision()
+            .getAllocateDecision()
+            .getNodeDecisions()
+            .stream()
+            .filter(nodeDecision -> nodeDecision.getNode().getId().equals(nodeBId))
+            .findFirst()
+            .ifPresentOrElse(nodeAllocationResult -> {
+                assertThat(nodeAllocationResult.getCanAllocateDecision().type(), equalTo(Decision.Type.NO));
+                assertTrue(
+                    "expected decisions to mention node replacement: "
+                        + nodeAllocationResult.getCanAllocateDecision()
+                            .getDecisions()
+                            .stream()
+                            .map(Decision::getExplanation)
+                            .collect(Collectors.joining(",")),
+                    nodeAllocationResult.getCanAllocateDecision()
+                        .getDecisions()
+                        .stream()
+                        .anyMatch(
+                            decision -> decision.getExplanation()
+                                .contains(
+                                    "is replacing a vacating node, so no data from "
+                                        + "other nodes may be allocated to it until the replacement is complete"
+                                )
+                        )
+                );
+            }, () -> fail("expected a 'NO' decision for nodeB but there was no explanation for that node"));
     }
 
     private String getNodeId(String nodeName) throws Exception {

@@ -14,6 +14,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -47,6 +48,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -671,7 +673,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return MoveDecision.NOT_TAKEN;
             }
 
-            final boolean explain = allocation.debugDecision();
             final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
             assert sourceNode != null && sourceNode.containsShard(shardRouting);
             RoutingNode routingNode = sourceNode.getRoutingNode();
@@ -687,6 +688,21 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * This is not guaranteed to be balanced after this operation we still try best effort to
              * allocate on the minimal eligible node.
              */
+            // don't use canRebalance as we want hard filtering rules to apply. See #17698
+            MoveDecision moveDecision = decideMove(shardRouting, sourceNode, canRemain, this::decideCanAllocate);
+            if (moveDecision.forceMove() == false &&
+                allocation.metadata().nodeShutdowns().values().stream()
+                    .filter(s -> s.getType() == SingleNodeShutdownMetadata.Type.REPLACE)
+                    .map(SingleNodeShutdownMetadata::getNodeId)
+                    .anyMatch(shardRouting.currentNodeId()::equals)) {
+                return decideMove(shardRouting, sourceNode, canRemain, this::decideCanForceAllocateForVacate);
+            }
+            return moveDecision;
+        }
+
+        private MoveDecision decideMove(ShardRouting shardRouting, ModelNode sourceNode, Decision remainDecision,
+                                        BiFunction<ShardRouting, RoutingNode, Decision> decider) {
+            final boolean explain = allocation.debugDecision();
             Type bestDecision = Type.NO;
             RoutingNode targetNode = null;
             final List<NodeAllocationResult> nodeExplanationMap = explain ? new ArrayList<>() : null;
@@ -694,8 +710,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             for (ModelNode currentNode : sorter.modelNodes) {
                 if (currentNode != sourceNode) {
                     RoutingNode target = currentNode.getRoutingNode();
-                    // don't use canRebalance as we want hard filtering rules to apply. See #17698
-                    Decision allocationDecision = allocation.deciders().canAllocate(shardRouting, target, allocation);
+                    Decision allocationDecision = decider.apply(shardRouting, target);
                     if (explain) {
                         nodeExplanationMap.add(new NodeAllocationResult(
                             currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
@@ -715,8 +730,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
             }
 
-            return MoveDecision.cannotRemain(canRemain, AllocationDecision.fromDecisionType(bestDecision),
+            return MoveDecision.cannotRemain(remainDecision, AllocationDecision.fromDecisionType(bestDecision),
                 targetNode != null ? targetNode.node() : null, nodeExplanationMap);
+        }
+
+        private Decision decideCanAllocate(ShardRouting shardRouting, RoutingNode target) {
+            return allocation.deciders().canAllocate(shardRouting, target, allocation);
+        }
+
+        private Decision decideCanForceAllocateForVacate(ShardRouting shardRouting, RoutingNode target) {
+            return allocation.deciders().canForceDuringVacate(shardRouting, target, allocation);
         }
 
         /**

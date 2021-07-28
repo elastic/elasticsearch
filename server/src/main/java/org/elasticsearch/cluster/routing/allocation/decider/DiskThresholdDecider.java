@@ -318,6 +318,12 @@ public class DiskThresholdDecider extends AllocationDecider {
                 new ByteSizeValue(freeBytesAfterShard));
     }
 
+    @Override
+    public Decision canForceDuringVacate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        // TODO: check whether we would reach 100% disk as a safety effort
+        return super.canForceDuringVacate(shardRouting, node, allocation);
+    }
+
     private static final Decision YES_NOT_MOST_UTILIZED_DISK = Decision.single(Decision.Type.YES, NAME,
             "this shard is not allocated on the most utilized disk and can remain");
 

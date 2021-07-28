@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -78,35 +79,37 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         canRemain.set((r, n, a) -> { throw new UnsupportedOperationException("canRemain not initiated in this test"); });
 
         clusterInfoService = EmptyClusterInfoService.INSTANCE;
-        allocationDeciders = new AllocationDeciders(List.of(new NodeShutdownAllocationDecider(), new AllocationDecider() {
-            @Override
-            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return canAllocate.get().test(shardRouting, node, allocation);
-            }
+        allocationDeciders = new AllocationDeciders(
+            List.of(new NodeShutdownAllocationDecider(), new NodeReplacementAllocationDecider(), new AllocationDecider() {
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    return canAllocate.get().test(shardRouting, node, allocation);
+                }
 
-            @Override
-            public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-                // No behavior should change based on rebalance decisions
-                return Decision.NO;
-            }
+                @Override
+                public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+                    // No behavior should change based on rebalance decisions
+                    return Decision.NO;
+                }
 
-            @Override
-            public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return canRemain.get().test(shardRouting, node, allocation);
-            }
+                @Override
+                public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    return canRemain.get().test(shardRouting, node, allocation);
+                }
 
-            @Override
-            public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-                // No behavior relevant to these tests should change based on auto expansion decisions
-                throw new UnsupportedOperationException();
-            }
+                @Override
+                public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
+                    // No behavior relevant to these tests should change based on auto expansion decisions
+                    throw new UnsupportedOperationException();
+                }
 
-            @Override
-            public Decision canRebalance(RoutingAllocation allocation) {
-                // No behavior should change based on rebalance decisions
-                return Decision.NO;
-            }
-        }));
+                @Override
+                public Decision canRebalance(RoutingAllocation allocation) {
+                    // No behavior should change based on rebalance decisions
+                    return Decision.NO;
+                }
+            })
+        );
         snapshotsInfoService = () -> new SnapshotShardSizeInfo(
             new ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long>().build()
         );

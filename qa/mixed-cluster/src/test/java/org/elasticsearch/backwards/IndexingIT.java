@@ -336,7 +336,7 @@ public class IndexingIT extends ESRestTestCase {
         Nodes nodes = buildNodeAndVersions();
         assumeFalse("no new node found", nodes.getNewNodes().isEmpty());
         assumeFalse("no bwc node found", nodes.getBWCNodes().isEmpty());
-        // Allocate shards to new nodes then verify synced flush requests processed by old nodes/new nodes
+        // Allocate shards to new nodes then verify flush requests processed by old nodes/new nodes
         String newNodes = nodes.getNewNodes().stream().map(Node::getNodeName).collect(Collectors.joining(","));
         int numShards = randomIntBetween(1, 10);
         int numOfReplicas = randomIntBetween(0, nodes.getNewNodes().size() - 1);

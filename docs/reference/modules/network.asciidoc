@@ -87,6 +87,11 @@ corresponding settings for the HTTP and transport interfaces.
 `0.0.0.0`::
   The addresses of all available network interfaces.
 
+NOTE: In some systems these special values resolve to multiple addresses. If
+so, {es} will select one of them as its publish address and may change its
+selection on each restart. You must make sure that your node is accessible at
+every possible address.
+
 NOTE: Any values containing a `:` (e.g. an IPv6 address or some of the
 <<network-interface-values,special values>>) must be quoted because `:` is a
 special character in YAML.
@@ -181,11 +186,12 @@ if binding to multiple addresses or using different addresses for publishing
 and binding.
 
 NOTE: You can specify a list of addresses for `network.host` and
-`network.publish_host`. You can also specify a single hostname which resolves
-to multiple addresses. If you do this then {es} chooses one of the addresses
-for its publish address. This choice uses heuristics based on IPv4/IPv6 stack
-preference and reachability and may change when the node restarts. You must
-make sure that each node is accessible at all possible publish addresses.
+`network.publish_host`. You can also specify one or more hostnames or
+<<network-interface-values,special values>> which resolve to multiple addresses
+If you do this then {es} chooses one of the addresses for its publish address.
+This choice uses heuristics based on IPv4/IPv6 stack preference and
+reachability and may change when the node restarts. You must make sure that
+each node is accessible at all possible publish addresses.
 
 [[tcp-settings]]
 ===== Advanced TCP settings

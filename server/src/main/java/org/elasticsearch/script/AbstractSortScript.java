@@ -109,18 +109,6 @@ abstract class AbstractSortScript implements ScorerAware, DocBasedScript {
         // fieldProxy is using leafLookup, no need to call fieldProxy.setDocument(docid)
     }
 
-    public static class FieldAccess {
-        private final ScoreScript script;
-
-        public FieldAccess(ScoreScript script) {
-            this.script = script;
-        }
-
-        public Field<?> field(String fieldName) {
-            return script.field(fieldName);
-        }
-    }
-
     @Override
     public Field<?> field(String fieldName) {
         if (fieldProxy == null) {

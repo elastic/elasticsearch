@@ -12,17 +12,17 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.util.List;
 
-public class ReadDocValuesBooleanField implements BooleanField {
+public class ReadDocValuesField<T> implements Field<T> {
     protected final String name;
-    protected final ScriptDocValues.Booleans scriptDocValues;
+    protected final ScriptDocValues<T> scriptDocValues;
 
-    public ReadDocValuesBooleanField(String name, ScriptDocValues.Booleans scriptDocValues) {
+    public ReadDocValuesField(String name, ScriptDocValues<T> scriptDocValues) {
         this.name = name;
         this.scriptDocValues = scriptDocValues;
     }
 
     @Override
-    public boolean getValue(boolean defaultValue) {
+    public T getValue(T defaultValue) {
         if (scriptDocValues.isEmpty()) {
             return defaultValue;
         }
@@ -40,7 +40,7 @@ public class ReadDocValuesBooleanField implements BooleanField {
     }
 
     @Override
-    public List<Boolean> getValues() {
+    public List<T> getValues() {
         return scriptDocValues;
     }
 }

@@ -46,4 +46,16 @@ public abstract class NumberSortScript extends AbstractSortScript {
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
     }
+
+    public static class FieldAccess {
+        private final NumberSortScript script;
+
+        public FieldAccess(NumberSortScript script) {
+            this.script = script;
+        }
+
+        public Field<?> field(String fieldName) {
+            return script.field(fieldName);
+        }
+    }
 }

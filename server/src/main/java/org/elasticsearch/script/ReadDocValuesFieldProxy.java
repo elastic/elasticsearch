@@ -29,16 +29,7 @@ public class ReadDocValuesFieldProxy implements FieldProxy {
         if (doc.containsKey(fieldName) == false) {
             return new EmptyField<Number>(fieldName);
         }
-
-        ScriptDocValues<?> scriptDocValues = doc.get(fieldName);
-        if (scriptDocValues instanceof ScriptDocValues.Longs) {
-            return new ReadDocValuesLongField(fieldName, (ScriptDocValues.Longs)scriptDocValues);
-        } else if (scriptDocValues instanceof ScriptDocValues.Doubles) {
-            return new ReadDocValuesDoubleField(fieldName, (ScriptDocValues.Doubles)scriptDocValues);
-        } else if (scriptDocValues instanceof ScriptDocValues.Booleans) {
-            return new ReadDocValuesBooleanField(fieldName, (ScriptDocValues.Booleans)scriptDocValues);
-        }
-        return new ReadDocValuesNonPrimitiveField<>(fieldName, scriptDocValues);
+        return new ReadDocValuesField<>(fieldName, doc.get(fieldName));
     }
 
 

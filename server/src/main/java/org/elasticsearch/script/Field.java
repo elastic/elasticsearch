@@ -15,4 +15,5 @@ public interface Field<T> {
     String getName();
     boolean isEmpty();
     List<T> getValues();
+    T getValue(T defaultValue);
 }

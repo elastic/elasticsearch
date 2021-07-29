@@ -11,7 +11,7 @@ package org.elasticsearch.script;
 import java.util.Collections;
 import java.util.List;
 
-public class EmptyField<T> implements NonPrimitiveField<Object> {
+public class EmptyField<T> implements Field<Object> {
     protected final String name;
 
     public EmptyField(String name) {

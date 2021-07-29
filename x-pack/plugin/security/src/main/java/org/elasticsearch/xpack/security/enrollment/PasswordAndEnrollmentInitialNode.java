@@ -17,6 +17,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -47,11 +48,10 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.security.authc.esnative.tool.SetupPasswordTool.getErrorCause;
 
 public class PasswordAndEnrollmentInitialNode extends EnvironmentAwareCommand {
-    private static final Setting<SecureString> SEED_SETTING = SecureSetting.secureString("keystore.seed", null);
-    private static final Setting<SecureString> BOOTSTRAP_ELASTIC_PASSWORD = SecureSetting.secureString("bootstrap.password",
+    private static final Setting<SecureString> bootstrapPassword = SecureSetting.secureString("bootstrap.password",
         null);
-    private static final Setting<SecureString> CREDENTIALS_PASSWORD = SecureSetting.secureString("bootstrap.password",
-        SEED_SETTING);
+    private static final Setting<SecureString> credentialsPassword = SecureSetting.secureString("bootstrap.password",
+        KeyStoreWrapper.SEED_SETTING);
     private static final String elasticUser = ElasticUser.NAME;
 
     private SecureString password;
@@ -113,10 +113,10 @@ public class PasswordAndEnrollmentInitialNode extends EnvironmentAwareCommand {
                 Thread.sleep(1000);
             }
         }
-        if (Strings.isNullOrEmpty(BOOTSTRAP_ELASTIC_PASSWORD.get(env.settings()).toString())) {
+        if (Strings.isNullOrEmpty(bootstrapPassword.get(env.settings()).toString())) {
             changeElasticUserPassword(env, terminal, client);
         } else {
-            password = BOOTSTRAP_ELASTIC_PASSWORD.get(env.settings());
+            password = bootstrapPassword.get(env.settings());
         }
         token = cet.createKibanaEnrollmentToken(elasticUser, password);
         Map<String, String> infoNode = getDecoded(token);
@@ -131,7 +131,7 @@ public class PasswordAndEnrollmentInitialNode extends EnvironmentAwareCommand {
         final URL clusterHealthUrl = checkClusterHealthUrl(client);
         final HttpResponse response;
         try {
-            response = client.execute("GET", clusterHealthUrl, elasticUser, CREDENTIALS_PASSWORD.get(env.settings()),
+            response = client.execute("GET", clusterHealthUrl, elasticUser, credentialsPassword.get(env.settings()),
                 () -> null, this::responseBuilder);
         } catch (Exception e) {
             throw new UserException(ExitCodes.UNAVAILABLE, "Failed to determine the health of the cluster. ", e);
@@ -161,7 +161,7 @@ public class PasswordAndEnrollmentInitialNode extends EnvironmentAwareCommand {
         final HttpResponse response;
         password = new SecureString(generatePassword(20));
         try {
-            response = client.execute("POST", passwordChangeUrl, elasticUser, CREDENTIALS_PASSWORD.get(env.settings()),
+            response = client.execute("POST", passwordChangeUrl, elasticUser, credentialsPassword.get(env.settings()),
                 () -> {
                     XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
                     xContentBuilder.startObject().field("password", password).endObject();

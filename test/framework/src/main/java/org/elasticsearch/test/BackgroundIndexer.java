@@ -229,14 +229,18 @@ public class BackgroundIndexer implements AutoCloseable {
             int tokenLength = RandomNumbers.randomIntBetween(random, 1, Math.min(contentLength - text.length(), 10));
             text.append(" ").append(RandomStrings.randomRealisticUnicodeOfCodepointLength(random, tokenLength));
         }
-        XContentBuilder builder = XContentFactory.smileBuilder();
-        builder.startObject().field("test", "value" + id)
-                .field("text", text.toString())
-                .field("id", id)
-                .endObject();
-        return builder;
-
+        XContentBuilder builder = XContentFactory.smileBuilder().startObject();
+        builder.field("test", "value" + id);
+        builder.field("text", text.toString());
+        builder.field("id", id);
+        extraSource(builder);
+        return builder.endObject();
     }
+
+    /**
+     * Hook for subclasses to add extra entries to the source.
+     */
+    protected void extraSource(XContentBuilder builder) throws IOException {}
 
     private volatile TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
 

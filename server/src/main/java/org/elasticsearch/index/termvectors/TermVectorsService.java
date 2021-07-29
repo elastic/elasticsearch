@@ -21,6 +21,7 @@ import org.elasticsearch.action.termvectors.TermVectorsFilter;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.regex.Regex;
@@ -282,10 +283,13 @@ public class TermVectorsService  {
     }
 
     private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request) throws IOException {
-        SourceToParse source = new SourceToParse(indexShard.shardId().getIndexName(), "_id_for_tv_api", request.doc(),
-            request.xContentType(), request.routing(), Map.of());
-        DocumentParser documentParser = indexShard.mapperService().documentParser();
         MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
+        BytesReference timeSeriesId = indexShard.mapperService().getIndexSettings().inTimeSeriesMode()
+            ? mappingLookup.getMapping().getTimeSeriesIdGenerator().generate(request.doc(), request.xContentType())
+            : null;
+        SourceToParse source = new SourceToParse(indexShard.shardId().getIndexName(), "_id_for_tv_api", request.doc(),
+            request.xContentType(), request.routing(), timeSeriesId, Map.of());
+        DocumentParser documentParser = indexShard.mapperService().documentParser();
         ParsedDocument parsedDocument = documentParser.parseDocument(source, mappingLookup);
         // select the right fields and generate term vectors
         LuceneDocument doc = parsedDocument.rootDoc();

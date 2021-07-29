@@ -198,7 +198,12 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
-        Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
+        Mapping mapping = new Mapping(
+            builder.build(new ContentPath()),
+            new MetadataFieldMapper[0],
+            Collections.emptyMap(),
+            randomBoolean()
+        );
         return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, fieldAliasMappers);
     }
 }

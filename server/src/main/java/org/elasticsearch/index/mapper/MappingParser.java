@@ -30,15 +30,18 @@ public final class MappingParser {
     private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
+    private final boolean inTimeSeriesMode;
 
     MappingParser(Supplier<MappingParserContext> parserContextSupplier,
                   Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
                   Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
-                  Function<String, String> documentTypeResolver) {
+                  Function<String, String> documentTypeResolver,
+                  boolean inTimeSeriesMode) {
         this.parserContextSupplier = parserContextSupplier;
         this.metadataMapperParsers = metadataMapperParsers;
         this.metadataMappersSupplier = metadataMappersSupplier;
         this.documentTypeResolver = documentTypeResolver;
+        this.inTimeSeriesMode = inTimeSeriesMode;
     }
 
     /**
@@ -145,6 +148,7 @@ public final class MappingParser {
         return new Mapping(
             rootObjectMapper,
             metadataMappers.values().toArray(new MetadataFieldMapper[0]),
-            meta);
+            meta,
+            inTimeSeriesMode);
     }
 }

@@ -224,16 +224,20 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     public void testExecuteBulkIndexRequestWithMappingUpdates() throws Exception {
+        boolean timeSeriesMode = randomBoolean();
 
         BulkItemRequest[] items = new BulkItemRequest[1];
-        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index").id("id")
-            .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
+        IndexRequest writeRequest = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
+        if (timeSeriesMode) {
+            writeRequest.routing("tsid");
+        }
         items[0] = new BulkItemRequest(0, writeRequest);
         BulkShardRequest bulkShardRequest =
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        Engine.IndexResult mappingUpdate =
-            new Engine.IndexResult(new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()));
+        Engine.IndexResult mappingUpdate = new Engine.IndexResult(
+            new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap(), timeSeriesMode)
+        );
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
 
@@ -242,6 +246,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean()))
             .thenReturn(mappingUpdate);
         when(shard.mapperService()).thenReturn(mock(MapperService.class));
+        when(shard.indexSettings()).thenReturn(indexSettings(timeSeriesMode));
 
         randomlySetIgnoredPrimaryResponse(items[0]);
 
@@ -761,8 +766,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Exception err = new VersionConflictEngineException(shardId, "id",
             "I'm conflicted <(;_;)>");
         Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0);
-        Engine.IndexResult mappingUpdate =
-            new Engine.IndexResult(new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()));
+        Engine.IndexResult mappingUpdate = new Engine.IndexResult(
+            new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap(), randomBoolean())
+        );
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
 
@@ -841,8 +847,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             items[1] = new BulkItemRequest(1, writeRequest2);
             BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-            Engine.IndexResult mappingUpdate =
-                new Engine.IndexResult(new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()));
+            boolean timeSeriesMode = false;
+            Engine.IndexResult mappingUpdate = new Engine.IndexResult(
+                new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap(), timeSeriesMode)
+            );
             Translog.Location resultLocation1 = new Translog.Location(42, 36, 36);
             Translog.Location resultLocation2 = new Translog.Location(42, 42, 42);
             Engine.IndexResult success1 = new FakeIndexResult(1, 1, 10, true, resultLocation1);
@@ -854,6 +862,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 .thenReturn(success1, mappingUpdate, success2);
             when(shard.getFailedIndexResult(any(EsRejectedExecutionException.class), anyLong())).thenCallRealMethod();
             when(shard.mapperService()).thenReturn(mock(MapperService.class));
+            when(shard.indexSettings()).thenReturn(indexSettings(timeSeriesMode));
 
             randomlySetIgnoredPrimaryResponse(items[0]);
 
@@ -951,6 +960,13 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             threadPool, Names.WRITE);
 
         latch.await();
+    }
+
+    private IndexSettings indexSettings(boolean timeSeriesMode) throws IOException {
+        return new IndexSettings(
+            indexMetadata(),
+            Settings.builder().put(idxSettings).put(IndexSettings.TIME_SERIES_MODE.getKey(), timeSeriesMode).build()
+        );
     }
 
     private void randomlySetIgnoredPrimaryResponse(BulkItemRequest primaryRequest) {

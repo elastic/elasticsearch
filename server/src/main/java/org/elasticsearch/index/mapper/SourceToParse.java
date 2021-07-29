@@ -8,15 +8,49 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 public class SourceToParse {
+    public static Function<DocumentMapper, SourceToParse> parseTimeSeriesIdFromSource(
+        String index,
+        String id,
+        BytesReference source,
+        XContentType xContentType,
+        @Nullable String routing,
+        Map<String, String> dynamicTemplates
+    ) {
+        return documentMapper -> parseTimeSeriesIdFromSource(
+            index,
+            id,
+            source,
+            xContentType,
+            routing,
+            dynamicTemplates,
+            documentMapper.mappers()
+        );
+    }
+
+    public static SourceToParse parseTimeSeriesIdFromSource(
+        String index,
+        String id,
+        BytesReference source,
+        XContentType xContentType,
+        @Nullable String routing,
+        Map<String, String> dynamicTemplates,
+        MappingLookup lookup
+    ) {
+        BytesReference timeSeriesId = lookup.getMapping().getTimeSeriesIdGenerator() == null
+            ? null
+            : lookup.getMapping().getTimeSeriesIdGenerator().generate(source, xContentType);
+        return new SourceToParse(index, id, source, xContentType, routing, timeSeriesId, dynamicTemplates);
+    }
 
     private final BytesReference source;
 
@@ -26,12 +60,19 @@ public class SourceToParse {
 
     private final @Nullable String routing;
 
+    private final @Nullable BytesReference timeSeriesId;
+
     private final XContentType xContentType;
 
     private final Map<String, String> dynamicTemplates;
 
     public SourceToParse(String index, String id, BytesReference source, XContentType xContentType, @Nullable String routing,
-                         Map<String, String> dynamicTemplates) {
+                         @Nullable BytesReference timeSeriesId, Map<String, String> dynamicTemplates) {
+        if (routing != null && timeSeriesId != null) {
+            throw new IllegalArgumentException(
+                "only one of routing or timeSeriesId are supported but got [" + routing + "] and " + timeSeriesId.toBytesRef()
+            );
+        }
         this.index = Objects.requireNonNull(index);
         this.id = Objects.requireNonNull(id);
         // we always convert back to byte array, since we store it and Field only supports bytes..
@@ -39,11 +80,12 @@ public class SourceToParse {
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
+        this.timeSeriesId = timeSeriesId;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
     }
 
     public SourceToParse(String index, String id, BytesReference source, XContentType xContentType) {
-        this(index, id, source, xContentType, null, Map.of());
+        this(index, id, source, xContentType, null, null, Map.of());
     }
 
     public BytesReference source() {
@@ -60,6 +102,10 @@ public class SourceToParse {
 
     public @Nullable String routing() {
         return this.routing;
+    }
+
+    public @Nullable BytesReference timeSeriesId() {
+        return this.timeSeriesId;
     }
 
     /**

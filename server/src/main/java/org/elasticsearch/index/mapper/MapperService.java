@@ -120,8 +120,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
         this.parserContextSupplier = () -> parserContextFunction.apply(null);
-        this.mappingParser = new MappingParser(parserContextSupplier, metadataMapperParsers,
-            this::getMetadataMappers, this::resolveDocumentType);
+        this.mappingParser = new MappingParser(
+            parserContextSupplier,
+            metadataMapperParsers,
+            this::getMetadataMappers,
+            this::resolveDocumentType,
+            indexSettings.inTimeSeriesMode()
+        );
     }
 
     public boolean hasNested() {

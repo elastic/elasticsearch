@@ -54,13 +54,18 @@ setup:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:03:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
 
----
-split:
   - do:
       indices.put_settings:
         index: test
         body:
           index.blocks.write: true
+
+---
+split:
+  - skip:
+      version: all
+      reason: shard splitting doesn't work yet
+      features: "arbitrary_key"
 
   - do:
       indices.split:
@@ -85,24 +90,65 @@ split:
   - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
 
 ---
-split:
+shrink:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+      features: "arbitrary_key"
+
+  - do:
+      nodes.info:
+        node_id: data:true
+  - set:
+      nodes._arbitrary_key_: node_id
+
   - do:
       indices.put_settings:
         index: test
         body:
-          index.blocks.write: true
+          index.routing.allocation.include._id: $node_id
 
   - do:
-      indices.join:
+      cluster.health:
+        wait_for_status: green
+        wait_for_no_relocating_shards: true
         index: test
-        target: test_join
+
+  - do:
+      indices.shrink:
+        index: test
+        target: test_shrink
         body:
           settings:
             index.number_of_shards: 1
 
   - do:
       search:
-        index: test_split
+        index: test_shrink
+        body:
+          fields:
+            - field: _tsid
+          query:
+            query_string:
+              query: '+@timestamp:"2021-04-28T18:03:24.467Z" +k8s.pod.name:cat'
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
+
+---
+clone:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      indices.clone:
+        index: test
+        target: test_clone
+
+  - do:
+      search:
+        index: test_clone
         body:
           fields:
             - field: _tsid

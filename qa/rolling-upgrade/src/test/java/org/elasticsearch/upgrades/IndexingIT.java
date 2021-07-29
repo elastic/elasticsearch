@@ -258,4 +258,6 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
         return minNodeVersion;
     }
+
+    // NOCOMMIT tsdb smoke test
 }

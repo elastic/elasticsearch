@@ -581,7 +581,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc");
             root.add(new DateFieldMapper.Builder(dataStream.getTimeStampField().getName(), DateFieldMapper.Resolution.MILLISECONDS,
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ScriptCompiler.NONE, true, Version.CURRENT));
-            Mapping mapping = new Mapping(root.build(new ContentPath("")), metadataFieldMappers, Collections.emptyMap());
+            Mapping mapping = new Mapping(root.build(new ContentPath("")), metadataFieldMappers, Collections.emptyMap(), randomBoolean());
             MappingLookup mappingLookup = MappingLookup.fromMappers(
                 mapping,
                 List.of(mockedTimestampField, dateFieldMapper),

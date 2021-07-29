@@ -453,6 +453,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.isSystem = isSystem;
         this.timestampRange = timestampRange;
         this.timeSeriesMode = inTimeSeriesMode;
+        assert false == (timeSeriesMode
+            && isRoutingPartitionedIndex()) : "time series indices incompatible with routing partitioned indices";
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 

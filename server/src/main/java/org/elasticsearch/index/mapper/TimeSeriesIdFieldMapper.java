@@ -10,7 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -21,7 +21,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
@@ -105,13 +104,12 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
         assert fieldType().isSearchable() == false;
 
-        String routing = context.sourceToParse().routing();
-        if (routing == null) {
+        BytesReference timeSeriesId = context.sourceToParse().timeSeriesId();
+        if (timeSeriesId == null) {
             throw new IllegalArgumentException("In time series mode the tsid need to be in the routing");
         }
         // TODO switch to native BytesRef over the wire, leaving the routing alone
-        BytesRef value = new BytesRef(Base64.getDecoder().decode(routing));
-        context.doc().add(new SortedSetDocValuesField(fieldType().name(), value));
+        context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
     }
 
     @Override

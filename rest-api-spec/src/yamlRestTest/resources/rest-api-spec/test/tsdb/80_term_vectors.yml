@@ -1,0 +1,93 @@
+setup:
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                time_series_mode: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        uid:
+                          type: keyword
+                          dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                            rx:
+                              type: long
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "words": "there are some words here", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+
+---
+for an indexed document:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      search:
+        index: test
+  - match: {hits.total.value: 1}
+
+  - do:
+      termvectors:
+        index: test
+        id:    $body.hits.hits.0._id
+        fields: words
+  - match: {term_vectors.words.field_statistics.sum_doc_freq: 5}
+  - match: {term_vectors.words.terms.are.tokens.0.position: 1}
+  - match: {term_vectors.words.terms.here.tokens.0.position: 4}
+  - match: {term_vectors.words.terms.some.tokens.0.position: 2}
+  - match: {term_vectors.words.terms.there.tokens.0.position: 0}
+  - match: {term_vectors.words.terms.words.tokens.0.position: 3}
+
+---
+for an artificial document:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      termvectors:
+        index: test
+        fields: words
+        body:
+          doc:
+            "@timestamp": "2021-04-28T18:35:24.467Z"
+            words: there are some words here
+            metricset: pod
+            k8s:
+              pod:
+                name: cat
+                uid: 947e4ced-1786-4e53-9e0c-5c447e959507
+                ip: 10.10.55.1
+                network:
+                  tx: 2001818691
+                  rx: 802133794
+  - match: {term_vectors.words.field_statistics.sum_doc_freq: 5}
+  - match: {term_vectors.words.terms.are.tokens.0.position: 1}
+  - match: {term_vectors.words.terms.here.tokens.0.position: 4}
+  - match: {term_vectors.words.terms.some.tokens.0.position: 2}
+  - match: {term_vectors.words.terms.there.tokens.0.position: 0}
+  - match: {term_vectors.words.terms.words.tokens.0.position: 3}
+

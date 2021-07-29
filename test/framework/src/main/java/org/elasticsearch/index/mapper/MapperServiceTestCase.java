@@ -18,8 +18,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -34,6 +32,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -97,6 +97,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected Settings getIndexSettings() {
         return SETTINGS;
+    }
+
+    protected final Settings.Builder getIndexSettingsBuilder() {
+        return Settings.builder().put(getIndexSettings());
     }
 
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
@@ -232,18 +236,20 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected final SourceToParse source(String id, CheckedConsumer<XContentBuilder, IOException> build, @Nullable String routing)
         throws IOException {
-        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        build.accept(builder);
-        builder.endObject();
-        return new SourceToParse("test", id, BytesReference.bytes(builder), XContentType.JSON, routing, Map.of());
+        return source(id, build, routing, null, Map.of());
     }
 
-    protected final SourceToParse source(String id, CheckedConsumer<XContentBuilder, IOException> build,
-                                         @Nullable String routing, Map<String, String> dynamicTemplates) throws IOException {
+    protected final SourceToParse source(
+        String id,
+        CheckedConsumer<XContentBuilder, IOException> build,
+        @Nullable String routing,
+        @Nullable BytesReference timeSeriesId,
+        Map<String, String> dynamicTemplates
+    ) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse("test", id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
+        return new SourceToParse("test", id, BytesReference.bytes(builder), XContentType.JSON, routing, timeSeriesId, dynamicTemplates);
     }
 
     protected final SourceToParse source(String source) {

@@ -190,8 +190,16 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
         private LeafReader createInMemoryLeafReader() {
             assert Thread.holdsLock(this);
-            final ParsedDocument parsedDocs = documentParser.parseDocument(new SourceToParse(shardId.getIndexName(), operation.id(),
-                operation.source(), XContentHelper.xContentType(operation.source()), operation.routing(), Map.of()), mappingLookup);
+            final SourceToParse sourceToParse = SourceToParse.parseTimeSeriesIdFromSource(
+                shardId.getIndexName(),
+                operation.id(),
+                operation.source(),
+                XContentHelper.xContentType(operation.source()),
+                operation.routing(),
+                Map.of(),
+                mappingLookup
+            );
+            final ParsedDocument parsedDocs = documentParser.parseDocument(sourceToParse, mappingLookup);
 
             parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());
             parsedDocs.version().setLongValue(operation.version());

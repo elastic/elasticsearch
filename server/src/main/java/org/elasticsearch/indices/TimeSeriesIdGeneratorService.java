@@ -89,7 +89,7 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
 
                 @Override
                 public TimeSeriesIdGenerator generator() {
-                    return local.mapperService().documentMapper().getTimeSeriesIdGenerator();
+                    return local.mapperService().mappingLookup().getMapping().getTimeSeriesIdGenerator();
                 }
             };
         };
@@ -99,7 +99,7 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
             try {
                 try (MapperService tmp = indicesService.createIndexMapperService(indexMetadata)) {
                     tmp.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
-                    TimeSeriesIdGenerator gen = tmp.documentMapper().getTimeSeriesIdGenerator();
+                    TimeSeriesIdGenerator gen = tmp.mappingLookup().getMapping().getTimeSeriesIdGenerator();
                     logger.trace("computed timeseries id generator for {}", indexMetadata.getIndex());
                     return gen;
                 }
@@ -146,7 +146,7 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
          */
         if (meta.getMappingVersion() > v.mappingVersion) {
             throw new IllegalStateException(
-                "Got a newer version fo the index than the time series id generator ["
+                "Got a newer version of the index than the time series id generator ["
                     + meta.getMappingVersion()
                     + "] vs ["
                     + v.mappingVersion
@@ -185,6 +185,12 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
                 continue;
             }
             Index index = indexMetadata.getIndex();
+
+            if (indexMetadata.mapping() == null) {
+                byIndex.put(index, new PreBuiltValue(indexMetadata.getMappingVersion(), TimeSeriesIdGenerator.EMPTY));
+                continue;
+            }
+
             DedupeKey key = new DedupeKey(indexMetadata);
 
             /*

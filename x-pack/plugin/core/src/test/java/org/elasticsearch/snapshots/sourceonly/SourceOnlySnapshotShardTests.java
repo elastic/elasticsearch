@@ -35,12 +35,14 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -65,8 +67,8 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -124,10 +126,12 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
     }
 
     public void testIncrementalSnapshot() throws IOException {
-        IndexShard shard = newStartedShard();
+        boolean timeSeriesMode = randomBoolean();
+        BytesReference timeSeriesId = timeSeriesMode ? new BytesArray("tsid") : null;
+        IndexShard shard = timeSeriesMode ? newStartedTimeSeriesShard(randomBoolean()) : newStartedShard();
         for (int i = 0; i < 10; i++) {
             final String id = Integer.toString(i);
-            indexDoc(shard, "_doc", id);
+            indexDoc(shard, id, "{}", XContentType.JSON, null, timeSeriesId);
         }
 
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
@@ -149,8 +153,8 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
         }
 
-        indexDoc(shard, "_doc", Integer.toString(10));
-        indexDoc(shard, "_doc", Integer.toString(11));
+        indexDoc(shard, Integer.toString(10), "{}", XContentType.JSON, null, timeSeriesId);
+        indexDoc(shard, Integer.toString(11), "{}", XContentType.JSON, null, timeSeriesId);
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             SnapshotId snapshotId = new SnapshotId("test_1", "test_1");
 
@@ -191,12 +195,14 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         return "{ \"value\" : \"" + randomAlphaOfLength(10) + "\"}";
     }
 
-    public void testRestoreMinmal() throws IOException {
-        IndexShard shard = newStartedShard(true);
+    public void testRestoreMinimal() throws IOException {
+        boolean timeSeriesMode = randomBoolean();
+        BytesReference timeSeriesId = timeSeriesMode ? new BytesArray("tsid") : null;
+        IndexShard shard = timeSeriesMode ? newStartedTimeSeriesShard(true) : newStartedShard(true);
         int numInitialDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numInitialDocs; i++) {
             final String id = Integer.toString(i);
-            indexDoc(shard, id, randomDoc());
+            indexDoc(shard, id, randomDoc(), XContentType.JSON, null, timeSeriesId);
             if (randomBoolean()) {
                 shard.refresh("test");
             }
@@ -207,7 +213,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 if (rarely()) {
                     deleteDoc(shard, id);
                 } else {
-                    indexDoc(shard, id, randomDoc());
+                    indexDoc(shard, id, randomDoc(), XContentType.JSON, null, timeSeriesId);
                 }
             }
             if (frequently()) {
@@ -296,8 +302,11 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 previous = current;
             }
             expectThrows(UnsupportedOperationException.class, () -> searcher.search(new TermQuery(new Term("boom", "boom")), 1));
-            targetShard = reindex(searcher.getDirectoryReader(), new MappingMetadata("_doc",
-                restoredShard.mapperService().documentMapper().mapping().getMeta()));
+            targetShard = reindex(
+                searcher.getDirectoryReader(),
+                new MappingMetadata("_doc", restoredShard.mapperService().documentMapper().mapping().getMeta()),
+                timeSeriesId
+            );
         }
 
         for (int i = 0; i < numInitialDocs; i++) {
@@ -319,7 +328,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         closeShards(shard, restoredShard, targetShard);
     }
 
-    public IndexShard reindex(DirectoryReader reader, MappingMetadata mapping) throws IOException {
+    public IndexShard reindex(DirectoryReader reader, MappingMetadata mapping, BytesReference timeSeriesId) throws IOException {
         ShardRouting targetShardRouting = TestShardRouting.newShardRouting(new ShardId("target", "_na_", 0), randomAlphaOfLength(10), true,
             ShardRoutingState.INITIALIZING, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -347,10 +356,24 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         String id = rootFieldsVisitor.id();
                         BytesReference source = rootFieldsVisitor.source();
                         assert source != null : "_source is null but should have been filtered out at snapshot time";
-                        Engine.Result result = targetShard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                            new SourceToParse(index, id, source, XContentHelper.xContentType(source),
-                                rootFieldsVisitor.routing(), Map.of()), SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
-                                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+                        SourceToParse sourceToParse = new SourceToParse(
+                            index,
+                            id,
+                            source,
+                            XContentHelper.xContentType(source),
+                            rootFieldsVisitor.routing(),
+                            timeSeriesId,
+                            Map.of()
+                        );
+                        Engine.Result result = targetShard.applyIndexOperationOnPrimary(
+                            Versions.MATCH_ANY,
+                            VersionType.INTERNAL,
+                            sourceToParse,
+                            SequenceNumbers.UNASSIGNED_SEQ_NO,
+                            0,
+                            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                            false
+                        );
                         if (result.getResultType() != Engine.Result.Type.SUCCESS) {
                             throw new IllegalStateException("failed applying post restore operation result: " + result
                                 .getResultType(), result.getFailure());

@@ -337,7 +337,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             mapping(b -> b.startObject("dim").field("type", "keyword").field("dimension", true).endObject())
         ).documentMapper();
         assertThat(
-            TimeSeriesIdGenerator.parse(documentMapper.getTimeSeriesIdGenerator()
+            TimeSeriesIdGenerator.parse(documentMapper.mapping().getTimeSeriesIdGenerator()
                 .generate(
                     new MapXContentParser(
                         NamedXContentRegistry.EMPTY,

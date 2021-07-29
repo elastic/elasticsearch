@@ -45,7 +45,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         metadataMapperParsers.values().stream().map(parser -> parser.getDefault(parserContextSupplier.get()))
             .forEach(m -> metadataMappers.put(m.getClass(), m));
         return new MappingParser(parserContextSupplier, metadataMapperParsers,
-            () -> metadataMappers, type -> MapperService.SINGLE_MAPPING_NAME);
+            () -> metadataMappers, type -> MapperService.SINGLE_MAPPING_NAME, randomBoolean());
     }
 
     public void testFieldNameWithDots() throws Exception {
@@ -76,7 +76,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.endObject();
         });
         Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping);
+        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping, randomBoolean());
         assertNotNull(mappingLookup.getMapper("foo.bar"));
         assertNotNull(mappingLookup.getMapper("foo.baz.deep.field"));
         assertNotNull(mappingLookup.objectMappers().get("foo"));

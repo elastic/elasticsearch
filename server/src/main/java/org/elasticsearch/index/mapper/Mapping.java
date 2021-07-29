@@ -36,15 +36,21 @@ import static java.util.Collections.unmodifiableMap;
 public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
-        new RootObjectMapper.Builder("_doc").build(new ContentPath()), new MetadataFieldMapper[0], null);
+        new RootObjectMapper.Builder("_doc").build(new ContentPath()), new MetadataFieldMapper[0], null, false);
 
     private final RootObjectMapper root;
     private final Map<String, Object> meta;
     private final MetadataFieldMapper[] metadataMappers;
     private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     private final Map<String, MetadataFieldMapper> metadataMappersByName;
+    private final TimeSeriesIdGenerator timeSeriesIdGenerator;
 
-    public Mapping(RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
+    public Mapping(
+        RootObjectMapper rootObjectMapper,
+        MetadataFieldMapper[] metadataMappers,
+        Map<String, Object> meta,
+        boolean inTimeSeriesMode
+    ) {
         this.metadataMappers = metadataMappers;
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap = new HashMap<>();
         Map<String, MetadataFieldMapper> metadataMappersByName = new HashMap<>();
@@ -63,7 +69,9 @@ public final class Mapping implements ToXContentFragment {
         this.metadataMappersMap = unmodifiableMap(metadataMappersMap);
         this.metadataMappersByName = unmodifiableMap(metadataMappersByName);
         this.meta = meta;
-
+        this.timeSeriesIdGenerator = inTimeSeriesMode
+            ? TimeSeriesIdGenerator.build(root.selectTimeSeriesIdComponents())
+            : null;
     }
 
     /**
@@ -121,7 +129,7 @@ public final class Mapping implements ToXContentFragment {
      * Generate a mapping update for the given root object mapper.
      */
     Mapping mappingUpdate(RootObjectMapper rootObjectMapper) {
-        return new Mapping(rootObjectMapper, metadataMappers, meta);
+        return new Mapping(rootObjectMapper, metadataMappers, meta, inTimeSeriesMode());
     }
 
     /**
@@ -162,7 +170,7 @@ public final class Mapping implements ToXContentFragment {
             XContentHelper.mergeDefaults(mergedMeta, meta);
         }
 
-        return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
+        return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta, inTimeSeriesMode());
     }
 
     @Override
@@ -190,7 +198,11 @@ public final class Mapping implements ToXContentFragment {
         }
     }
 
-    TimeSeriesIdGenerator buildTimeSeriesIdGenerator() {
-        return new TimeSeriesIdGenerator(root.selectTimeSeriesIdComponents());
+    public TimeSeriesIdGenerator getTimeSeriesIdGenerator() {
+        return timeSeriesIdGenerator;
+    }
+
+    private boolean inTimeSeriesMode() {
+        return timeSeriesIdGenerator != null;
     }
 }

@@ -9,15 +9,23 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.Engine.IndexResult;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -33,7 +41,6 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-
             .build();
         IndexMetadata metadata = IndexMetadata.builder("test")
             .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
@@ -44,6 +51,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;
         long translogInMemorySegmentCountExpected = 0;
         Engine.IndexResult test = indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
+        throwFailure(test);
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet = primary.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
@@ -53,7 +61,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
         }
 
-        Engine.IndexResult test1 = indexDoc(primary, "1", "{\"foo\" : \"baz\"}",  XContentType.JSON, "foobar");
+        Engine.IndexResult test1 = indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar", null);
+        throwFailure(test1);
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertEquals(new String(testGet1.source(), StandardCharsets.UTF_8), "{\"foo\" : \"baz\"}");
@@ -69,7 +78,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         }
 
         // now again from the reader
-        Engine.IndexResult test2 = indexDoc(primary, "1", "{\"foo\" : \"baz\"}",  XContentType.JSON, "foobar");
+        Engine.IndexResult test2 = indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar", null);
+        throwFailure(test2);
         assertTrue(primary.getEngine().refreshNeeded());
         testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertEquals(new String(testGet1.source(), StandardCharsets.UTF_8), "{\"foo\" : \"baz\"}");
@@ -120,6 +130,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;
         long translogInMemorySegmentCountExpected = 0;
         Engine.IndexResult test = indexDoc(primary, "test", "0", docToIndex);
+        throwFailure(test);
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet = primary.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
@@ -128,7 +139,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
         }
 
-        Engine.IndexResult test1 = indexDoc(primary, "1", docToIndex,  XContentType.JSON, "foobar");
+        Engine.IndexResult test1 = indexDoc(primary, "1", docToIndex, XContentType.JSON, "foobar", null);
+        throwFailure(test1);
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertEquals(new String(testGet1.source() == null ? new byte[0] : testGet1.source(), StandardCharsets.UTF_8), expectedResult);
@@ -143,7 +155,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             assertEquals(searcher.getIndexReader().maxDoc(), 2);
         }
 
-        Engine.IndexResult test2 = indexDoc(primary, "2", docToIndex,  XContentType.JSON, "foobar");
+        Engine.IndexResult test2 = indexDoc(primary, "2", docToIndex, XContentType.JSON, "foobar", null);
+        throwFailure(test2);
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet2 = primary.getService().get("2", new String[]{"foo"}, true, 1, VersionType.INTERNAL,
             FetchSourceContext.FETCH_SOURCE);
@@ -160,12 +173,12 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             assertEquals(searcher.getIndexReader().maxDoc(), 3);
         }
 
-        testGet2 = primary.getService().get("2", new String[]{"foo"}, true, 1, VersionType.INTERNAL,
+        GetResult testGet3 = primary.getService().get("2", new String[]{"foo"}, true, 1, VersionType.INTERNAL,
             FetchSourceContext.FETCH_SOURCE);
-        assertEquals(new String(testGet2.source() == null ? new byte[0] : testGet2.source(), StandardCharsets.UTF_8), expectedResult);
-        assertTrue(testGet2.getFields().containsKey(RoutingFieldMapper.NAME));
-        assertTrue(testGet2.getFields().containsKey("foo"));
-        assertEquals(expectedFooVal, testGet2.getFields().get("foo").getValue());
+        assertEquals(new String(testGet3.source() == null ? new byte[0] : testGet3.source(), StandardCharsets.UTF_8), expectedResult);
+        assertTrue(testGet3.getFields().containsKey(RoutingFieldMapper.NAME));
+        assertTrue(testGet3.getFields().containsKey("foo"));
+        assertEquals(expectedFooVal, testGet3.getFields().get("foo").getValue());
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
 
         closeShards(primary);
@@ -189,5 +202,101 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertTrue(getResult.isExists());
 
         closeShards(shard);
+    }
+
+    public void testGetForUpdateTimeSeriesMode() throws IOException {
+        IndexShard primary = setupTimeSeriesShard();
+        BytesReference timeSeriesId = new BytesArray("tsid");
+
+        LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;
+        long translogInMemorySegmentCountExpected = 0;
+        Engine.IndexResult test = indexDoc(primary, "0", "{\"foo\" : \"bar\"}", XContentType.JSON, null, timeSeriesId);
+        throwFailure(test);
+        assertTrue(primary.getEngine().refreshNeeded());
+        GetResult testGet = primary.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
+        assertFalse(testGet.getFields().containsKey(TimeSeriesIdFieldMapper.NAME));  // We don't fetch the tsid
+        assertEquals(new String(testGet.source(), StandardCharsets.UTF_8), "{\"foo\" : \"bar\"}");
+        assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
+        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
+        }
+
+        Engine.IndexResult test1 = indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, null, timeSeriesId);
+        throwFailure(test1);
+        assertTrue(primary.getEngine().refreshNeeded());
+        GetResult testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        assertEquals(new String(testGet1.source(), StandardCharsets.UTF_8), "{\"foo\" : \"baz\"}");
+        assertFalse(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
+        assertFalse(testGet1.getFields().containsKey(TimeSeriesIdFieldMapper.NAME));  // We don't fetch the tsid
+        assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
+        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            assertEquals(searcher.getIndexReader().maxDoc(), 1); // we read from the translog
+        }
+        closeShards(primary);
+    }
+
+    public void testGetTimeSeriesMode() throws IOException {
+        IndexShard primary = setupTimeSeriesShard();
+        BytesReference timeSeriesId = new BytesArray("tsid");
+
+        LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;
+        Engine.IndexResult test = indexDoc(primary, "0", "{\"foo\" : \"bar\"}", XContentType.JSON, null, timeSeriesId);
+        throwFailure(test);
+        assertTrue(primary.getEngine().refreshNeeded());
+        GetResult testGet = primary.getService().get("0", new String[]{"foo"}, true, 1, VersionType.INTERNAL,
+            FetchSourceContext.FETCH_SOURCE);
+        assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
+        assertFalse(testGet.getFields().containsKey(TimeSeriesIdFieldMapper.NAME));  // We don't fetch the tsid
+        assertEquals(new String(testGet.source(), StandardCharsets.UTF_8), "{\"foo\" : \"bar\"}");
+        assertEquals(0, translogInMemorySegmentCount.getAsLong());
+        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
+        }
+
+        Engine.IndexResult test1 = indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, null, timeSeriesId);
+        throwFailure(test1);
+        assertTrue(primary.getEngine().refreshNeeded());
+        GetResult testGet1 = primary.getService().get("1", new String[]{"foo"}, true, 1, VersionType.INTERNAL,
+            FetchSourceContext.FETCH_SOURCE);
+        assertEquals(new String(testGet1.source(), StandardCharsets.UTF_8), "{\"foo\" : \"baz\"}");
+        assertFalse(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
+        assertFalse(testGet1.getFields().containsKey(TimeSeriesIdFieldMapper.NAME));  // We don't fetch the tsid
+        assertEquals(1, translogInMemorySegmentCount.getAsLong());
+        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            assertEquals(searcher.getIndexReader().maxDoc(), 1); // we read from the translog
+        }
+        closeShards(primary);
+    }
+
+    private IndexShard setupTimeSeriesShard() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.TIME_SERIES_MODE.getKey(), true)
+            .build();
+        XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
+        {
+            mapping.startObject("properties");
+            {
+                mapping.startObject("foo").field("type", "keyword").field("dimension", true).endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping(Strings.toString(mapping))
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+        return primary;
+    }
+
+    private void throwFailure(IndexResult result) {
+        if (result.getFailure() != null) {
+            throw new AssertionError(result.getFailure());
+        }
     }
 }

@@ -38,13 +38,13 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 .startObject()
                 .field("field", "value")
                 .endObject()),
-            XContentType.JSON, "routing_value", Map.of()));
+            XContentType.JSON, "routing_value", null, Map.of()));
 
         assertThat(doc.rootDoc().get("_routing"), equalTo("routing_value"));
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
     }
 
-    public void testIncludeInObjectNotAllowed() throws Exception {
+    public void testIncludeInDocumentNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
         Exception e = expectThrows(MapperParsingException.class,
             () -> docMapper.parse(source(b -> b.field("_routing", "foo"))));

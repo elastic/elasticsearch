@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
@@ -43,7 +44,7 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
                 im -> { throw new AssertionError("shouldn't be called"); }
             )
         ) {
-            Metadata meta = Metadata.builder().put(index("index", false)).build();
+            Metadata meta = Metadata.builder().put(index("index", false, "{}")).build();
             genService.applyClusterState(meta);
             assertNull(genService.apply(meta.index("index")));
             genService.stop();
@@ -54,7 +55,7 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
      * Assert that a local time series index loads the time series from the local lookup.
      */
     public void testLocalIndex() {
-        Metadata meta = Metadata.builder().put(index("index", true)).build();
+        Metadata meta = Metadata.builder().put(index("index", true, "{}")).build();
         IndexMetadata indexMetadata = meta.index("index");
         TimeSeriesIdGenerator gen = mockGenerator();
         try (TimeSeriesIdGeneratorService genService = genService(i -> new LocalIndex() {
@@ -75,6 +76,29 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
     }
 
     /**
+     * Assert that two local indices with different mappings both load their data from the local lookup.
+     */
+    public void testTwoLocalIndices() {
+        Metadata meta = Metadata.builder().put(index("index_1", true, "{}")).put(index("index_2", true, "{\"foo\": \"bar\"}")).build();
+        try (TimeSeriesIdGeneratorService genService = genService(i -> new LocalIndex() {
+            @Override
+            public long metadataVersion() {
+                return meta.index(i).getVersion();
+            }
+
+            @Override
+            public TimeSeriesIdGenerator generator() {
+                return mockGenerator();
+            }
+        }, im -> { throw new AssertionError("shouldn't be called"); })) {
+            genService.applyClusterState(meta);
+            assertThat(genService.apply(meta.index("index_1")), not(sameInstance(genService.apply(meta.index("index_2")))));
+            genService.stop();
+        }
+    }
+
+
+    /**
      * Assert that a local time series index will reuse the previous building if
      * the mapping hasn't changed.
      */
@@ -82,7 +106,7 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
         TimeSeriesIdGenerator gen = mockGenerator();
         AtomicLong counter = new AtomicLong();
 
-        Metadata meta = Metadata.builder().put(index("index", true)).build();
+        Metadata meta = Metadata.builder().put(index("index", true, "{}")).build();
         AtomicReference<IndexMetadata> indexMetadata = new AtomicReference<>(meta.index("index"));
         try (TimeSeriesIdGeneratorService genService = genService(i -> {
             counter.incrementAndGet();
@@ -120,12 +144,23 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
      * Assert that a non local time series index will build its {@link TimeSeriesIdGenerator}.
      */
     public void testNonLocalIndex() throws Exception {
-        Metadata meta = Metadata.builder().put(index("index", true)).build();
-        IndexMetadata indexMetadata = meta.index("index");
+        Metadata meta = Metadata.builder().put(index("index", true, "{}")).build();
         TimeSeriesIdGenerator gen = mockGenerator();
         try (TimeSeriesIdGeneratorService genService = genService(i -> null, im -> gen)) {
             genService.applyClusterState(meta);
-            assertBusy(() -> assertThat(genService.apply(indexMetadata), sameInstance(gen)));
+            assertThat(genService.apply(meta.index("index")), sameInstance(gen));
+            genService.stop();
+        }
+    }
+
+    /**
+     * Assert two indices with different mappings build their own {@link TimeSeriesIdGenerator}.
+     */
+    public void testTwoNonLocalIndices() throws Exception {
+        Metadata meta = Metadata.builder().put(index("index_1", true, "{}")).put(index("index_2", true, "{\"foo\": \"bar\"}")).build();
+        try (TimeSeriesIdGeneratorService genService = genService(i -> null, im -> mockGenerator())) {
+            genService.applyClusterState(meta);
+            assertThat(genService.apply(meta.index("index_1")), not(sameInstance(genService.apply(meta.index("index_2")))));
             genService.stop();
         }
     }
@@ -138,7 +173,7 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
         TimeSeriesIdGenerator gen = mockGenerator();
         AtomicLong counter = new AtomicLong();
 
-        Metadata meta = Metadata.builder().put(index("index", true)).build();
+        Metadata meta = Metadata.builder().put(index("index", true, "{}")).build();
         AtomicReference<IndexMetadata> indexMetadata = new AtomicReference<>(meta.index("index"));
         try (TimeSeriesIdGeneratorService genService = genService(i -> null, im -> {
             counter.incrementAndGet();
@@ -146,7 +181,7 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
         })) {
             for (int i = 0; i < 1000; i++) {
                 genService.applyClusterState(meta);
-                assertBusy(() -> assertThat(genService.apply(indexMetadata.get()), sameInstance(gen)));
+                assertThat(genService.apply(indexMetadata.get()), sameInstance(gen));
                 assertThat(counter.get(), equalTo(1L));
             }
 
@@ -156,7 +191,7 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
                 .build();
             indexMetadata.set(meta.index("index"));
             genService.applyClusterState(meta);
-            assertBusy(() -> assertThat(genService.apply(indexMetadata.get()), sameInstance(gen)));
+            assertThat(genService.apply(indexMetadata.get()), sameInstance(gen));
             assertThat(counter.get(), equalTo(2L));
             genService.stop();
         }
@@ -169,7 +204,7 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
     public void testNonLocalIndexSameMappingAsLocalIndex() throws Exception {
         TimeSeriesIdGenerator gen = mockGenerator();
 
-        Metadata meta = Metadata.builder().put(index("index_1", true)).put(index("index_2", true)).build();
+        Metadata meta = Metadata.builder().put(index("index_1", true, "{}")).put(index("index_2", true, "{}")).build();
         try (TimeSeriesIdGeneratorService genService = genService(i -> {
             if (i.getName().equals("index_1")) {
                 return new LocalIndex() {
@@ -192,6 +227,47 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * An index in time series mode with a null mapping should return an
+     * "empty" tsid generator. These indices are allowed, but you can't
+     * put any document into them until they have a mapping.
+     */
+    public void testNullMapping() {
+        try (
+            TimeSeriesIdGeneratorService genService = genService(
+                i -> { throw new AssertionError("shouldn't be called"); },
+                im -> { throw new AssertionError("shouldn't be called"); }
+            )
+        ) {
+            Metadata meta = Metadata.builder().put(index("index", true, null)).build();
+            genService.applyClusterState(meta);
+            assertThat(genService.apply(meta.index("index")), sameInstance(TimeSeriesIdGenerator.EMPTY));
+            genService.stop();
+        }
+    }
+
+    /**
+     * Attempting to fetch a generator for an index with a newer mapping
+     * fails. In production the service will always have a newer version
+     * of the mapping then the rest of ES.
+     */
+    public void testOutOfOrderMeta() {
+        try (
+            TimeSeriesIdGeneratorService genService = genService(
+                i -> { throw new AssertionError("shouldn't be called"); },
+                im -> { throw new AssertionError("shouldn't be called"); }
+            )
+        ) {
+            Metadata meta = Metadata.builder().put(index("index", true, null)).build();
+            genService.applyClusterState(meta);
+            IndexMetadata prev = meta.index("index");
+            IndexMetadata next = IndexMetadata.builder(prev).mappingVersion(prev.getMappingVersion() + 1).build();
+            Exception e = expectThrows(IllegalStateException.class, () -> genService.apply(next));
+            assertThat(e.getMessage(), equalTo("Got a newer version of the index than the time series id generator [2] vs [1]"));
+            genService.stop();
+        }
+    }
+
     private TimeSeriesIdGeneratorService genService(
         Function<Index, LocalIndex> lookupLocalIndex,
         Function<IndexMetadata, TimeSeriesIdGenerator> buildTimeSeriedIdGenerator
@@ -202,19 +278,22 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
         return genService;
     }
 
-    private IndexMetadata.Builder index(String index, boolean timeSeriesMode) {
+    private IndexMetadata.Builder index(String index, boolean timeSeriesMode, String mapping) {
         Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
         if (timeSeriesMode) {
             settings.put(IndexSettings.TIME_SERIES_MODE.getKey(), true);
         }
-        return IndexMetadata.builder(index)
+        IndexMetadata.Builder builder = IndexMetadata.builder(index)
             .settings(settings)
             .numberOfShards(between(1, 10))
-            .numberOfReplicas(randomInt(20))
-            .putMapping("{}");
+            .numberOfReplicas(randomInt(20));
+        if (mapping != null) {
+            builder = builder.putMapping(mapping);
+        }
+        return builder;
     }
 
     private TimeSeriesIdGenerator mockGenerator() {
-        return new TimeSeriesIdGenerator(new ObjectComponent(Map.of("a", KeywordFieldMapper.timeSeriesIdGenerator(null))));
+        return TimeSeriesIdGenerator.build(new ObjectComponent(Map.of("a", KeywordFieldMapper.timeSeriesIdGenerator(null))));
     }
 }

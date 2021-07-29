@@ -1,5 +1,3 @@
-
-
 ---
 "dimension with ignore_above":
   - skip:
@@ -100,3 +98,30 @@
                 metricset:
                   type: keyword
                   dimension: true
+
+---
+"routing_partition_size unsupported":
+  # routing_partition_size does the opposite of what we're going for here.....
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      catch: /\[index.time_series_mode\] is incompatible with \[index.routing_partition_size\]/
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                time_series_mode: true
+                number_of_shards: 10
+                routing_partition_size: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  dimension: true
+
+# TODO on backport do not support turning off soft deletes with tsdb - we won't have good test coverage for it.

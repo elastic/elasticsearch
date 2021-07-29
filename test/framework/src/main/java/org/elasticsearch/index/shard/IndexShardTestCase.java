@@ -28,6 +28,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -459,6 +460,17 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
+     * Creates a new empty shard in time series mode and starts it.
+     */
+    protected IndexShard newStartedTimeSeriesShard(boolean primary) throws IOException {
+        return newStartedShard(
+            primary,
+            Settings.builder().put(IndexSettings.TIME_SERIES_MODE.getKey(), true).build(),
+            new InternalEngineFactory()
+        );
+    }
+
+    /**
      * Creates a new empty shard and starts it
      * @param settings the settings to use for this shard
      */
@@ -728,14 +740,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id, String source) throws IOException {
-        return indexDoc(shard, id, source, XContentType.JSON, null);
+        return indexDoc(shard, id, source, XContentType.JSON, null, null);
     }
 
     protected Engine.IndexResult indexDoc(IndexShard shard, String id, String source, XContentType xContentType,
-                                          String routing)
+                                          @Nullable String routing, @Nullable BytesReference timeSeriesId)
         throws IOException {
         SourceToParse sourceToParse = new SourceToParse(
-            shard.shardId().getIndexName(), id, new BytesArray(source), xContentType, routing, Map.of());
+            shard.shardId().getIndexName(), id, new BytesArray(source), xContentType, routing, timeSeriesId, Map.of());
         Engine.IndexResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,

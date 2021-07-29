@@ -53,9 +53,9 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.ReplicaShardAllocatorIT;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -144,7 +144,7 @@ import static org.hamcrest.Matchers.oneOf;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexRecoveryIT extends ESIntegTestCase {
 
-    private static final String INDEX_NAME = "test-idx-1";
+    protected static final String INDEX_NAME = "test-idx-1";
     private static final String REPO_NAME = "test-repo-1";
     private static final String SNAP_NAME = "test-snap-1";
 
@@ -266,14 +266,19 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
     public void testReplicaRecovery() throws Exception {
         final String nodeA = internalCluster().startNode();
-        createIndex(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, SHARD_COUNT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)
-            .build());
+        assertAcked(
+            prepareCreate(INDEX_NAME).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, SHARD_COUNT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .build()
+            ).setMapping(minimalMapping())
+        );
         ensureGreen(INDEX_NAME);
 
         final int numOfDocs = scaledRandomIntBetween(0, 200);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(INDEX_NAME, "_doc", client(), numOfDocs)) {
+        try (BackgroundIndexer indexer = backgroundIndexer(numOfDocs)) {
             waitForDocs(numOfDocs, indexer);
         }
 
@@ -288,8 +293,15 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         // force a shard recovery from nodeA to nodeB
         final String nodeB = internalCluster().startNode();
-        assertAcked(client().admin().indices().prepareUpdateSettings(INDEX_NAME)
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                )
+        );
         ensureGreen(INDEX_NAME);
 
         final RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
@@ -332,29 +344,41 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final String nodeA = internalCluster().startNode();
 
         logger.info("--> create index on node: {}", nodeA);
-        createIndex(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
-            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms").build());
+        assertAcked(
+            prepareCreate(INDEX_NAME).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+                    .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .build()
+            ).setMapping(minimalMapping())
+        );
 
         int numDocs = randomIntBetween(10, 200);
         final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             docs[i] = client().prepareIndex(INDEX_NAME).
-                setSource("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat());
+                setSource(source(Map.of("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat())));
         }
-        indexRandom(randomBoolean(), docs);
+        indexRandom(randomBoolean(), dummyDocuments(), docs);
 
         logger.info("--> start node B");
         // force a shard recovery from nodeA to nodeB
         final String nodeB = internalCluster().startNode();
 
         logger.info("--> add replica for {} on node: {}", INDEX_NAME, nodeB);
-        assertAcked(client().admin().indices().prepareUpdateSettings(INDEX_NAME)
-            .setSettings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
+                )
+        );
         ensureGreen(INDEX_NAME);
 
         logger.info("--> start node C");
@@ -534,8 +558,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeB));
 
         logger.info("--> bump replica count");
-        client().admin().indices().prepareUpdateSettings(INDEX_NAME)
-                .setSettings(Settings.builder().put("number_of_replicas", 1)).execute().actionGet();
+        client().admin().indices().prepareUpdateSettings(INDEX_NAME).setSettings(Settings.builder().put("number_of_replicas", 1)).get();
         ensureGreen();
 
         assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeA));
@@ -686,11 +709,20 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     }
 
     private IndicesStatsResponse createAndPopulateIndex(String name, int nodeCount, int shardCount, int replicaCount)
-            throws ExecutionException, InterruptedException {
-
+            throws ExecutionException, InterruptedException, IOException {
         logger.info("--> creating test index: {}", name);
-        assertAcked(prepareCreate(name, nodeCount, Settings.builder().put("number_of_shards", shardCount)
-                .put("number_of_replicas", replicaCount).put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)));
+        assertAcked(
+            prepareCreate(
+                name,
+                nodeCount,
+                Settings.builder()
+                    .put("number_of_shards", shardCount)
+                    .put("number_of_replicas", replicaCount)
+                    .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+            )
+            .setMapping(minimalMapping())
+        );
         ensureGreen();
 
         logger.info("--> indexing sample data");
@@ -698,13 +730,11 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
 
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex(name).
-                    setSource("foo-int", randomInt(),
-                            "foo-string", randomAlphaOfLength(32),
-                            "foo-float", randomFloat());
+            docs[i] = client().prepareIndex(name)
+                .setSource(source(Map.of("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat())));
         }
 
-        indexRandom(true, docs);
+        indexRandom(true, dummyDocuments(), docs);
         flush();
         assertThat(client().prepareSearch(name).setSize(0).get().getHits().getTotalHits().value, equalTo((long) numDocs));
         return client().admin().indices().prepareStats(name).execute().actionGet();
@@ -736,13 +766,15 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
-        client().admin().indices().prepareCreate(indexName)
-            .setSettings(
+        assertAcked(
+            prepareCreate(indexName).setSettings(
                 Settings.builder()
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            ).get();
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+            ).setMapping(minimalMapping())
+        );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(100, 8000);
@@ -750,16 +782,16 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         // is a mix of file chunks and translog ops
         int threeFourths = (int) (numDocs * 0.75);
         for (int i = 0; i < threeFourths; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource(source(Map.of()), XContentType.JSON));
         }
-        indexRandom(true, requests);
+        indexRandom(true, dummyDocuments(), requests);
         flush(indexName);
         requests.clear();
 
         for (int i = threeFourths; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource(source(Map.of()), XContentType.JSON));
         }
-        indexRandom(true, requests);
+        indexRandom(true, dummyDocuments(), requests);
         ensureSearchable(indexName);
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
@@ -916,21 +948,22 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
-
-        client().admin().indices().prepareCreate(indexName)
-                .setSettings(
-                        Settings.builder()
-                                .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
-                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                ).get();
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+            ).setMapping(minimalMapping())
+        );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource(source(Map.of()), XContentType.JSON));
         }
-        indexRandom(true, requests);
+        indexRandom(true, dummyDocuments(), requests);
         ensureSearchable(indexName);
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
@@ -1028,20 +1061,22 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final String redNodeName = internalCluster()
             .startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
-        client().admin().indices().prepareCreate(indexName)
-            .setSettings(
+        assertAcked(
+            prepareCreate(indexName).setSettings(
                 Settings.builder()
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            ).get();
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+            ).setMapping(minimalMapping())
+        );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource(source(Map.of()), XContentType.JSON));
         }
-        indexRandom(true, requests);
+        indexRandom(true, dummyDocuments(), requests);
         ensureSearchable(indexName);
         assertHitCount(client().prepareSearch(indexName).get(), numDocs);
 
@@ -1136,19 +1171,24 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         internalCluster().startNodes(3);
 
         final String indexName = "test";
-        client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-            .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0)).get();
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+                    .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0)
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+            ).setMapping(minimalMapping())
+        );
         ensureGreen(indexName);
 
         // Perform some replicated operations so the replica isn't simply empty, because ops-based recovery isn't better in that case
         final List<IndexRequestBuilder> requests = new ArrayList<>();
         final int replicatedDocCount = scaledRandomIntBetween(25, 250);
         while (requests.size() < replicatedDocCount) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource(source(Map.of()), XContentType.JSON));
         }
-        indexRandom(true, requests);
+        indexRandom(true, dummyDocuments(), requests);
         if (randomBoolean()) {
             flush(indexName);
         }
@@ -1168,7 +1208,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         final int numNewDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numNewDocs; i++) {
-            client().prepareIndex(indexName).setSource("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+            client().prepareIndex(indexName).setSource(source(Map.of()), XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         }
         // Flush twice to update the safe commit's local checkpoint
         assertThat(client().admin().indices().prepareFlush(indexName).setForce(true).execute().get().getFailedShards(), equalTo(0));
@@ -1189,19 +1229,24 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertThat(recoveryState.getTranslog().recoveredOperations(), greaterThan(0));
     }
 
-    public void testDoNotInfinitelyWaitForMapping() {
+    public void testDoNotInfinitelyWaitForMapping() throws IOException {
         internalCluster().ensureAtLeastNumDataNodes(3);
-        createIndex("test", Settings.builder()
-            .put("index.analysis.analyzer.test_analyzer.type", "custom")
-            .put("index.analysis.analyzer.test_analyzer.tokenizer", "standard")
-            .putList("index.analysis.analyzer.test_analyzer.filter", "test_token_filter")
-            .put("index.number_of_replicas", 0).put("index.number_of_shards", 1).build());
-        client().admin().indices().preparePutMapping("test")
-            .setSource("test_field", "type=text,analyzer=test_analyzer").get();
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put("index.analysis.analyzer.test_analyzer.type", "custom")
+                    .put("index.analysis.analyzer.test_analyzer.tokenizer", "standard")
+                    .putList("index.analysis.analyzer.test_analyzer.filter", "test_token_filter")
+                    .put("index.number_of_replicas", 0)
+                    .put("index.number_of_shards", 1)
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+            ).setMapping(minimalMapping())
+        );
+        client().admin().indices().preparePutMapping("test").setSource("test_field", "type=text,analyzer=test_analyzer").get();
         int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test").setId("u" + i)
-                .setSource(singletonMap("test_field", Integer.toString(i)), XContentType.JSON).get();
+                .setSource(source(singletonMap("test_field", Integer.toString(i))), XContentType.JSON).get();
         }
         Semaphore recoveryBlocked = new Semaphore(1);
         for (DiscoveryNode node : clusterService().state().nodes()) {
@@ -1230,11 +1275,15 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         String indexName = "test";
         internalCluster().startNodes(2);
         String nodeWithPrimary = internalCluster().startDataOnlyNode();
-        assertAcked(client().admin().indices().prepareCreate(indexName)
-            .setSettings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", nodeWithPrimary)));
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.routing.allocation.include._name", nodeWithPrimary)
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+            ).setMapping(minimalMapping())
+        );
         MockTransportService transport = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeWithPrimary);
         CountDownLatch phase1ReadyBlocked = new CountDownLatch(1);
         CountDownLatch allowToCompletePhase1Latch = new CountDownLatch(1);
@@ -1274,17 +1323,21 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         List<String> nodes = randomSubsetOf(2, StreamSupport.stream(clusterService().state().nodes().getDataNodes().spliterator(), false)
             .map(node -> node.value.getName()).collect(Collectors.toSet()));
         String indexName = "test-index";
-        createIndex(indexName, Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 1)
-            // disable global checkpoint background sync so we can verify the start recovery request
-            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "12h")
-            .put("index.routing.allocation.include._name", String.join(",", nodes))
-            .build());
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 1)
+                    // disable global checkpoint background sync so we can verify the start recovery request
+                    .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "12h")
+                    .put("index.routing.allocation.include._name", String.join(",", nodes))
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+            ).setMapping(minimalMapping())
+        );
         ensureGreen(indexName);
         int numDocs = randomIntBetween(0, 100);
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, numDocs)
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource(source(Map.of("num", n)))).collect(toList()));
         client().admin().indices().prepareRefresh(indexName).get(); // avoid refresh when we are failing a shard
         String failingNode = randomFrom(nodes);
         PlainActionFuture<StartRecoveryRequest> startRecoveryRequestFuture = new PlainActionFuture<>();
@@ -1356,14 +1409,19 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         String indexName = "test-index";
-        createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "12h")
-            .build());
-        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(0, 100))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "12h")
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .build()
+            ).setMapping(minimalMapping())
+        );
+        indexRandom(randomBoolean(), dummyDocuments(), randomBoolean(), IntStream.range(0, between(0, 100))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource(source(Map.of("num", n)))).collect(toList()));
         ensureGreen(indexName);
 
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
@@ -1402,14 +1460,19 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         String indexName = "test-index";
-        createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "12h")
-            .build());
-        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(0, 100))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "12h")
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .build()
+            ).setMapping(minimalMapping())
+        );
+        indexRandom(randomBoolean(), dummyDocuments(), randomBoolean(), IntStream.range(0, between(0, 100))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource(source(Map.of("num", n)))).collect(toList()));
         ensureGreen(indexName);
 
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
@@ -1428,8 +1491,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                         .setWaitForNodes(Integer.toString(discoveryNodes.getSize() - 1))
                         .setWaitForEvents(Priority.LANGUID).get().isTimedOut());
 
-                    indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(1, 100))
-                        .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+                    indexRandom(randomBoolean(), dummyDocuments(), randomBoolean(), IntStream.range(0, between(1, 100))
+                        .mapToObj(n -> client().prepareIndex(indexName).setSource(source(Map.of("num", n)))).collect(toList()));
 
                     // We do not guarantee that the replica can recover locally all the way to its own global checkpoint before starting
                     // to recover from the primary, so we must be careful not to perform an operations-based recovery if this would require
@@ -1458,7 +1521,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "12h")
-            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms");
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode());
 
         final double reasonableOperationsBasedRecoveryProportion;
         if (randomBoolean()) {
@@ -1471,9 +1535,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         }
         logger.info("--> performing ops-based recoveries up to [{}%] of docs", reasonableOperationsBasedRecoveryProportion * 100.0);
 
-        createIndex(indexName, settings.build());
+        assertAcked(prepareCreate(indexName).setSettings(settings).setMapping(minimalMapping()));
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(0, 100))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource(source(Map.of("num", n)))).collect(toList()));
         ensureGreen(indexName);
 
         flush(indexName);
@@ -1531,8 +1595,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                      * ==> it is unreasonable to recover the replica using a seqno-based recovery
                      */
 
-                    indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, newDocCount)
-                        .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+                    indexRandom(randomBoolean(), dummyDocuments(), randomBoolean(), IntStream.range(0, newDocCount)
+                        .mapToObj(n -> client().prepareIndex(indexName).setSource(source(Map.of("num", n)))).collect(toList()));
 
                     flush(indexName);
 
@@ -1556,12 +1620,18 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         String indexName = "test-index";
-        createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
-        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(0, 100))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .build()
+            ).setMapping(minimalMapping())
+        );
+        indexRandom(randomBoolean(), dummyDocuments(), randomBoolean(), IntStream.range(0, between(0, 100))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource(source(Map.of("num", n)))).collect(toList()));
 
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
         final DiscoveryNodes discoveryNodes = clusterService().state().nodes();
@@ -1573,11 +1643,15 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertBusy(() -> assertThat(primary.getLastSyncedGlobalCheckpoint(), equalTo(maxSeqNoBeforeRecovery)));
         assertThat(client().admin().indices().prepareFlush(indexName).get().getFailedShards(), is(0)); // makes a safe commit
 
-        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(0, 100))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+        indexRandom(randomBoolean(), dummyDocuments(), randomBoolean(), IntStream.range(0, between(0, 100))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource(source(Map.of("num", n)))).collect(toList()));
 
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
         ensureGreen(indexName);
         final long maxSeqNoAfterRecovery = primary.seqNoStats().getMaxSeqNo();
 
@@ -1612,13 +1686,17 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         // node that held it previously, in case that node hasn't completely cleared it up.
 
         final String indexName = "test-index";
-        createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 6))
-            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms")
-            .build());
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 6))
+                    .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms")
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+            ).setMapping(minimalMapping())
+        );
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, randomIntBetween(0, 10))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource(source(Map.of("num", n)))).collect(toList()));
 
         assertThat(client().admin().indices().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
 
@@ -1638,7 +1716,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         logger.info("--> index more documents");
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, randomIntBetween(0, 10))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource(source(Map.of("num", n)))).collect(toList()));
 
         logger.info("--> add replicas again");
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
@@ -1651,13 +1729,23 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         final Settings randomNodeDataPathSettings = internalCluster().dataPathSettings(randomFrom(dataNodes));
         final String indexName = "test";
-        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
-            .put("index.number_of_shards", 1).put("index.number_of_replicas", 1)
-            .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), randomBoolean())).get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 1)
+                        .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), randomBoolean())
+                        .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                )
+                .setMapping(minimalMapping())
+        );
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource(source(Map.of("foo", "bar"))))
             .collect(Collectors.toList());
-        indexRandom(randomBoolean(), true, true, indexRequests);
+        indexRandom(randomBoolean(), dummyDocuments(), true, indexRequests);
         ensureGreen();
         internalCluster().stopRandomDataNode();
         internalCluster().stopRandomDataNode();
@@ -1677,9 +1765,16 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         internalCluster().startNode();
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         String indexName = "test-index";
-        createIndex(indexName, Settings.builder()
-            .put("index.number_of_shards", 1).put("index.number_of_replicas", 1)
-            .put("index.routing.allocation.include._name", String.join(",", dataNodes)).build());
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 1)
+                    .put("index.routing.allocation.include._name", String.join(",", dataNodes))
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .build()
+            ).setMapping(minimalMapping())
+        );
         ensureGreen(indexName);
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         DiscoveryNode nodeWithOldPrimary = clusterState.nodes().get(clusterState.routingTable()
@@ -1706,7 +1801,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 while (stopped.get() == false) {
                     try {
                         IndexResponse response = client().prepareIndex(indexName)
-                            .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON).get();
+                            .setSource(source(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong())), XContentType.JSON).get();
                         assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                     } catch (ElasticsearchException ignored) {
                     }
@@ -1727,9 +1822,18 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
     public void testCancelRecoveryWithAutoExpandReplicas() throws Exception {
         internalCluster().startMasterOnlyNode();
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
-            .setWaitForActiveShards(ActiveShardCount.NONE));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                        .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                )
+                .setMapping(minimalMapping())
+                .setWaitForActiveShards(ActiveShardCount.NONE)
+        );
         internalCluster().startNode();
         internalCluster().startNode();
         client().admin().cluster().prepareReroute().setRetryFailed(true).get();
@@ -1745,14 +1849,21 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         internalCluster().startNode();
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         String indexName = "test-index";
-        createIndex(indexName, Settings.builder()
-            .put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.routing.allocation.include._name", String.join(",", dataNodes)).build());
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.routing.allocation.include._name", String.join(",", dataNodes))
+                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .build()
+            ).setMapping(minimalMapping())
+        );
         ensureGreen(indexName);
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource(source(Map.of("foo", "bar"))))
             .collect(Collectors.toList());
-        indexRandom(randomBoolean(), true, true, indexRequests);
+        indexRandom(randomBoolean(), dummyDocuments(), true, indexRequests);
         assertThat(client().admin().indices().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
 
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
@@ -1785,8 +1896,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             connection.sendRequest(requestId, action, request, options);
         });
 
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put("index.number_of_replicas", 1)));
+        assertAcked(
+            client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.number_of_replicas", 1))
+        );
         ensureGreen();
         assertTrue(fileInfoIntercepted.get());
         assertTrue(fileChunkIntercepted.get());
@@ -1795,4 +1907,33 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             .mapToLong(n -> n.getIndices().getStore().getReservedSize().getBytes()).sum(), equalTo(0L));
     }
 
+    protected boolean inTimeSeriesMode() {
+        return false;
+    }
+
+    /**
+     * The smallest acceptable mapping to create the index and index documents into it.
+     */
+    protected String minimalMapping() throws IOException {
+        return "{}";
+    }
+
+    /**
+     * Convert a document's {@code _source} into one compatible with
+     * the {@link #minimalMapping()}.
+     */
+    protected Map<String, ?> source(Map<String, ?> source) {
+        return source;
+    }
+
+    /**
+     * Should we add dummy documents when running {@link ESIntegTestCase#indexRandom}?
+     */
+    protected boolean dummyDocuments() {
+        return randomBoolean();
+    }
+
+    protected BackgroundIndexer backgroundIndexer(int numOfDocs) {
+        return new BackgroundIndexer(INDEX_NAME, "_doc", client(), numOfDocs);
+    }
 }

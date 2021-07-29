@@ -30,12 +30,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.TimeSeriesIdGenerator;
@@ -280,6 +277,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public String routing() {
         return this.routing;
+    }
+
+    public BytesReference timeSeriesId() {
+        // TODO move time series out of routing
+        if (routing == null) {
+            throw new IllegalStateException("expected _tsid in _routing");
+        }
+        return new BytesArray(Base64.getDecoder().decode(routing));
     }
 
     /**
@@ -649,20 +654,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             return null;
         }
         TimeSeriesIdGenerator gen = timeSeriesGeneratorLookup.apply(abstraction.getWriteIndex());
-        if (gen == null) {
-            return null;
-        }
-        try {
-            try (
-                XContentParser parser = contentType.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, source.streamInput())
-            ) {
-                // TODO switch to native BytesRef over the wire
-                return Base64.getEncoder().encodeToString(BytesReference.toBytes(gen.generate(parser)));
-            }
-        } catch (IOException | IllegalArgumentException e) {
-            throw new IllegalArgumentException("Error building time series id: " + e.getMessage(), e);
-        }
+        // TODO switch to native BytesRef over the wire
+        return gen == null ? null : Base64.getEncoder().encodeToString(BytesReference.toBytes(gen.generate(source, contentType)));
     }
 
     public void checkAutoIdWithOpTypeCreateSupportedByVersion(Version version) {

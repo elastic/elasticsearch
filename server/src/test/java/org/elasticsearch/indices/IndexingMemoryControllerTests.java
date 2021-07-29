@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -334,7 +333,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
     public void testTranslogRecoveryWorksWithIMC() throws IOException {
         IndexShard shard = newStartedShard(true);
         for (int i = 0; i < 100; i++) {
-            indexDoc(shard, Integer.toString(i), "{\"foo\" : \"bar\"}", XContentType.JSON, null);
+            indexDoc(shard, Integer.toString(i), "{\"foo\" : \"bar\"}");
         }
         shard.close("simon says", false);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();

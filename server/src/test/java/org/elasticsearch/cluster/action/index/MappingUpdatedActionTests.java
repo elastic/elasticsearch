@@ -144,7 +144,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
         mua.setClient(client);
 
         RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(new ContentPath());
-        Mapping update = new Mapping(rootObjectMapper, new MetadataFieldMapper[0], Map.of());
+        Mapping update = new Mapping(rootObjectMapper, new MetadataFieldMapper[0], Map.of(), randomBoolean());
 
         mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.wrap(() -> {}));
         verify(indicesAdminClient).execute(eq(AutoPutMappingAction.INSTANCE), any(), any());

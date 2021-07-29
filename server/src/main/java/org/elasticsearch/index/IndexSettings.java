@@ -28,7 +28,9 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -341,7 +343,36 @@ public final class IndexSettings {
      * is automatically {@link TimeSeriesIdGenerator generated} using
      * the fields marked as "dimensions".
      */
-    public static final Setting<Boolean> TIME_SERIES_MODE = Setting.boolSetting("index.time_series_mode", false, Property.IndexScope);
+    public static final Setting<Boolean> TIME_SERIES_MODE = Setting.boolSetting(  // TODO make it "mode" and force the default to "standard"
+        "index.time_series_mode",
+        false,
+        new Setting.Validator<Boolean>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
+                if (false == value) {
+                    return;
+                }
+                if (settings.get(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING) != Integer.valueOf(1)) {
+                    throw new IllegalArgumentException(
+                        "["
+                            + TIME_SERIES_MODE.getKey()
+                            + "] is incompatible with ["
+                            + IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey()
+                            + "]"
+                    );
+                }
+            }
+
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> dependencies = List.of(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING);
+                return dependencies.iterator();
+            }
+        },
+        Property.IndexScope
+    );
 
     private final Index index;
     private final Version version;

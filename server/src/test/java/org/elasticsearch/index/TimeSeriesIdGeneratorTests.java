@@ -81,7 +81,7 @@ public class TimeSeriesIdGeneratorTests extends ESTestCase {
     }
 
     private TimeSeriesIdGenerator keywordTimeSeriesIdGenerator() {
-        return new TimeSeriesIdGenerator(
+        return TimeSeriesIdGenerator.build(
             new ObjectComponent(Map.of("a", keywordComponent(), "o", new ObjectComponent(Map.of("e", keywordComponent()))))
         );
     }
@@ -243,7 +243,7 @@ public class TimeSeriesIdGeneratorTests extends ESTestCase {
     }
 
     private TimeSeriesIdGenerator timeSeriedIdForNumberType(NumberType numberType) {
-        return new TimeSeriesIdGenerator(
+        return TimeSeriesIdGenerator.build(
             new ObjectComponent(
                 Map.of(
                     "a",
@@ -280,7 +280,7 @@ public class TimeSeriesIdGeneratorTests extends ESTestCase {
     }
 
     private TimeSeriesIdGenerator timeSeriedIdForIp() {
-        return new TimeSeriesIdGenerator(
+        return TimeSeriesIdGenerator.build(
             new ObjectComponent(
                 Map.of(
                     "a",
@@ -303,7 +303,7 @@ public class TimeSeriesIdGeneratorTests extends ESTestCase {
             doc.put("d" + i, large);
             components.put("d" + i, keywordComponent());
         }
-        TimeSeriesIdGenerator gen = new TimeSeriesIdGenerator(new ObjectComponent(components));
+        TimeSeriesIdGenerator gen = TimeSeriesIdGenerator.build(new ObjectComponent(components));
         Exception e = expectThrows(IllegalArgumentException.class, () -> gen.generate(parser(doc)));
         assertThat(e.getMessage(), equalTo("tsid longer than [32766] bytes [55691]"));
     }
@@ -313,7 +313,7 @@ public class TimeSeriesIdGeneratorTests extends ESTestCase {
      */
     public void testSameGenConsistentForSameDoc() throws IOException {
         Map<String, Object> doc = randomDoc(between(1, 100), between(0, 2));
-        TimeSeriesIdGenerator gen = new TimeSeriesIdGenerator(objectComponentForDimensions(randomDimensionsFromDoc(doc)));
+        TimeSeriesIdGenerator gen = TimeSeriesIdGenerator.build(objectComponentForDimensions(randomDimensionsFromDoc(doc)));
         assertThat(gen.generate(parser(doc)), equalTo(gen.generate(parser(doc))));
     }
 
@@ -323,7 +323,7 @@ public class TimeSeriesIdGeneratorTests extends ESTestCase {
     public void testExtraFieldsDoNotMatter() throws IOException {
         Map<String, Object> doc = randomDoc(between(1, 100), between(0, 2));
         Map<String, Object> dimensions = randomDimensionsFromDoc(doc);
-        TimeSeriesIdGenerator gen = new TimeSeriesIdGenerator(objectComponentForDimensions(dimensions));
+        TimeSeriesIdGenerator gen = TimeSeriesIdGenerator.build(objectComponentForDimensions(dimensions));
         assertThat(gen.generate(parser(dimensions)), equalTo(gen.generate(parser(doc))));
     }
 
@@ -333,7 +333,7 @@ public class TimeSeriesIdGeneratorTests extends ESTestCase {
     public void testOrderDoesNotMatter() throws IOException {
         Map<String, Object> doc = randomDoc(between(1, 100), between(0, 2));
         Map<String, Object> dimensions = randomDimensionsFromDoc(doc);
-        TimeSeriesIdGenerator gen = new TimeSeriesIdGenerator(objectComponentForDimensions(dimensions));
+        TimeSeriesIdGenerator gen = TimeSeriesIdGenerator.build(objectComponentForDimensions(dimensions));
         assertThat(gen.generate(parser(shuffled(doc))), equalTo(gen.generate(parser(doc))));
     }
 
@@ -343,9 +343,9 @@ public class TimeSeriesIdGeneratorTests extends ESTestCase {
     public void testUnusedExtraDimensions() throws IOException {
         Map<String, Object> doc = randomDoc(between(1, 100), between(0, 2));
         Map<String, Object> dimensions = randomDimensionsFromDoc(doc);
-        TimeSeriesIdGenerator small = new TimeSeriesIdGenerator(objectComponentForDimensions(dimensions));
+        TimeSeriesIdGenerator small = TimeSeriesIdGenerator.build(objectComponentForDimensions(dimensions));
         dimensions.put(randomValueOtherThanMany(doc::containsKey, () -> randomAlphaOfLength(5)), randomAlphaOfLength(3));
-        TimeSeriesIdGenerator large = new TimeSeriesIdGenerator(objectComponentForDimensions(dimensions));
+        TimeSeriesIdGenerator large = TimeSeriesIdGenerator.build(objectComponentForDimensions(dimensions));
 
         assertThat(large.generate(parser(doc)), equalTo(small.generate(parser(doc))));
     }
@@ -357,14 +357,14 @@ public class TimeSeriesIdGeneratorTests extends ESTestCase {
         Map<String, Object> orig = randomDoc(between(1, 100), between(0, 2));
         Map<String, Object> dimensions = randomDimensionsFromDoc(orig);
         Map<String, Object> modified = modifyDimensionValue(orig, dimensions);
-        TimeSeriesIdGenerator gen = new TimeSeriesIdGenerator(objectComponentForDimensions(dimensions));
+        TimeSeriesIdGenerator gen = TimeSeriesIdGenerator.build(objectComponentForDimensions(dimensions));
         assertThat(gen.generate(parser(modified)), not(equalTo(gen.generate(parser(orig)))));
     }
 
     public void testParse() throws IOException {
         Map<String, Object> doc = randomDoc(between(1, 100), between(0, 2));
         Map<String, Object> dimensions = randomDimensionsFromDoc(doc);
-        TimeSeriesIdGenerator gen = new TimeSeriesIdGenerator(objectComponentForDimensions(dimensions));
+        TimeSeriesIdGenerator gen = TimeSeriesIdGenerator.build(objectComponentForDimensions(dimensions));
         assertMap(TimeSeriesIdGenerator.parse(gen.generate(parser(doc)).streamInput()), expectedParsedDimensions(dimensions));
         assertMap(TimeSeriesIdGenerator.parse(gen.generate(parser(shuffled(doc))).streamInput()), expectedParsedDimensions(dimensions));
     }
@@ -410,9 +410,9 @@ public class TimeSeriesIdGeneratorTests extends ESTestCase {
     public void testDifferentDimensions() throws IOException {
         Map<String, Object> origDoc = randomDoc(between(1, 10), between(0, 2));
         Map<String, Object> origDimensions = randomDimensionsFromDoc(origDoc);
-        TimeSeriesIdGenerator origGen = new TimeSeriesIdGenerator(objectComponentForDimensions(origDimensions));
+        TimeSeriesIdGenerator origGen = TimeSeriesIdGenerator.build(objectComponentForDimensions(origDimensions));
         Tuple<Map<String, Object>, Map<String, Object>> modified = modifyDimensionName(origDoc, origDimensions);
-        TimeSeriesIdGenerator modGen = new TimeSeriesIdGenerator(objectComponentForDimensions(modified.v2()));
+        TimeSeriesIdGenerator modGen = TimeSeriesIdGenerator.build(objectComponentForDimensions(modified.v2()));
         assertThat(modGen.generate(parser(modified.v1())), not(equalTo(origGen.generate(parser(origDoc)))));
     }
 
@@ -452,14 +452,14 @@ public class TimeSeriesIdGeneratorTests extends ESTestCase {
         Map<String, Object> orig = randomDoc(between(2, 100), between(0, 2));
         Map<String, Object> dimensions = randomDimensionsFromDoc(orig, 2, 10);
         Map<String, Object> modified = removeDimension(orig, dimensions);
-        TimeSeriesIdGenerator gen = new TimeSeriesIdGenerator(objectComponentForDimensions(dimensions));
+        TimeSeriesIdGenerator gen = TimeSeriesIdGenerator.build(objectComponentForDimensions(dimensions));
         assertThat(gen.generate(parser(modified)), not(equalTo(gen.generate(parser(orig)))));
     }
 
     public void testEmpty() throws IOException {
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> new TimeSeriesIdGenerator(null).generate(parser(Map.of())).streamInput()
+            () -> TimeSeriesIdGenerator.build(null).generate(parser(Map.of())).streamInput()
         );
         assertThat(e.getMessage(), equalTo("There aren't any mapped dimensions"));
     }

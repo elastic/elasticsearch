@@ -1633,4 +1633,5 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(extractTotalHits(resp), equalTo(numHits));
     }
 
+    // NOCOMMIT tsdb smoke test
 }

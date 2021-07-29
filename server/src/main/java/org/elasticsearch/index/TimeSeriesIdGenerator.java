@@ -16,9 +16,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -113,6 +117,15 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * it can be included in the routing.
  */
 public final class TimeSeriesIdGenerator {
+    public static TimeSeriesIdGenerator build(@Nullable ObjectComponent root) {
+        return root == null ? EMPTY : new TimeSeriesIdGenerator(root);
+    }
+
+    /**
+     * A generator without an dimensions that'll always 
+     */
+    public static final TimeSeriesIdGenerator EMPTY = new TimeSeriesIdGenerator(new ObjectComponent(Map.of()));
+
     /**
      * The maximum length of the tsid. The value itself comes from a range check in
      * Lucene's writer for utf-8 doc values.
@@ -133,7 +146,7 @@ public final class TimeSeriesIdGenerator {
 
     private final ObjectComponent root;
 
-    public TimeSeriesIdGenerator(ObjectComponent root) {
+    private TimeSeriesIdGenerator(ObjectComponent root) {
         if (root == null) {
             /*
              * This can happen if an index is configured in time series mode
@@ -157,6 +170,23 @@ public final class TimeSeriesIdGenerator {
     @Override
     public String toString() {
         return "extract dimensions using " + root;
+    }
+
+    /**
+     * Build the tsid from the {@code _source}. See class docs for more on what it looks like and why.
+     */
+    public BytesReference generate(BytesReference source, XContentType xContentType) {
+        try {
+            try (
+                XContentParser parser = xContentType.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, source.streamInput())
+            ) {
+                // TODO switch to native BytesRef over the wire
+                return generate(parser);
+            }
+        } catch (IOException | IllegalArgumentException e) {
+            throw new IllegalArgumentException("Error building time series id: " + e.getMessage(), e);
+        }
     }
 
     /**

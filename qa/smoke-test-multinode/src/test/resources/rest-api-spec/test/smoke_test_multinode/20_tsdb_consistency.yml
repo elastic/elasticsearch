@@ -10,6 +10,7 @@ setup:
               index:
                 time_series_mode: true
                 number_of_shards: 3
+                number_of_replicas: 1
             mappings:
               properties:
                 "@timestamp":
@@ -56,6 +57,16 @@ setup:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:03:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
 
+---
+"index with replicas and shards is green":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+  - match:     { status:     green }
 
 ---
 "each shard has unique _tsids":
@@ -85,7 +96,6 @@ setup:
                     }
                   }
                   return timeSeries;
-
   - match: {hits.total.value: 8}
   - length: {aggregations.check.value: 2}
 
@@ -127,6 +137,190 @@ setup:
                     }
                   }
                   return timeSeries;
+  - match: {hits.total.value: 8}
+  - length: {aggregations.check.value: 2}
 
+---
+split:
+  - skip:
+      version: all
+      reason: shard splitting doesn't work yet
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.split:
+        index: test
+        target: test_split
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 6
+
+  - do:
+      search:
+        index: test_split
+        body:
+          fields:
+            - field: _tsid
+          query:
+            query_string:
+              query: '+@timestamp:"2021-04-28T18:03:24.467Z" +k8s.pod.name:cat'
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
+
+  - do:
+      search:
+        index: test_split
+        body:
+          size: 0
+          aggs:
+            check:
+              scripted_metric:
+                init_script: "state.timeSeries = new HashSet()"
+                map_script: "state.timeSeries.add(doc._tsid.value)"
+                combine_script: "return state.timeSeries"
+                reduce_script: |
+                  Set timeSeries = new TreeSet();
+                  for (s in states) {
+                    for (ts in s) {
+                      boolean newTs = timeSeries.add(ts);
+                      if (false == newTs) {
+                        throw new IllegalArgumentException(ts + " appeared in two shards");
+                      }
+                    }
+                  }
+                  return timeSeries;
+  - match: {hits.total.value: 8}
+  - length: {aggregations.check.value: 2}
+
+---
+shrink:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+      features: "arbitrary_key"
+
+  - do:
+      nodes.info:
+        node_id: data:true
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
+          index.routing.allocation.include._id: $node_id
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        wait_for_no_relocating_shards: true
+        index: test
+
+  - do:
+      indices.shrink:
+        index: test
+        target: test_shrink
+        body:
+          settings:
+            index.number_of_shards: 1
+
+  - do:
+      search:
+        index: test_shrink
+        body:
+          fields:
+            - field: _tsid
+          query:
+            query_string:
+              query: '+@timestamp:"2021-04-28T18:03:24.467Z" +k8s.pod.name:cat'
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
+
+  - do:
+      search:
+        index: test_shrink
+        body:
+          size: 0
+          aggs:
+            check:
+              scripted_metric:
+                init_script: "state.timeSeries = new HashSet()"
+                map_script: "state.timeSeries.add(doc._tsid.value)"
+                combine_script: "return state.timeSeries"
+                reduce_script: |
+                  Set timeSeries = new TreeSet();
+                  for (s in states) {
+                    for (ts in s) {
+                      boolean newTs = timeSeries.add(ts);
+                      if (false == newTs) {
+                        throw new IllegalArgumentException(ts + " appeared in two shards");
+                      }
+                    }
+                  }
+                  return timeSeries;
+  - match: {hits.total.value: 8}
+  - length: {aggregations.check.value: 2}
+
+---
+clone:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.clone:
+        index: test
+        target: test_clone
+
+  - do:
+      search:
+        index: test_clone
+        body:
+          fields:
+            - field: _tsid
+          query:
+            query_string:
+              query: '+@timestamp:"2021-04-28T18:03:24.467Z" +k8s.pod.name:cat'
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
+
+  - do:
+      search:
+        index: test_clone
+        body:
+          size: 0
+          aggs:
+            check:
+              scripted_metric:
+                init_script: "state.timeSeries = new HashSet()"
+                map_script: "state.timeSeries.add(doc._tsid.value)"
+                combine_script: "return state.timeSeries"
+                reduce_script: |
+                  Set timeSeries = new TreeSet();
+                  for (s in states) {
+                    for (ts in s) {
+                      boolean newTs = timeSeries.add(ts);
+                      if (false == newTs) {
+                        throw new IllegalArgumentException(ts + " appeared in two shards");
+                      }
+                    }
+                  }
+                  return timeSeries;
   - match: {hits.total.value: 8}
   - length: {aggregations.check.value: 2}

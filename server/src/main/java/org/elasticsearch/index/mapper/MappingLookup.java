@@ -58,7 +58,7 @@ public final class MappingLookup {
      * @param mapping the mapping source
      * @return the newly created lookup instance
      */
-    public static MappingLookup fromMapping(Mapping mapping) {
+    public static MappingLookup fromMapping(Mapping mapping, boolean inTimeSeriesMode) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();

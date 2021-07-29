@@ -437,20 +437,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
         }
-        return NOOP_ADAPTER;
+        return null;
     }
 
     interface FieldsOptionSourceAdapter {
-        default void adaptRequest(SearchSourceBuilder source, Consumer<SearchSourceBuilder> sourceConsumer) {
-            // noop
-        }
-
-        default void adaptResponse(SearchHit[] searchHits) {
-            // noop
-        }
+        void adaptRequest(SearchSourceBuilder source, Consumer<SearchSourceBuilder> sourceConsumer);
+        void adaptResponse(SearchHit[] searchHits);
     }
 
-    private static final FieldsOptionSourceAdapter NOOP_ADAPTER = new FieldsOptionSourceAdapter() {};
 
     static void ccsRemoteReduce(TaskId parentTaskId, SearchRequest searchRequest, OriginalIndices localIndices,
                                 Map<String, OriginalIndices> remoteIndices, SearchTimeProvider timeProvider,
@@ -548,7 +542,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchResponseMerger,
                     totalClusters,
                     listener,
-                    NOOP_ADAPTER
+                    null
                 );
                 SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, localIndices.indices(),
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
@@ -614,12 +608,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                                              AtomicInteger skippedClusters, AtomicReference<Exception> exceptions,
                                                              SearchResponseMerger searchResponseMerger, int totalClusters,
                                                              ActionListener<SearchResponse> originalListener,
-                                                             FieldsOptionSourceAdapter adapter) {
+                                                             @Nullable FieldsOptionSourceAdapter adapter) {
         return new CCSActionListener<SearchResponse, SearchResponse>(clusterAlias, skipUnavailable, countDown, skippedClusters,
             exceptions, originalListener) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
-                adapter.adaptResponse(searchResponse.getHits().getHits());
+                if (adapter != null) {
+                    adapter.adaptResponse(searchResponse.getHits().getHits());
+                }
                 searchResponseMerger.add(searchResponse);
             }
 

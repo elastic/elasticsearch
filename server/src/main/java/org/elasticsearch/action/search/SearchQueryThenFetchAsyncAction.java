@@ -94,7 +94,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
                 @Override
                 protected void innerOnResponse(SearchPhaseResult response) {
-                    if (response instanceof QuerySearchResult) {
+                    if (response instanceof QuerySearchResult && fieldsOptionAdapter != null) {
                         response = new WrappedQuerySearchResult((QuerySearchResult) response, fieldsOptionAdapter);
                     }
                     listener.onResponse(response);

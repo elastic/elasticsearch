@@ -57,6 +57,7 @@ public class Job implements ToXContentObject {
     public static final ParseField DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS =
         new ParseField("daily_model_snapshot_retention_after_days");
     public static final ParseField RESULTS_RETENTION_DAYS = new ParseField("results_retention_days");
+    public static final ParseField SYSTEM_ANNOTATIONS_RETENTION_DAYS = new ParseField("system_annotations_retention_days");
     public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("model_snapshot_id");
     public static final ParseField RESULTS_INDEX_NAME = new ParseField("results_index_name");
     public static final ParseField DELETING = new ParseField("deleting");
@@ -87,6 +88,7 @@ public class Job implements ToXContentObject {
         PARSER.declareString((builder, val) -> builder.setBackgroundPersistInterval(
             TimeValue.parseTimeValue(val, BACKGROUND_PERSIST_INTERVAL.getPreferredName())), BACKGROUND_PERSIST_INTERVAL);
         PARSER.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
+        PARSER.declareLong(Builder::setSystemAnnotationsRetentionDays, SYSTEM_ANNOTATIONS_RETENTION_DAYS);
         PARSER.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
         PARSER.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
         PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.mapOrdered(), CUSTOM_SETTINGS, ValueType.OBJECT);
@@ -114,6 +116,7 @@ public class Job implements ToXContentObject {
     private final Long modelSnapshotRetentionDays;
     private final Long dailyModelSnapshotRetentionAfterDays;
     private final Long resultsRetentionDays;
+    private final Long systemAnnotationsRetentionDays;
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
     private final String resultsIndexName;
@@ -127,8 +130,8 @@ public class Job implements ToXContentObject {
                 AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                 ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                 Long modelSnapshotRetentionDays, Long dailyModelSnapshotRetentionAfterDays, Long resultsRetentionDays,
-                Map<String, Object> customSettings, String modelSnapshotId, String resultsIndexName, Boolean deleting,
-                Boolean allowLazyOpen, Blocked blocked, DatafeedConfig datafeedConfig) {
+                Long systemAnnotationsRetentionDays, Map<String, Object> customSettings, String modelSnapshotId, String resultsIndexName,
+                Boolean deleting, Boolean allowLazyOpen, Blocked blocked, DatafeedConfig datafeedConfig) {
 
         this.jobId = jobId;
         this.jobType = jobType;
@@ -145,6 +148,7 @@ public class Job implements ToXContentObject {
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
         this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
         this.resultsRetentionDays = resultsRetentionDays;
+        this.systemAnnotationsRetentionDays = systemAnnotationsRetentionDays;
         this.customSettings = customSettings == null ? null : Collections.unmodifiableMap(customSettings);
         this.modelSnapshotId = modelSnapshotId;
         this.resultsIndexName = resultsIndexName;
@@ -272,6 +276,10 @@ public class Job implements ToXContentObject {
         return resultsRetentionDays;
     }
 
+    public Long getSystemAnnotationsRetentionDays() {
+        return systemAnnotationsRetentionDays;
+    }
+
     public Map<String, Object> getCustomSettings() {
         return customSettings;
     }
@@ -346,6 +354,9 @@ public class Job implements ToXContentObject {
         if (resultsRetentionDays != null) {
             builder.field(RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
         }
+        if (systemAnnotationsRetentionDays != null) {
+            builder.field(SYSTEM_ANNOTATIONS_RETENTION_DAYS.getPreferredName(), systemAnnotationsRetentionDays);
+        }
         if (customSettings != null) {
             builder.field(CUSTOM_SETTINGS.getPreferredName(), customSettings);
         }
@@ -400,6 +411,7 @@ public class Job implements ToXContentObject {
             && Objects.equals(this.customSettings, that.customSettings)
             && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
             && Objects.equals(this.resultsIndexName, that.resultsIndexName)
+            && Objects.equals(this.systemAnnotationsRetentionDays, that.systemAnnotationsRetentionDays)
             && Objects.equals(this.deleting, that.deleting)
             && Objects.equals(this.allowLazyOpen, that.allowLazyOpen)
             && Objects.equals(this.blocked, that.blocked)
@@ -411,7 +423,8 @@ public class Job implements ToXContentObject {
         return Objects.hash(jobId, jobType, groups, description, createTime, finishedTime,
             analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
             backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-            customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen, blocked, datafeedConfig);
+            systemAnnotationsRetentionDays, customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen, blocked,
+            datafeedConfig);
     }
 
     @Override
@@ -440,6 +453,7 @@ public class Job implements ToXContentObject {
         private Long modelSnapshotRetentionDays;
         private Long dailyModelSnapshotRetentionAfterDays;
         private Long resultsRetentionDays;
+        private Long systemAnnotationsRetentionDays;
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
         private String resultsIndexName;
@@ -471,6 +485,7 @@ public class Job implements ToXContentObject {
             this.modelSnapshotRetentionDays = job.getModelSnapshotRetentionDays();
             this.dailyModelSnapshotRetentionAfterDays = job.getDailyModelSnapshotRetentionAfterDays();
             this.resultsRetentionDays = job.getResultsRetentionDays();
+            this.systemAnnotationsRetentionDays = job.getSystemAnnotationsRetentionDays();
             this.customSettings = job.getCustomSettings() == null ? null : new LinkedHashMap<>(job.getCustomSettings());
             this.modelSnapshotId = job.getModelSnapshotId();
             this.resultsIndexName = job.getResultsIndexNameNoPrefix();
@@ -564,6 +579,11 @@ public class Job implements ToXContentObject {
             return this;
         }
 
+        public Builder setSystemAnnotationsRetentionDays(Long systemAnnotationsRetentionDays) {
+            this.systemAnnotationsRetentionDays = systemAnnotationsRetentionDays;
+            return this;
+        }
+
         public Builder setModelSnapshotId(String modelSnapshotId) {
             this.modelSnapshotId = modelSnapshotId;
             return this;
@@ -606,7 +626,7 @@ public class Job implements ToXContentObject {
                 id, jobType, groups, description, createTime, finishedTime,
                 analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-                customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen, blocked,
+                systemAnnotationsRetentionDays, customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen, blocked,
                 datafeedConfig == null ? null : datafeedConfig.build());
         }
     }

@@ -49,6 +49,12 @@ OGC standards define outer ring vertices in counterclockwise order with inner
 ring (hole) vertices in clockwise order.
 
 Individual GeoJSON or WKT documents can override this parameter.
+
+// tag::geoshape-dateline-orientation[]
+Geoshapes that cross the international dateline (+/-180° longitude) must use a
+`RIGHT` or equivalent `orientation`. Otherwise, `geo_shape` queries that match
+the geoshape may return unexpected results.
+// end::geoshape-dateline-orientation[]
 | `RIGHT`
 
 |`ignore_malformed` |If true, malformed GeoJSON or WKT shapes are ignored. If

@@ -45,7 +45,12 @@ public class ClusterPermission {
      * @return {@code true} if the access is allowed else returns {@code false}
      */
     public boolean check(final String action, final TransportRequest request, final Authentication authentication) {
-        return checks.stream().anyMatch(permission -> permission.check(action, request, authentication));
+        for (PermissionCheck permission : checks) {
+            if (permission.check(action, request, authentication)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

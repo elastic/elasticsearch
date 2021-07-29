@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -345,11 +344,8 @@ public class SystemIndices {
     }
 
     private static Predicate<String> buildDataStreamNamePredicate(Map<String, Feature> descriptors) {
-        Set<String> systemDataStreamNames = descriptors.values().stream()
-            .flatMap(feature -> feature.getDataStreamDescriptors().stream())
-            .map(SystemDataStreamDescriptor::getDataStreamName)
-            .collect(Collectors.toUnmodifiableSet());
-        return systemDataStreamNames::contains;
+        CharacterRunAutomaton characterRunAutomaton = new CharacterRunAutomaton(buildDataStreamAutomaton(descriptors));
+        return characterRunAutomaton::run;
     }
 
     private static Automaton buildDataStreamBackingIndicesAutomaton(Map<String, Feature> descriptors) {

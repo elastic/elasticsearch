@@ -1389,7 +1389,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 AuthenticationType.ANONYMOUS), Collections.emptyMap());
     }
 
-    public void testXPackUserCanAccessNonSecurityIndices() {
+    public void testXPackUserCanAccessNonRestrictedIndices() {
         CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(RESTRICTED_INDICES_AUTOMATON);
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);

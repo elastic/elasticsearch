@@ -32,7 +32,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
@@ -175,8 +174,7 @@ public final class IndicesPermission {
         for (String forIndexPattern : checkForIndexPatterns) {
             Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
             if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
-                Optional<Automaton> restrictedNamesAutomaton = Arrays.stream(groups).map(g -> g.restrictedNamesAutomaton).findFirst();
-                checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, restrictedNamesAutomaton.orElse(Automatons.EMPTY));
+                checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, getRestrictedNamesAutomaton());
             }
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
                 Automaton allowedIndexPrivilegesAutomaton = null;
@@ -354,9 +352,12 @@ public final class IndicesPermission {
         if (Regex.isSimpleMatchPattern(indexPattern) || Automatons.isLuceneRegex(indexPattern)) {
             return false;
         }
-        CharacterRunAutomaton runAutomaton =
-            new CharacterRunAutomaton(Arrays.stream(groups).map(g -> g.restrictedNamesAutomaton).findFirst().orElse(Automatons.EMPTY));
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(getRestrictedNamesAutomaton());
         return runAutomaton.run(indexPattern);
+    }
+
+    private Automaton getRestrictedNamesAutomaton() {
+        return Arrays.stream(groups).map(g -> g.restrictedNamesAutomaton).findFirst().orElse(Automatons.EMPTY);
     }
 
     private static boolean isMappingUpdateAction(String action) {

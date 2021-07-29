@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -30,18 +31,18 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
     static class ParentObject {
         private static final ConstructingObjectParser<ParentObject, String> PARSER =
             new ConstructingObjectParser<>("parentParser", false,
-                (a, name) -> new ParentObject(name, (SubObject) a[0]));
+                (a, name) -> new ParentObject(name, (NewSubObject) a[0]));
 
         String name;
-        SubObject subObject;
+        NewSubObject subObject;
 
         static {
             PARSER.declareNamedObject(ConstructingObjectParser.constructorArg(),
-                (p, c, n) -> p.namedObject(SubObject.class, n, null),
+                (p, c, n) -> p.namedObject(NewSubObject.class, n, null),
                 new ParseField("subObject"));
         }
 
-        ParentObject(String name, SubObject subObject) {
+        ParentObject(String name, NewSubObject subObject) {
             this.name = name;
             this.subObject = subObject;
         }
@@ -52,10 +53,11 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
         }
     }
 
-    static class SubObject {
-        private static final ConstructingObjectParser<SubObject, String> PARSER = new ConstructingObjectParser<>(
+    static class NewSubObject {
+        public static final Function<RestApiVersion, Boolean> REST_API_VERSION = RestApiVersion.onOrAfter(RestApiVersion.current());
+        private static final ConstructingObjectParser<NewSubObject, String> PARSER = new ConstructingObjectParser<>(
             "parser1", false,
-            a -> new SubObject((String) a[0]));
+            a -> new NewSubObject((String) a[0]));
         static final ParseField NAME = new ParseField("namedObjectName1")
             .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.current()));
 
@@ -65,40 +67,43 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
 
         String field;
 
-        SubObject(String field) {
+        NewSubObject(String field) {
             this.field = field;
         }
 
-        public static SubObject parse(XContentParser parser) {
+        public static NewSubObject parse(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
     }
 
-    static class OldSubObject extends SubObject {
-        private static final ConstructingObjectParser<SubObject, String> PARSER = new ConstructingObjectParser<>(
+    static class OldSubObject {
+        public static final Function<RestApiVersion, Boolean> REST_API_VERSION = RestApiVersion.equalTo(RestApiVersion.minimumSupported());
+
+        private static final ConstructingObjectParser<NewSubObject, String> PARSER = new ConstructingObjectParser<>(
             "parser2", false,
-            a -> new SubObject((String) a[0]));
+            a -> new NewSubObject((String) a[0]));
         static final ParseField NAME = new ParseField("namedObjectName1")
             .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported()));
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("old_field"));
         }
+        String field;
 
         OldSubObject(String field) {
-            super(field);
+            this.field = field;
         }
 
-        public static SubObject parse(XContentParser parser) {
+        public static NewSubObject parse(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
     }
 
     public void testNotCompatibleRequest() throws IOException {
         NamedXContentRegistry registry = new NamedXContentRegistry(
-            List.of(new NamedXContentRegistry.Entry(SubObject.class, SubObject.NAME, SubObject::parse,
-                    SubObject.NAME.getForRestApiVersion()),
-                new NamedXContentRegistry.Entry(SubObject.class, OldSubObject.NAME, OldSubObject::parse,
-                    OldSubObject.NAME.getForRestApiVersion())));
+            List.of(new NamedXContentRegistry.Entry(NewSubObject.class, NewSubObject.NAME, NewSubObject::parse,
+                    NewSubObject.REST_API_VERSION),
+                new NamedXContentRegistry.Entry(NewSubObject.class, OldSubObject.NAME, OldSubObject::parse,
+                    OldSubObject.REST_API_VERSION)));
 
         XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
         b.startObject();
@@ -128,10 +133,10 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
 
     public void testCompatibleRequest() throws IOException {
         NamedXContentRegistry registry = new NamedXContentRegistry(
-            List.of(new NamedXContentRegistry.Entry(SubObject.class, SubObject.NAME, SubObject::parse,
-                    SubObject.NAME.getForRestApiVersion()),
-                new NamedXContentRegistry.Entry(SubObject.class, OldSubObject.NAME, OldSubObject::parse,
-                    OldSubObject.NAME.getForRestApiVersion())));
+            List.of(new NamedXContentRegistry.Entry(NewSubObject.class, NewSubObject.NAME, NewSubObject::parse,
+                    NewSubObject.REST_API_VERSION),
+                new NamedXContentRegistry.Entry(NewSubObject.class, OldSubObject.NAME, OldSubObject::parse,
+                    OldSubObject.REST_API_VERSION)));
 
         XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
         b.startObject();

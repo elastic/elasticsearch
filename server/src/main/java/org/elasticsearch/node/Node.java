@@ -255,7 +255,9 @@ public class Node implements Closeable {
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
+    // for testing
     final NamedWriteableRegistry namedWriteableRegistry;
+    final NamedXContentRegistry namedXContentRegistry;
 
     public Node(Environment environment) {
         this(environment, Collections.emptyList(), true);
@@ -416,8 +418,7 @@ public class Node implements Closeable {
                 searchModule.getNamedXContents().stream(),
                 pluginsService.filterPlugins(Plugin.class).stream()
                     .flatMap(p -> p.getNamedXContent().stream()),
-                ClusterModule.getNamedXWriteables().stream(),
-                getCompatibleNamedXContents())
+                ClusterModule.getNamedXWriteables().stream())
                 .flatMap(Function.identity()).collect(toList())
             );
             final Map<String, SystemIndices.Feature> featuresMap = pluginsService
@@ -722,6 +723,7 @@ public class Node implements Closeable {
                 transportService.getRemoteClusterService(),
                 namedWriteableRegistry);
             this.namedWriteableRegistry = namedWriteableRegistry;
+            this.namedXContentRegistry = xContentRegistry;
 
             logger.debug("initializing HTTP handlers ...");
             actionModule.initRestHandlers(() -> clusterService.state().nodes());
@@ -737,11 +739,6 @@ public class Node implements Closeable {
         }
     }
 
-    // package scope for testing
-    Stream<NamedXContentRegistry.Entry> getCompatibleNamedXContents() {
-        return pluginsService.filterPlugins(Plugin.class).stream()
-            .flatMap(p -> p.getNamedXContentForCompatibility().stream());
-    }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,
                                                    TransportInterceptor interceptor,

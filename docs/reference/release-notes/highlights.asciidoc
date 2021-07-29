@@ -29,7 +29,7 @@ Other versions:
 === Cross-cluster EQL search
 
 In 7.14, we added cross-cluster search support to EQL. Cross-cluster search lets
-you run a single EQL search across one or more remote clusters. See
+you run an EQL search across one or more remote clusters. See
 {ref}/eql.html#run-eql-search-across-clusters[Run an EQL search across
 clusters].
 

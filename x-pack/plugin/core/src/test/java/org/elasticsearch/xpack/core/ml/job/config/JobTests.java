@@ -142,6 +142,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertThat(job.getModelSnapshotRetentionDays(), equalTo(10L));
         assertNull(job.getDailyModelSnapshotRetentionAfterDays());
         assertNull(job.getResultsRetentionDays());
+        assertNull(job.getSystemAnnotationsRetentionDays());
         assertNotNull(job.allInputFields());
         assertFalse(job.allInputFields().isEmpty());
         assertFalse(job.allowLazyOpen());
@@ -260,6 +261,21 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         Job.Builder jobDetails2 = new Job.Builder("foo");
         jobDetails2.setDataDescription(new DataDescription.Builder());
         jobDetails2.setResultsRetentionDays(4L);
+        jobDetails2.setAnalysisConfig(createAnalysisConfig());
+        jobDetails2.setCreateTime(date);
+        assertNotEquals(jobDetails1.build(), jobDetails2.build());
+    }
+
+    public void testEquals_GivenDifferentSystemAnnotationsRetentionDays() {
+        Date date = new Date();
+        Job.Builder jobDetails1 = new Job.Builder("foo");
+        jobDetails1.setDataDescription(new DataDescription.Builder());
+        jobDetails1.setAnalysisConfig(createAnalysisConfig());
+        jobDetails1.setCreateTime(date);
+        jobDetails1.setSystemAnnotationsRetentionDays(30L);
+        Job.Builder jobDetails2 = new Job.Builder("foo");
+        jobDetails2.setDataDescription(new DataDescription.Builder());
+        jobDetails2.setSystemAnnotationsRetentionDays(4L);
         jobDetails2.setAnalysisConfig(createAnalysisConfig());
         jobDetails2.setCreateTime(date);
         assertNotEquals(jobDetails1.build(), jobDetails2.build());
@@ -464,10 +480,18 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     public void testVerify_GivenNegativeResultsRetentionDays() {
-        String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW,
-                "results_retention_days", 0, -1);
+        String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "results_retention_days", 0, -1);
         Job.Builder builder = buildJobBuilder("foo");
         builder.setResultsRetentionDays(-1L);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
+        assertEquals(errorMessage, e.getMessage());
+    }
+
+    public void testVerify_GivenNegativeSystemAnnotationsRetentionDays() {
+        String errorMessage =
+            Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "system_annotations_retention_days", 0, -1);
+        Job.Builder builder = buildJobBuilder("foo");
+        builder.setSystemAnnotationsRetentionDays(-1L);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertEquals(errorMessage, e.getMessage());
     }
@@ -743,6 +767,9 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         }
         if (randomBoolean()) {
             builder.setResultsRetentionDays(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            builder.setSystemAnnotationsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             builder.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));

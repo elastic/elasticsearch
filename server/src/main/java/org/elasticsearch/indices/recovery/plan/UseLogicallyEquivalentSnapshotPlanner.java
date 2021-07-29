@@ -32,7 +32,7 @@ public class UseLogicallyEquivalentSnapshotPlanner implements ShardRecoveryPlann
                 continue;
             }
 
-            Store.RecoveryDiff snapshotDiff = targetMetadata.recoveryDiff(snapshot.getMetadataSnapshot());
+            Store.RecoveryDiff snapshotDiff = sourceMetadata.recoveryDiff(snapshot.getMetadataSnapshot());
 
             // TODO: Handle primary fail-over where the snapshot is logically equivalent, but the files are different
             if (snapshotDiff.different.isEmpty() == false || snapshotDiff.missing.isEmpty() == false) {

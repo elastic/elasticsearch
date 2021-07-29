@@ -225,9 +225,13 @@ class DatafeedJob {
                     return;
                 }
                 if (lastDataCheckAnnotationWithId != null) {
-                    long bucketAfterPreviousAnnotation = lastDataCheckAnnotationWithId.v2().getEndTimestamp().getTime()
-                        + lastBucket.getBucketSpan() * 1000;
-                    if (annotation.getEndTimestamp().getTime() <= bucketAfterPreviousAnnotation) {
+                    // NOTE: this check takes advantage of the following:
+                    // * Bucket span is constant
+                    // * The endtime has changed since our previous annotation
+                    // * DatafeedJob objects only ever move forward in time
+                    // All that to say, checking if the lastBucket overlaps the previous annotation end-time, that means that this current
+                    // bucket with missing data is consecutive to the previous one.
+                    if (lastBucket.getEpoch() * 1000 <= (lastDataCheckAnnotationWithId.v2().getEndTimestamp().getTime() + 1)) {
                         consecutiveDelayedDataBuckets++;
                     } else {
                         consecutiveDelayedDataBuckets = 0;
@@ -253,7 +257,7 @@ class DatafeedJob {
         }
     }
 
-    boolean shouldWriteDelayedDataAudit() {
+    private boolean shouldWriteDelayedDataAudit() {
         if (consecutiveDelayedDataBuckets < 3) {
             return true;
         }

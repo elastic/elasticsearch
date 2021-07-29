@@ -19,3 +19,14 @@ recipeList:
   - org.openrewrite.java.ChangeMethodTargetToStatic:
       methodPattern: java.util.Map of(..)
       fullyQualifiedTargetTypeName: org.elasticsearch.core.Maps
+
+type: specs.openrewrite.org/v1beta/recipe
+name: org.elasticsearch.java.backport.SetsOfBackport
+displayName: Use `org.elasticsearch.core.Sets#of(..)` not java.util.Set.of#(..)
+description: Java 8 does not support the `java.util.Set#of(..)`.
+tags:
+  - jdk
+recipeList:
+  - org.openrewrite.java.ChangeMethodTargetToStatic:
+      methodPattern: java.util.Set of(..)
+      fullyQualifiedTargetTypeName: org.elasticsearch.core.Sets

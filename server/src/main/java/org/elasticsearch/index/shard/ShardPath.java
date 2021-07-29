@@ -165,8 +165,7 @@ public final class ShardPath {
         }
     }
 
-    public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, IndexSettings indexSettings,
-                                                  long avgShardSizeInBytes, Map<Path,Integer> dataPathToShardCount) throws IOException {
+    public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, IndexSettings indexSettings) {
 
         final Path dataPath;
         final Path statePath;

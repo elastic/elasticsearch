@@ -351,8 +351,7 @@ public class RBACEngine implements AuthorizationEngine {
     private static IndexAuthorizationResult authorizeIndexActionName(String action,
                                                                      AuthorizationInfo authorizationInfo,
                                                                      IndicesAccessControl grantedValue) {
-        ensureRBAC(authorizationInfo);
-        final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+        final Role role = ensureRBAC(authorizationInfo).getRole();
         return new IndexAuthorizationResult(true, role.checkIndicesAction(action) ? grantedValue : IndicesAccessControl.DENIED);
 
     }
@@ -561,16 +560,16 @@ public class RBACEngine implements AuthorizationEngine {
                                                                AuthorizationInfo authorizationInfo,
                                                                Set<String> indices,
                                                                Map<String, IndexAbstraction> aliasAndIndexLookup) {
-        ensureRBAC(authorizationInfo);
-        final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+        final Role role = ensureRBAC(authorizationInfo).getRole();
         final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
         return new IndexAuthorizationResult(true, accessControl);
     }
 
-    private static void ensureRBAC(AuthorizationInfo authorizationInfo) {
+    private static RBACAuthorizationInfo ensureRBAC(AuthorizationInfo authorizationInfo) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
             throw new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName());
         }
+        return (RBACAuthorizationInfo) authorizationInfo;
     }
 
     private static boolean checkChangePasswordAction(Authentication authentication) {

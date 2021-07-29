@@ -56,7 +56,6 @@ abstract class AbstractSortScript implements ScorerAware, DocBasedScript {
      */
     private final LeafSearchLookup leafLookup;
 
-    /** Access fields **/
     private final FieldProxy fieldProxy;
 
     AbstractSortScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {

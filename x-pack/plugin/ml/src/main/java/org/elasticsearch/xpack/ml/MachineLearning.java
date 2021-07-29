@@ -1529,11 +1529,16 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     @Override
     public boolean safeToShutdown(String nodeId, SingleNodeShutdownMetadata.Type shutdownType) {
+        if (enabled == false) {
+            return true;
+        }
         return mlLifeCycleService.get().isNodeSafeToShutdown(nodeId);
     }
 
     @Override
     public void signalShutdown(Collection<String> shutdownNodeIds) {
-        mlLifeCycleService.get().signalGracefulShutdown(shutdownNodeIds);
+        if (enabled) {
+            mlLifeCycleService.get().signalGracefulShutdown(shutdownNodeIds);
+        }
     }
 }

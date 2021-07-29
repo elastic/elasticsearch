@@ -32,15 +32,19 @@
           type: label-expression
           name: os
           values:
+            - centos-6-packaging
             - centos-7-packaging
             - centos-8-packaging
+            - debian-8-packaging
             - debian-9-packaging
             - debian-10-packaging
             - opensuse-15-1-packaging
+            - oraclelinux-6-packaging
             - oraclelinux-7-packaging
             - oraclelinux-8-packaging
             - sles-12-packaging
             - sles-15-packaging
+            - ubuntu-16.04-packaging
             - ubuntu-18.04-packaging
             - ubuntu-20.04-packaging
       - axis:

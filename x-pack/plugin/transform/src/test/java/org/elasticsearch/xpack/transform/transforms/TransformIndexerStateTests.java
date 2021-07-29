@@ -63,6 +63,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
@@ -114,7 +115,6 @@ public class TransformIndexerStateTests extends ESTestCase {
             TransformServices transformServices,
             CheckpointProvider checkpointProvider,
             TransformConfig transformConfig,
-            Map<String, String> fieldMappings,
             AtomicReference<IndexerState> initialState,
             TransformIndexerPosition initialPosition,
             TransformIndexerStats jobStats,
@@ -125,7 +125,6 @@ public class TransformIndexerStateTests extends ESTestCase {
                 transformServices,
                 checkpointProvider,
                 transformConfig,
-                fieldMappings,
                 initialState,
                 initialPosition,
                 jobStats,
@@ -234,7 +233,11 @@ public class TransformIndexerStateTests extends ESTestCase {
         protected IterationResult<TransformIndexerPosition> doProcess(SearchResponse searchResponse) {
             // pretend that we processed 10k documents for each call
             getStats().incrementNumDocuments(10_000);
-            return new IterationResult<>(Collections.singletonList(new IndexRequest()), new TransformIndexerPosition(null, null), false);
+            return new IterationResult<>(
+                Stream.of(new IndexRequest()),
+                new TransformIndexerPosition(null, null),
+                false
+            );
         }
 
         public boolean waitingForNextSearch() {
@@ -247,6 +250,11 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         public TransformState getPersistedState() {
             return persistedState;
+        }
+
+        @Override
+        void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener) {
+            fieldMappingsListener.onResponse(Collections.emptyMap());
         }
     }
 
@@ -606,7 +614,6 @@ public class TransformIndexerStateTests extends ESTestCase {
             transformServices,
             checkpointProvider,
             config,
-            Collections.emptyMap(),
             state,
             null,
             jobStats,

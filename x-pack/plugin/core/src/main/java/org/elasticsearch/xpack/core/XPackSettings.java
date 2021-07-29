@@ -207,17 +207,17 @@ public class XPackSettings {
 
     // http specific settings
     public static final String HTTP_SSL_PREFIX = SecurityField.setting("http.ssl.");
-    private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX);
+    private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX, true);
 
     // transport specific settings
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
-    private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX);
+    private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
 
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
-        settings.addAll(HTTP_SSL.getAllSettings());
-        settings.addAll(TRANSPORT_SSL.getAllSettings());
+        settings.addAll(HTTP_SSL.getEnabledSettings());
+        settings.addAll(TRANSPORT_SSL.getEnabledSettings());
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);

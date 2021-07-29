@@ -698,18 +698,19 @@ the `basic` `authProvider` in {kib}. The process is documented in the
 
 *Logging:*
 
-Very detailed debug logging can be enabled specifically for the SAML realm by
-setting the following transient setting:
+If the previous resolutions do not solve your issue, enable additional
+logging for the SAML realm to troubleshoot further. You can enable debug
+logging by configuring the following transient setting:
 
-[source, shell]
------------------------------------------------
+[source, console]
+----
 PUT /_cluster/settings
 {
   "transient": {
     "logger.org.elasticsearch.xpack.security.authc.saml": "debug"
   }
 }
------------------------------------------------
+----
 
 Alternatively, you can add the following lines to the end of the
 `log4j2.properties` configuration file in the `ES_PATH_CONF`:
@@ -720,7 +721,8 @@ logger.saml.name = org.elasticsearch.xpack.security.authc.saml
 logger.saml.level = DEBUG
 ----------------
 
-See <<configuring-logging-levels,configuring logging levels>> for more information.
+Refer to <<configuring-logging-levels,configuring logging levels>> for more
+information.
 
 [[trb-security-internalserver]]
 === Internal Server Error in Kibana

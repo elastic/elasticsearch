@@ -10,7 +10,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopFieldDocs;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.TransportSearchAction.FieldsOptionSourceAdapter;
 import org.elasticsearch.cluster.ClusterState;
@@ -74,11 +73,9 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt, listener.requestIndex));
         final FieldsOptionSourceAdapter fieldsOptionAdapter;
         Connection connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
-        if (connection.getVersion().before(Version.V_7_10_0)) {
-            fieldsOptionAdapter = TransportSearchAction.createFieldsOptionAdapter(connection, request.source());
+        fieldsOptionAdapter = TransportSearchAction.createFieldsOptionAdapter(connection, request.source());
+        if (fieldsOptionAdapter != null) {
             fieldsOptionAdapter.adaptRequest(request.source(), request::source);
-        } else {
-            fieldsOptionAdapter = null;
         }
 
         getSearchTransport().sendExecuteQuery(

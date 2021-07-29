@@ -466,13 +466,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
             SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, indices.indices(),
                 clusterAlias, timeProvider.getAbsoluteStartMillis(), true);
-            adapter.adaptRequest(ccsSearchRequest.source(), ccsSearchRequest::source);
+            if (adapter != null) {
+                adapter.adaptRequest(ccsSearchRequest.source(), ccsSearchRequest::source);
+            }
 
             Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    adapter.adaptResponse(searchResponse.getHits().getHits());
+                    if (adapter != null) {
+                        adapter.adaptResponse(searchResponse.getHits().getHits());
+                    }
                     Map<String, ProfileShardResult> profileResults = searchResponse.getProfileResults();
                     SearchProfileShardResults profile = profileResults == null || profileResults.isEmpty()
                         ? null : new SearchProfileShardResults(profileResults);
@@ -517,7 +521,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     timeProvider.getAbsoluteStartMillis(),
                     false
                 );
-                adapter.adaptRequest(ccsSearchRequest.source(), ccsSearchRequest::source);
+                if (adapter != null) {
+                    adapter.adaptRequest(ccsSearchRequest.source(), ccsSearchRequest::source);
+                }
                 ActionListener<SearchResponse> ccsListener = createCCSListener(
                     clusterAlias,
                     skipUnavailable,

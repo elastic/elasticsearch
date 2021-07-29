@@ -210,20 +210,20 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         XContentBuilder mapping = fieldMapping(b -> b.field("type", "unsigned_long"));
         DocumentMapper mapper = createDocumentMapper(mapping);
         {
-            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", "100.5")));
+            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", randomFrom("100.5", 100.5, 100.5f))));
             MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
             assertThat(e.getCause().getMessage(), containsString("Value \"100.5\" has a decimal part"));
         }
         {
-            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", ".9")));
+            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", randomFrom("0.9", 0.9, 0.9f))));
             MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-            assertThat(e.getCause().getMessage(), containsString("Value \".9\" has a decimal part"));
+            assertThat(e.getCause().getMessage(), containsString("Value \"0.9\" has a decimal part"));
         }
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomFrom("100.", "100.0", "100.00"))));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomFrom("100.", "100.0", "100.00", 100.0, 100.0f))));
         assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
         assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
 
-        doc = mapper.parse(source(b -> b.field("field", randomFrom("0.", "0.0", ".00"))));
+        doc = mapper.parse(source(b -> b.field("field", randomFrom("0.", "0.0", ".00", 0.0, 0.0f))));
         assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE));
         assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE));
     }

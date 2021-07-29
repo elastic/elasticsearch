@@ -38,17 +38,17 @@ Cluster Coordination::
 * Remove support for delaying state recovery pending master {es-pull}53845[#53845] (issue: {es-issue}51806[#51806])
 
 Distributed::
-* Remove synced flush! {es-pull}50882[#50882] (issues: {es-issue}50776[#50776], {es-issue}50835[#50835])
+* Remove synced flush {es-pull}50882[#50882] (issues: {es-issue}50776[#50776], {es-issue}50835[#50835])
 * Remove the `cluster.remote.connect` setting {es-pull}54175[#54175] (issue: {es-issue}53924[#53924])
 
 Engine::
-* Force Merge should reject requests with `only_expunge_deletes` and `max_num_segments` set {es-pull}44761[#44761] (issue: {es-issue}43102[#43102])
+* Force merge should reject requests with `only_expunge_deletes` and `max_num_segments` set {es-pull}44761[#44761] (issue: {es-issue}43102[#43102])
 * Remove per-type indexing stats {es-pull}47203[#47203] (issue: {es-issue}41059[#41059])
 * Remove translog retention settings {es-pull}51697[#51697] (issue: {es-issue}50775[#50775])
 
 Features/CAT APIs::
-* Remove the deprecated local parameter for _cat/indices {es-pull}64868[#64868] (issue: {es-issue}62198[#62198])
-* Remove the deprecated local parameter for _cat/shards {es-pull}64867[#64867] (issue: {es-issue}62197[#62197])
+* Remove the deprecated `local` parameter for `_cat/indices` {es-pull}64868[#64868] (issue: {es-issue}62198[#62198])
+* Remove the deprecated `local` parameter for `_cat/shards` {es-pull}64867[#64867] (issue: {es-issue}62197[#62197])
 
 Features/Features::
 * Remove deprecated ._tier allocation filtering settings {es-pull}73074[#73074] (issue: {es-issue}72835[#72835])
@@ -61,14 +61,14 @@ Features/Indices APIs::
 * Remove deprecated `_upgrade` API {es-pull}64732[#64732] (issue: {es-issue}21337[#21337])
 * Remove local parameter for get field mapping request {es-pull}55100[#55100] (issue: {es-issue}55099[#55099])
 * Remove `include_type_name` parameter from REST layer {es-pull}48632[#48632] (issue: {es-issue}41059[#41059])
-* Remove the 'template' field in index templates {es-pull}49460[#49460] (issue: {es-issue}21009[#21009])
+* Remove the `template` field in index templates {es-pull}49460[#49460] (issue: {es-issue}21009[#21009])
 
 Features/Watcher::
 * Move watcher history to data stream {es-pull}64252[#64252]
 
 Geo::
 * Disallow creating `geo_shape` mappings with deprecated parameters {es-pull}70850[#70850] (issue: {es-issue}32039[#32039])
-* Remove bounding box query type parameter {es-pull}74536[#74536]
+* Remove bounding box query `type` parameter {es-pull}74536[#74536]
 
 Infra/Circuit Breakers::
 * Fixed synchronizing inflight breaker with internal variable {es-pull}40878[#40878]
@@ -76,17 +76,17 @@ Infra/Circuit Breakers::
 Infra/Core::
 * Fail when using multiple data paths {es-pull}72184[#72184] (issue: {es-issue}71205[#71205])
 * Limit processors by available processors {es-pull}44894[#44894] (issue: {es-issue}44889[#44889])
-* Remove "nodes/0" folder prefix from data path {es-pull}42489[#42489]
+* Remove `nodes/0` folder prefix from data path {es-pull}42489[#42489]
 * Remove `bootstrap.system_call_filter` setting {es-pull}72848[#72848]
 * Remove `fixed_auto_queue_size` threadpool type {es-pull}52280[#52280]
 * Remove `node.max_local_storage_nodes` {es-pull}42428[#42428] (issue: {es-issue}42426[#42426])
 * Remove camel case named formats {es-pull}60044[#60044]
 * Remove legacy role settings {es-pull}71163[#71163] (issues: {es-issue}54998[#54998], {es-issue}66409[#66409], {es-issue}71143[#71143])
-* Remove processors setting {es-pull}45905[#45905] (issue: {es-issue}45855[#45855])
-* Remove the 'local' parameter of /_cat/nodes {es-pull}50594[#50594] (issues: {es-issue}50088[#50088], {es-issue}50499[#50499])
+* Remove `processors` setting {es-pull}45905[#45905] (issue: {es-issue}45855[#45855])
+* Remove the `local` parameter of `/_cat/nodes` {es-pull}50594[#50594] (issues: {es-issue}50088[#50088], {es-issue}50499[#50499])
 * Remove the listener thread pool {es-pull}53314[#53314] (issue: {es-issue}53049[#53049])
 * Remove the node local storage setting {es-pull}54381[#54381] (issue: {es-issue}54374[#54374])
-* Remove the pidfile setting {es-pull}45940[#45940] (issue: {es-issue}45938[#45938])
+* Remove the `pidfile` setting {es-pull}45940[#45940] (issue: {es-issue}45938[#45938])
 * Removes `week_year` date format {es-pull}63384[#63384] (issue: {es-issue}60707[#60707])
 
 Infra/Logging::
@@ -110,7 +110,7 @@ Infra/Scripting::
 * Scripting: Remove general cache settings {es-pull}59262[#59262] (issue: {es-issue}50152[#50152])
 
 Infra/Settings::
-* Change default value of `action.destructive_requires_name` to True {es-pull}66908[#66908] (issue: {es-issue}61074[#61074])
+* Change default value of `action.destructive_requires_name` to `true` {es-pull}66908[#66908] (issue: {es-issue}61074[#61074])
 * Forbid settings without a namespace {es-pull}45947[#45947] (issues: {es-issue}45905[#45905], {es-issue}45940[#45940])
 
 Machine Learning::
@@ -118,7 +118,7 @@ Machine Learning::
 * Remove the ability to update datafeed's `job_id` {es-pull}44752[#44752] (issue: {es-issue}44616[#44616])
 
 Mapping::
-* Remove mapping boost parameter entirely {es-pull}62639[#62639] (issue: {es-issue}62623[#62623])
+* Remove `boost` mapping parameter {es-pull}62639[#62639] (issue: {es-issue}62623[#62623])
 * Remove support for chained multi-fields {es-pull}42333[#42333] (issues: {es-issue}41267[#41267], {es-issue}41926[#41926])
 * Remove support for string in `unmapped_type` {es-pull}45675[#45675]
 * Removes typed URLs from mapping APIs {es-pull}41676[#41676]
@@ -129,7 +129,7 @@ Network::
 
 Packaging::
 * Remove SysV init support {es-pull}51716[#51716] (issue: {es-issue}51480[#51480])
-* Remove support for JAVA_HOME {es-pull}69149[#69149] (issue: {es-issue}55820[#55820])
+* Remove support for `JAVA_HOME` {es-pull}69149[#69149] (issue: {es-issue}55820[#55820])
 
 Recovery::
 * Remove dangling index auto import functionality {es-pull}59698[#59698] (issue: {es-issue}48366[#48366])
@@ -144,7 +144,7 @@ Rollup::
 Search::
 * Decouple shard allocation awareness from search and get requests {es-pull}45735[#45735] (issue: {es-issue}43453[#43453])
 * Fix range query on date fields for number inputs {es-pull}63692[#63692] (issue: {es-issue}63680[#63680])
-* Make Fuzziness reject illegal values earlier {es-pull}33511[#33511]
+* Make fuzziness reject illegal values earlier {es-pull}33511[#33511]
 * Make remote cluster resolution stricter {es-pull}40419[#40419] (issue: {es-issue}37863[#37863])
 * Parse empty first line in msearch request body as action metadata {es-pull}41011[#41011] (issue: {es-issue}39841[#39841])
 * Remove `CommonTermsQuery` and `cutoff_frequency` param {es-pull}42654[#42654] (issue: {es-issue}37096[#37096])
@@ -165,15 +165,15 @@ Search::
 Security::
 * Remove obsolete security settings {es-pull}40496[#40496]
 * Remove support of creating CA on the fly when generating certificates {es-pull}65590[#65590] (issue: {es-issue}61884[#61884])
-* Remove the id field from the `InvalidateApiKey` API {es-pull}66671[#66671] (issue: {es-issue}66317[#66317])
+* Remove the `id` field from the `InvalidateApiKey` API {es-pull}66671[#66671] (issue: {es-issue}66317[#66317])
 * Remove the migrate tool {es-pull}42174[#42174]
 * Compress audit logs {es-pull}64472[#64472] (issue: {es-issue}63843[#63843])
 * Remove insecure settings {es-pull}46147[#46147] (issue: {es-issue}45947[#45947])
 
 Snapshot/Restore::
-* Blob Store compress default to true {es-pull}40033[#40033]
+* Blob store compress default to `true` {es-pull}40033[#40033]
 * Get snapshots support for multiple repositories {es-pull}42090[#42090] (issue: {es-issue}41210[#41210])
-* Remove Repository Stats API {es-pull}62309[#62309] (issue: {es-issue}62297[#62297])
+* Remove repository stats API {es-pull}62309[#62309] (issue: {es-issue}62297[#62297])
 * Remove frozen cache setting leniency {es-pull}71013[#71013] (issue: {es-issue}70341[#70341])
 
 TLS::
@@ -188,23 +188,23 @@ TLS::
 === Breaking Java changes
 
 Authentication::
-* Mandate X-Pack REST handler installed {es-pull}71061[#71061] (issue: {es-issue}70523[#70523])
+* Mandate x-pack REST handler installed {es-pull}71061[#71061] (issue: {es-issue}70523[#70523])
 
 CCR::
 * Remove the `CcrClient` {es-pull}42816[#42816]
 
 CRUD::
 * Remove types from `BulkRequest` {es-pull}46983[#46983] (issue: {es-issue}41059[#41059])
-* Remove Client.prepareIndex(index, type, id) method {es-pull}48443[#48443]
-* Remove deprecated include-type methods from HLRC indices client {es-pull}48471[#48471]
+* Remove `Client.prepareIndex(index, type, id)` method {es-pull}48443[#48443]
+* Remove deprecated `include-type` methods from HLRC indices client {es-pull}48471[#48471]
 
 
 Client::
 * Remove `SecurityClient` from x-pack {es-pull}42471[#42471]
 
 Features/ILM+SLM::
-* Remove the ILMClient {es-pull}42817[#42817]
-* Rename HLRC 'indexlifecycle' components to 'ilm' {es-pull}44982[#44982] (issues: {es-issue}44725[#44725], {es-issue}44917[#44917])
+* Remove the `ILMClient` {es-pull}42817[#42817]
+* Rename HLRC `indexlifecycle` components to `ilm` {es-pull}44982[#44982] (issues: {es-issue}44725[#44725], {es-issue}44917[#44917])
 
 Features/Monitoring::
 * Remove `MonitoringClient` from x-pack {es-pull}42770[#42770]
@@ -213,27 +213,27 @@ Features/Watcher::
 * Remove `WatcherClient` from x-pack {es-pull}42815[#42815]
 
 Infra/Core::
-* Remove XPackClient from x-pack {es-pull}42729[#42729]
+* Remove `XPackClient` from x-pack {es-pull}42729[#42729]
 * Remove the transport client {es-pull}42538[#42538]
-* Remove transport client from xpack {es-pull}42202[#42202]
+* Remove transport client from x-pack {es-pull}42202[#42202]
 
 Infra/REST API::
-* Copy http headers to `ThreadContext` strictly {es-pull}45945[#45945]
+* Copy HTTP headers to `ThreadContext` strictly {es-pull}45945[#45945]
 
 Machine Learning::
 * Remove the `MachineLearningClient` {es-pull}43108[#43108]
 
 Mapping::
 * Remove type filter from `GetMappings` API {es-pull}47364[#47364] (issue: {es-issue}41059[#41059])
-* Remove type parameter from `PutMappingRequest.buildFromSimplifiedDef()` {es-pull}50844[#50844] (issue: {es-issue}41059[#41059])
+* Remove `type` parameter from `PutMappingRequest.buildFromSimplifiedDef()` {es-pull}50844[#50844] (issue: {es-issue}41059[#41059])
 * Remove unused parameter from `MetadataFieldMapper.TypeParser#getDefault()` {es-pull}51219[#51219]
-* Remove type parameter from CIR.mapping(type, object...) {es-pull}50739[#50739] (issue: {es-issue}41059[#41059])
+* Remove `type` parameter from `CIR.mapping(type, object...)` {es-pull}50739[#50739] (issue: {es-issue}41059[#41059])
 
 Search::
 * Removes types from `SearchRequest` and `QueryShardContext` {es-pull}42112[#42112]
 
 Snapshot/Restore::
-* Remove deprecated Repository methods {es-pull}42359[#42359] (issue: {es-issue}42213[#42213])
+* Remove deprecated repository methods {es-pull}42359[#42359] (issue: {es-issue}42213[#42213])
 
 
 
@@ -242,14 +242,14 @@ Snapshot/Restore::
 === Enhancements
 
 Analysis::
-* Moving `reload_analyzers` endpoint to xpack {es-pull}43559[#43559]
+* Move `reload_analyzers` endpoint to x-pack {es-pull}43559[#43559]
 
 Authentication::
-* Reset elastic password cli tool {es-pull}74892[#74892] (issues: {es-issue}70113[#70113], {es-issue}74890[#74890])
+* Reset elastic password CLI tool {es-pull}74892[#74892] (issues: {es-issue}70113[#70113], {es-issue}74890[#74890])
 
 EQL::
 * Add option for returning results from the tail of the stream {es-pull}64869[#64869] (issue: {es-issue}58646[#58646])
-* Introduce case insensitive variant in~ {es-pull}68176[#68176] (issue: {es-issue}68172[#68172])
+* Introduce case insensitive variant `in~` {es-pull}68176[#68176] (issue: {es-issue}68172[#68172])
 * Optimize redundant `toString` {es-pull}71070[#71070] (issue: {es-issue}70681[#70681])
 
 Engine::
@@ -257,13 +257,13 @@ Engine::
 * Remove translog retention policy {es-pull}51417[#51417] (issue: {es-issue}50775[#50775])
 
 Features/CAT APIs::
-* _cat/threadpool remove "size" and add "time" params {es-pull}55736[#55736] (issue: {es-issue}54478[#54478])
+* Remove `size` and add `time` params to `_cat/threadpool` {es-pull}55736[#55736] (issue: {es-issue}54478[#54478])
 
 Features/Stats::
-* Add Bulk stats track the bulk per shard {es-pull}52208[#52208] (issues: {es-issue}47345[#47345], {es-issue}50536[#50536])
+* Add bulk stats track the bulk per shard {es-pull}52208[#52208] (issues: {es-issue}47345[#47345], {es-issue}50536[#50536])
 
 Features/Watcher::
-* Remove watcher history clean up from monitoring {es-pull}67154[#67154]
+* Remove Watcher history clean up from monitoring {es-pull}67154[#67154]
 
 Infra/Core::
 * Remove aliases exist action {es-pull}43430[#43430]
@@ -278,48 +278,48 @@ Infra/REST API::
 * Introduce stability description to the REST API specification {es-pull}38413[#38413]
 * Parsing: Validate that fields are not registered twice {es-pull}70243[#70243]
 * Support response content-type with versioned media type {es-pull}65500[#65500] (issue: {es-issue}51816[#51816])
-* [REST API Compatibility] Typed endpoints for Index and Get APIs {es-pull}69131[#69131] (issue: {es-issue}54160[#54160])
-* [REST API Compatibility] Typed endpoints for Put and Get Mapping and get field mappings {es-pull}71721[#71721] (issues: {es-issue}51816[#51816], {es-issue}54160[#54160])
+* [REST API Compatibility] Typed endpoints for index and get APIs {es-pull}69131[#69131] (issue: {es-issue}54160[#54160])
+* [REST API Compatibility] Typed endpoints for put and get mapping and get field mappings {es-pull}71721[#71721] (issues: {es-issue}51816[#51816], {es-issue}54160[#54160])
 * [REST API Compatibility] Allow `copy_settings` flag for resize operations {es-pull}75184[#75184] (issues: {es-issue}38514[#38514], {es-issue}51816[#51816])
 * [REST API Compatibility] Allow for type in geo shape query {es-pull}74553[#74553] (issues: {es-issue}51816[#51816], {es-issue}54160[#54160])
 * [REST API Compatibility] Always return `adjust_pure_negative` value {es-pull}75182[#75182] (issues: {es-issue}49543[#49543], {es-issue}51816[#51816])
 * [REST API Compatibility] Clean up x-pack/plugin rest compat tests {es-pull}74701[#74701] (issue: {es-issue}51816[#51816])
 * [REST API Compatibility] Do not return `_doc` for empty mappings in template {es-pull}75448[#75448] (issues: {es-issue}51816[#51816], {es-issue}54160[#54160], {es-issue}70966[#70966], {es-issue}74544[#74544])
-* [REST API Compatibility] Dummy REST action for `indices.upgrade` api {es-pull}75136[#75136] (issue: {es-issue}51816[#51816])
+* [REST API Compatibility] Dummy REST action for `indices.upgrade` API {es-pull}75136[#75136] (issue: {es-issue}51816[#51816])
 * [REST API Compatibility] REST Terms vector typed response {es-pull}73117[#73117]
 * [REST API Compatibility] Rename `BulkItemResponse.Failure` type field {es-pull}74937[#74937] (issue: {es-issue}51816[#51816])
 * [REST API Compatibility] Type metadata for docs used in simulate request {es-pull}74222[#74222] (issues: {es-issue}51816[#51816], {es-issue}54160[#54160])
 * [REST API Compatibility] Typed `TermLookups` {es-pull}74544[#74544] (issues: {es-issue}46943[#46943], {es-issue}51816[#51816], {es-issue}54160[#54160])
-* [REST API Compatibility] Typed and xpack graph explore api {es-pull}74185[#74185] (issues: {es-issue}46935[#46935], {es-issue}51816[#51816], {es-issue}54160[#54160])
-* [REST API Compatibility] Typed endpoint for bulk api {es-pull}73571[#73571] (issue: {es-issue}51816[#51816])
-* [REST API Compatibility] Typed endpoint for multiget api {es-pull}73878[#73878] (issue: {es-issue}51816[#51816])
+* [REST API Compatibility] Typed and x-pack graph explore API {es-pull}74185[#74185] (issues: {es-issue}46935[#46935], {es-issue}51816[#51816], {es-issue}54160[#54160])
+* [REST API Compatibility] Typed endpoint for bulk API {es-pull}73571[#73571] (issue: {es-issue}51816[#51816])
+* [REST API Compatibility] Typed endpoint for multi-get API {es-pull}73878[#73878] (issue: {es-issue}51816[#51816])
 * [REST API Compatibility] Typed endpoints for `RestUpdateAction` and `RestDeleteAction` {es-pull}73115[#73115] (issues: {es-issue}51816[#51816], {es-issue}54160[#54160])
-* [REST API Compatibility] Typed endpoints for `get_source` api {es-pull}73957[#73957] (issues: {es-issue}46587[#46587], {es-issue}46931[#46931], {es-issue}51816[#51816])
-* [REST API Compatibility] Typed endpoints for explain api {es-pull}73901[#73901] (issue: {es-issue}51816[#51816])
-* [REST API Compatibility] Typed endpoints for search `_count` api {es-pull}73958[#73958] (issues: {es-issue}42112[#42112], {es-issue}51816[#51816])
+* [REST API Compatibility] Typed endpoints for `get_source` API {es-pull}73957[#73957] (issues: {es-issue}46587[#46587], {es-issue}46931[#46931], {es-issue}51816[#51816])
+* [REST API Compatibility] Typed endpoints for explain API {es-pull}73901[#73901] (issue: {es-issue}51816[#51816])
+* [REST API Compatibility] Typed endpoints for search `_count` API {es-pull}73958[#73958] (issues: {es-issue}42112[#42112], {es-issue}51816[#51816])
 * [REST API Compatibility] Typed indexing stats {es-pull}74181[#74181] (issues: {es-issue}47203[#47203], {es-issue}51816[#51816], {es-issue}54160[#54160])
-* [REST API Compatibility] Types for Percolate Query Api {es-pull}74698[#74698] (issues: {es-issue}46985[#46985], {es-issue}51816[#51816], {es-issue}54160[#54160], {es-issue}74689[#74689])
-* [REST API Compatibility] Validate Query typed api {es-pull}74171[#74171] (issues: {es-issue}46927[#46927], {es-issue}51816[#51816], {es-issue}54160[#54160])
+* [REST API Compatibility] Types for percolate query API {es-pull}74698[#74698] (issues: {es-issue}46985[#46985], {es-issue}51816[#51816], {es-issue}54160[#54160], {es-issue}74689[#74689])
+* [REST API Compatibility] Validate query typed API {es-pull}74171[#74171] (issues: {es-issue}46927[#46927], {es-issue}51816[#51816], {es-issue}54160[#54160])
 * [REST API Compatibility] Voting config exclusion exception message {es-pull}75406[#75406] (issues: {es-issue}51816[#51816], {es-issue}55291[#55291])
 * [REST API Compatibility] `MoreLikeThisQuery` with types {es-pull}75123[#75123] (issues: {es-issue}42198[#42198], {es-issue}51816[#51816], {es-issue}54160[#54160])
 * [REST API Compatibility] Update and delete by query using size field {es-pull}69606[#69606]
 * [REST API Compatibility] Indicies boost in object format {es-pull}74422[#74422] (issues: {es-issue}51816[#51816], {es-issue}55078[#55078])
 * [REST API Compatibility] Typed endpoints for search and related endpoints {es-pull}72155[#72155] (issues: {es-issue}51816[#51816], {es-issue}54160[#54160])
-* [REST API Compatibility] Allow to use size -1 {es-pull}75342[#75342] (issues: {es-issue}51816[#51816], {es-issue}69548[#69548], {es-issue}70209[#70209])
+* [REST API Compatibility] Allow to use size `-1` {es-pull}75342[#75342] (issues: {es-issue}51816[#51816], {es-issue}69548[#69548], {es-issue}70209[#70209])
 * [REST API Compatibility] Ignore `use_field_mapping` option for docvalue {es-pull}74435[#74435] (issue: {es-issue}55622[#55622])
 * [REST API Compatibility] `_time` and `_term` sort orders {es-pull}74919[#74919] (issues: {es-issue}39450[#39450], {es-issue}51816[#51816])
-* [REST API Compatability] 'template' parameter and field on PUT index template {es-pull}71238[#71238] (issues: {es-issue}49460[#49460], {es-issue}51816[#51816], {es-issue}68905[#68905])
+* [REST API Compatability] `template` parameter and field on PUT index template {es-pull}71238[#71238] (issues: {es-issue}49460[#49460], {es-issue}51816[#51816], {es-issue}68905[#68905])
 
 Infra/Scripting::
 * Update `DeprecationMap` to `DynamicMap` {es-pull}56149[#56149] (issue: {es-issue}52103[#52103])
 
 Infra/Settings::
-* Fixed inconsistent Setting.exist() {es-pull}46603[#46603] (issue: {es-issue}41830[#41830])
-* Remove setting `index.optimize_auto_generated_id` (#27583) {es-pull}27600[#27600] (issue: {es-issue}27583[#27583])
+* Fixed inconsistent `Setting.exist()` {es-pull}46603[#46603] (issue: {es-issue}41830[#41830])
+* Remove `index.optimize_auto_generated_id` setting (#27583) {es-pull}27600[#27600] (issue: {es-issue}27583[#27583])
 
 License::
-* Add deprecated `accept_enterprise` param to /_xpack {es-pull}58220[#58220] (issue: {es-issue}58217[#58217])
-* Support "accept_enterprise" param in get license {es-pull}50067[#50067] (issue: {es-issue}49474[#49474])
+* Add deprecated `accept_enterprise` param to `/_xpack` {es-pull}58220[#58220] (issue: {es-issue}58217[#58217])
+* Support `accept_enterprise` param in get license API {es-pull}50067[#50067] (issue: {es-issue}49474[#49474])
 
 Machine Learning::
 * The Windows build platform for the {ml} C++ code now uses Visual Studio 2019 {ml-pull}1352[#1352]
@@ -353,15 +353,15 @@ SQL::
 * Export array values through result sets {es-pull}69512[#69512]
 * Improve alias resolution in sub-queries {es-pull}67216[#67216] (issue: {es-issue}56713[#56713])
 * Improve the optimization of null conditionals {es-pull}71192[#71192]
-* Pushdown WHERE clause inside subqueries {es-pull}71362[#71362]
-* Use java String methods for LTRIM/RTRIM {es-pull}57594[#57594]
+* Push `WHERE` clause inside subqueries {es-pull}71362[#71362]
+* Use Java `String` methods for `LTRIM/RTRIM` {es-pull}57594[#57594]
 * QL: Make canonical form take into account children {es-pull}71266[#71266]
 * QL: Polish optimizer expression rule declaration {es-pull}71396[#71396]
 * QL: Propagate nullability constraints across conjunctions {es-pull}71187[#71187] (issue: {es-issue}70683[#70683])
 
 Search::
 * Completely disallow setting negative size in search {es-pull}70209[#70209] (issue: {es-issue}69548[#69548])
-* Make 0 as invalid value for `min_children` in `has_child` query {es-pull}41347[#41347]
+* Make `0` as invalid value for `min_children` in `has_child` query {es-pull}41347[#41347]
 * Return error when remote indices are locally resolved {es-pull}74556[#74556] (issue: {es-issue}26247[#26247])
 
 Security::
@@ -371,12 +371,12 @@ Security::
 * Create enrollment token {es-pull}73573[#73573] (issues: {es-issue}71438[#71438], {es-issue}72129[#72129])
 * Enroll node API {es-pull}72129[#72129]
 * Not encoding the Api Key in Enrollment token {es-pull}74510[#74510] (issue: {es-issue}73573[#73573])
-* Configure security for the initial node cli {es-pull}74868[#74868]
+* Configure security for the initial node CLI {es-pull}74868[#74868]
 
 Snapshot/Restore::
 * Introduce searchable snapshots index setting for cascade deletion of snapshots {es-pull}74977[#74977]
 * Unify blob store compress setting {es-pull}39346[#39346] (issue: {es-issue}39073[#39073])
-* Add recovery state tracking for Searchable Snapshots {es-pull}60505[#60505]
+* Add recovery state tracking for searchable snapshots {es-pull}60505[#60505]
 
 TLS::
 * Add `ChaCha20` TLS ciphers on Java 12+ {es-pull}42155[#42155]
@@ -389,7 +389,7 @@ TLS::
 === Bug fixes
 
 Aggregations::
-* Fix BWC issues for x_pack/usage {es-pull}55181[#55181] (issue: {es-issue}54847[#54847])
+* Fix BWC issues for `x_pack/usage` {es-pull}55181[#55181] (issue: {es-issue}54847[#54847])
 * Fix `DoubleBounds` null serialization {es-pull}59475[#59475]
 * Fix `TopHitsAggregationBuilder` adding duplicate `_score` sort clauses {es-pull}42179[#42179] (issue: {es-issue}42154[#42154])
 * Fix `t_test` usage stats {es-pull}54753[#54753] (issue: {es-issue}54744[#54744])
@@ -402,7 +402,7 @@ Cluster Coordination::
 * Apply cluster states in system context {es-pull}53785[#53785] (issue: {es-issue}53751[#53751])
 
 Distributed::
-* Introduce ?wait_for_active_shards=index-setting {es-pull}67158[#67158] (issue: {es-issue}66419[#66419])
+* Introduce `?wait_for_active_shards=index-setting` {es-pull}67158[#67158] (issue: {es-issue}66419[#66419])
 * Respect `CloseIndexRequest#waitForActiveShards` in HLRC {es-pull}67374[#67374] (issues: {es-issue}67158[#67158], {es-issue}67246[#67246])
 * Fixes to task result index mapping {es-pull}50359[#50359] (issue: {es-issue}50248[#50248])
 
@@ -416,12 +416,9 @@ Features/Java High Level REST Client::
 Geo::
 * Preprocess polygon rings before processing it for decomposition {es-pull}59501[#59501] (issues: {es-issue}54441[#54441], {es-issue}59386[#59386])
 
-Highlighting::
-* Bug fix for `AnnotatedTextHighlighter` - port of 39525 {es-pull}39747[#39747]
-
 Infra/Core::
 * Add searchable snapshot cache folder to `NodeEnvironment` {es-pull}66297[#66297] (issue: {es-issue}65725[#65725])
-* CLI tools: write errors to stderr instead of stdout {es-pull}45586[#45586] (issue: {es-issue}43260[#43260])
+* CLI tools: Write errors to stderr instead of stdout {es-pull}45586[#45586] (issue: {es-issue}43260[#43260])
 * Precompute `ParsedMediaType` for XContentType {es-pull}67409[#67409]
 
 Infra/Logging::
@@ -431,13 +428,12 @@ Infra/Logging::
 
 Infra/REST API::
 * Do not allow spaces within `MediaType's` parameters {es-pull}64650[#64650] (issue: {es-issue}51816[#51816])
-* Fix: added missing skip {es-pull}41492[#41492]
 * Handle incorrect header values {es-pull}64708[#64708] (issues: {es-issue}51816[#51816], {es-issue}64689[#64689])
 * Ignore media ranges when parsing {es-pull}64721[#64721] (issues: {es-issue}51816[#51816], {es-issue}64689[#64689])
 * `RestController` should not consume request content {es-pull}44902[#44902] (issue: {es-issue}37504[#37504])
 
 Infra/Scripting::
-* Change compound assignment structure to support String concatenation {es-pull}61825[#61825]
+* Change compound assignment structure to support string concatenation {es-pull}61825[#61825]
 * Fixes casting in constant folding {es-pull}61508[#61508]
 * Several minor Painless fixes {es-pull}61594[#61594]
 
@@ -451,17 +447,17 @@ Packaging::
 * Suppress illegal access in plugin install {es-pull}41620[#41620] (issue: {es-issue}41478[#41478])
 
 SQL::
-* Introduce dedicated node for HAVING declaration {es-pull}71279[#71279] (issue: {es-issue}69758[#69758])
+* Introduce dedicated node for `HAVING` declaration {es-pull}71279[#71279] (issue: {es-issue}69758[#69758])
 * Make `RestSqlQueryAction` thread-safe {es-pull}69901[#69901]
 
 Search::
-* Check for negative "from" values in search request body {es-pull}54953[#54953] (issue: {es-issue}54897[#54897])
+* Check for negative `from` values in search request body {es-pull}54953[#54953] (issue: {es-issue}54897[#54897])
 * Fix `VectorsFeatureSetUsage` serialization in BWC mode {es-pull}55399[#55399] (issue: {es-issue}55378[#55378])
 * Handle total hits equal to `track_total_hits` {es-pull}37907[#37907] (issue: {es-issue}37897[#37897])
 * Improve error msg for CCS request on node without remote cluster role {es-pull}60351[#60351] (issue: {es-issue}59683[#59683])
 
 Snapshot/Restore::
-* Fix GET /_snapshot/_all/_all if there are no repos {es-pull}43558[#43558] (issue: {es-issue}43547[#43547])
+* Fix `GET /_snapshot/_all/_all` if there are no repos {es-pull}43558[#43558] (issue: {es-issue}43547[#43547])
 
 
 [[upgrade-8.0.0-alpha1]]

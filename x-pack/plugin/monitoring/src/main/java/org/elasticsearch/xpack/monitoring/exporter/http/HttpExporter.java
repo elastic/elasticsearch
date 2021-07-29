@@ -529,7 +529,7 @@ public class HttpExporter extends Exporter {
      * @throws IllegalStateException if any secure settings are used in the SSL configuration
      */
     private static void validateSslSettings(String exporter, Settings settings) {
-        final List<String> secureSettings = SSLConfigurationSettings.withoutPrefix()
+        final List<String> secureSettings = SSLConfigurationSettings.withoutPrefix(true)
             .getSecureSettingsInUse(settings)
             .stream()
             .map(Setting::getKey)
@@ -726,7 +726,7 @@ public class HttpExporter extends Exporter {
     private static SSLIOSessionStrategy configureSslStrategy(final Settings sslSettings, final Setting<Settings> concreteSetting,
                                                              final SSLService sslService) {
         final SSLIOSessionStrategy sslStrategy;
-        if (SSLConfigurationSettings.withoutPrefix().getSecureSettingsInUse(sslSettings).isEmpty()) {
+        if (SSLConfigurationSettings.withoutPrefix(true).getSecureSettingsInUse(sslSettings).isEmpty()) {
             // This configuration does not use secure settings, so it is possible that is has been dynamically updated.
             // We need to load a new SSL strategy in case these settings differ from the ones that the SSL service was configured with.
             sslStrategy = sslService.sslIOSessionStrategy(sslSettings);

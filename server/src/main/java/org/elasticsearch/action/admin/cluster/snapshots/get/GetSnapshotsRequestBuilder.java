@@ -13,7 +13,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.snapshots.SnapshotInfo;
 
 /**
  * Get snapshots request builder
@@ -98,8 +97,8 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         return this;
     }
 
-    public GetSnapshotsRequestBuilder setAfter(@Nullable SnapshotInfo after, GetSnapshotsRequest.SortBy sortBy) {
-        return setAfter(GetSnapshotsRequest.After.from(after, sortBy)).setSort(sortBy);
+    public GetSnapshotsRequestBuilder setAfter(String after) {
+        return setAfter(after == null ? null : GetSnapshotsRequest.After.fromQueryParam(after));
     }
 
     public GetSnapshotsRequestBuilder setAfter(@Nullable GetSnapshotsRequest.After after) {

@@ -6,11 +6,15 @@
  */
 package org.elasticsearch.xpack.eql.analysis;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.EqlTestUtils;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParsingException;
+import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -18,7 +22,14 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Function;
+
+import static java.util.Collections.emptyMap;
 
 public class VerifierTests extends ESTestCase {
 
@@ -370,4 +381,29 @@ public class VerifierTests extends ESTestCase {
                 "[process where true] by opcode"));
     }
 
+    private LogicalPlan analyzeWithVerifierFunction(Function<String, Collection<String>> versionIncompatibleClusters) {
+        PreAnalyzer preAnalyzer = new PreAnalyzer();
+        EqlConfiguration eqlConfiguration = new EqlConfiguration(new String[] {"none"},
+            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, emptyMap(), null,
+            TimeValue.timeValueSeconds(30), null, 123, "", new TaskId("test", 123), null, versionIncompatibleClusters);
+        Analyzer analyzer = new Analyzer(eqlConfiguration, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+        IndexResolution resolution = IndexResolution.valid(new EsIndex("irrelevant", loadEqlMapping("mapping-default.json")));
+        return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement("any where true"), resolution));
+    }
+
+    public void testRemoteClusterVersionCheck() {
+        assertNotNull(analyzeWithVerifierFunction(x -> Collections.emptySet()));
+
+        Set<String> clusters = new TreeSet<>() {{
+            add("one");
+        }};
+        VerificationException e = expectThrows(VerificationException.class, () -> analyzeWithVerifierFunction(x -> clusters));
+        assertTrue(e.getMessage().contains("the following remote cluster is incompatible, being on a version different than local "
+            + "cluster's [" + Version.CURRENT + "]: [one]"));
+
+        clusters.add("two");
+        e = expectThrows(VerificationException.class, () -> analyzeWithVerifierFunction(x -> clusters));
+        assertTrue(e.getMessage().contains("the following remote clusters are incompatible, being on a version different than local "
+            + "cluster's [" + Version.CURRENT + "]: [one, two]"));
+    }
 }

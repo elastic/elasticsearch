@@ -36,6 +36,12 @@ The request will fail if the current step does not match the step currently
 being executed for the index. This is to prevent the index from being moved from
 an unexpected step into the next step.
 
+When specifying the target (`next_step`) to which the index will be moved, either the `name` or both
+the `action` and `name` fields are optional. If only the phase is specified, the index will move to
+the first step of the first action in the target phase. If the phase and action are specified, the index will move to
+the first step of the specified action in the specified phase. Only actions specified in the ILM
+policy are considered valid, an index cannot move to a step that is not part of its policy.
+
 [[ilm-move-to-step-path-params]]
 ==== {api-path-parms-title}
 
@@ -152,14 +158,16 @@ POST _ilm/move/my-index-000001
   },
   "next_step": { <2>
     "phase": "warm",
-    "action": "forcemerge",
-    "name": "forcemerge"
+    "action": "forcemerge", <3>
+    "name": "forcemerge" <4>
   }
 }
 --------------------------------------------------
 // TEST[continued]
 <1> The step that the index is expected to be in
 <2> The step that you want to execute
+<3> The optional action to which the index will be moved
+<4> The optional step name to which the index will be moved
 
 If the request succeeds, you receive the following result:
 

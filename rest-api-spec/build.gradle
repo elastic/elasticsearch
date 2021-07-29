@@ -28,7 +28,7 @@ testClusters.all {
 
 tasks.named("test").configure { enabled = false }
 tasks.named("jarHell").configure { enabled = false }
-def v7compatiblityNotSupportedTests = {
+def v7compatibilityNotSupportedTests = {
   return [
           // Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API
           'cat*/*/*',
@@ -68,7 +68,19 @@ def v7compatiblityNotSupportedTests = {
           // translog settings removal is not supported under compatible api
           'indices.stats/20_translog/Translog retention settings are deprecated',
           'indices.stats/20_translog/Translog retention without soft_deletes',
-          'indices.stats/20_translog/Translog stats on closed indices without soft-deletes'
+          'indices.stats/20_translog/Translog stats on closed indices without soft-deletes',
+
+          // upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex
+          'indices.upgrade/*/*',
+
+          'search.aggregation/20_terms/*profiler*', // The profiler results aren't backwards compatible.
+          'search.aggregation/370_doc_count_field/Test filters agg with doc_count', // Uses profiler for assertions which is not backwards compatible
+
+          'indices.create/10_basic/Create index without soft deletes', //Make soft-deletes mandatory in 8.0 #51122 - settings changes are note supported in Rest Api compatibility
+
+          'field_caps/30_filter/Field caps with index filter', //behaviour change after #63692 4digits dates are parsed as epoch and in quotes as year
+
+          'indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set', //#44761 bug fix
   ]
 }
 tasks.named("yamlRestCompatTest").configure {
@@ -76,50 +88,13 @@ tasks.named("yamlRestCompatTest").configure {
     // Skip these tests on Windows since the blacklist exceeds Windows CLI limits
     OS.current() != OS.WINDOWS
   }
-
   systemProperty 'tests.rest.blacklist', ([
-    'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion and specifying both node_ids and node_names',
-    'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion without specifying nodes',
-    'field_caps/30_filter/Field caps with index filter',
-    'indices.create/10_basic/Create index without soft deletes',
-    'indices.flush/10_basic/Index synced flush rest test',
-    'indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set',
-    'indices.open/10_basic/?wait_for_active_shards default is deprecated',
-    'indices.open/10_basic/?wait_for_active_shards=index-setting',
-    // not fixing this in #70966
-    'indices.put_template/11_basic_with_types/Put template with empty mappings',
-    'indices.shrink/30_copy_settings/Copy settings during shrink index',
-    'indices.split/30_copy_settings/Copy settings during split index',
-    'indices.upgrade/10_basic/Basic test for upgrade indices',
-    'indices.upgrade/10_basic/Upgrade indices allow no indices',
-    'indices.upgrade/10_basic/Upgrade indices disallow no indices',
-    'indices.upgrade/10_basic/Upgrade indices disallow unavailable',
-    'indices.upgrade/10_basic/Upgrade indices ignore unavailable',
-    'mlt/20_docs/Basic mlt query with docs',
-    'mlt/30_unlike/Basic mlt query with unlike',
-    'search.aggregation/10_histogram/Deprecated _time order',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
-    'search.aggregation/20_terms/Deprecated _term order',
-    'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
-    'mtermvectors/11_basic_with_types/Basic tests for multi termvector get',
-    'mtermvectors/21_deprecated_with_types/Deprecated camel case and _ parameters should fail in Term Vectors query',
-    'mtermvectors/30_mix_typeless_typeful/mtermvectors without types on an index that has types',
-    'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', //terms_lookup
-    'search/171_terms_query_with_types/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', //bulk
-    'search/260_parameter_validation/test size=-1 is deprecated', //size=-1 change
     'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
     'search/340_type_query/type query', // type_query - probably should behave like match_all
-    'search_shards/10_basic/Search shards aliases with and without filters',
-    'snapshot.get/10_basic/Get missing snapshot info succeeds when ignore_unavailable is true',
-    'snapshot.get/10_basic/Get missing snapshot info throws an exception',
-    'snapshot.get/10_basic/Get snapshot info',
-    'snapshot.get/10_basic/Get snapshot info contains include_global_state',
-    'snapshot.get/10_basic/Get snapshot info when verbose is false',
-    'snapshot.get/10_basic/Get snapshot info with metadata',
-    'snapshot.get/10_basic/Get snapshot info with index details',
-    'suggest/20_completion/Suggestions with source should work'
-   ] + v7compatiblityNotSupportedTests())
+  ] + v7compatibilityNotSupportedTests())
     .join(',')
+
 }
 
 tasks.named("transformV7RestTests").configure({ task ->
@@ -238,6 +213,22 @@ tasks.named("transformV7RestTests").configure({ task ->
     "_all.primaries.indexing.types._doc.index_total"
   )
   task.replaceValueInMatch("_all.primaries.indexing.types._doc.index_total", 2)
+
+  //override for "indices.open/10_basic/?wait_for_active_shards default is deprecated" and "indices.open/10_basic/?wait_for_active_shards=index-setting"
+  task.addAllowedWarningRegexForTest("\\?wait_for_active_shards=index-setting is now the default behaviour.*", "?wait_for_active_shards=index-setting")
+  task.removeWarningForTest("the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; " +
+    "specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+    , "?wait_for_active_shards default is deprecated")
+
+  // override for exception message change in #55291 tests cluster.voting_config_exclusions/10_basic/
+  // 'Throw exception when adding voting config exclusion and specifying both node_ids and node_names',
+  // 'Throw exception when adding voting config exclusion without specifying nodes',
+  task.replaceValueTextByKeyValue("catch",
+    '/Please set node identifiers correctly. One and only one of \\[node_name\\], \\[node_names\\] and \\[node_ids\\] has to be set/',
+    '/You must set \\[node_names\\] or \\[node_ids\\] but not both/')
+
+  // sync_id is no longer available in SegmentInfos.userData // "indices.flush/10_basic/Index synced flush rest test"
+  task.replaceIsTrue("indices.testing.shards.0.0.commit.user_data.sync_id", "indices.testing.shards.0.0.commit.user_data")
 
 })
 

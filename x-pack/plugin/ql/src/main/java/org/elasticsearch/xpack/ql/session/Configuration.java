@@ -11,6 +11,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Collection;
+import java.util.function.Function;
 
 public class Configuration {
 
@@ -18,13 +20,15 @@ public class Configuration {
     private final String username;
     private final ZonedDateTime now;
     private final ZoneId zoneId;
+    private final Function<String, Collection<String>> versionIncompatibleClusters;
 
-    public Configuration(ZoneId zi, String username, String clusterName) {
+    public Configuration(ZoneId zi, String username, String clusterName, Function<String, Collection<String>> versionIncompatibleClusters) {
         this.zoneId = zi.normalized();
         Clock clock = Clock.system(zoneId);
         this.now = ZonedDateTime.now(Clock.tick(clock, Duration.ofNanos(1)));
         this.username = username;
         this.clusterName = clusterName;
+        this.versionIncompatibleClusters = versionIncompatibleClusters;
     }
 
     public ZoneId zoneId() {
@@ -41,5 +45,9 @@ public class Configuration {
 
     public String username() {
         return username;
+    }
+
+    public Function<String, Collection<String>> versionIncompatibleClusters() {
+        return versionIncompatibleClusters;
     }
 }

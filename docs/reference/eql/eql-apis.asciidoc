@@ -1,0 +1,19 @@
+[[eql-apis]]
+== EQL APIs
+
+Event Query Language (EQL) is a query language for event-based time series data,
+such as logs, metrics, and traces. For an overview of EQL and related tutorials,
+see <<eql>>.
+
+* <<eql-search-api>>
+* <<get-async-eql-search-api>>
+* <<get-async-eql-status-api>>
+* <<delete-async-eql-search-api>>
+
+include::delete-async-eql-search-api.asciidoc[]
+
+include::eql-search-api.asciidoc[]
+
+include::get-async-eql-search-api.asciidoc[]
+
+include::get-async-eql-status-api.asciidoc[]

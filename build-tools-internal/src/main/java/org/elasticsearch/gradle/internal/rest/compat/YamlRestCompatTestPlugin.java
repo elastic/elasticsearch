@@ -37,7 +37,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.Map;
 
-import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupDependencies;
+import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupTestDependenciesDefaults;
 
 /**
  * Apply this plugin to run the YAML based REST tests from a prior major version against this version's cluster.
@@ -162,7 +162,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             .flatMap(CopyRestTestsTask::getOutputResourceDir);
 
         // setup the yamlRestTest task
-        Provider<RestIntegTestTask> yamlRestCompatTestTask = RestTestUtil.registerTask(project, yamlCompatTestSourceSet);
+        Provider<RestIntegTestTask> yamlRestCompatTestTask = RestTestUtil.registerTestTask(project, yamlCompatTestSourceSet);
         project.getTasks().withType(RestIntegTestTask.class).named(SOURCE_SET_NAME).configure(testTask -> {
             // Use test runner and classpath from "normal" yaml source set
             testTask.setTestClassesDirs(
@@ -180,7 +180,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             testTask.onlyIf(t -> isEnabled(project));
         });
 
-        setupDependencies(project, yamlCompatTestSourceSet);
+        setupTestDependenciesDefaults(project, yamlCompatTestSourceSet);
 
         // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, yamlCompatTestSourceSet);

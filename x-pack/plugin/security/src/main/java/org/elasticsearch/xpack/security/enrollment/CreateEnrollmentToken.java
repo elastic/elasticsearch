@@ -123,6 +123,7 @@ public class CreateEnrollmentToken {
         return new URL(defaultUrl, (defaultUrl.toURI().getPath() + "/_nodes/_local/http").replaceAll("/+", "/"));
     }
 
+    @SuppressWarnings("unchecked")
     protected static List<String> getBoundAddresses(Map<?, ?> nodesInfo) {
         nodesInfo = (Map<?, ?>) nodesInfo.get("nodes");
         Map<?, ?> nodeInfo = (Map<?, ?>) nodesInfo.values().iterator().next();
@@ -213,7 +214,7 @@ public class CreateEnrollmentToken {
             throw new IllegalStateException("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration " +
                 "Keystore contains multiple PrivateKey entries where the associated certificate is a CA certificate");
         }
-        return SslUtil.calculateFingerprint(httpCaKeysAndCertificates.get(0).v2());
+        return SslUtil.calculateFingerprint(httpCaKeysAndCertificates.get(0).v2(), "SHA-256");
     }
 
     static List<String> getFilteredAddresses(List<String> addresses) throws Exception {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz.support;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -78,6 +79,15 @@ public final class SecurityQueryTemplateEvaluator {
         } catch (IOException ioe) {
             throw new ElasticsearchParseException("failed to parse query", ioe);
         }
+    }
+
+    public static DlsQueryEvaluationContext wrap(User user, ScriptService scriptService) {
+        return q -> SecurityQueryTemplateEvaluator.evaluateTemplate(q.utf8ToString(), scriptService, user);
+    }
+
+    @FunctionalInterface
+    public interface DlsQueryEvaluationContext {
+        String evaluate(BytesReference query);
     }
 
 }

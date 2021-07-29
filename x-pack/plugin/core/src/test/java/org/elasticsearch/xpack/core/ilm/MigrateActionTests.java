@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.xpack.core.DataTier.DATA_COLD;
 import static org.elasticsearch.xpack.core.DataTier.DATA_HOT;
 import static org.elasticsearch.xpack.core.DataTier.DATA_WARM;
@@ -27,7 +28,6 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.COLD_PHAS
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.DELETE_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.HOT_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
-import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.CoreMatchers.is;
 
@@ -135,7 +135,7 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
         {
             IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
                 .settings(settings(Version.CURRENT)
-                    .put(INDEX_STORE_TYPE_SETTING.getKey(), SNAPSHOT_DIRECTORY_FACTORY_KEY)
+                    .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
                     .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true))
                 .numberOfShards(1)
                 .numberOfReplicas(2)

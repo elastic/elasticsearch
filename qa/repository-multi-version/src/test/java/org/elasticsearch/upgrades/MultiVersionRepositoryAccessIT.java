@@ -261,13 +261,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             new Request("GET", "/_snapshot/" + repoName + "/_all")).getEntity().getContent();
              XContentParser parser = JsonXContent.jsonXContent.createParser(
                  xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entity)) {
-            final Map<String, Object> raw = parser.map();
-            // Bwc lookup since the format of the snapshots response changed between versions
-            if (raw.containsKey("snapshots")) {
-                return (List<Map<String, Object>>) raw.get("snapshots");
-            } else {
-                return (List<Map<String, Object>>) ((List<Map<?, ?>>) raw.get("responses")).get(0).get("snapshots");
-            }
+            return (List<Map<String, Object>>) parser.map().get("snapshots");
         }
     }
 

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -28,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.util.DateUtils.SECONDS_PER_DAY;
 import static org.elasticsearch.xpack.ql.util.DateUtils.SECONDS_PER_HOUR;
 import static org.elasticsearch.xpack.ql.util.DateUtils.SECONDS_PER_MINUTE;
@@ -260,7 +260,7 @@ public class DateTrunc extends BinaryDateTimeDatePartFunction {
         if (resolution.unresolved()) {
             return resolution;
         }
-        resolution = isDateOrInterval(right(), sourceText(), Expressions.ParamOrdinal.SECOND);
+        resolution = isDateOrInterval(right(), sourceText(), SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }

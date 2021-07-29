@@ -55,9 +55,9 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperTestCase;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
@@ -133,7 +133,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         // Create a string that is too large and will not be indexed
         String docContent = randomABString(MAX_FIELD_LENGTH + 1);
         Document doc = new Document();
-        ParseContext.Document parseDoc = new ParseContext.Document();
+        LuceneDocument parseDoc = new LuceneDocument();
         addFields(parseDoc, doc, docContent);
         indexDoc(parseDoc, doc, iw);
 
@@ -176,7 +176,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         Document doc = new Document();
-        ParseContext.Document parseDoc = new ParseContext.Document();
+        LuceneDocument parseDoc = new LuceneDocument();
         addFields(parseDoc, doc, "a b");
         indexDoc(parseDoc, doc, iw);
 
@@ -211,7 +211,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         // Create a string that is too large and will not be indexed
         String docContent = randomABString(10);
         Document doc = new Document();
-        ParseContext.Document parseDoc = new ParseContext.Document();
+        LuceneDocument parseDoc = new LuceneDocument();
         addFields(parseDoc, doc, docContent);
         indexDoc(parseDoc, doc, iw);
 
@@ -244,7 +244,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         Document doc = new Document();
-        ParseContext.Document parseDoc = new ParseContext.Document();
+        LuceneDocument parseDoc = new LuceneDocument();
         addFields(parseDoc, doc, "f*oo?");
         indexDoc(parseDoc, doc, iw);
 
@@ -288,7 +288,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         HashSet<String> values = new HashSet<>();
         for (int i = 0; i < numDocs; i++) {
             Document doc = new Document();
-            ParseContext.Document parseDoc = new ParseContext.Document();
+            LuceneDocument parseDoc = new LuceneDocument();
             String docContent = randomABString(1 + randomInt(MAX_FIELD_LENGTH - 1));
             if (values.contains(docContent) == false) {
                 addFields(parseDoc, doc, docContent);
@@ -411,7 +411,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
     private void indexDoc(RandomIndexWriter iw, String value) throws IOException {
         Document doc = new Document();
-        ParseContext.Document parseDoc = new ParseContext.Document();
+        LuceneDocument parseDoc = new LuceneDocument();
         addFields(parseDoc, doc, value);
         indexDoc(parseDoc, doc, iw);
     }
@@ -962,7 +962,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         };
     }
 
-    private void addFields(ParseContext.Document parseDoc, Document doc, String docContent) throws IOException {
+    private void addFields(LuceneDocument parseDoc, Document doc, String docContent) throws IOException {
         ArrayList<IndexableField> fields = new ArrayList<>();
         wildcardFieldType.createFields(docContent, parseDoc, fields);
 
@@ -974,7 +974,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         doc.add(new StringField(KEYWORD_FIELD_NAME, docContent, Field.Store.YES));
     }
 
-    private void indexDoc(ParseContext.Document parseDoc, Document doc, RandomIndexWriter iw) throws IOException {
+    private void indexDoc(LuceneDocument parseDoc, Document doc, RandomIndexWriter iw) throws IOException {
         IndexableField field = parseDoc.getByKey(wildcardFieldType.name());
         if (field != null) {
             doc.add(field);

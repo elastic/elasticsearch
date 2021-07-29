@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rollup.RollupV2;
 
 import java.io.IOException;
@@ -19,6 +19,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -126,7 +127,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         return orderedPhases;
     }
 
-    static boolean shouldInjectMigrateStepForPhase(Phase phase) {
+    public static boolean shouldInjectMigrateStepForPhase(Phase phase) {
         AllocateAction allocateAction = (AllocateAction) phase.getActions().get(AllocateAction.NAME);
         if (allocateAction != null) {
             if (definesAllocationRules(allocateAction)) {
@@ -399,10 +400,33 @@ public class TimeseriesLifecycleType implements LifecycleType {
                     .collect(Collectors.toSet());
                 if (phasesWithBadAges.size() > 0) {
                     phasesWithBadAges.forEach(p -> invalidPhases.add(p.getName()));
-                    errors.add("phases [" + phasesWithBadAges.stream().map(Phase::getName).collect(Collectors.joining(",")) +
-                        "] configure a [min_age] value less than the [min_age] of [" + phase.getMinimumAge() +
-                        "] for the [" + phaseName + "] phase, configuration: " +
-                        phasesWithBadAges.stream().collect(Collectors.toMap(Phase::getName, Phase::getMinimumAge)));
+
+                    //build an error message string
+                    Iterator<Phase> it = phasesWithBadAges.iterator();
+                    Phase badPhase = it.next();
+
+                    String error = "Your policy is configured to run the "
+                        + badPhase.getName() + " phase (min_age: " + badPhase.getMinimumAge() + ")";
+
+                    if (phasesWithBadAges.size() > 1) {
+                        while (it.hasNext()) {
+                            badPhase = it.next();
+                            error = error + ", the " + badPhase.getName() + " phase (min_age: "
+                                + badPhase.getMinimumAge()+ ")";
+                        }
+                            //if multiple phases are cited
+                            //replace last occurrence of "," with " and"
+                            StringBuilder builder = new StringBuilder();
+                            int last_comma_index = error.lastIndexOf(",");
+                            builder.append(error, 0, last_comma_index);
+                            builder.append(" and");
+                            builder.append(error.substring(last_comma_index + 1));
+                            error = builder.toString();
+                    }
+                    error = error + " before the " + phaseName + " phase (min_age: " + phase.getMinimumAge() +
+                        "). You should change the phase timing so that the phases will execute in the order of hot, warm, then cold.";
+
+                    errors.add(error);
                 }
             }
         }

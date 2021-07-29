@@ -883,18 +883,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
                     snapshotsResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                 }
-                ArrayList<Object> responses = (ArrayList<Object>) snapshotsResponseMap.get("responses");
-                for (Object response : responses) {
-                    Map<String, Object> responseAsMap = (Map<String, Object>) response;
-                    if (responseAsMap.get("snapshots") != null) {
-                        ArrayList<Object> snapshots = (ArrayList<Object>) responseAsMap.get("snapshots");
-                        for (Object snapshot : snapshots) {
-                            Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
-                            if (snapshotInfoMap.get("snapshot").equals(snapshotName[0]) &&
+                if (snapshotsResponseMap.get("snapshots") != null) {
+                    ArrayList<Object> snapshots = (ArrayList<Object>) snapshotsResponseMap.get("snapshots");
+                    for (Object snapshot : snapshots) {
+                        Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
+                        if (snapshotInfoMap.get("snapshot").equals(snapshotName[0]) &&
                                 // wait for the snapshot to be completed (successfully or not) otherwise the teardown might fail
                                 SnapshotState.valueOf((String) snapshotInfoMap.get("state")).completed()) {
-                                return true;
-                            }
+                            return true;
                         }
                     }
                 }

@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -48,6 +49,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.security.GeneralSecurityException;
@@ -619,6 +621,24 @@ public class EncryptedRepository extends BlobStoreRepository {
                     org.elasticsearch.core.internal.io.Streams.copy(encryptedInputStream, tmp, false);
                 }
                 delegatedBlobContainer.writeBlob(blobName, tmp.bytes(), failIfAlreadyExists);
+            }
+        }
+
+        @Override
+        public void writeBlob(
+            String blobName,
+            boolean failIfAlreadyExists,
+            boolean atomic,
+            CheckedConsumer<OutputStream, IOException> writer
+        ) throws IOException {
+            // TODO: this is just a stop-gap solution for until we have an encrypted output stream wrapper
+            try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays)) {
+                writer.accept(out);
+                if (atomic) {
+                    writeBlobAtomic(blobName, out.bytes(), failIfAlreadyExists);
+                } else {
+                    writeBlob(blobName, out.bytes(), failIfAlreadyExists);
+                }
             }
         }
 

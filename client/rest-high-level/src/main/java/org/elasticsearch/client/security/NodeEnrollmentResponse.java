@@ -23,16 +23,14 @@ public class NodeEnrollmentResponse {
     private final String httpCaCert;
     private final String transportKey;
     private final String transportCert;
-    private final String clusterName;
     private final List<String> nodesAddresses;
 
-    public NodeEnrollmentResponse(String httpCaKey, String httpCaCert, String transportKey, String transportCert, String clusterName,
+    public NodeEnrollmentResponse(String httpCaKey, String httpCaCert, String transportKey, String transportCert,
                                   List<String> nodesAddresses){
         this.httpCaKey = httpCaKey;
         this.httpCaCert = httpCaCert;
         this.transportKey = transportKey;
         this.transportCert = transportCert;
-        this.clusterName = clusterName;
         this.nodesAddresses = Collections.unmodifiableList(nodesAddresses);
     }
 
@@ -52,10 +50,6 @@ public class NodeEnrollmentResponse {
         return transportCert;
     }
 
-    public String getClusterName() {
-        return clusterName;
-    }
-
     public List<String> getNodesAddresses() {
         return nodesAddresses;
     }
@@ -64,7 +58,6 @@ public class NodeEnrollmentResponse {
     private static final ParseField HTTP_CA_CERT = new ParseField("http_ca_cert");
     private static final ParseField TRANSPORT_KEY = new ParseField("transport_key");
     private static final ParseField TRANSPORT_CERT = new ParseField("transport_cert");
-    private static final ParseField CLUSTER_NAME = new ParseField("cluster_name");
     private static final ParseField NODES_ADDRESSES = new ParseField("nodes_addresses");
 
     @SuppressWarnings("unchecked")
@@ -75,9 +68,8 @@ public class NodeEnrollmentResponse {
             final String httpCaCert = (String) a[1];
             final String transportKey = (String) a[2];
             final String transportCert = (String) a[3];
-            final String clusterName = (String) a[4];
-            final List<String> nodesAddresses = (List<String>) a[5];
-            return new NodeEnrollmentResponse(httpCaKey, httpCaCert, transportKey, transportCert, clusterName, nodesAddresses);
+            final List<String> nodesAddresses = (List<String>) a[4];
+            return new NodeEnrollmentResponse(httpCaKey, httpCaCert, transportKey, transportCert, nodesAddresses);
         });
 
     static {
@@ -85,7 +77,6 @@ public class NodeEnrollmentResponse {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), HTTP_CA_CERT);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TRANSPORT_KEY);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TRANSPORT_CERT);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), CLUSTER_NAME);
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), NODES_ADDRESSES);
     }
 
@@ -98,11 +89,11 @@ public class NodeEnrollmentResponse {
         if (o == null || getClass() != o.getClass()) return false;
         NodeEnrollmentResponse that = (NodeEnrollmentResponse) o;
         return httpCaKey.equals(that.httpCaKey) && httpCaCert.equals(that.httpCaCert) && transportKey.equals(that.transportKey)
-            && transportCert.equals(that.transportCert) && clusterName.equals(that.clusterName)
+            && transportCert.equals(that.transportCert)
             && nodesAddresses.equals(that.nodesAddresses);
     }
 
     @Override public int hashCode() {
-        return Objects.hash(httpCaKey, httpCaCert, transportKey, transportCert, clusterName, nodesAddresses);
+        return Objects.hash(httpCaKey, httpCaCert, transportKey, transportCert, nodesAddresses);
     }
 }

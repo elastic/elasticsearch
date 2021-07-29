@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseSections;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -38,6 +39,8 @@ import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 public class ImplicitTiebreakerTests extends ESTestCase {
+
+    private static final NoopCircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("ImplicitTiebreakerTests");
 
     private final List<HitExtractor> keyExtractors = emptyList();
     private final HitExtractor tsExtractor = TimestampExtractor.INSTANCE;
@@ -114,7 +117,7 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             }
         }
 
-        SequenceMatcher matcher = new SequenceMatcher(stages, descending, TimeValue.MINUS_ONE, null);
+        SequenceMatcher matcher = new SequenceMatcher(stages, descending, TimeValue.MINUS_ONE, null, NOOP_CIRCUIT_BREAKER);
         TumblingWindow window = new TumblingWindow(client, criteria, null, matcher);
         window.execute(wrap(p -> {}, ex -> {
             throw ExceptionsHelper.convertToRuntime(ex);

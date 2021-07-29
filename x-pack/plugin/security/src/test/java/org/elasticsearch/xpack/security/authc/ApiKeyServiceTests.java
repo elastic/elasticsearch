@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -25,6 +28,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
@@ -45,6 +49,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -98,9 +103,11 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
@@ -117,6 +124,7 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -512,6 +520,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getRoleDescriptors().get(0).getName(), is("superuser"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testGetRolesForApiKey() throws Exception {
         Map<String, Object> authMetadata = new HashMap<>();
         authMetadata.put(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLength(12));
@@ -556,7 +565,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 listener.onResponse(Collections.emptyList());
                 return null;
             }
-        ).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
+        ).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), anyActionListener());
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
 
         PlainActionFuture<ApiKeyRoleDescriptors> roleFuture = new PlainActionFuture<>();
@@ -689,6 +698,148 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(service.getFromCache(creds.getId()).success, is(true));
     }
 
+    public void testApiKeyAuthCacheWillTraceLogOnEvictionDueToCacheSize() throws IllegalAccessException {
+        final int cacheSize = randomIntBetween(2, 8);
+        ApiKeyService service = createApiKeyService(
+            Settings.builder().put("xpack.security.authc.api_key.cache.max_keys", cacheSize).build());
+        final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
+
+        // Fill the cache
+        final String idPrefix = randomAlphaOfLength(20);
+        final AtomicInteger count = new AtomicInteger(0);
+        IntStream.range(0, cacheSize).forEach(i -> apiKeyAuthCache.put(idPrefix + count.incrementAndGet(), new ListenableFuture<>()));
+        final Logger logger = LogManager.getLogger(ApiKeyService.class);
+        Loggers.setLevel(logger, Level.TRACE);
+        final MockLogAppender appender = new MockLogAppender();
+        Loggers.addAppender(logger, appender);
+        appender.start();
+
+        try {
+            appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
+                "evict", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID \\[" + idPrefix + "[0-9]+\\] was evicted from the authentication cache.*"
+            ));
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "no-thrashing", ApiKeyService.class.getName(), Level.WARN,
+                "Possible thrashing for API key authentication cache,*"
+            ));
+            apiKeyAuthCache.put(idPrefix + count.incrementAndGet(), new ListenableFuture<>());
+            appender.assertAllExpectationsMatched();
+
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "replace", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
+            ));
+            apiKeyAuthCache.put(idPrefix + count.get(), new ListenableFuture<>());
+            appender.assertAllExpectationsMatched();
+
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "invalidate", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
+            ));
+            apiKeyAuthCache.invalidate(idPrefix + count.get(), new ListenableFuture<>());
+            apiKeyAuthCache.invalidateAll();
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.setLevel(logger, Level.INFO);
+            Loggers.removeAppender(logger, appender);
+        }
+    }
+
+    public void testApiKeyCacheWillNotTraceLogOnEvictionDueToCacheTtl() throws IllegalAccessException, InterruptedException {
+        ApiKeyService service = createApiKeyService(Settings.builder()
+            .put("xpack.security.authc.api_key.cache.max_keys", 2)
+            .put("xpack.security.authc.api_key.cache.ttl", TimeValue.timeValueMillis(100))
+            .build());
+        final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
+        final String apiKeyId = randomAlphaOfLength(22);
+
+        final Logger logger = LogManager.getLogger(ApiKeyService.class);
+        Loggers.setLevel(logger, Level.TRACE);
+        final MockLogAppender appender = new MockLogAppender();
+        Loggers.addAppender(logger, appender);
+        appender.start();
+
+        try {
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "evict", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID [" + apiKeyId + "] was evicted from the authentication cache*"
+            ));
+            apiKeyAuthCache.put(apiKeyId, new ListenableFuture<>());
+            // Wait for the entry to expire
+            Thread.sleep(200);
+            assertNull(apiKeyAuthCache.get(apiKeyId));
+            // Cache a new entry
+            apiKeyAuthCache.put(randomValueOtherThan(apiKeyId, () -> randomAlphaOfLength(22)), new ListenableFuture<>());
+            assertEquals(1, apiKeyAuthCache.count());
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.setLevel(logger, Level.INFO);
+            Loggers.removeAppender(logger, appender);
+        }
+    }
+
+    public void testApiKeyAuthCacheWillLogWarningOnPossibleThrashing() throws Exception {
+        ApiKeyService service = createApiKeyService(
+            Settings.builder().put("xpack.security.authc.api_key.cache.max_keys", 2).build());
+        final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
+
+        // Fill the cache
+        apiKeyAuthCache.put(randomAlphaOfLength(20), new ListenableFuture<>());
+        apiKeyAuthCache.put(randomAlphaOfLength(21), new ListenableFuture<>());
+        final Logger logger = LogManager.getLogger(ApiKeyService.class);
+        Loggers.setLevel(logger, Level.TRACE);
+        final MockLogAppender appender = new MockLogAppender();
+        Loggers.addAppender(logger, appender);
+        appender.start();
+
+        try {
+            // Prepare the warning logging to trigger
+            service.getEvictionCounter().add(4500);
+            final long thrashingCheckIntervalInSeconds = 300L;
+            final long secondsToNanoSeconds = 1_000_000_000L;
+            // Calculate the last thrashing check time to ensure that the elapsed time is longer than the
+            // thrashing checking interval (300 seconds). Also add another 10 seconds to counter any
+            // test flakiness.
+            final long lastCheckedAt = System.nanoTime() - (thrashingCheckIntervalInSeconds + 10L) * secondsToNanoSeconds;
+            service.getLastEvictionCheckedAt().set(lastCheckedAt);
+            // Ensure the counter is updated
+            assertBusy(() -> assertThat(service.getEvictionCounter().longValue() >= 4500, is(true)));
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "evict", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID [*] was evicted from the authentication cache*"
+            ));
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "thrashing", ApiKeyService.class.getName(), Level.WARN,
+                "Possible thrashing for API key authentication cache,*"
+            ));
+            apiKeyAuthCache.put(randomAlphaOfLength(22), new ListenableFuture<>());
+            appender.assertAllExpectationsMatched();
+
+            // Counter and timer should be reset
+            assertThat(service.getLastEvictionCheckedAt().get(), lessThanOrEqualTo(System.nanoTime()));
+            assertBusy(() -> assertThat(service.getEvictionCounter().longValue(), equalTo(0L)));
+
+            // Will not log warning again for the next eviction because of throttling
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "evict-again", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID [*] was evicted from the authentication cache*"
+            ));
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "throttling", ApiKeyService.class.getName(), Level.WARN,
+                "Possible thrashing for API key authentication cache,*"
+            ));
+            apiKeyAuthCache.put(randomAlphaOfLength(23), new ListenableFuture<>());
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.setLevel(logger, Level.INFO);
+            Loggers.removeAppender(logger, appender);
+        }
+    }
+
     public void testAuthenticateWhileCacheBeingPopulated() throws Exception {
         final String apiKey = randomAlphaOfLength(16);
         Hasher hasher = getFastStoredHashAlgoForTests();
@@ -708,7 +859,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             hashCounter.incrementAndGet();
             hashWait.acquire();
             return invocationOnMock.callRealMethod();
-        }).when(service).verifyKeyAgainstHash(any(String.class), any(ApiKeyCredentials.class), any(ActionListener.class));
+        }).when(service).verifyKeyAgainstHash(any(String.class), any(ApiKeyCredentials.class), anyActionListener());
 
         final ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
         final PlainActionFuture<AuthenticationResult> future1 = new PlainActionFuture<>();
@@ -887,7 +1038,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             mockKeyDocument(service, docId, apiKey, new User("hulk", "superuser"), false, Duration.ofSeconds(3600));
         PlainActionFuture<AuthenticationResult> future4 = new PlainActionFuture<>();
         service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials, future4);
-        verify(client, times(4)).get(any(GetRequest.class), any(ActionListener.class));
+        verify(client, times(4)).get(any(GetRequest.class), anyActionListener());
         assertEquals(2, service.getRoleDescriptorsBytesCache().count());
         final AuthenticationResult authResult4 = future4.get();
         assertSame(AuthenticationResult.Status.SUCCESS, authResult4.getStatus());
@@ -1041,6 +1192,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         checkAuthApiKeyMetadata(metadata, authenticationResult3);
     }
 
+    @SuppressWarnings("unchecked")
     public void testApiKeyDocDeserialization() throws IOException {
         final String apiKeyDocumentSource =
             "{\"doc_type\":\"api_key\",\"creation_time\":1591919944598,\"expiration_time\":1591919944599,\"api_key_invalidated\":false," +
@@ -1250,11 +1402,11 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
     private void checkAuthApiKeyMetadata(Object metadata, AuthenticationResult authResult1) throws IOException {
         if (metadata == null) {
             assertThat(authResult1.getMetadata().containsKey(API_KEY_METADATA_KEY), is(false));
         } else {
-            //noinspection unchecked
             assertThat(
                 authResult1.getMetadata().get(API_KEY_METADATA_KEY),
                 equalTo(XContentTestUtils.convertToXContent((Map<String, Object>) metadata, XContentType.JSON)));

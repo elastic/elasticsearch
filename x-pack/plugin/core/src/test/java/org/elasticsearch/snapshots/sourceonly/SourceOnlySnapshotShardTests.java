@@ -233,7 +233,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId(),
                     Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
                     new SnapshotInfo(
-                        snapshotId,
+                        new Snapshot(repository.getMetadata().name(), snapshotId),
                         shardGenerations.indices().stream()
                                 .map(IndexId::getName).collect(Collectors.toList()),
                         Collections.emptyList(),

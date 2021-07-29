@@ -8,8 +8,8 @@
 
 package org.elasticsearch.gradle.plugin;
 
-import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import groovy.lang.Closure;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.Version;
@@ -208,7 +208,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
              */
             zip.from(new Closure<Object>(null, null) {
                 public Object doCall(Object it) {
-                    return project.getPlugins().hasPlugin(ShadowPlugin.class)
+                    return project.getPluginManager().hasPlugin("com.github.johnrengelman.shadow")
                         ? project.getTasks().named("shadowJar")
                         : project.getTasks().named("jar");
                 }

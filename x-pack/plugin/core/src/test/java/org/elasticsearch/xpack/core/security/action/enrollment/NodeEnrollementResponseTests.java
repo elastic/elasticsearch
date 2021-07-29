@@ -31,7 +31,6 @@ public class NodeEnrollementResponseTests extends AbstractXContentTestCase<NodeE
                 assertThat(response.getHttpCaCert(), is(serialized.getHttpCaCert()));
                 assertThat(response.getTransportKey(), is(serialized.getTransportKey()));
                 assertThat(response.getTransportCert(), is(serialized.getTransportCert()));
-                assertThat(response.getClusterName(), is(serialized.getClusterName()));
                 assertThat(response.getNodesAddresses(), is(serialized.getNodesAddresses()));
             }
         }
@@ -43,7 +42,6 @@ public class NodeEnrollementResponseTests extends AbstractXContentTestCase<NodeE
             randomAlphaOfLengthBetween(50, 100),
             randomAlphaOfLengthBetween(50, 100),
             randomAlphaOfLengthBetween(50, 100),
-            randomAlphaOfLength(10),
             randomList(10, () -> buildNewFakeTransportAddress().toString()));
     }
 
@@ -59,7 +57,6 @@ public class NodeEnrollementResponseTests extends AbstractXContentTestCase<NodeE
     private static final ParseField HTTP_CA_CERT = new ParseField("http_ca_cert");
     private static final ParseField TRANSPORT_KEY = new ParseField("transport_key");
     private static final ParseField TRANSPORT_CERT = new ParseField("transport_cert");
-    private static final ParseField CLUSTER_NAME = new ParseField("cluster_name");
     private static final ParseField NODES_ADDRESSES = new ParseField("nodes_addresses");
 
     @SuppressWarnings("unchecked")
@@ -70,9 +67,8 @@ public class NodeEnrollementResponseTests extends AbstractXContentTestCase<NodeE
             final String httpCaCert = (String) a[1];
             final String transportKey = (String) a[2];
             final String transportCert = (String) a[3];
-            final String clusterName = (String) a[4];
-            final List<String> nodesAddresses = (List<String>) a[5];
-            return new NodeEnrollmentResponse(httpCaKey, httpCaCert, transportKey, transportCert, clusterName, nodesAddresses);
+            final List<String> nodesAddresses = (List<String>) a[4];
+            return new NodeEnrollmentResponse(httpCaKey, httpCaCert, transportKey, transportCert, nodesAddresses);
         });
 
     static {
@@ -80,7 +76,6 @@ public class NodeEnrollementResponseTests extends AbstractXContentTestCase<NodeE
         PARSER.declareString(ConstructingObjectParser.constructorArg(), HTTP_CA_CERT);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TRANSPORT_KEY);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TRANSPORT_CERT);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), CLUSTER_NAME);
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), NODES_ADDRESSES);
     }
 }

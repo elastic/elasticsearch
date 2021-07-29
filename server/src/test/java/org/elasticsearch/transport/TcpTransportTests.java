@@ -403,7 +403,7 @@ public class TcpTransportTests extends ESTestCase {
 
             TcpTransport.handleException(channel, exception, lifecycle,
                 new OutboundHandler(randomAlphaOfLength(10), Version.CURRENT, new StatsTracker(), testThreadPool,
-                    BigArrays.NON_RECYCLING_INSTANCE));
+                    BigArrays.NON_RECYCLING_INSTANCE, randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4)));
 
             if (expectClosed) {
                 assertTrue(listener.isDone());

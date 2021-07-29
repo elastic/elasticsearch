@@ -74,6 +74,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -174,10 +175,11 @@ public class SamlRealmTests extends SamlTestCase {
         Mockito.doAnswer(invocation -> {
             assert invocation.getArguments().length == 2;
             userData.set((UserRoleMapper.UserData) invocation.getArguments()[0]);
+            @SuppressWarnings("unchecked")
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             listener.onResponse(Collections.singleton("superuser"));
             return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
 
         final boolean useNameId = randomBoolean();
         final boolean principalIsEmailAddress = randomBoolean();
@@ -209,10 +211,11 @@ public class SamlRealmTests extends SamlTestCase {
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         Mockito.doAnswer(invocation -> {
             assert invocation.getArguments().length == 2;
+            @SuppressWarnings("unchecked")
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             listener.onFailure(new RuntimeException("Role mapping should not be called"));
             return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
 
         final boolean useNameId = randomBoolean();
         final boolean principalIsEmailAddress = randomBoolean();
@@ -433,6 +436,7 @@ public class SamlRealmTests extends SamlTestCase {
         assertThat(credential.getPublicKey(), equalTo(encryptionCert.getPublicKey()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75097")
     public void testCreateEncryptionCredentialFromKeyStore() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
@@ -482,6 +486,7 @@ public class SamlRealmTests extends SamlTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75097")
     public void testCreateSigningCredentialFromKeyStoreSuccessScenarios() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
@@ -522,6 +527,7 @@ public class SamlRealmTests extends SamlTestCase {
         assertThat(credential.getPublicKey(), equalTo(certKeyPair1.v1().getPublicKey()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75097")
     public void testCreateSigningCredentialFromKeyStoreFailureScenarios() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();

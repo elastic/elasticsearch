@@ -13,6 +13,7 @@ package org.elasticsearch.cli;
  */
 public class ExitCodes {
     public static final int OK = 0;
+    public static final int NOOP = 63;           /* nothing to do */
     public static final int USAGE = 64;          /* command line usage error */
     public static final int DATA_ERROR = 65;     /* data format error */
     public static final int NO_INPUT = 66;       /* cannot open input */

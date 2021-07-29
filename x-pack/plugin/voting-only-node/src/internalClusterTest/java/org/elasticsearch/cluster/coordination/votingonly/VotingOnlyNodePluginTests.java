@@ -239,7 +239,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             .prepareGetSnapshots("test-repo")
             .setSnapshots(randomFrom("test-snap", "_all", "*", "*-snap", "test*"))
             .get()
-            .getSnapshots("test-repo");
+            .getSnapshots();
         assertThat(snapshotInfos.size(), Matchers.equalTo(1));
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), Matchers.equalTo(SnapshotState.SUCCESS));

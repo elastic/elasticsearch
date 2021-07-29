@@ -205,8 +205,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
                     responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                 }
-                List<Object> responses = (List<Object>) responseMap.get("responses");
-                Object snapshots = ((Map<String, Object>) responses.get(0)).get("snapshots");
+                Object snapshots = responseMap.get("snapshots");
                 return ((List<Map<String, Object>>) snapshots).size() == 0;
             } catch (Exception e) {
                 logger.error(e.getMessage(), e);
@@ -401,9 +400,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
         assertThat("expected to have only one snapshot, but got: " + responseMap,
-            ((List<Map<String, Object>>)
-                ((Map<String, Object>)
-                    ((List<Object>) responseMap.get("responses")).get(0)).get("snapshots")).size(), equalTo(1));
+            ((List<Map<String, Object>>) responseMap.get("snapshots")).size(), equalTo(1));
 
         Request hitCount = new Request("GET", "/" + searchableSnapMountedIndexName + "/_count");
         Map<String, Object> count = entityAsMap(client().performRequest(hitCount));
@@ -451,9 +448,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
         assertThat("expected to have only one snapshot, but got: " + responseMap,
-            ((List<Map<String, Object>>)
-                ((Map<String, Object>)
-                    ((List<Object>) responseMap.get("responses")).get(0)).get("snapshots")).size(), equalTo(1));
+            ((List<Map<String, Object>>) responseMap.get("snapshots")).size(), equalTo(1));
 
         Request hitCount = new Request("GET", "/" + searchableSnapMountedIndexName + "/_count");
         Map<String, Object> count = entityAsMap(client().performRequest(hitCount));

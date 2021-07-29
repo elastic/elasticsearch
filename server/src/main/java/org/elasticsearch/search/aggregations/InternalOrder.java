@@ -10,10 +10,12 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -539,7 +541,7 @@ public abstract class InternalOrder extends BucketOrder {
      * Contains logic for parsing a {@link BucketOrder} from a {@link XContentParser}.
      */
     public static class Parser {
-
+        private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Parser.class);
         /**
          * Parse a {@link BucketOrder} from {@link XContent}.
          *
@@ -572,6 +574,13 @@ public abstract class InternalOrder extends BucketOrder {
             if (orderKey == null) {
                 throw new ParsingException(parser.getTokenLocation(),
                     "Must specify at least one field for [order]");
+            }
+            // _term and _time order deprecated in 6.0; replaced by _key
+            if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
+                ("_term".equals(orderKey) || "_time".equals(orderKey))) {
+                deprecationLogger.compatibleApiWarning("_term_and_time_key_removal" ,
+                    "Deprecated aggregation order key [{}] used, replaced by [_key]", orderKey);
+                return orderAsc ? KEY_ASC : KEY_DESC;
             }
             switch (orderKey) {
                 case "_key":

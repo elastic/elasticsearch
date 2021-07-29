@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -57,7 +58,7 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
         private JobParams jobParams;
 
         public Request(JobParams jobParams) {
-            this.jobParams = jobParams;
+            this.jobParams = Objects.requireNonNull(jobParams);
         }
 
         public Request(String jobId) {
@@ -113,7 +114,7 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
         }
     }
 
-    public static class JobParams implements PersistentTaskParams {
+    public static class JobParams implements PersistentTaskParams, MlTaskParams {
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField JOB = new ParseField("job");
@@ -234,6 +235,11 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
         @Override
         public Version getMinimalSupportedVersion() {
             return Version.CURRENT.minimumCompatibilityVersion();
+        }
+
+        @Override
+        public String getMlId() {
+            return jobId;
         }
     }
 

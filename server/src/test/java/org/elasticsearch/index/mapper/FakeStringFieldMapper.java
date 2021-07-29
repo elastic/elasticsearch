@@ -75,7 +75,7 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         String value = context.parser().textOrNull();
 
         if (value == null) {

@@ -66,7 +66,6 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -75,12 +74,14 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -109,7 +110,6 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
 
     private Directory directory;
     private IndexWriter indexWriter;
-    private DocumentMapper documentMapper;
     private DirectoryReader directoryReader;
     private IndexService indexService;
     private MapperService mapperService;
@@ -146,7 +146,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 .startObject("ip_field").field("type", "ip").endObject()
                 .startObject("field").field("type", "keyword").endObject()
                 .endObject().endObject().endObject());
-        documentMapper = mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
 
         String queryField = "query_field";
         String percolatorMapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -230,7 +230,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             return new FunctionScoreQuery(innerQuery, minScore, 1f);
         });
 
-        List<ParseContext.Document> documents = new ArrayList<>();
+        List<LuceneDocument> documents = new ArrayList<>();
         for (Supplier<Query> queryFunction : queryFunctions) {
             Query query = queryFunction.get();
             addQuery(query, documents);
@@ -326,7 +326,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         ranges.add(new int[]{15, 50});
 
         SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
-        List<ParseContext.Document> documents = new ArrayList<>();
+        List<LuceneDocument> documents = new ArrayList<>();
         {
             addQuery(new TermQuery(new Term("string_field", randomFrom(stringValues))), documents);
         }
@@ -490,7 +490,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         queryFunctions.add((id) -> new MatchNoDocsQuery("no reason at all"));
 
         int numDocs = randomIntBetween(queryFunctions.size(), queryFunctions.size() * 3);
-        List<ParseContext.Document> documents = new ArrayList<>();
+        List<LuceneDocument> documents = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
             Query query = queryFunctions.get(i % queryFunctions.size()).apply(id);
@@ -520,7 +520,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testDuelSpecificQueries() throws Exception {
-        List<ParseContext.Document> documents = new ArrayList<>();
+        List<LuceneDocument> documents = new ArrayList<>();
 
         BlendedTermQuery blendedTermQuery = BlendedTermQuery.dismaxBlendedQuery(new Term[]{new Term("field", "quick"),
                 new Term("field", "brown"), new Term("field", "fox")}, 1.0f);
@@ -567,7 +567,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testRangeQueries() throws Exception {
-        List<ParseContext.Document> docs = new ArrayList<>();
+        List<LuceneDocument> docs = new ArrayList<>();
         addQuery(IntPoint.newRangeQuery("int_field", 0, 5), docs);
         addQuery(LongPoint.newRangeQuery("long_field", 5L, 10L), docs);
         addQuery(HalfFloatPoint.newRangeQuery("half_float_field", 10, 15), docs);
@@ -634,7 +634,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testDuelRangeQueries() throws Exception {
-        List<ParseContext.Document> documents = new ArrayList<>();
+        List<LuceneDocument> documents = new ArrayList<>();
 
         int lowerInt = randomIntBetween(0, 256);
         int upperInt = lowerInt + randomIntBetween(0, 32);
@@ -737,7 +737,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testPercolateMatchAll() throws Exception {
-        List<ParseContext.Document> docs = new ArrayList<>();
+        List<LuceneDocument> docs = new ArrayList<>();
         addQuery(new MatchAllDocsQuery(), docs);
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(new TermQuery(new Term("field", "value1")), Occur.MUST);
@@ -783,7 +783,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testFunctionScoreQuery() throws Exception {
-        List<ParseContext.Document> docs = new ArrayList<>();
+        List<LuceneDocument> docs = new ArrayList<>();
         addQuery(new FunctionScoreQuery(new TermQuery(new Term("field", "value")), null, 1f), docs);
         addQuery(new FunctionScoreQuery(new TermQuery(new Term("field", "value")), 10f, 1f), docs);
         addQuery(new FunctionScoreQuery(new MatchAllDocsQuery(), null, 1f), docs);
@@ -808,7 +808,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testPercolateSmallAndLargeDocument() throws Exception {
-        List<ParseContext.Document> docs = new ArrayList<>();
+        List<LuceneDocument> docs = new ArrayList<>();
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(new TermQuery(new Term("field", "value1")), Occur.MUST);
         builder.add(new TermQuery(new Term("field", "value2")), Occur.MUST);
@@ -868,10 +868,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
 
         // This will trigger using the TermsQuery instead of individual term query clauses in the CoveringQuery:
+        int origMaxClauseCount = BooleanQuery.getMaxClauseCount();
         try (Directory directory = new ByteBuffersDirectory()) {
+            final int maxClauseCount = 100;
+            BooleanQuery.setMaxClauseCount(maxClauseCount);
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
                 Document document = new Document();
-                for (int i = 0; i < 1024; i++) {
+                for (int i = 0; i < maxClauseCount; i++) {
                     int fieldNumber = 2 + i;
                     document.add(new StringField("field", "value" + fieldNumber, Field.Store.NO));
                 }
@@ -897,11 +900,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 assertEquals(1, topDocs.scoreDocs[0].doc);
                 assertEquals(2, topDocs.scoreDocs[1].doc);
             }
+        } finally {
+            BooleanQuery.setMaxClauseCount(origMaxClauseCount);
         }
     }
 
     public void testDuplicatedClauses() throws Exception {
-        List<ParseContext.Document> docs = new ArrayList<>();
+        List<LuceneDocument> docs = new ArrayList<>();
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         BooleanQuery.Builder builder1 = new BooleanQuery.Builder();
@@ -950,7 +955,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testDuplicatedClauses2() throws Exception {
-        List<ParseContext.Document> docs = new ArrayList<>();
+        List<LuceneDocument> docs = new ArrayList<>();
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.setMinimumNumberShouldMatch(3);
@@ -1001,7 +1006,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     public void testMsmAndRanges_disjunction() throws Exception {
         // Recreates a similar scenario that made testDuel() fail randomly:
         // https://github.com/elastic/elasticsearch/issues/29393
-        List<ParseContext.Document> docs = new ArrayList<>();
+        List<LuceneDocument> docs = new ArrayList<>();
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.setMinimumNumberShouldMatch(2);
 
@@ -1101,11 +1106,10 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
     }
 
-    private void addQuery(Query query, List<ParseContext.Document> docs) {
-        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(
-            documentMapper.mappers(), indexService.getIndexSettings(), indexService.getIndexAnalyzers(), null, null, null);
-        fieldMapper.processQuery(query, parseContext);
-        ParseContext.Document queryDocument = parseContext.doc();
+    private void addQuery(Query query, List<LuceneDocument> docs) {
+        DocumentParserContext documentParserContext = new TestDocumentParserContext();
+        fieldMapper.processQuery(query, documentParserContext);
+        LuceneDocument queryDocument = documentParserContext.doc();
         // Add to string representation of the query to make debugging easier:
         queryDocument.add(new StoredField("query_to_string", query.toString()));
         docs.add(queryDocument);

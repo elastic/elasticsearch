@@ -10,11 +10,13 @@ package org.elasticsearch.snapshots;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -28,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGenerations;
@@ -45,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -54,10 +58,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFile
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -343,7 +349,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> verify that the first snapshot is gone");
         assertThat(
-            client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(repoName),
+            client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(),
             containsInAnyOrder(secondSnapshotInfo, thirdSnapshotInfo)
         );
     }
@@ -407,7 +413,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertAcked(allDeletedResponse.get());
 
         logger.info("--> verify that all snapshots are gone");
-        assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(repoName), empty());
+        assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(), empty());
     }
 
     public void testMasterFailOverWithQueuedDeletes() throws Exception {
@@ -493,7 +499,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> verify that all snapshots are gone and no more work is left in the cluster state");
         assertBusy(() -> {
-            assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(repoName), empty());
+            assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(), empty());
             final ClusterState state = clusterService().state();
             final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
             assertThat(snapshotsInProgress.entries(), empty());
@@ -557,7 +563,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final SnapshotException snapshotException = expectThrows(SnapshotException.class, snapshotFuture::actionGet);
         assertThat(snapshotException.getMessage(), containsString(SnapshotsInProgress.ABORTED_FAILURE_TEXT));
 
-        assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(repoName), empty());
+        assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(), empty());
     }
 
     public void testQueuedDeletesWithOverlap() throws Exception {
@@ -584,7 +590,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final SnapshotException snapshotException = expectThrows(SnapshotException.class, snapshotFuture::actionGet);
         assertThat(snapshotException.getMessage(), containsString(SnapshotsInProgress.ABORTED_FAILURE_TEXT));
 
-        assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(repoName), empty());
+        assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(), empty());
     }
 
     public void testQueuedOperationsOnMasterRestart() throws Exception {
@@ -1366,6 +1372,291 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(otherSnapshot);
     }
 
+    public void testConcurrentRestoreDeleteAndClone() throws Exception {
+        final String repository = "test-repo";
+        createRepository(logger, repository, "fs");
+
+        final int nbIndices = randomIntBetween(10, 20);
+
+        for (int i = 0; i < nbIndices; i++) {
+            final String index = "index-" + i;
+            createIndexWithContent(index);
+            final String snapshot = "snapshot-" + i;
+            createSnapshot(repository, snapshot, List.of(index));
+        }
+
+        final List<ActionFuture<AcknowledgedResponse>> cloneFutures = new ArrayList<>();
+        final List<ActionFuture<RestoreSnapshotResponse>> restoreFutures = new ArrayList<>();
+
+        for (int i = 0; i < nbIndices; i++) {
+            if (randomBoolean()) {
+                restoreFutures.add(
+                    client().admin()
+                        .cluster()
+                        .prepareRestoreSnapshot(repository, "snapshot-" + i)
+                        .setIndices("index-" + i)
+                        .setRenamePattern("(.+)")
+                        .setRenameReplacement("$1-restored-" + i)
+                        .setWaitForCompletion(true)
+                        .execute()
+                );
+            } else {
+                cloneFutures.add(
+                    client().admin()
+                        .cluster()
+                        .prepareCloneSnapshot(repository, "snapshot-" + i, "clone-" + i)
+                        .setIndices("index-" + i)
+                        .execute()
+                );
+            }
+        }
+
+        // make deletes and clones complete concurrently
+        final List<ActionFuture<AcknowledgedResponse>> deleteFutures = new ArrayList<>(nbIndices);
+        for (int i = 0; i < nbIndices; i++) {
+            deleteFutures.add(startDeleteSnapshot(repository, "snapshot-" + i));
+        }
+
+        for (ActionFuture<RestoreSnapshotResponse> operation : restoreFutures) {
+            try {
+                final RestoreInfo restoreResponse = operation.get().getRestoreInfo();
+                assertThat(restoreResponse.successfulShards(), greaterThanOrEqualTo(1));
+                assertEquals(0, restoreResponse.failedShards());
+            } catch (ExecutionException e) {
+                final Throwable csee = ExceptionsHelper.unwrap(e, ConcurrentSnapshotExecutionException.class);
+                assertThat(csee, instanceOf(ConcurrentSnapshotExecutionException.class));
+            }
+        }
+        for (ActionFuture<AcknowledgedResponse> operation : cloneFutures) {
+            try {
+                assertAcked(operation.get());
+            } catch (ExecutionException e) {
+                final Throwable csee = ExceptionsHelper.unwrap(e, SnapshotException.class);
+                assertThat(
+                    csee,
+                    either(instanceOf(ConcurrentSnapshotExecutionException.class)).or(instanceOf(SnapshotMissingException.class))
+                );
+            }
+        }
+        for (ActionFuture<AcknowledgedResponse> operation : deleteFutures) {
+            try {
+                assertAcked(operation.get());
+            } catch (ExecutionException e) {
+                final Throwable csee = ExceptionsHelper.unwrap(e, ConcurrentSnapshotExecutionException.class);
+                assertThat(csee, instanceOf(ConcurrentSnapshotExecutionException.class));
+            }
+        }
+        awaitNoMoreRunningOperations();
+    }
+
+    public void testOutOfOrderFinalization() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        final String index1 = "index-1";
+        final String index2 = "index-2";
+        createIndexWithContent(index1, dataNodes.get(0), dataNodes.get(1));
+        createIndexWithContent(index2, dataNodes.get(1), dataNodes.get(0));
+
+        final String repository = "test-repo";
+        createRepository(repository, "mock");
+
+        blockNodeWithIndex(repository, index2);
+
+        final ActionFuture<CreateSnapshotResponse> snapshot1 = clusterAdmin().prepareCreateSnapshot(repository, "snapshot-1")
+            .setIndices(index1, index2)
+            .setWaitForCompletion(true)
+            .execute();
+        awaitNumberOfSnapshotsInProgress(1);
+        final ActionFuture<CreateSnapshotResponse> snapshot2 = clusterAdmin().prepareCreateSnapshot(repository, "snapshot-2")
+            .setIndices(index1)
+            .setWaitForCompletion(true)
+            .execute();
+        assertSuccessful(snapshot2);
+        unblockAllDataNodes(repository);
+        final SnapshotInfo sn1 = assertSuccessful(snapshot1);
+
+        assertAcked(startDeleteSnapshot(repository, sn1.snapshot().getSnapshotId().getName()).get());
+
+        assertThat(
+            clusterAdmin().prepareSnapshotStatus().setSnapshots("snapshot-2").setRepository(repository).get().getSnapshots(),
+            hasSize(1)
+        );
+    }
+
+    public void testOutOfOrderAndConcurrentFinalization() throws Exception {
+        final String master = internalCluster().startMasterOnlyNode();
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        final String index1 = "index-1";
+        final String index2 = "index-2";
+        createIndexWithContent(index1, dataNodes.get(0), dataNodes.get(1));
+        createIndexWithContent(index2, dataNodes.get(1), dataNodes.get(0));
+
+        final String repository = "test-repo";
+        createRepository(repository, "mock");
+
+        blockNodeWithIndex(repository, index2);
+
+        final ActionFuture<CreateSnapshotResponse> snapshot1 = clusterAdmin().prepareCreateSnapshot(repository, "snapshot-1")
+            .setIndices(index1, index2)
+            .setWaitForCompletion(true)
+            .execute();
+        awaitNumberOfSnapshotsInProgress(1);
+
+        blockMasterOnWriteIndexFile(repository);
+        final ActionFuture<CreateSnapshotResponse> snapshot2 = clusterAdmin().prepareCreateSnapshot(repository, "snapshot-2")
+            .setIndices(index1)
+            .setWaitForCompletion(true)
+            .execute();
+
+        awaitClusterState(state -> {
+            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+            return snapshotsInProgress.entries().size() == 2 && snapshotsInProgress.entries().get(1).state().completed();
+        });
+
+        unblockAllDataNodes(repository);
+        awaitClusterState(state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().get(0).state().completed());
+
+        unblockNode(repository, master);
+        assertSuccessful(snapshot2);
+
+        final SnapshotInfo sn1 = assertSuccessful(snapshot1);
+        assertAcked(startDeleteSnapshot(repository, sn1.snapshot().getSnapshotId().getName()).get());
+
+        assertThat(
+            clusterAdmin().prepareSnapshotStatus().setSnapshots("snapshot-2").setRepository(repository).get().getSnapshots(),
+            hasSize(1)
+        );
+    }
+
+    public void testOutOfOrderFinalizationWithConcurrentClone() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        final String index1 = "index-1";
+        final String index2 = "index-2";
+        createIndexWithContent(index1, dataNodes.get(0), dataNodes.get(1));
+        createIndexWithContent(index2, dataNodes.get(1), dataNodes.get(0));
+
+        final String repository = "test-repo";
+        createRepository(repository, "mock");
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repository, sourceSnapshot);
+        indexDoc(index2, "doc_id", "foo", "bar");
+
+        blockNodeWithIndex(repository, index2);
+
+        final String sn1 = "snapshot-1";
+        final ActionFuture<CreateSnapshotResponse> snapshot1 = clusterAdmin().prepareCreateSnapshot(repository, sn1)
+            .setIndices(index1, index2)
+            .setWaitForCompletion(true)
+            .execute();
+        awaitNumberOfSnapshotsInProgress(1);
+
+        final String targetSnapshot = "target-snapshot";
+        final ActionFuture<AcknowledgedResponse> clone = clusterAdmin().prepareCloneSnapshot(repository, sourceSnapshot, targetSnapshot)
+            .setIndices(index1)
+            .execute();
+        assertAcked(clone.get());
+
+        unblockAllDataNodes(repository);
+        assertSuccessful(snapshot1);
+
+        logger.info("--> deleting snapshots [{},{}] from repo [{}]", sn1, sourceSnapshot, repository);
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(repository).setSnapshots(sn1, sourceSnapshot).get());
+
+        assertThat(
+            clusterAdmin().prepareSnapshotStatus().setSnapshots(targetSnapshot).setRepository(repository).get().getSnapshots(),
+            hasSize(1)
+        );
+    }
+
+    public void testOutOfOrderCloneFinalization() throws Exception {
+        final String master = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        internalCluster().startDataOnlyNode();
+        final String index1 = "index-1";
+        final String index2 = "index-2";
+        createIndexWithContent(index1);
+        createIndexWithContent(index2);
+
+        final String repository = "test-repo";
+        createRepository(repository, "mock");
+
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repository, sourceSnapshot);
+
+        final IndexId index1Id = getRepositoryData(repository).resolveIndexId(index1);
+        blockMasterOnShardLevelSnapshotFile(repository, index1Id.getId());
+
+        final String cloneTarget = "target-snapshot";
+        final ActionFuture<AcknowledgedResponse> cloneSnapshot = clusterAdmin().prepareCloneSnapshot(
+            repository,
+            sourceSnapshot,
+            cloneTarget
+        ).setIndices(index1, index2).execute();
+        awaitNumberOfSnapshotsInProgress(1);
+        waitForBlock(master, repository);
+
+        final ActionFuture<CreateSnapshotResponse> snapshot2 = clusterAdmin().prepareCreateSnapshot(repository, "snapshot-2")
+            .setIndices(index2)
+            .setWaitForCompletion(true)
+            .execute();
+        assertSuccessful(snapshot2);
+
+        unblockNode(repository, master);
+        assertAcked(cloneSnapshot.get());
+        assertAcked(startDeleteSnapshot(repository, cloneTarget).get());
+
+        assertThat(
+            clusterAdmin().prepareSnapshotStatus().setSnapshots("snapshot-2").setRepository(repository).get().getSnapshots(),
+            hasSize(1)
+        );
+    }
+
+    public void testQueuedAfterFailedShardSnapshot() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+
+        final String repository = "test-repo";
+        createRepository(repository, "mock");
+
+        final String indexName = "test-idx";
+        createIndexWithContent(indexName);
+        final String fullSnapshot = "full-snapshot";
+        createFullSnapshot(repository, fullSnapshot);
+
+        indexDoc(indexName, "some_id", "foo", "bar");
+        blockAndFailDataNode(repository, dataNode);
+        final ActionFuture<CreateSnapshotResponse> snapshotFutureFailure = startFullSnapshot(repository, "failing-snapshot");
+        awaitNumberOfSnapshotsInProgress(1);
+        waitForBlock(dataNode, repository);
+        final ActionFuture<CreateSnapshotResponse> snapshotFutureSuccess = startFullSnapshot(repository, "successful-snapshot");
+        awaitNumberOfSnapshotsInProgress(2);
+        unblockNode(repository, dataNode);
+
+        assertSuccessful(snapshotFutureSuccess);
+        final SnapshotInfo failedSnapshot = snapshotFutureFailure.get().getSnapshotInfo();
+        assertEquals(SnapshotState.PARTIAL, failedSnapshot.state());
+
+        final SnapshotsStatusResponse snapshotsStatusResponse1 = clusterAdmin().prepareSnapshotStatus(repository)
+            .setSnapshots(fullSnapshot)
+            .get();
+
+        final String tmpSnapshot = "snapshot-tmp";
+        createFullSnapshot(repository, tmpSnapshot);
+        assertAcked(startDeleteSnapshot(repository, tmpSnapshot).get());
+
+        final SnapshotsStatusResponse snapshotsStatusResponse2 = clusterAdmin().prepareSnapshotStatus(repository)
+            .setSnapshots(fullSnapshot)
+            .get();
+        assertEquals(snapshotsStatusResponse1, snapshotsStatusResponse2);
+
+        assertAcked(startDeleteSnapshot(repository, "successful-snapshot").get());
+
+        final SnapshotsStatusResponse snapshotsStatusResponse3 = clusterAdmin().prepareSnapshotStatus(repository)
+            .setSnapshots(fullSnapshot)
+            .get();
+        assertEquals(snapshotsStatusResponse1, snapshotsStatusResponse3);
+    }
+
     private static void assertSnapshotStatusCountOnRepo(String otherBlockedRepoName, int count) {
         final SnapshotsStatusResponse snapshotsStatusResponse = client().admin()
             .cluster()
@@ -1435,7 +1726,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .prepareGetSnapshots(repoName)
             .setSnapshots(GetSnapshotsRequest.CURRENT_SNAPSHOT)
             .get()
-            .getSnapshots(repoName);
+            .getSnapshots();
     }
 
     private ActionFuture<AcknowledgedResponse> startAndBlockOnDeleteSnapshot(String repoName, String snapshotName) throws Exception {

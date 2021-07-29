@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -50,19 +51,23 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
     private List<ChangePasswordRequest> changePasswordRequests;
     private TransportKibanaEnrollmentAction action;
     private Client client;
-    private Path httpCaPath;
+
+    @BeforeClass
+    public static void muteInFips(){
+        assumeFalse("Enrollment is not supported in FIPS 140-2 as we are using PKCS#12 keystores", inFipsJvm());
+    }
 
     @Before @SuppressWarnings("unchecked") public void setup() throws Exception {
         changePasswordRequests = new ArrayList<>();
         final Environment env = mock(Environment.class);
         final Path tempDir = createTempDir();
-        httpCaPath = tempDir.resolve("httpCa.p12");
+        final Path httpCaPath = tempDir.resolve("httpCa.p12");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/httpCa.p12"), httpCaPath);
         when(env.configFile()).thenReturn(tempDir);
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("keystore.secure_password", "password");
         final Settings settings = Settings.builder()
-            .put("keystore.path", "httpCa.p12")
+            .put("keystore.path", httpCaPath)
             .setSecureSettings(secureSettings)
             .build();
         when(env.settings()).thenReturn(settings);
@@ -107,7 +112,8 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
     public void testKibanaEnrollmentFailedPasswordChange() {
         // Override change password mock
         doAnswer(invocation -> {
-            ActionListener<ActionResponse.Empty> listener = (ActionListener) invocation.getArguments()[2];
+            @SuppressWarnings("unchecked")
+            ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) invocation.getArguments()[2];
             listener.onFailure(new ValidationException());
             return null;
         }).when(client).execute(eq(ChangePasswordAction.INSTANCE), any(), any());

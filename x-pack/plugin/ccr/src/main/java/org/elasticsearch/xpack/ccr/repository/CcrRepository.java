@@ -72,6 +72,7 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -188,7 +189,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
         threadPool.executor(ThreadPool.Names.SNAPSHOT_META).execute(() -> context.onResponse(
             new SnapshotInfo(
-                SNAPSHOT_ID,
+                new Snapshot(this.metadata.name(), SNAPSHOT_ID),
                 indices,
                 new ArrayList<>(metadata.dataStreams().keySet()),
                 Collections.emptyList(),

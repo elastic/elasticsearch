@@ -87,7 +87,7 @@ myCidrRange.contains('2001:0db8:85a3:0001:0000:8a2e:0370:7334'); // false
 [[new-combined-fields-query-type]]
 === New `combined_fields` query type
 
-7.13 introduces the `combined_fields` query, new a Query DSL query type for
+7.13 introduces the `combined_fields` query, a new DSL query type for
 searching multiple `text` fields as a combined field. You can use the
 `combined_fields` query as a simpler alternative to the `multi_match` query's
 `cross_fields` type option. See the

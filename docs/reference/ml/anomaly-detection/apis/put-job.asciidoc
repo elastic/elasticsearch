@@ -375,9 +375,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-index-name]
 (Optional, long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-retention-days]
 
-`annotations_retention_days`::
+`system_system_annotations_retention_days`::
 (Optional, long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=annotations-retention-days]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=system-annotations-retention-days]
 
 [[ml-put-job-example]]
 == {api-examples-title}

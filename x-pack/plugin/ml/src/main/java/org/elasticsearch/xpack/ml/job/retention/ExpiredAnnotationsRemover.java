@@ -63,7 +63,7 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
 
     @Override
     Long getRetentionDays(Job job) {
-        return job.getAnnotationsRetentionDays();
+        return job.getSystemAnnotationsRetentionDays();
     }
 
     @Override

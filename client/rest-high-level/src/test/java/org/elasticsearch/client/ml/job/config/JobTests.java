@@ -146,7 +146,7 @@ public class JobTests extends AbstractXContentTestCase<Job> {
             builder.setResultsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            builder.setAnnotationsRetentionDays(randomNonNegativeLong());
+            builder.setSystemAnnotationsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             builder.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));

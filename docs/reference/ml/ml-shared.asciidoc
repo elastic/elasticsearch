@@ -1427,7 +1427,7 @@ bucket result are deleted from {es}. The default value is null, which means all
 results are retained.
 end::results-retention-days[]
 
-tag::annotations-retention-days[]
+tag::system-annotations-retention-days[]
 Advanced configuration option. The period of time (in days) that automatically
 created annotations are retained. Age is calculated relative to the timestamp of
 the latest bucket result. If this property has a non-null value, once per day at
@@ -1435,7 +1435,7 @@ the latest bucket result. If this property has a non-null value, once per day at
 than the latest bucket result are deleted from {es}. The default value is null,
 which means all annotations are retained.
 User created annotations are never deleted automatically.
-end::annotations-retention-days[]
+end::system-annotations-retention-days[]
 
 tag::retain[]
 If `true`, this snapshot will not be deleted during automatic cleanup of

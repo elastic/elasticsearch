@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 
 import java.io.IOException;
@@ -146,6 +147,12 @@ public class License implements ToXContentObject {
      * to a specific license version
      */
     public static final String LICENSE_VERSION_MODE = "license_version";
+    /**
+     * Set for {@link RestApiVersion#V_7} requests only
+     * XContent param name to map the "enterprise" license type to "platinum"
+     * for backwards compatibility with older clients
+     */
+    public static final String XCONTENT_HIDE_ENTERPRISE = "hide_enterprise";
 
     public static final Comparator<License> LATEST_ISSUE_DATE_FIRST = Comparator.comparing(License::issueDate).reversed();
 
@@ -516,6 +523,8 @@ public class License implements ToXContentObject {
     public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         boolean licenseSpecMode = params.paramAsBoolean(LICENSE_SPEC_VIEW_MODE, false);
         boolean restViewMode = params.paramAsBoolean(REST_VIEW_MODE, false);
+        boolean hideEnterprise = params.paramAsBoolean(XCONTENT_HIDE_ENTERPRISE, false);
+
         boolean previouslyHumanReadable = builder.humanReadable();
         if (licenseSpecMode && restViewMode) {
             throw new IllegalArgumentException("can have either " + REST_VIEW_MODE + " or " + LICENSE_SPEC_VIEW_MODE);
@@ -534,7 +543,8 @@ public class License implements ToXContentObject {
             builder.field(Fields.STATUS, status().label());
         }
         builder.field(Fields.UID, uid);
-        builder.field(Fields.TYPE, type);
+        final String bwcType = hideEnterprise && LicenseType.isEnterprise(type) ? LicenseType.PLATINUM.getTypeName() : type;
+        builder.field(Fields.TYPE, bwcType);
         if (version == VERSION_START) {
             builder.field(Fields.SUBSCRIPTION_TYPE, subscriptionType);
         }
@@ -550,6 +560,8 @@ public class License implements ToXContentObject {
         if (version >= VERSION_ENTERPRISE) {
             builder.field(Fields.MAX_NODES, maxNodes == -1 ? null : maxNodes);
             builder.field(Fields.MAX_RESOURCE_UNITS, maxResourceUnits == -1 ? null : maxResourceUnits);
+        } else if (hideEnterprise && maxNodes == -1) {
+            builder.field(Fields.MAX_NODES, maxResourceUnits);
         } else {
             builder.field(Fields.MAX_NODES, maxNodes);
         }

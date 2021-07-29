@@ -266,7 +266,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             dailyModelSnapshotRetentionAfterDays = null;
         }
         resultsRetentionDays = in.readOptionalLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {  // TODO: 7.15
+        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
             systemAnnotationsRetentionDays = in.readOptionalLong();
         } else {
             systemAnnotationsRetentionDays = null;
@@ -581,7 +581,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
         }
         out.writeOptionalLong(resultsRetentionDays);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {  // TODO: 7.15
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
             out.writeOptionalLong(systemAnnotationsRetentionDays);
         }
         out.writeMap(customSettings);
@@ -861,7 +861,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
             }
             resultsRetentionDays = in.readOptionalLong();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {  // TODO: 7.15
+            if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
                 systemAnnotationsRetentionDays = in.readOptionalLong();
             }
             customSettings = in.readMap();
@@ -1115,7 +1115,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
             }
             out.writeOptionalLong(resultsRetentionDays);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {  // TODO: 7.15
+            if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
                 out.writeOptionalLong(systemAnnotationsRetentionDays);
             }
             out.writeMap(customSettings);

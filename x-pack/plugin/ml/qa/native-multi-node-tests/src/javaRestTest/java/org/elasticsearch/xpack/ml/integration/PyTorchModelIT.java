@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
@@ -18,6 +19,8 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 
 import java.io.IOException;
 import java.util.Base64;
+
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * This test uses a tiny hardcoded base64 encoded PyTorch TorchScript model.
@@ -41,8 +44,6 @@ import java.util.Base64;
  * torch.jit.save(traced_model, "simplemodel.pt")
  * ## End Python
  */
-import static org.hamcrest.Matchers.equalTo;
-
 public class PyTorchModelIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE_SUPER_USER =
@@ -83,8 +84,9 @@ public class PyTorchModelIT extends ESRestTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/73769")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/75759")
     public void testEvaluate() throws IOException {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/75685", Constants.OS_ARCH.equals("aarch64"));
         createModelStoreIndex();
         putTaskConfig();
         putModelDefinition();

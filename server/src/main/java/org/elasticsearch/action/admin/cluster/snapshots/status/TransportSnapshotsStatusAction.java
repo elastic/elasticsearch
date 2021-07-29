@@ -46,7 +46,6 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -293,7 +292,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         repositoriesService.getRepositoryData(repositoryName, repositoryDataListener);
         final Collection<SnapshotId> snapshotIdsToLoad = new ArrayList<>();
         repositoryDataListener.whenComplete(repositoryData -> {
-            ensureNotCancelled(task);
+            task.ensureNotCancelled();
             final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getSnapshotIds()
                 .stream()
                 .filter(s -> requestedSnapshotNames.contains(s.getName()))
@@ -398,7 +397,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         final Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
         for (String index : snapshotInfo.indices()) {
             IndexId indexId = repositoryData.resolveIndexId(index);
-            ensureNotCancelled(task);
+            task.ensureNotCancelled();
             IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repositoryData, snapshotInfo.snapshotId(), indexId);
             if (indexMetadata != null) {
                 int numberOfShards = indexMetadata.getNumberOfShards();
@@ -419,7 +418,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             // could not be taken due to partial being set to false.
                             shardSnapshotStatus = IndexShardSnapshotStatus.newFailed("skipped");
                         } else {
-                            ensureNotCancelled(task);
+                            task.ensureNotCancelled();
                             shardSnapshotStatus = repository.getShardSnapshotStatus(snapshotInfo.snapshotId(), indexId, shardId);
                         }
                         shardStatus.put(shardId, shardSnapshotStatus);
@@ -428,12 +427,6 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             }
         }
         return unmodifiableMap(shardStatus);
-    }
-
-    private static void ensureNotCancelled(CancellableTask task) {
-        if (task.isCancelled()) {
-            throw new TaskCancelledException("task cancelled");
-        }
     }
 
     private static SnapshotShardFailure findShardFailure(List<SnapshotShardFailure> shardFailures, ShardId shardId) {

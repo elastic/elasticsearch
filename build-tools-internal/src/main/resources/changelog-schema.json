@@ -1,0 +1,234 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/elastic/elasticsearch/tree/master/docs/changelog",
+  "$ref": "#/definitions/Changelog",
+  "definitions": {
+    "Changelog": {
+      "type": "object",
+      "properties": {
+        "pr": {
+          "type": "integer"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "area": {
+          "type": "string",
+          "enum": [
+            "Aggregations",
+            "Allocation",
+            "Analysis",
+            "Audit",
+            "Authentication",
+            "Authorization",
+            "Autoscaling",
+            "CCR",
+            "CRUD",
+            "Client",
+            "Cluster Coordination",
+            "Discovery-Plugins",
+            "Distributed",
+            "EQL",
+            "Engine",
+            "FIPS",
+            "Features/CAT APIs",
+            "Features/Data streams",
+            "Features/Features",
+            "Features/ILM+SLM",
+            "Features/Indices APIs",
+            "Features/Ingest",
+            "Features/Java High Level REST Client",
+            "Features/Java Low Level REST Client",
+            "Features/Monitoring",
+            "Features/Stats",
+            "Features/Watcher",
+            "Geo",
+            "Graph",
+            "Highlighting",
+            "IdentityProvider",
+            "Infra/CLI",
+            "Infra/Circuit Breakers",
+            "Infra/Core",
+            "Infra/Logging",
+            "Infra/Node Lifecycle",
+            "Infra/Plugins",
+            "Infra/REST API",
+            "Infra/Resiliency",
+            "Infra/Scripting",
+            "Infra/Settings",
+            "Infra/Transport API",
+            "License",
+            "Machine Learning",
+            "Mapping",
+            "Network",
+            "Packaging",
+            "Percolator",
+            "Performance",
+            "Query Languages",
+            "Ranking",
+            "Recovery",
+            "Reindex",
+            "Rollup",
+            "SQL",
+            "Search",
+            "Security",
+            "Snapshot/Restore",
+            "Store",
+            "Suggesters",
+            "TLS",
+            "Task Management",
+            "Transform"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "breaking",
+            "breaking-java",
+            "bug",
+            "deprecation",
+            "enhancement",
+            "feature",
+            "known-issue",
+            "new-aggregation",
+            "regression",
+            "security",
+            "upgrade"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^v?\\d+\\.\\d+\\.\\d+$",
+            "minItems": 1
+          }
+        },
+        "highlight": {
+          "$ref": "#/definitions/Highlight"
+        },
+        "breaking": {
+          "$ref": "#/definitions/Breaking"
+        },
+        "deprecation": {
+          "$ref": "#/definitions/Deprecation"
+        }
+      },
+      "required": [
+        "type",
+        "summary",
+        "versions"
+      ]
+    },
+    "Highlight": {
+      "properties": {
+        "notable": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "title",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    "Breaking": {
+      "properties": {
+        "area": {
+          "$ref": "#/definitions/breakingArea"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "details": {
+          "type": "string",
+          "minLength": 1
+        },
+        "impact": {
+          "type": "string",
+          "minLength": 1
+        },
+        "notable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "area",
+        "title",
+        "details",
+        "impact"
+      ],
+      "additionalProperties": false
+    },
+    "Deprecation": {
+      "properties": {
+        "area": {
+          "$ref": "#/definitions/breakingArea"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "area",
+        "title",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    "breakingArea": {
+      "type": "string",
+      "enum": [
+        "API",
+        "Aggregation",
+        "Allocation",
+        "Authentication",
+        "CCR",
+        "Cluster",
+        "Discovery",
+        "Engine",
+        "HTTP",
+        "Highlighters",
+        "Indices",
+        "Java",
+        "License Information",
+        "Logging",
+        "Machine Learning",
+        "Mappings",
+        "Networking",
+        "Packaging",
+        "Plugins",
+        "Script Cache",
+        "Search Changes",
+        "Search",
+        "Security",
+        "Settings",
+        "Snapshot and Restore",
+        "Transform",
+        "Transport"
+      ]
+    },
+    "additionalProperties": false
+  }
+}

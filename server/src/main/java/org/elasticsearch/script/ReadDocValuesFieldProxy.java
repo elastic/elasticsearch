@@ -10,7 +10,6 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
 import java.util.stream.Stream;

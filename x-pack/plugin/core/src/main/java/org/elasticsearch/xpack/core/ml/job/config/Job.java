@@ -248,11 +248,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         modelSnapshotRetentionDays = in.readOptionalLong();
         dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {  // TODO: 7.15
-            systemAnnotationsRetentionDays = in.readOptionalLong();
-        } else {
-            systemAnnotationsRetentionDays = null;
-        }
+        systemAnnotationsRetentionDays = in.readOptionalLong();
         Map<String, Object> readCustomSettings = in.readMap();
         customSettings = readCustomSettings == null ? null : Collections.unmodifiableMap(readCustomSettings);
         modelSnapshotId = in.readOptionalString();
@@ -539,9 +535,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         out.writeOptionalLong(modelSnapshotRetentionDays);
         out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
         out.writeOptionalLong(resultsRetentionDays);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {  // TODO: 7.15
-            out.writeOptionalLong(systemAnnotationsRetentionDays);
-        }
+        out.writeOptionalLong(systemAnnotationsRetentionDays);
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
         if (modelSnapshotMinVersion != null) {
@@ -795,9 +789,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             modelSnapshotRetentionDays = in.readOptionalLong();
             dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
             resultsRetentionDays = in.readOptionalLong();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {  // TODO: 7.15
-                systemAnnotationsRetentionDays = in.readOptionalLong();
-            }
+            systemAnnotationsRetentionDays = in.readOptionalLong();
             customSettings = in.readMap();
             modelSnapshotId = in.readOptionalString();
             if (in.readBoolean()) {
@@ -1030,9 +1022,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeOptionalLong(modelSnapshotRetentionDays);
             out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
             out.writeOptionalLong(resultsRetentionDays);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {  // TODO: 7.15
-                out.writeOptionalLong(systemAnnotationsRetentionDays);
-            }
+            out.writeOptionalLong(systemAnnotationsRetentionDays);
             out.writeMap(customSettings);
             out.writeOptionalString(modelSnapshotId);
             if (modelSnapshotMinVersion != null) {

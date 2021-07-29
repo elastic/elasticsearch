@@ -1,0 +1,35 @@
+[[release-highlights]]
+== What's new in {minor-version}
+
+coming::[{minor-version}]
+
+Here are the highlights of what's new and improved in {es} {minor-version}!
+ifeval::[\\{release-state}\\"!=\\"unreleased\\"]
+For detailed information about this release, see the <<es-release-notes>> and
+<<breaking-changes>>.
+endif::[]
+<% if (priorVersions.size > 0) { %>
+// Add previous release to the list
+Other versions:
+
+<%
+print priorVersions.join("\n| ")
+print "\n"
+}
+
+if (notableHighlights.empty == false) { %>
+// tag::notable-highlights[]
+<% for (highlight in notableHighlights) { %>
+[discrete]
+[[${ highlight.anchor }]]
+=== ${highlight.title}
+${highlight.body.trim()}
+<% } %>
+// end::notable-highlights[]
+<% } %>
+<% for (highlight in nonNotableHighlights) { %>
+[discrete]
+[[${ highlight.anchor }]]
+=== ${highlight.title}
+${highlight.body.trim()}
+<% } %>

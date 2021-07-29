@@ -1319,6 +1319,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     inTimeSeriesMode);
         }
 
+        @SuppressWarnings("unchecked")
         public static void toXContent(IndexMetadata indexMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
             Metadata.XContentContext context = Metadata.XContentContext.valueOf(
                 params.param(CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API));

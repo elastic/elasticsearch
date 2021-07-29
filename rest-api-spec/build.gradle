@@ -93,7 +93,6 @@ tasks.named("yamlRestCompatTest").configure {
     OS.current() != OS.WINDOWS
   }
   systemProperty 'tests.rest.blacklist', ([
-    'indices.flush/10_basic/Index synced flush rest test',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
     'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
     'search/340_type_query/type query', // type_query - probably should behave like match_all
@@ -231,6 +230,10 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceValueTextByKeyValue("catch",
     '/Please set node identifiers correctly. One and only one of \\[node_name\\], \\[node_names\\] and \\[node_ids\\] has to be set/',
     '/You must set \\[node_names\\] or \\[node_ids\\] but not both/')
+
+  // sync_id is no longer available in SegmentInfos.userData // "indices.flush/10_basic/Index synced flush rest test"
+  task.replaceIsTrue("indices.testing.shards.0.0.commit.user_data.sync_id", "indices.testing.shards.0.0.commit.user_data")
+
 })
 
 tasks.register('enforceYamlTestConvention').configure {

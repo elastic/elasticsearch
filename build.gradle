@@ -143,7 +143,7 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
 allprojects {
   apply plugin:'elasticsearch.rewrite'
   rewrite {
-    rewriteVersion = "latest.release"
+    rewriteVersion = "7.10.0"
     activeRecipe("org.elasticsearch.java.backport.ListOfBackport", "org.elasticsearch.java.backport.MapOfBackport")
     configFile = rootProject.file("rewrite.yml")
   }

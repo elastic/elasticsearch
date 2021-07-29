@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.Transform;
@@ -127,7 +128,8 @@ public class Pivot extends AbstractCompositeAggFunction {
     protected Stream<Map<String, Object>> extractResults(
         CompositeAggregation agg,
         Map<String, String> fieldTypeMap,
-        TransformIndexerStats transformIndexerStats
+        TransformIndexerStats transformIndexerStats,
+        TransformProgress transformProgress
     ) {
         // defines how dates are written, if not specified in settings
         // < 7.11 as epoch millis
@@ -144,6 +146,7 @@ public class Pivot extends AbstractCompositeAggFunction {
             config.getAggregationConfig().getPipelineAggregatorFactories(),
             fieldTypeMap,
             transformIndexerStats,
+            transformProgress,
             datesAsEpoch
         );
     }

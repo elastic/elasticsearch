@@ -74,6 +74,13 @@ public class Role {
         return runAs;
     }
 
+    /**
+     * @param restrictedIndices An automaton that can determine whether a string names
+     *                          a restricted index. For simple unit tests, this can be
+     *                          {@link Automatons#EMPTY}.
+     * @param names Names of roles.
+     * @return A builder for a role
+     */
     public static Builder builder(Automaton restrictedIndices, String... names) {
         return new Builder(restrictedIndices, names);
     }

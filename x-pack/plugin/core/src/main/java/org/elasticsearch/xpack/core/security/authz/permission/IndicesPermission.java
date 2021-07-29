@@ -60,6 +60,18 @@ public final class IndicesPermission {
         this.groups = groups;
     }
 
+    /**
+     * This function constructs an index matcher that can be used to find indices allowed by
+     * permissions groups.
+     *
+     * @param ordinaryIndices A list of ordinary indices. If this collection contains restricted indices,
+     *                        according to the restrictedNamesAutomaton, they will not be matched.
+     * @param restrictedIndices A list of restricted index names. All of these will be matched.
+     * @param restrictedNamesAutomaton An automaton that will match restricted indices. We use this to filter
+     *                                 out restricted indices from the ordinaryIndices collection.
+     * @return A matcher that will match all non-restricted index names in the ordinaryIndices
+     * collection and all index names in the restrictedIndices collection.
+     */
     private static StringMatcher indexMatcher(Collection<String> ordinaryIndices, Collection<String> restrictedIndices,
                                               Automaton restrictedNamesAutomaton) {
         StringMatcher matcher;

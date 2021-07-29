@@ -196,6 +196,10 @@ public class SystemIndices {
         return systemDataStreamIndicesRunAutomaton.run(name);
     }
 
+    /**
+     * @return An {@link Automaton} that tests whether strings are names of system indices, aliases, or
+     * data streams.
+     */
     public Automaton getSystemNameAutomaton() {
         return systemNameAutomaton;
     }

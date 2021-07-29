@@ -1,0 +1,30 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+# The whitelist for the fields api
+
+# API
+class org.elasticsearch.script.Field {
+  String getName()
+  boolean isEmpty()
+  List getValues()
+  def getValue(def)
+}
+
+
+# Scripts
+# The scripts must be whitelisted for painless to find the classes
+class org.elasticsearch.script.NumberSortScript @no_import {
+}
+class org.elasticsearch.script.NumberSortScript$Factory @no_import {
+}
+
+# Class bindings
+static_import {
+    org.elasticsearch.script.Field field(org.elasticsearch.script.NumberSortScript, String) bound_to org.elasticsearch.script.NumberSortScript$FieldAccess
+}

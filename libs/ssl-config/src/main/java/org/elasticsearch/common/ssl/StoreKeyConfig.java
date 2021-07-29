@@ -154,11 +154,7 @@ public class StoreKeyConfig implements SslKeyConfig {
         if (filter == null) {
             return keyStore;
         }
-        final KeyStore processedKeystore = filter.apply(keyStore);
-        if (processedKeystore != null) {
-            return processedKeystore;
-        }
-        return keyStore;
+        return Objects.requireNonNull(filter.apply(keyStore), "A keystore filter may not return null");
     }
 
     private KeyStore readKeyStore(Path path) {

@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 
 import java.util.Map;
-import java.util.stream.LongStream;
 
 public class BucketCorrelationAggregator extends SiblingPipelineAggregator {
 
@@ -34,22 +33,14 @@ public class BucketCorrelationAggregator extends SiblingPipelineAggregator {
 
     @Override
     public InternalAggregation doReduce(Aggregations aggregations, InternalAggregation.ReduceContext context) {
-        CountCorrelationIndicator bucketPathValue = MlAggsHelper.extractDoubleBucketedValues(bucketsPaths()[0], aggregations)
-            .map(
-                doubleBucketValues -> new CountCorrelationIndicator(
-                    doubleBucketValues.getValues(),
-                    null,
-                    LongStream.of(doubleBucketValues.getDocCounts()).sum()
+        MlAggsHelper.DoubleBucketValues bucketPathValue = MlAggsHelper.extractDoubleBucketedValues(bucketsPaths()[0], aggregations)
+            .orElseThrow(
+                () -> new AggregationExecutionException(
+                    "unable to find valid bucket values in path [" + bucketsPaths()[0] + "] for agg [" + name() + "]"
                 )
-            )
-            .orElse(null);
-        if (bucketPathValue == null) {
-            throw new AggregationExecutionException(
-                "unable to find valid bucket values in path [" + bucketsPaths()[0] + "] for agg [" + name() + "]"
             );
-        }
 
-        return new InternalSimpleValue(name(), correlationFunction.execute(bucketPathValue), DocValueFormat.RAW, metadata());
+        return new InternalSimpleValue(name(), correlationFunction.execute(bucketPathValue, aggregations), DocValueFormat.RAW, metadata());
     }
 
 }

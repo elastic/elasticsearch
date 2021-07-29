@@ -8,13 +8,15 @@
 package org.elasticsearch.xpack.ml.aggs.correlation;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
+import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 
 public interface CorrelationFunction extends NamedWriteable, NamedXContentObject {
 
-    double execute(CountCorrelationIndicator y);
+    double execute(MlAggsHelper.DoubleBucketValues y, Aggregations aggregations);
 
-    void validate(PipelineAggregationBuilder.ValidationContext context, String bucketPath);
+    void validate(PipelineAggregationBuilder.ValidationContext context, String aggName, String bucketPath);
 
 }

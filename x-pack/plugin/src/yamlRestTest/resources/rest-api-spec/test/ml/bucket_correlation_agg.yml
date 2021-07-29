@@ -90,6 +90,86 @@ setup:
   - is_true: aggregations.good.buckets.2.bucket_correlation.value
 
 ---
+"Test metric correlation bucket agg simple":
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "filters": {
+                "filters": {
+                  "filters": {
+                    "TV": {"term": {"product": "TV"}},
+                    "Laptop": {"term": {"product": "Laptop"}}
+                  }
+                },
+                "aggs": {
+                  "ranged_cost": {
+                    "range": {
+                      "field": "cost",
+                      "ranges": [
+                        {"from": 200},
+                        {"from": 200, "to": 300},
+                        {"from": 300}
+                      ]
+                    }
+                  }
+                }
+              },
+              "metric_correlation": {
+                "bucket_correlation": {
+                  "buckets_path": "filters['TV']>ranged_cost._count",
+                  "function": {"metric_correlation": {
+                    "buckets_path": "filters['TV']>ranged_cost._count"
+                  }}
+                }
+              }
+            }
+          }
+  - match: { aggregations.metric_correlation.value: 1.0 }
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "filters": {
+                "filters": {
+                  "filters": {
+                    "TV": {"term": {"product": "TV"}},
+                    "Laptop": {"term": {"product": "Laptop"}}
+                  }
+                },
+                "aggs": {
+                  "ranged_cost": {
+                    "range": {
+                      "field": "cost",
+                      "ranges": [
+                        {"from": 200},
+                        {"from": 200, "to": 300},
+                        {"from": 300}
+                      ]
+                    }
+                  }
+                }
+              },
+              "metric_correlation": {
+                "bucket_correlation": {
+                  "buckets_path": "filters['TV']>ranged_cost._count",
+                  "function": {"metric_correlation": {
+                    "buckets_path": "filters['Laptop']>ranged_cost._count"
+                  }}
+                }
+              }
+            }
+          }
+  - is_true: aggregations.metric_correlation.value
+---
 "Test correlation with missing buckets_path":
 
   - do:

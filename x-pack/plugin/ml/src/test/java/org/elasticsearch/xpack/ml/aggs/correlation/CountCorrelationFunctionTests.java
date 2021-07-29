@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.ml.aggs.correlation;
 
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -26,6 +28,8 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class CountCorrelationFunctionTests extends ESTestCase {
 
+    private static final Aggregations EMPTY_AGGS = new Aggregations(Collections.emptyList());
+
     public void testExecute() {
         AtomicLong xs = new AtomicLong(1);
         CountCorrelationIndicator x = new CountCorrelationIndicator(
@@ -35,21 +39,19 @@ public class CountCorrelationFunctionTests extends ESTestCase {
         );
         CountCorrelationFunction countCorrelationFunction = new CountCorrelationFunction(x);
         AtomicLong ys = new AtomicLong(0);
-        CountCorrelationIndicator yValues = new CountCorrelationIndicator(
-            Stream.generate(() -> Math.min(ys.incrementAndGet(), 10)).limit(100).mapToDouble(l -> (double) l).toArray(),
-            x.getFractions(),
-            1000
+        MlAggsHelper.DoubleBucketValues yValues = new MlAggsHelper.DoubleBucketValues(
+            Stream.generate(() -> 10L).limit(100).mapToLong(l -> l).toArray(),
+            Stream.generate(() -> Math.min(ys.incrementAndGet(), 10)).limit(100).mapToDouble(l -> (double) l).toArray()
         );
-        double value = countCorrelationFunction.execute(yValues);
+        double value = countCorrelationFunction.execute(yValues, EMPTY_AGGS);
         assertThat(value, greaterThan(0.0));
 
         AtomicLong otherYs = new AtomicLong(0);
-        CountCorrelationIndicator lesserYValues = new CountCorrelationIndicator(
-            Stream.generate(() -> Math.min(otherYs.incrementAndGet(), 5)).limit(100).mapToDouble(l -> (double) l).toArray(),
-            x.getFractions(),
-            1000
+        MlAggsHelper.DoubleBucketValues lesserYValues = new MlAggsHelper.DoubleBucketValues(
+            Stream.generate(() -> 10L).limit(100).mapToLong(l -> l).toArray(),
+            Stream.generate(() -> Math.min(otherYs.incrementAndGet(), 5)).limit(100).mapToDouble(l -> (double) l).toArray()
         );
-        assertThat(countCorrelationFunction.execute(lesserYValues), allOf(lessThan(value), greaterThan(0.0)));
+        assertThat(countCorrelationFunction.execute(lesserYValues, EMPTY_AGGS), allOf(lessThan(value), greaterThan(0.0)));
     }
 
     public void testValidation() {
@@ -62,7 +64,7 @@ public class CountCorrelationFunctionTests extends ESTestCase {
             Collections.emptyList(),
             null
         );
-        function.validate(validationContext, "terms>metric_agg");
+        function.validate(validationContext, "terms>metric_agg", "foo");
 
         assertThat(
             validationContext.getValidationException().getMessage(),

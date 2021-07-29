@@ -46,7 +46,10 @@ public class BucketCorrelationAggregationBuilderTests extends BasePipelineAggreg
 
     @Override
     protected BucketCorrelationAggregationBuilder createTestAggregatorFactory() {
-        CorrelationFunction function = new CountCorrelationFunction(CountCorrelationIndicatorTests.randomInstance());
+        CorrelationFunction function = randomFrom(
+            new CountCorrelationFunction(CountCorrelationIndicatorTests.randomInstance()),
+            new MetricCorrelationFunction(randomAlphaOfLength(10))
+        );
         return new BucketCorrelationAggregationBuilder(NAME, randomAlphaOfLength(8), function);
     }
 
@@ -67,21 +70,9 @@ public class BucketCorrelationAggregationBuilderTests extends BasePipelineAggreg
                     new CountCorrelationFunction(CountCorrelationIndicatorTests.randomInstance())
                 )
             ),
-            containsString("aggregation does not exist for aggregation")
+            containsString("buckets_path aggregation [missing] does not exist for aggregation [correlation-agg]")
         );
 
-        // Now validate with a single bucket agg
-        assertThat(
-            validate(
-                aggBuilders,
-                new BucketCorrelationAggregationBuilder(
-                    NAME,
-                    "global>metric",
-                    new CountCorrelationFunction(CountCorrelationIndicatorTests.randomInstance())
-                )
-            ),
-            containsString("must be a multi-bucket aggregation for aggregation")
-        );
     }
 
 }

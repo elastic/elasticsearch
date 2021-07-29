@@ -10,15 +10,18 @@ package org.elasticsearch.xpack.ml.aggs.correlation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.stream.LongStream;
 
 public class CountCorrelationFunction implements CorrelationFunction {
 
@@ -93,11 +96,16 @@ public class CountCorrelationFunction implements CorrelationFunction {
      *  - That both the stored `indicator` and `y` are from the same distribution
      *  - That `y` is effectively a queried subset of the `indicator`
      *  - That the document count of `y` is always less than or equal to the document count of the `indicator`
-     * @param y the value with which to calculate correlation
+     * @param doubleBucketValues the value with which to calculate correlation
      * @return The correlation
      */
     @Override
-    public double execute(CountCorrelationIndicator y) {
+    public double execute(MlAggsHelper.DoubleBucketValues doubleBucketValues, Aggregations _unused) {
+        CountCorrelationIndicator y = new CountCorrelationIndicator(
+            doubleBucketValues.getValues(),
+            null,
+            LongStream.of(doubleBucketValues.getDocCounts()).sum()
+        );
         if (indicator.getExpectations().length != y.getExpectations().length) {
             throw new AggregationExecutionException(
                 "value lengths do not match; indicator.expectations ["
@@ -167,9 +175,11 @@ public class CountCorrelationFunction implements CorrelationFunction {
     }
 
     @Override
-    public void validate(PipelineAggregationBuilder.ValidationContext context, String bucketPath) {
+    public void validate(PipelineAggregationBuilder.ValidationContext context, String aggName, String bucketPath) {
         if (bucketPath.endsWith("_count") == false) {
-            context.addBucketPathValidationError("count correlation requires that bucket_path points to bucket [_count]");
+            context.addBucketPathValidationError(
+                "count correlation requires that bucket_path points to bucket [_count] for agg [" + aggName + "]"
+            );
         }
     }
 }

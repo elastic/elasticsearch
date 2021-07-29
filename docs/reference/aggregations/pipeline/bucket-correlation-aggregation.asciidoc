@@ -21,13 +21,13 @@ For syntax, see <<buckets-path-syntax>>.
 
 `function`::
 (Required, object)
-The correlation function to execute.
+The correlation function to execute. Only one function is allowed.
 +
 .Properties of `function`
 [%collapsible%open]
 ====
 `count_correlation`:::
-(Required^*^, object)
+(Optional, object)
 The configuration to calculate a count correlation. This function is designed for
 determining the correlation of a term value and a given metric. Consequently, it
 needs to meet the following requirements.
@@ -61,6 +61,22 @@ An array of fractions to use when averaging and calculating variance. This shoul
 The total number of documents that initially created the `expectations`. It's required to be greater than or equal to the sum
 of all values in the `buckets_path` as this is the originating superset of data to which the term values are correlated.
 =====
+=====
+`metric_correlation`:::
+(Optional, object)
+The configuration to calculate a metric correlation. This function is designed for
+determining the correlation of metrics given at two bucket_paths. Consequently, it
+needs to meet the following requirements.
+
+* The `buckets_path` must point to a metric within a multi-bucket aggregation.
+
+.Properties of `metric_correlation`
+[%collapsible%open]
+=====
+`buckets_path`:::
+(Required, string)
+Path to the buckets that contain one set of values to correlate.
+For syntax, see <<buckets-path-syntax>>.
 =====
 ====
 

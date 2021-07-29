@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.ml.aggs.correlation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.BucketMetricsPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -21,11 +23,15 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
+import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.pathElementContainsBucketKey;
 
 public class BucketCorrelationAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<BucketCorrelationAggregationBuilder> {
 
@@ -127,8 +133,55 @@ public class BucketCorrelationAggregationBuilder extends BucketMetricsPipelineAg
 
     @Override
     protected void validate(ValidationContext context) {
-        super.validate(context);
-        correlationFunction.validate(context, bucketsPaths[0]);
+        List<AggregationPath.PathElement> pathElements = AggregationPath.parse(bucketsPaths[0]).getPathElements();
+        Collection<AggregationBuilder> currentAggs = context.getSiblingAggregations();
+        AggregationBuilder multiBucketAggWithoutKey = null;
+        for (AggregationPath.PathElement pathElement : pathElements) {
+            Optional<AggregationBuilder> aggBuilder = currentAggs.stream()
+                .filter(builder -> builder.getName().equals(pathElement.name))
+                .findAny();
+            if (aggBuilder.isEmpty()) {
+                // We reached the end of the path
+                if ("_count".equals(pathElement.name) || "_key".equals(pathElement.name)) {
+                    break;
+                }
+                context.addBucketPathValidationError(
+                    "aggregation [" + pathElement.name + "] does not exist for aggregation [" + name + "]: " + bucketsPaths[0]
+                );
+                return;
+            }
+            currentAggs = aggBuilder.get().getSubAggregations();
+            if (aggBuilder.get().bucketCardinality() == AggregationBuilder.BucketCardinality.MANY
+                && pathElementContainsBucketKey(pathElement) == false) {
+                if (multiBucketAggWithoutKey != null) {
+                    context.addValidationError(
+                        "Found nested multi-bucket aggregations without specifying a multi-bucket key path value; found ["
+                            + multiBucketAggWithoutKey.getName()
+                            + "] and then found a nested ["
+                            + aggBuilder.get().getName()
+                            + "]; unable to calculate a deterministic path through nested, unqualified multi-bucket aggregations. "
+                            + "Please specify the multi-bucket key value in ["
+                            + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
+                            + "] for the aggregation ["
+                            + name
+                            + "]"
+                    );
+                    return;
+                }
+                multiBucketAggWithoutKey = aggBuilder.get();
+            }
+        }
+        if (multiBucketAggWithoutKey == null) {
+            context.addValidationError(
+                "At least one multi-bucket aggregation without specifying a multi-bucket key path value must be provided in ["
+                    + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
+                    + "] for the aggregation ["
+                    + name
+                    + "]"
+            );
+            return;
+        }
+        correlationFunction.validate(context, name, bucketsPaths[0]);
     }
 
     @Override

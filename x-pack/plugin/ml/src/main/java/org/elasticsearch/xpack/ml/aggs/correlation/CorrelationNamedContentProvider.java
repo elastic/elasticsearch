@@ -23,6 +23,11 @@ public final class CorrelationNamedContentProvider implements NamedXContentProvi
                 CorrelationFunction.class,
                 CountCorrelationFunction.NAME,
                 CountCorrelationFunction::fromXContent
+            ),
+            new NamedXContentRegistry.Entry(
+                CorrelationFunction.class,
+                MetricCorrelationFunction.NAME,
+                MetricCorrelationFunction::fromXContent
             )
         );
     }
@@ -33,6 +38,11 @@ public final class CorrelationNamedContentProvider implements NamedXContentProvi
                 CorrelationFunction.class,
                 CountCorrelationFunction.NAME.getPreferredName(),
                 CountCorrelationFunction::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                CorrelationFunction.class,
+                MetricCorrelationFunction.NAME.getPreferredName(),
+                MetricCorrelationFunction::new
             )
         );
     }

@@ -55,7 +55,7 @@ public class Job implements ToXContentObject {
     public static final ParseField DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS =
         new ParseField("daily_model_snapshot_retention_after_days");
     public static final ParseField RESULTS_RETENTION_DAYS = new ParseField("results_retention_days");
-    public static final ParseField SYSTEM_ANNOTATIONS_RETENTION_DAYS = new ParseField("system_system_annotations_retention_days");
+    public static final ParseField SYSTEM_ANNOTATIONS_RETENTION_DAYS = new ParseField("system_annotations_retention_days");
     public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("model_snapshot_id");
     public static final ParseField RESULTS_INDEX_NAME = new ParseField("results_index_name");
     public static final ParseField DELETING = new ParseField("deleting");

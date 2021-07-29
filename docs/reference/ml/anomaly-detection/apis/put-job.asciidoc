@@ -375,7 +375,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-index-name]
 (Optional, long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-retention-days]
 
-`system_system_annotations_retention_days`::
+`system_annotations_retention_days`::
 (Optional, long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=system-annotations-retention-days]
 

@@ -232,7 +232,7 @@ close the job, then reopen the job and restart the {dfeed} for the changes to ta
 (long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-retention-days]
 
-`system_system_annotations_retention_days`::
+`system_annotations_retention_days`::
 (long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=system-annotations-retention-days]
 
@@ -257,7 +257,7 @@ POST _ml/anomaly_detectors/low_request_rate/_update
   "background_persist_interval": "2h",
   "model_snapshot_retention_days": 7,
   "results_retention_days": 60,
-  "system_system_annotations_retention_days": 60
+  "system_annotations_retention_days": 60
 }
 --------------------------------------------------
 // TEST[skip:setup:Kibana sample data]

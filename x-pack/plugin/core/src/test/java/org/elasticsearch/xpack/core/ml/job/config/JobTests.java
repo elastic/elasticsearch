@@ -489,7 +489,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
     public void testVerify_GivenNegativeSystemAnnotationsRetentionDays() {
         String errorMessage =
-            Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "system_system_annotations_retention_days", 0, -1);
+            Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "system_annotations_retention_days", 0, -1);
         Job.Builder builder = buildJobBuilder("foo");
         builder.setSystemAnnotationsRetentionDays(-1L);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);

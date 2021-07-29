@@ -77,7 +77,7 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
         DeleteByQueryRequest request = createDBQRequest(job, requestsPerSecond, cutoffEpochMs);
         request.setParentTask(getParentTaskId());
 
-        client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
+        client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<BulkByScrollResponse>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 try {

@@ -217,7 +217,13 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
             assertThat(indexILMState.get("step"), is("wait-for-snapshot"));
         }, slmPolicy);
-        waitForPhaseTime(phaseName); // The phase time was reset after the previous line because the action went into the ERROR step and back out
+        waitForPhaseTime(phaseName); // The phase time was reset because the action went into the ERROR step and back out
+        /*
+         * The phase time is set at System.currentTimeMillis(), but the snapshot start time is set at ThreadPool.absoluteTimeInMillis(),
+         * which can be 200 ms or more behind real time. So if a snapshot is created right after the ILM policy, the snapshot time can be
+         *  before the policy phase time.
+         */
+        Thread.sleep(500);
         Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
         assertBusy(() -> {
@@ -259,7 +265,12 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
             assertThat(indexILMState.get("step"), is("wait-for-snapshot"));
         }, slmPolicy);
-
+        /*
+         * The phase time is set at System.currentTimeMillis(), but the snapshot start time is set at ThreadPool.absoluteTimeInMillis(),
+         * which can be 200 ms or more behind real time. So if a snapshot is created right after the ILM policy, the snapshot time can be
+         *  before the policy phase time.
+         */
+        Thread.sleep(500);
         request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
 

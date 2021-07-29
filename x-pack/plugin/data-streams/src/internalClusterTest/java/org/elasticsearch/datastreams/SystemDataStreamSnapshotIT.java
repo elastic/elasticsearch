@@ -21,6 +21,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
@@ -31,14 +32,13 @@ import org.junit.After;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.datastreams.SystemDataStreamSnapshotIT.SystemDataStreamTestPlugin.SYSTEM_DATA_STREAM_NAME;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
 
+@ESIntegTestCase.ClusterScope(transportClientRatio = 0)
 public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public static final String REPO = "repo";
@@ -46,7 +46,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(MockRepository.Plugin.class, DataStreamsPlugin.class, SystemDataStreamTestPlugin.class);
+        return org.elasticsearch.core.List.of(MockRepository.Plugin.class, DataStreamsPlugin.class, SystemDataStreamTestPlugin.class);
     }
 
     @After
@@ -67,7 +67,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
 
         // Index a doc so that a concrete backing index will be created
-        IndexResponse indexRepsonse = client().prepareIndex(SYSTEM_DATA_STREAM_NAME)
+        IndexResponse indexRepsonse = client().prepareIndex(SYSTEM_DATA_STREAM_NAME, "_doc")
             .setId("42")
             .setSource("{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"name\": \"my-name\" }", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
@@ -124,13 +124,13 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
-            return List.of(
+            return org.elasticsearch.core.List.of(
                 new SystemDataStreamDescriptor(
                     SYSTEM_DATA_STREAM_NAME,
                     "a system data stream for testing",
                     SystemDataStreamDescriptor.Type.EXTERNAL,
                     new ComposableIndexTemplate(
-                        List.of(".system-data-stream"),
+                        org.elasticsearch.core.List.of(".system-data-stream"),
                         null,
                         null,
                         null,
@@ -138,7 +138,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
                         null,
                         new ComposableIndexTemplate.DataStreamTemplate()
                     ),
-                    Map.of(),
+                    org.elasticsearch.core.Map.of(),
                     Collections.singletonList("test"),
                     new ExecutorNames(ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_WRITE)
                 )

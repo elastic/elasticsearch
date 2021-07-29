@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * A script to produce dynamic values for return fields.
@@ -51,17 +52,21 @@ public abstract class FieldScript {
     /** A leaf lookup for the bound segment this script will operate on. */
     private final LeafSearchLookup leafLookup;
 
+    private final FieldProxy fieldProxy;
+
     public FieldScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         params = new HashMap<>(params);
         params.putAll(leafLookup.asMap());
         this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
+        this.fieldProxy = new ReadDocValuesFieldProxy(this.leafLookup);
     }
 
     // for expression engine
     protected FieldScript() {
         params = null;
         leafLookup = null;
+        fieldProxy = null;
     }
 
     public abstract Object execute();

@@ -46,4 +46,10 @@ public class EmitTests extends ScriptTestCase {
         assertNotNull(script);
         assertArrayEquals(new long[]{1L, 100L}, script.fetchValues());
     }
+
+    public void testEmitFunctionReference() {
+        TestFieldScript script = exec("List l = [1L, 2L, 3L]; l.forEach(e -> emit(e))");
+        assertNotNull(script);
+        assertArrayEquals(new long[]{1L, 100L}, script.fetchValues());
+    }
 }

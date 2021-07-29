@@ -22,8 +22,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
-abstract class AbstractSortScript implements ScorerAware {
+abstract class AbstractSortScript implements ScorerAware, DocBasedScript {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
@@ -55,8 +56,12 @@ abstract class AbstractSortScript implements ScorerAware {
      */
     private final LeafSearchLookup leafLookup;
 
+    /** Access fields **/
+    private final FieldProxy fieldProxy;
+
     AbstractSortScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
+        this.fieldProxy = new ReadDocValuesFieldProxy(this.leafLookup);
         Map<String, Object> parameters = new HashMap<>(params);
         parameters.putAll(leafLookup.asMap());
         this.params = new DynamicMap(parameters, PARAMS_FUNCTIONS);
@@ -65,6 +70,7 @@ abstract class AbstractSortScript implements ScorerAware {
     protected AbstractSortScript() {
         this.params = null;
         this.leafLookup = null;
+        this.fieldProxy = null;
     }
 
     /**
@@ -100,5 +106,34 @@ abstract class AbstractSortScript implements ScorerAware {
      */
     public void setDocument(int docid) {
         leafLookup.setDocument(docid);
+        // fieldProxy is using leafLookup, no need to call fieldProxy.setDocument(docid)
+    }
+
+    public static class FieldAccess {
+        private final ScoreScript script;
+
+        public FieldAccess(ScoreScript script) {
+            this.script = script;
+        }
+
+        public Field<?> field(String fieldName) {
+            return script.field(fieldName);
+        }
+    }
+
+    @Override
+    public Field<?> field(String fieldName) {
+        if (fieldProxy == null) {
+            return new EmptyField<>(fieldName);
+        }
+        return fieldProxy.field(fieldName);
+    }
+
+    @Override
+    public Stream<Field<?>> fields(String fieldGlob) {
+        if (fieldProxy == null) {
+            return Stream.empty();
+        }
+        return fieldProxy.fields(fieldGlob);
     }
 }

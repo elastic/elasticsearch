@@ -23,11 +23,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * A script used for adjusting the score on a per document basis.
  */
-public abstract class ScoreScript {
+public abstract class ScoreScript implements DocBasedScript {
 
     /** A helper to take in an explanation from a script and turn it into an {@link org.apache.lucene.search.Explanation}  */
     public static class ExplanationHolder {
@@ -78,6 +79,9 @@ public abstract class ScoreScript {
     /** A leaf lookup for the bound segment this script will operate on. */
     private final LeafSearchLookup leafLookup;
 
+    /** Access fields **/
+    private final FieldProxy fieldProxy;
+
     private DoubleSupplier scoreSupplier = () -> 0.0;
 
     private final int docBase;
@@ -92,9 +96,11 @@ public abstract class ScoreScript {
             assert leafContext == null;
             this.params = null;
             this.leafLookup = null;
+            this.fieldProxy = null;
             this.docBase = 0;
         } else {
             this.leafLookup = lookup.getLeafSearchLookup(leafContext);
+            this.fieldProxy = new ReadDocValuesFieldProxy(this.leafLookup);
             params = new HashMap<>(params);
             params.putAll(leafLookup.asMap());
             this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
@@ -118,6 +124,7 @@ public abstract class ScoreScript {
     public void setDocument(int docid) {
         this.docId = docid;
         leafLookup.setDocument(docid);
+        // fieldProxy is using leafLookup, no need to call fieldProxy.setDocument(docid)
     }
 
     public void setScorer(Scorable scorer) {
@@ -217,4 +224,32 @@ public abstract class ScoreScript {
     }
 
     public static final ScriptContext<ScoreScript.Factory> CONTEXT = new ScriptContext<>("score", ScoreScript.Factory.class);
+
+    public static class FieldAccess {
+        private final ScoreScript script;
+
+        public FieldAccess(ScoreScript script) {
+            this.script = script;
+        }
+
+        public Field<?> field(String fieldName) {
+            return script.field(fieldName);
+        }
+    }
+
+    @Override
+    public Field<?> field(String fieldName) {
+        if (fieldProxy == null) {
+            return new EmptyField<>(fieldName);
+        }
+        return fieldProxy.field(fieldName);
+    }
+
+    @Override
+    public Stream<Field<?>> fields(String fieldGlob) {
+        if (fieldProxy == null) {
+            return Stream.empty();
+        }
+        return fieldProxy.fields(fieldGlob);
+    }
 }

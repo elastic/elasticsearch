@@ -573,6 +573,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         // Exception handler for IO exceptions with loading index and repo metadata
         final Consumer<Exception> onFailure = e -> {
+            endingSnapshots.add(targetSnapshot);
             initializingClones.remove(targetSnapshot);
             logger.info(() -> new ParameterizedMessage("Failed to start snapshot clone [{}]", cloneEntry), e);
             removeFailedSnapshotFromClusterState(targetSnapshot, e, null);
@@ -740,7 +741,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         new ShardSnapshotUpdate(
                             target,
                             repoShardId,
-                            new ShardSnapshotStatus(localNodeId, ShardState.FAILED, "failed to clone shard snapshot", null)
+                            new ShardSnapshotStatus(
+                                localNodeId,
+                                ShardState.FAILED,
+                                "failed to clone shard snapshot",
+                                shardStatusBefore.generation()
+                            )
                         ),
                         ActionListener.runBefore(
                             ActionListener.wrap(
@@ -1921,6 +1927,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ClusterState updatedState = stateWithoutFailedSnapshot(currentState, snapshot);
+                assert updatedState == currentState || endingSnapshots.contains(snapshot)
+                    : "did not track [" + snapshot + "] in ending snapshots while removing it from the cluster state";
                 // now check if there are any delete operations that refer to the just failed snapshot and remove the snapshot from them
                 return updateWithSnapshots(
                     updatedState,

@@ -42,6 +42,7 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class InternalRealmsTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testNativeRealmRegistersIndexHealthChangeListener() throws Exception {
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         Map<String, Realm.Factory> factories = InternalRealms.getFactories(mock(ThreadPool.class), mock(ResourceWatcherService.class),

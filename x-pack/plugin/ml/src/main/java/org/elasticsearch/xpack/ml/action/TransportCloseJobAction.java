@@ -22,10 +22,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -53,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -366,14 +368,14 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
             PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
             if (jobTask != null) {
                 auditor.info(jobId, Messages.JOB_AUDIT_CLOSING);
-                waitForCloseRequest.persistentTaskIds.add(jobTask.getId());
+                waitForCloseRequest.persistentTasks.add(jobTask);
                 waitForCloseRequest.jobsToFinalize.add(jobId);
             }
         }
         for (String jobId : closingJobIds) {
             PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
             if (jobTask != null) {
-                waitForCloseRequest.persistentTaskIds.add(jobTask.getId());
+                waitForCloseRequest.persistentTasks.add(jobTask);
             }
         }
 
@@ -389,8 +391,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException
-                        && Strings.isAllOrWildcard(request.getJobId())) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                         logger.trace(
                             () -> new ParameterizedMessage(
                                 "[{}] [{}] failed to close job due to resource not found exception",
@@ -413,8 +414,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
                 }
             });
         }, e -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException
-                && Strings.isAllOrWildcard(request.getJobId())) {
+            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                 logger.trace(
                     () -> new ParameterizedMessage(
                         "[{}] [{}] failed to update job to closing due to resource not found exception",
@@ -478,8 +478,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
                             @Override
                             public void onFailure(Exception e) {
                                 final int slot = counter.incrementAndGet();
-                                if ((ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException &&
-                                    Strings.isAllOrWildcard(new String[]{request.getJobId()})) == false) {
+                                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
                                     failures.set(slot - 1, e);
                                 }
                                 if (slot == numberOfJobs) {
@@ -524,39 +523,76 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
             return;
         }
 
+        final Set<String> movedJobs = Sets.newConcurrentHashSet();
+
+        ActionListener<CloseJobAction.Response> intermediateListener = ActionListener.wrap(
+            response -> {
+                for (String jobId : movedJobs) {
+                    PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
+                    persistentTasksService.sendRemoveRequest(jobTask.getId(), ActionListener.wrap(
+                        r -> logger.trace("[{}] removed persistent task for relocated job", jobId),
+                        e -> {
+                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                                logger.debug("[{}] relocated job task already removed", jobId);
+                            } else {
+                                logger.error("[" + jobId + "] failed to remove task to stop relocated job", e);
+                            }
+                        })
+                    );
+                }
+                listener.onResponse(response);
+            }, listener::onFailure
+        );
+
         boolean noOpenJobsToClose = openJobIds.isEmpty();
         if (noOpenJobsToClose) {
             // No jobs to close but we still want to wait on closing jobs in the request
-            waitForJobClosed(request, waitForCloseRequest, new CloseJobAction.Response(true), listener);
+            waitForJobClosed(request, waitForCloseRequest, new CloseJobAction.Response(true), intermediateListener, movedJobs);
             return;
         }
 
         ActionListener<CloseJobAction.Response> finalListener =
                 ActionListener.wrap(
                         r -> waitForJobClosed(request, waitForCloseRequest,
-                        r, listener),
+                        r, intermediateListener, movedJobs),
                         listener::onFailure);
         super.doExecute(task, request, finalListener);
     }
 
     static class WaitForCloseRequest {
-        List<String> persistentTaskIds = new ArrayList<>();
+        List<PersistentTasksCustomMetadata.PersistentTask<?>> persistentTasks = new ArrayList<>();
         List<String> jobsToFinalize = new ArrayList<>();
 
         public boolean hasJobsToWaitFor() {
-            return persistentTaskIds.isEmpty() == false;
+            return persistentTasks.isEmpty() == false;
         }
     }
 
-    // Wait for job to be marked as closed in cluster state, which means the job persistent task has been removed
-    // This api returns when job has been closed, but that doesn't mean the persistent task has been removed from cluster state,
-    // so wait for that to happen here.
+    /**
+     * Wait for job to be marked as closed in cluster state, which means the job persistent task has been removed
+     * This api returns when job has been closed, but that doesn't mean the persistent task has been removed from cluster state,
+     * so wait for that to happen here.
+     *
+     * Since the close job action consists of a chain of async callbacks, it's possible that jobs have moved nodes since we decided
+     * what to do with them at the beginning of the chain.  We cannot simply wait for these, as the request to stop them will have
+     * been sent to the wrong node and ignored there, so we'll just spin until the timeout expires.
+     */
     void waitForJobClosed(CloseJobAction.Request request, WaitForCloseRequest waitForCloseRequest, CloseJobAction.Response response,
-                          ActionListener<CloseJobAction.Response> listener) {
+                          ActionListener<CloseJobAction.Response> listener, Set<String> movedJobs) {
         persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetadata -> {
-            for (String persistentTaskId : waitForCloseRequest.persistentTaskIds) {
-                if (persistentTasksCustomMetadata.getTask(persistentTaskId) != null) {
-                    return false;
+            for (PersistentTasksCustomMetadata.PersistentTask<?> originalPersistentTask : waitForCloseRequest.persistentTasks) {
+                String originalPersistentTaskId = originalPersistentTask.getId();
+                PersistentTasksCustomMetadata.PersistentTask<?> currentPersistentTask =
+                    persistentTasksCustomMetadata.getTask(originalPersistentTaskId);
+                if (currentPersistentTask != null) {
+                    if (Objects.equals(originalPersistentTask.getExecutorNode(), currentPersistentTask.getExecutorNode())
+                        && originalPersistentTask.getAllocationId() == currentPersistentTask.getAllocationId()) {
+                        return false;
+                    }
+                    OpenJobAction.JobParams params = (OpenJobAction.JobParams) originalPersistentTask.getParams();
+                    if (movedJobs.add(params.getJobId())) {
+                        logger.info("Job [{}] changed assignment while waiting for it to be closed", params.getJobId());
+                    }
                 }
             }
             return true;

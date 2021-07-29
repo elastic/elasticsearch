@@ -63,6 +63,18 @@ import java.util.function.Supplier;
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
 public class NumberFieldMapper extends FieldMapper {
 
+    public enum MetricType {
+        gauge,
+        counter;
+
+        public static MetricType fromString(String name) {
+            return Arrays.stream(values())
+                .filter(v -> v.name().equalsIgnoreCase(name))
+                .findFirst()
+                .orElse(null);
+        }
+    }
+
     public static final Setting<Boolean> COERCE_SETTING =
             Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
 
@@ -84,7 +96,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).builder.script.get());
         private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
         private final Parameter<Boolean> dimension;
-
+        private final Parameter<String> metric;
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -125,6 +137,18 @@ public class NumberFieldMapper extends FieldMapper {
                         );
                     }
                 });
+            this.metric = Parameter.restrictedStringParam(
+                "metric",
+                false,
+                m -> toType(m).metricType != null ? toType(m).metricType.name() : null,
+                null,
+                MetricType.gauge.name(),
+                MetricType.counter.name()
+            ).acceptsNull().setValidator(v -> {
+                if (v != null && v.isEmpty() == false && hasDocValues.getValue() == false) {
+                    throw new IllegalArgumentException("Field [metric] requires that [" + hasDocValues.name + "] is true");
+                }
+            });
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);
@@ -152,9 +176,26 @@ public class NumberFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder metric(String metric) {
+            this.metric.setValue(metric);
+            return this;
+        }
+
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, script, onScriptError, meta, dimension);
+            return List.of(
+                indexed,
+                hasDocValues,
+                stored,
+                ignoreMalformed,
+                coerce,
+                nullValue,
+                script,
+                onScriptError,
+                meta,
+                dimension,
+                metric
+            );
         }
 
         @Override
@@ -967,26 +1008,29 @@ public class NumberFieldMapper extends FieldMapper {
         private final Number nullValue;
         private final FieldValues<Number> scriptValues;
         private final boolean isDimension;
+        private final MetricType metricType;
 
         public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean isStored,
                                boolean hasDocValues, boolean coerce, Number nullValue, Map<String, String> meta,
-                               FieldValues<Number> script, boolean isDimension) {
+                               FieldValues<Number> script, boolean isDimension, MetricType metricType) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;
             this.scriptValues = script;
             this.isDimension = isDimension;
+            this.metricType = metricType;
         }
 
         NumberFieldType(String name, Builder builder) {
             this(name, builder.type, builder.indexed.getValue(), builder.stored.getValue(), builder.hasDocValues.getValue(),
                 builder.coerce.getValue().value(), builder.nullValue.getValue(), builder.meta.getValue(),
-                builder.scriptValues(), builder.dimension.getValue());
+                builder.scriptValues(), builder.dimension.getValue(),
+                MetricType.fromString(builder.metric.getValue()));
         }
 
         public NumberFieldType(String name, NumberType type) {
-            this(name, type, true, false, true, true, null, Collections.emptyMap(), null, false);
+            this(name, type, true, false, true, true, null, Collections.emptyMap(), null, false, null);
         }
 
         @Override
@@ -1086,6 +1130,14 @@ public class NumberFieldMapper extends FieldMapper {
         public boolean isDimension() {
             return isDimension;
         }
+
+        /**
+         * If field is a time series metric field, returns its metric type
+         * @return the metric type or null
+         */
+        public MetricType getMetricType() {
+            return metricType;
+        }
     }
 
     private final Builder builder;
@@ -1101,6 +1153,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
     private final boolean dimension;
+    private final MetricType metricType;
 
     private NumberFieldMapper(
             String simpleName,
@@ -1120,6 +1173,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
         this.scriptValues = builder.scriptValues();
         this.dimension = builder.dimension.getValue();
+        this.metricType = MetricType.fromString(builder.metric.getValue());
         this.builder = builder;
     }
 
@@ -1208,6 +1262,8 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, builder.scriptCompiler, ignoreMalformedByDefault, coerceByDefault)
-            .dimension(dimension).init(this);
+            .dimension(dimension)
+            .metric(metricType != null ? metricType.name() : null)
+            .init(this);
     }
 }

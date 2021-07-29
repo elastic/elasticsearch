@@ -21,6 +21,7 @@ import org.elasticsearch.script.ScriptContext;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -258,6 +259,36 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             b.field("dimension", true);
         })));
         assertThat(e.getCause().getMessage(), containsString("Parameter [dimension] cannot be set"));
+    }
+
+    protected <T> void assertMetricType(String metricType, Function<T, Enum> checker)
+        throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("metric", metricType);
+        }));
+
+        @SuppressWarnings("unchecked") // Syntactic sugar in tests
+        T fieldType = (T) mapperService.fieldType("field");
+        assertThat(checker.apply(fieldType).name(), equalTo(metricType));
+    }
+
+    public void testMetricType() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
+        assertNull(ft.getMetricType());
+
+        assertMetricType("gauge", NumberFieldMapper.NumberFieldType::getMetricType);
+        assertMetricType("counter", NumberFieldMapper.NumberFieldType::getMetricType);
+    }
+
+    public void testMetricAndDocvalues() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("metric", "counter").field("doc_values", false);
+        })));
+        assertThat(e.getCause().getMessage(), containsString("Field [metric] requires that [doc_values] is true"));
     }
 
     @Override

@@ -86,10 +86,6 @@ setup:
 ---
 "field collapsing and from":
 
-  - skip:
-      version: "all"
-      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/52416"
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -109,10 +105,6 @@ setup:
 
 ---
 "field collapsing and inner_hits":
-
-  - skip:
-      version: "all"
-      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/52416"
 
   - do:
       search:
@@ -150,9 +142,7 @@ setup:
 
 ---
 "field collapsing, inner_hits, and fields":
-  - skip:
-      version: " - 7.9.99"
-      reason: the 'fields' option was added in 7.10
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -234,9 +224,7 @@ setup:
 
 ---
 "field collapsing and search_after with invalid sort":
-  - skip:
-      version: " - 7.13.99"
-      reason: "support for collapsing with search_after was added in 7.14"
+
   - do:
       catch: /Cannot use \[collapse\] in conjunction with \[search_after\] unless the search is sorted on the same field. Multiple sort fields are not allowed./
       search:
@@ -257,9 +245,7 @@ setup:
 
 ---
 "field collapsing and search_after":
-  - skip:
-      version: " - 7.13.99"
-      reason: "support for collapsing with search_after was added in 7.14"
+
   - do:
       search:
         index: test
@@ -315,10 +301,6 @@ setup:
 
 ---
 "no hits and inner_hits":
-
-  - skip:
-      version: "all"
-      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/52416"
 
   - do:
       search:
@@ -444,9 +426,7 @@ setup:
 
 ---
 "field collapsing on a field alias":
-  - skip:
-      version: " - 7.5.1"
-      reason: the bug fix was introduced in 7.5.2
+
   - do:
       indices.create:
         index:  alias-test

@@ -327,7 +327,15 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNoFailures(BroadcastResponse response) {
-        assertThat("Unexpected ShardFailures: " + Arrays.toString(response.getShardFailures()), response.getFailedShards(), equalTo(0));
+        if (response.getFailedShards() != 0) {
+            final AssertionError assertionError = new AssertionError("[" + response.getFailedShards() + "] shard failures");
+
+            for (DefaultShardOperationFailedException shardFailure : response.getShardFailures()) {
+                assertionError.addSuppressed(new ElasticsearchException(shardFailure.toString(), shardFailure.getCause()));
+            }
+
+            throw assertionError;
+        }
     }
 
     public static void assertAllSuccessful(BroadcastResponse response) {

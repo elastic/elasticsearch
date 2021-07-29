@@ -13,7 +13,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
@@ -131,20 +130,16 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                 case HYBRIDFS:
                     assertTrue(FsDirectoryFactory.isHybridFs(directory));
                     break;
+                case SIMPLEFS:
                 case NIOFS:
                     assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
                     break;
                 case MMAPFS:
                     assertTrue(type + " " + directory.toString(), directory instanceof MMapDirectory);
                     break;
-                case SIMPLEFS:
-                    assertTrue(type + " " + directory.toString(), directory instanceof SimpleFSDirectory);
-                    break;
                 case FS:
                     if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
                         assertTrue(FsDirectoryFactory.isHybridFs(directory));
-                    } else if (Constants.WINDOWS) {
-                        assertTrue(directory.toString(), directory instanceof SimpleFSDirectory);
                     } else {
                         assertTrue(directory.toString(), directory instanceof NIOFSDirectory);
                     }

@@ -666,6 +666,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     protected BlobContainer blobContainer() {
         assertSnapshotOrGenericThread();
 
+        if (lifecycle.started() == false) {
+            throw notStartedException();
+        }
+
         BlobContainer blobContainer = this.blobContainer.get();
         if (blobContainer == null) {
             synchronized (lock) {
@@ -693,7 +697,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 store = blobStore.get();
                 if (store == null) {
                     if (lifecycle.started() == false) {
-                        throw new RepositoryException(metadata.name(), "repository is not in started state");
+                        throw notStartedException();
                     }
                     try {
                         store = createBlobStore();
@@ -1645,6 +1649,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // master-eligible or not.
         assert clusterService.localNode().isMasterNode() : "should only load repository data on master nodes";
 
+        if (lifecycle.started() == false) {
+            listener.onFailure(notStartedException());
+            return;
+        }
+
         if (latestKnownRepoGen.get() == RepositoryData.CORRUPTED_REPO_GEN) {
             listener.onFailure(corruptedStateException(null, null));
             return;
@@ -1683,6 +1692,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
             }
         }
+    }
+
+    private RepositoryException notStartedException() {
+        return new RepositoryException(metadata.name(), "repository is not in started state");
     }
 
     // Listener used to ensure that repository data is only initialized once in the cluster state by #initializeRepoGenerationTracking
@@ -2461,7 +2474,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final RepositoryMetadata repositoryMetadata = state.getMetadata()
             .<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
             .repository(metadata.name());
-        assert repositoryMetadata != null;
+        assert repositoryMetadata != null || lifecycle.stoppedOrClosed()
+            : "did not find metadata for repo [" + metadata.name() + "] in state [" + lifecycleState() + "]";
         return repositoryMetadata;
     }
 
@@ -3218,6 +3232,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 ex
             );
         }
+    }
+
+    /**
+     * Loads all available snapshots in the repository using the given {@code generation} for a shard. When {@code shardGen}
+     * is null it tries to load it using the BwC mode, listing the available index- blobs in the shard container.
+     */
+    public BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots(IndexId indexId, int shardId, @Nullable String shardGen)
+        throws IOException {
+        final BlobContainer shardContainer = shardContainer(indexId, shardId);
+
+        Set<String> blobs = Collections.emptySet();
+        if (shardGen == null) {
+            blobs = shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX).keySet();
+        }
+
+        return buildBlobStoreIndexShardSnapshots(blobs, shardContainer, shardGen).v1();
     }
 
     /**

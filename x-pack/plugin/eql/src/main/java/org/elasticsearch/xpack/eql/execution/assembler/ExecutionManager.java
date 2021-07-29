@@ -92,7 +92,7 @@ public class ExecutionManager {
             PhysicalPlan query = plans.get(i);
             // search query
             if (query instanceof EsQueryExec) {
-                SearchSourceBuilder source = ((EsQueryExec) query).source(session);
+                SearchSourceBuilder source = ((EsQueryExec) query).source(session, false);
                 QueryRequest original = () -> source;
                 BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, keyFields);
                 Criterion<BoxedQueryRequest> criterion =

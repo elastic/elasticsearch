@@ -27,7 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * These utilities are used to convert agg responses into a set of rollup documents.
@@ -45,9 +45,9 @@ class IndexerUtils {
      * @param stats            The stats accumulator for this job's task
      * @param groupConfig      The grouping configuration for the job
      * @param jobId            The ID for the job
-     * @return             A list of rolled documents derived from the response
+     * @return                 A stream of rolled documents derived from the response
      */
-    static List<IndexRequest> processBuckets(CompositeAggregation agg, String rollupIndex, RollupIndexerJobStats stats,
+    static Stream<IndexRequest> processBuckets(CompositeAggregation agg, String rollupIndex, RollupIndexerJobStats stats,
                                              GroupConfig groupConfig, String jobId) {
 
         logger.debug("Buckets: [" + agg.getBuckets().size() + "][" + jobId + "]");
@@ -72,7 +72,7 @@ class IndexerUtils {
             IndexRequest request = new IndexRequest(rollupIndex).id(idGenerator.getID());
             request.source(doc);
             return request;
-        }).collect(Collectors.toList());
+        });
     }
 
     private static void processKeys(Map<String, Object> keys, Map<String, Object> doc,

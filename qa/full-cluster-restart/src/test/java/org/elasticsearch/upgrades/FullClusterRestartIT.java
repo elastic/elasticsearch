@@ -682,9 +682,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             flushRequest.addParameter("force", "true");
             flushRequest.addParameter("wait_if_ongoing", "true");
             assertOK(client().performRequest(flushRequest));
-            if (randomBoolean()) {
-                syncedFlush(index);
-            }
 
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
@@ -1052,13 +1049,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
-        Map<String, Object> responseMap = entityAsMap(client().performRequest(listSnapshotRequest));
-        Map<String, Object> snapResponse;
-        if (responseMap.get("responses") != null) {
-            snapResponse = (Map<String, Object>) ((List<Object>) responseMap.get("responses")).get(0);
-        } else {
-            snapResponse = responseMap;
-        }
+        Map<String, Object> snapResponse = entityAsMap(client().performRequest(listSnapshotRequest));
 
         assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", snapResponse));
         assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", snapResponse));
@@ -1599,6 +1590,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * translated properly. This test can be removed in 9.0.
      */
     public void testTransportCompressionSetting() throws IOException {
+        assumeTrue("the old transport.compress setting existed before 7.14", getOldClusterVersion().before(Version.V_7_14_0));
+        assumeTrue("Early versions of 6.x do not have cluster.remote* prefixed settings",
+            getOldClusterVersion().onOrAfter(Version.V_7_14_0.minimumCompatibilityVersion()));
         if (isRunningAgainstOldCluster()) {
             final Request putSettingsRequest = new Request("PUT", "/_cluster/settings");
             try (XContentBuilder builder = jsonBuilder()) {

@@ -50,7 +50,7 @@ Runtime fields can replace many of the ways you can use scripting with the
 documents that the included script runs against. For example, if you're using
 the `fields` parameter on the `_search` API to 
 <<runtime-retrieving-fields,retrieve the values of a runtime field>>, the script
-returns only the top hits just like script fields do.
+runs only against the top hits just like script fields do.
 
 You can use <<script-fields,script fields>> to access values in `_source` and
 return calculated values based on a script valuation. Runtime fields have these
@@ -69,7 +69,7 @@ You can also use scripts to <<script-based-sorting,sort search results>>, but
 that same script works exactly the same in a runtime field.
 
 If you move a script from any of these sections in a search request to a
-runtime field that is retrieving values from the same number of documents, the
+runtime field that is computing values from the same number of documents, the
 performance should be about the same. The performance for these features is
 largely dependent upon the calculations that the included script is running and
 how many documents the script runs against. 

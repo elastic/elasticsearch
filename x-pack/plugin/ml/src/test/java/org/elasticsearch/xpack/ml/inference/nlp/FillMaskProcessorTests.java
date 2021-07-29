@@ -45,8 +45,8 @@ public class FillMaskProcessorTests extends ESTestCase {
         BertTokenizer.TokenizationResult tokenization = new BertTokenizer.TokenizationResult(input, vocab, tokens,
             tokenIds, tokenMap);
 
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class));
-        FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, new PyTorchResult("1", scores, null));
+        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), mock(NlpTaskConfig.class));
+        FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 0L, null));
         assertThat(result.getPredictions(), hasSize(5));
         FillMaskResults.Prediction prediction = result.getPredictions().get(0);
         assertEquals("France", prediction.getToken());
@@ -66,8 +66,8 @@ public class FillMaskProcessorTests extends ESTestCase {
             new BertTokenizer.TokenizationResult("", Collections.emptyList(), Collections.emptyList(),
             new int[] {}, new int[] {});
 
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class));
-        PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][]{{}}, null);
+        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), mock(NlpTaskConfig.class));
+        PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][]{{}}, 0L, null);
         FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, pyTorchResult);
         assertThat(result.getPredictions(), empty());
     }
@@ -75,7 +75,7 @@ public class FillMaskProcessorTests extends ESTestCase {
     public void testValidate_GivenMissingMaskToken() {
         String input = "The capital of France is Paris";
 
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class));
+        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), mock(NlpTaskConfig.class));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> processor.validateInputs(input));
         assertThat(e.getMessage(), containsString("no [MASK] token could be found"));
@@ -85,7 +85,7 @@ public class FillMaskProcessorTests extends ESTestCase {
     public void testProcessResults_GivenMultipleMaskTokens() {
         String input = "The capital of [MASK] is [MASK]";
 
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class));
+        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), mock(NlpTaskConfig.class));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> processor.validateInputs(input));
         assertThat(e.getMessage(), containsString("only one [MASK] token should exist in the input"));

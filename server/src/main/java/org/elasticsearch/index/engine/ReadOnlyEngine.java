@@ -249,7 +249,7 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public GetResult get(Get get, MappingLookup mappingLookup, DocumentParser documentParser,
                          Function<Searcher, Searcher> searcherWrapper) {
-        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper));
+        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
     }
 
     @Override
@@ -566,7 +566,7 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
         final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope);
-        return new SearcherSupplier(Function.identity()) {
+        return new SearcherSupplier(wrapper) {
             @Override
             protected void doClose() {
                 delegate.close();

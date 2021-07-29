@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -77,5 +78,20 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 expectedUrl,
                 "Found index data path configured. Discontinue use of this setting.",
                 null)));
+    }
+
+    public void testSimpleFSSetting() {
+        Settings.Builder settings = settings(Version.CURRENT);
+        settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "simplefs");
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        assertThat(issues, contains(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "[simplefs] is deprecated and will be removed in future versions",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-store.html",
+                "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
+                    "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
+                    "as it offers superior or equivalent performance to [simplefs].", null)
+        ));
     }
 }

@@ -7,11 +7,14 @@
  */
 
 import com.avast.gradle.dockercompose.tasks.ComposePull
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.internal.BuildPlugin
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.BwcVersions
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.plugins.ide.eclipse.model.AccessRule
@@ -21,6 +24,8 @@ import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 import org.elasticsearch.gradle.internal.InternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
+import java.nio.file.Files
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 plugins {
   id 'lifecycle-base'
@@ -38,6 +43,7 @@ plugins {
   id 'elasticsearch.fips'
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
+  id 'elasticsearch.release-tools'
   id "com.diffplug.spotless" version "5.12.5" apply false
 }
 
@@ -106,6 +112,28 @@ tasks.register("verifyVersions") {
       if (ciYml.contains("\"$it\"\n") == false) {
         throw new Exception(".ci/bwcVersions is outdated, run `./gradlew updateCIBwcVersions` and check in the results");
       }
+    }
+
+    // Make sure backport bot config file is up to date
+    JsonNode backportConfig = new ObjectMapper().readTree(file(".backportrc.json"))
+    List<BwcVersions.UnreleasedVersionInfo> unreleased = BuildParams.bwcVersions.unreleased.collect { BuildParams.bwcVersions.unreleasedInfo(it) }
+    unreleased.each { unreleasedVersion ->
+      boolean valid = backportConfig.get("targetBranchChoices").elements().any { branchChoice ->
+        if (branchChoice.isObject()) {
+          return branchChoice.get("name").textValue() == unreleasedVersion.branch
+        } else {
+          return branchChoice.textValue() == unreleasedVersion.branch
+        }
+      }
+      if (valid == false) {
+        throw new GradleException("No branch choice exists for development branch ${unreleasedVersion.branch} in .backportrc.json.")
+      }
+    }
+    BwcVersions.UnreleasedVersionInfo nextMinor = unreleased.find { it.branch.endsWith("x") }
+    String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == nextMinor.branch }.key
+    if (versionMapping != "^v${nextMinor.version}\$") {
+      throw new GradleException("Backport label mapping for branch ${nextMinor.branch} is '${versionMapping}' but should be " +
+        "'^v${nextMinor.version}\$'. Update .backportrc.json.")
     }
   }
 }
@@ -355,6 +383,9 @@ tasks.named("wrapper").configure {
     final String sha256Sum = new String(sha256Uri.toURL().bytes)
     wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
     println "Added checksum to wrapper properties"
+    // copy wrapper properties file to build-tools-internal to allow seamless idea integration
+    def file = new File("build-tools-internal/gradle/wrapper/gradle-wrapper.properties")
+    Files.copy(wrapper.getPropertiesFile().toPath(), file.toPath(), REPLACE_EXISTING)
     // Update build-tools to reflect the Gradle upgrade
     // TODO: we can remove this once we have tests to make sure older versions work.
     project.file('build-tools-internal/src/main/resources/minimumGradleVersion').text = gradleVersion
@@ -380,7 +411,7 @@ gradle.projectsEvaluated {
   }
 }
 
-tasks.register("precommit") {
+tasks.named("precommit") {
   dependsOn gradle.includedBuild('build-tools').task(':precommit')
   dependsOn gradle.includedBuild('build-tools-internal').task(':precommit')
 }

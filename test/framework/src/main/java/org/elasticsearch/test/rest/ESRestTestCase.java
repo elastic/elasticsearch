@@ -33,15 +33,10 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.core.CharArrays;
-import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -52,6 +47,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -64,7 +64,6 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
-import javax.net.ssl.SSLContext;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -97,6 +96,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
@@ -840,15 +840,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 Request listRequest = new Request("GET", "/_snapshot/" + repoName + "/_all");
                 listRequest.addParameter("ignore_unavailable", "true");
 
-                Map<?, ?> response = entityAsMap(adminClient.performRequest(listRequest));
-                Map<?, ?> oneRepoResponse;
-                if (response.containsKey("responses")) {
-                    oneRepoResponse = ((Map<?,?>)((List<?>) response.get("responses")).get(0));
-                } else {
-                    oneRepoResponse = response;
-                }
-
-                List<?> snapshots = (List<?>) oneRepoResponse.get("snapshots");
+                List<?> snapshots = (List<?>) entityAsMap(adminClient.performRequest(listRequest)).get("snapshots");
                 for (Object snapshot : snapshots) {
                     Map<?, ?> snapshotInfo = (Map<?, ?>) snapshot;
                     String name = (String) snapshotInfo.get("snapshot");
@@ -1018,6 +1010,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private static void deleteAllAutoFollowPatterns() throws IOException {
         final List<Map<?, ?>> patterns;
 
@@ -1656,48 +1649,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         assertNotNull(minVersion);
         return minVersion;
-    }
-
-    protected void syncedFlush(String indexName) throws Exception {
-        final List<String> deprecationMessages = List.of(
-            "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.");
-        final List<String> fixedDeprecationMessages = List.of(
-            "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.");
-        final List<String> transitionMessages = List.of(
-            "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version.");
-        final WarningsHandler warningsHandler;
-        if (minimumNodeVersion().onOrAfter(Version.V_8_0_0)) {
-            warningsHandler = warnings -> warnings.equals(transitionMessages) == false;
-        } else if (minimumNodeVersion().onOrAfter(Version.V_7_6_0)) {
-            warningsHandler = warnings -> warnings.equals(deprecationMessages) == false && warnings.equals(transitionMessages) == false &&
-                warnings.equals(fixedDeprecationMessages) == false;
-        } else if (nodeVersions.stream().anyMatch(n -> n.onOrAfter(Version.V_8_0_0))) {
-            warningsHandler = warnings -> warnings.isEmpty() == false && warnings.equals(transitionMessages) == false;
-        } else {
-            warningsHandler = warnings -> warnings.isEmpty() == false;
-        }
-        // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
-        // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
-        assertBusy(() -> {
-            try {
-                final Request request = new Request("POST", indexName + "/_flush/synced");
-                request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warningsHandler));
-                Response resp = client().performRequest(request);
-                if (nodeVersions.stream().allMatch(v -> v.before(Version.V_8_0_0))) {
-                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                    assertThat(result.get("failed"), equalTo(0));
-                }
-            } catch (ResponseException ex) {
-                if (ex.getResponse().getStatusLine().getStatusCode() == RestStatus.CONFLICT.getStatus()
-                    && ex.getResponse().getWarnings().equals(transitionMessages)) {
-                    logger.info("a normal flush was performed instead");
-                } else {
-                    throw new AssertionError(ex); // cause assert busy to retry
-                }
-            }
-        });
-        // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId
-        ensureGlobalCheckpointSynced(indexName);
     }
 
     @SuppressWarnings("unchecked")

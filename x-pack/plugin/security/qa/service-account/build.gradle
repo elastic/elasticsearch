@@ -6,7 +6,7 @@ dependencies {
   javaRestTestImplementation project(':x-pack:plugin:security')
 }
 
-testClusters.javaRestTest {
+testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
 

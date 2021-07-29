@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -48,10 +47,10 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         mergeResults = in.readBoolean();
-        includeUnmapped = in.getVersion().onOrAfter(Version.V_7_2_0) ? in.readBoolean() : false;
-        indexFilter = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
-        nowInMillis = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalLong() : null;
-        runtimeFields = in.getVersion().onOrAfter(Version.V_7_12_0) ? in.readMap() : Collections.emptyMap();
+        includeUnmapped = in.readBoolean();
+        indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        nowInMillis = in.readOptionalLong();
+        runtimeFields = in.readMap();
     }
 
     public FieldCapabilitiesRequest() {
@@ -83,22 +82,10 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeBoolean(mergeResults);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeBoolean(includeUnmapped);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeOptionalNamedWriteable(indexFilter);
-            out.writeOptionalLong(nowInMillis);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeMap(runtimeFields);
-        } else {
-            if (false == runtimeFields.isEmpty()) {
-                throw new IllegalArgumentException(
-                    "Versions before 7.12.0 don't support [runtime_mappings], but trying to send _field_caps request to a node "
-                    + "with version [" + out.getVersion() + "]");
-            }
-        }
+        out.writeBoolean(includeUnmapped);
+        out.writeOptionalNamedWriteable(indexFilter);
+        out.writeOptionalLong(nowInMillis);
+        out.writeMap(runtimeFields);
     }
 
     @Override

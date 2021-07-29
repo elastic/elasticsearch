@@ -340,6 +340,9 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                     } else if ("fail".equals(testTask.getOperation())) {
                         task.markAsFailed(new RuntimeException("Simulating failure"));
                         return;
+                    }  else if ("abort_locally".equals(testTask.getOperation())) {
+                        task.markAsLocallyAborted("Simulating local abort");
+                        return;
                     } else if ("update_status".equals(testTask.getOperation())) {
                         testTask.setOperation(null);
                         CountDownLatch latch = new CountDownLatch(1);

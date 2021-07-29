@@ -8,6 +8,7 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
@@ -158,6 +159,8 @@ import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.GetterPainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
+import org.elasticsearch.painless.symbol.Decorations.InstanceCapturingLambda;
+import org.elasticsearch.painless.symbol.Decorations.InstanceCapturingFunctionRef;
 import org.elasticsearch.painless.symbol.Decorations.InstanceType;
 import org.elasticsearch.painless.symbol.Decorations.IterablePainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.ListShortcut;
@@ -193,6 +196,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCCaptureBox;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCRead;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
@@ -1356,7 +1360,12 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 new ArrayList<>(scriptScope.getDecoration(userLambdaNode, TypeParameters.class).getTypeParameters())));
         irFunctionNode.attachDecoration(new IRDParameterNames(
                 new ArrayList<>(scriptScope.getDecoration(userLambdaNode, ParameterNames.class).getParameterNames())));
-        irFunctionNode.attachCondition(IRCStatic.class);
+        if (scriptScope.getCondition(userLambdaNode, InstanceCapturingLambda.class)) {
+            irFunctionNode.attachCondition(IRCInstanceCapture.class);
+            irExpressionNode.attachCondition(IRCInstanceCapture.class);
+        } else {
+            irFunctionNode.attachCondition(IRCStatic.class);
+        }
         irFunctionNode.attachCondition(IRCSynthetic.class);
         irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
         irClassNode.addFunctionNode(irFunctionNode);
@@ -1386,9 +1395,12 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         CapturesDecoration capturesDecoration = scriptScope.getDecoration(userFunctionRefNode, CapturesDecoration.class);
 
         if (targetType == null) {
-            String encoding = scriptScope.getDecoration(userFunctionRefNode, EncodingDecoration.class).getEncoding();
+            Def.Encoding encoding = scriptScope.getDecoration(userFunctionRefNode, EncodingDecoration.class).getEncoding();
             DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode(userFunctionRefNode.getLocation());
             defInterfaceReferenceNode.attachDecoration(new IRDDefReferenceEncoding(encoding));
+            if (scriptScope.getCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class)) {
+                defInterfaceReferenceNode.attachCondition(IRCInstanceCapture.class);
+            }
             irReferenceNode = defInterfaceReferenceNode;
         } else if (capturesDecoration != null && capturesDecoration.getCaptures().get(0).getType() == def.class) {
             TypedCaptureReferenceNode typedCaptureReferenceNode = new TypedCaptureReferenceNode(userFunctionRefNode.getLocation());
@@ -1398,6 +1410,9 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             FunctionRef reference = scriptScope.getDecoration(userFunctionRefNode, ReferenceDecoration.class).getReference();
             TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode(userFunctionRefNode.getLocation());
             typedInterfaceReferenceNode.attachDecoration(new IRDReference(reference));
+            if (scriptScope.getCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class)) {
+                typedInterfaceReferenceNode.attachCondition(IRCInstanceCapture.class);
+            }
             irReferenceNode = typedInterfaceReferenceNode;
         }
 
@@ -1427,7 +1442,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             typedInterfaceReferenceNode.attachDecoration(new IRDReference(reference));
             irReferenceNode = typedInterfaceReferenceNode;
         } else {
-            String encoding = scriptScope.getDecoration(userNewArrayFunctionRefNode, EncodingDecoration.class).getEncoding();
+            Def.Encoding encoding = scriptScope.getDecoration(userNewArrayFunctionRefNode, EncodingDecoration.class).getEncoding();
             DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode(userNewArrayFunctionRefNode.getLocation());
             defInterfaceReferenceNode.attachDecoration(new IRDDefReferenceEncoding(encoding));
             irReferenceNode = defInterfaceReferenceNode;

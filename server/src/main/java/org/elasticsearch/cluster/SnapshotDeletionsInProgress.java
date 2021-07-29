@@ -173,6 +173,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 builder.endArray();
                 builder.timeField("start_time_millis", "start_time", entry.startTime);
                 builder.field("repository_state_id", entry.repositoryStateId);
+                builder.field("state", entry.state);
             }
             builder.endObject();
         }

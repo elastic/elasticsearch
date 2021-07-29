@@ -179,7 +179,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) {
+        protected void parseCreateField(DocumentParserContext context) {
 
         }
 

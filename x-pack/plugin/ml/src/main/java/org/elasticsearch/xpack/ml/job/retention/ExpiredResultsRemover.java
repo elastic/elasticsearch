@@ -57,9 +57,8 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Removes all results that have expired the configured retention time
- * of their respective job. A result is deleted if its timestamp is earlier
- * than the timestamp of the latest bucket minus the retention period.
+ * Removes all results that have expired the configured retention time of their respective job.
+ * A result is deleted if its timestamp is earlier than the timestamp of the latest bucket minus the retention period.
  *
  * This is expected to be used by actions requiring admin rights. Thus,
  * it is also expected that the provided client will be a client with the

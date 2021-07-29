@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -41,10 +40,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover.latestBucketTime;
 
 /**
- * Removes all annotations that have expired the configured retention time
- * of their respective job. An annotation is deleted if its timestamp is earlier
- * than the start of the current day (local time-zone) minus the retention
- * period.
+ * Removes all the automatically created annotations that have expired the configured retention time of their respective job.
+ * An annotation is deleted if its timestamp is earlier than the timestamp of the latest bucket minus the retention period.
  *
  * This is expected to be used by actions requiring admin rights. Thus,
  * it is also expected that the provided client will be a client with the
@@ -113,9 +110,6 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
             .setTimeout(DEFAULT_MAX_DURATION)
             .setRequestsPerSecond(requestsPerSec)
             .setQuery(query);
-
-        // _doc is the most efficient sort order and will also disable scoring
-        request.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
         return request;
     }
 

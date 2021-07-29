@@ -97,7 +97,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         {
             ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", 10.5)));
             MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-            assertThat(e.getCause().getMessage(), containsString("For input string: [10.5]"));
+            assertThat(e.getCause().getMessage(), containsString("Value \"10.5\" has a decimal part"));
         }
     }
 

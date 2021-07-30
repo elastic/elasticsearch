@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -50,7 +51,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.rethrowAndSuppress;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.core.ml.MlTasks.DATAFEED_TASK_NAME;
 import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_TASK_NAME;
@@ -67,7 +67,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
     private final PersistentTasksClusterService persistentTasksClusterService;
     private final PersistentTasksService persistentTasksService;
     private final ClusterService clusterService;
-    private final Client client;
+    private final OriginSettingClient client;
 
     @Inject
     public TransportSetUpgradeModeAction(TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
@@ -78,7 +78,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
             indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.persistentTasksClusterService = persistentTasksClusterService;
         this.clusterService = clusterService;
-        this.client = client;
+        this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.persistentTasksService = persistentTasksService;
     }
 
@@ -289,7 +289,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
         datafeedsToIsolate.forEach(datafeedId -> {
             IsolateDatafeedAction.Request isolationRequest = new IsolateDatafeedAction.Request(datafeedId);
             isolateDatafeedsExecutor.add(isolateListener ->
-                executeAsyncWithOrigin(client, ML_ORIGIN, IsolateDatafeedAction.INSTANCE, isolationRequest, isolateListener)
+                client.execute(IsolateDatafeedAction.INSTANCE, isolationRequest, isolateListener)
             );
         });
 

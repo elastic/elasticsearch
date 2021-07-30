@@ -14,18 +14,22 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-public class GetServiceAccountFileTokensRequest extends BaseNodesRequest<GetServiceAccountFileTokensRequest> {
+/**
+ * Request for retrieving service account credentials that are local to each node.
+ * Currently, this means file-backed service tokens.
+ */
+public class GetServiceAccountCredentialsNodesRequest extends BaseNodesRequest<GetServiceAccountCredentialsNodesRequest> {
 
     private final String namespace;
     private final String serviceName;
 
-    public GetServiceAccountFileTokensRequest(String namespace, String serviceName) {
+    public GetServiceAccountCredentialsNodesRequest(String namespace, String serviceName) {
         super((String[]) null);
         this.namespace = namespace;
         this.serviceName = serviceName;
     }
 
-    public GetServiceAccountFileTokensRequest(StreamInput in) throws IOException {
+    public GetServiceAccountCredentialsNodesRequest(StreamInput in) throws IOException {
         super(in);
         this.namespace = in.readString();
         this.serviceName = in.readString();
@@ -43,7 +47,7 @@ public class GetServiceAccountFileTokensRequest extends BaseNodesRequest<GetServ
         private final String namespace;
         private final String serviceName;
 
-        public Node(GetServiceAccountFileTokensRequest request) {
+        public Node(GetServiceAccountCredentialsNodesRequest request) {
             this.namespace = request.namespace;
             this.serviceName = request.serviceName;
         }

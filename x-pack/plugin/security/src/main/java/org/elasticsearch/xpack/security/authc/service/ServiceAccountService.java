@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountFileTokensAction;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountFileTokensRequest;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesRequest;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -204,8 +204,8 @@ public class ServiceAccountService {
                                  ServiceAccountId accountId,
                                  ActionListener<GetServiceAccountCredentialsResponse> listener) {
         executeAsyncWithOrigin(client, SECURITY_ORIGIN,
-            GetServiceAccountFileTokensAction.INSTANCE,
-            new GetServiceAccountFileTokensRequest(accountId.namespace(), accountId.serviceName()),
+            GetServiceAccountNodesCredentialsAction.INSTANCE,
+            new GetServiceAccountCredentialsNodesRequest(accountId.namespace(), accountId.serviceName()),
             ActionListener.wrap(fileTokensResponse -> listener.onResponse(
                 new GetServiceAccountCredentialsResponse(accountId.asPrincipal(), indexTokenInfos, fileTokensResponse)),
                 listener::onFailure));

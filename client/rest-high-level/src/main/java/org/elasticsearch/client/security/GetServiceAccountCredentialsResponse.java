@@ -28,14 +28,14 @@ public final class GetServiceAccountCredentialsResponse {
 
     private final String principal;
     private final List<ServiceTokenInfo> indexTokenInfos;
-    private final FileServiceTokensResponse fileTokensResponse;
+    private final ServiceAccountCredentialsNodesResponse nodesResponse;
 
     public GetServiceAccountCredentialsResponse(String principal,
                                                 List<ServiceTokenInfo> indexTokenInfos,
-                                                FileServiceTokensResponse fileTokensResponse) {
+                                                ServiceAccountCredentialsNodesResponse nodesResponse) {
         this.principal = Objects.requireNonNull(principal, "principal is required");
         this.indexTokenInfos = List.copyOf(Objects.requireNonNull(indexTokenInfos, "service token infos are required"));
-        this.fileTokensResponse = Objects.requireNonNull(fileTokensResponse, "file tokens response is required");
+        this.nodesResponse = Objects.requireNonNull(nodesResponse, "nodes response is required");
     }
 
     public String getPrincipal() {
@@ -46,8 +46,8 @@ public final class GetServiceAccountCredentialsResponse {
         return indexTokenInfos;
     }
 
-    public FileServiceTokensResponse getFileTokenResponse() {
-        return fileTokensResponse;
+    public ServiceAccountCredentialsNodesResponse getNodesResponse() {
+        return nodesResponse;
     }
 
     @SuppressWarnings("unchecked")
@@ -56,8 +56,8 @@ public final class GetServiceAccountCredentialsResponse {
             args -> {
                 final int count = (int) args[1];
                 final List<ServiceTokenInfo> indexTokenInfos = (List<ServiceTokenInfo>) args[2];
-                final FileServiceTokensResponse fileTokensResponse = (FileServiceTokensResponse) args[3];
-                if (count != indexTokenInfos.size() + fileTokensResponse.getTokenInfos().size()) {
+                final ServiceAccountCredentialsNodesResponse fileTokensResponse = (ServiceAccountCredentialsNodesResponse) args[3];
+                if (count != indexTokenInfos.size() + fileTokensResponse.getFileTokenInfos().size()) {
                     throw new IllegalArgumentException("number of tokens do not match");
                 }
                 return new GetServiceAccountCredentialsResponse((String) args[0], indexTokenInfos, fileTokensResponse);
@@ -69,7 +69,7 @@ public final class GetServiceAccountCredentialsResponse {
         PARSER.declareObject(constructorArg(),
             (p, c) -> GetServiceAccountCredentialsResponse.parseIndexTokenInfos(p), new ParseField("tokens"));
         PARSER.declareObject(constructorArg(),
-            (p, c) -> FileServiceTokensResponse.fromXContent(p), new ParseField("file_tokens"));
+            (p, c) -> ServiceAccountCredentialsNodesResponse.fromXContent(p), new ParseField("nodes_credentials"));
     }
 
     public static GetServiceAccountCredentialsResponse fromXContent(XContentParser parser) throws IOException {

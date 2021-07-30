@@ -46,7 +46,7 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
 
         assertThat(original.getPrincipal(), equalTo(deserialized.getPrincipal()));
         assertThat(getAllTokenInfos(original), equalTo(getAllTokenInfos(deserialized)));
-        assertThat(original.getFileTokensResponse().getTokenInfos(), equalTo(deserialized.getFileTokensResponse().getTokenInfos()));
+        assertThat(original.getNodesResponse().getFileTokenInfos(), equalTo(deserialized.getNodesResponse().getFileTokenInfos()));
     }
 
     private GetServiceAccountCredentialsResponse createTestInstance() {
@@ -54,7 +54,7 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
         final List<TokenInfo> indexTokenInfos = IntStream.range(0, randomIntBetween(0, 10))
             .mapToObj(i -> TokenInfo.indexToken(randomAlphaOfLengthBetween(3, 8)))
             .collect(Collectors.toUnmodifiableList());
-        final GetServiceAccountFileTokensResponse fileTokensResponse = randomGetServiceAccountFileTokensResponse();
+        final GetServiceAccountCredentialsNodesResponse fileTokensResponse = randomGetServiceAccountFileTokensResponse();
         return new GetServiceAccountCredentialsResponse(principal, indexTokenInfos, fileTokensResponse);
     }
 
@@ -78,32 +78,30 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
         assertNotNull(tokens);
         tokens.keySet().forEach(k -> assertThat(nameToTokenInfos.remove(k).getSource(), equalTo(TokenInfo.TokenSource.INDEX)));
 
+        final Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");
+        final Map<String, Object> nodesHeader = (Map<String, Object>) nodes.get("_nodes");
+        assertThat(nodesHeader.get("successful"), equalTo(response.getNodesResponse().getNodes().size()));
+        assertThat(nodesHeader.get("failed"), equalTo(response.getNodesResponse().failures().size()));
 
-        final Map<String, Object> fileTokens = (Map<String, Object>) responseMap.get("file_tokens");
+        final Map<String, Object> fileTokens = (Map<String, Object>) nodes.get("file_tokens");
         assertNotNull(fileTokens);
         fileTokens.forEach((key, value) -> {
-            if (key.equals("_nodes")) {
-                final Map<String, Object> nodesContent = (Map<String, Object>) value;
-                assertThat(nodesContent.get("successful"), equalTo(response.getFileTokensResponse().getNodes().size()));
-                assertThat(nodesContent.get("failed"), equalTo(response.getFileTokensResponse().failures().size()));
-            } else {
-                final Map<String, Object> tokenContent = (Map<String, Object>) value;
-                assertThat(tokenContent.get("nodes"), equalTo(nameToTokenInfos.get(key).getNodeNames()));
-                assertThat(nameToTokenInfos.remove(key).getSource(), equalTo(TokenInfo.TokenSource.FILE));
-            }
+            final Map<String, Object> tokenContent = (Map<String, Object>) value;
+            assertThat(tokenContent.get("nodes"), equalTo(nameToTokenInfos.get(key).getNodeNames()));
+            assertThat(nameToTokenInfos.remove(key).getSource(), equalTo(TokenInfo.TokenSource.FILE));
         });
         assertThat(nameToTokenInfos, is(anEmptyMap()));
     }
 
-    private GetServiceAccountFileTokensResponse randomGetServiceAccountFileTokensResponse() {
+    private GetServiceAccountCredentialsNodesResponse randomGetServiceAccountFileTokensResponse() {
         final ClusterName clusterName = new ClusterName(randomAlphaOfLength(8));
         final int total = randomIntBetween(1, 5);
         final int nFailures = randomIntBetween(0, 5);
         final String[] tokenNames = randomArray(0, 10, String[]::new, () -> randomAlphaOfLengthBetween(3, 8));
 
-        final ArrayList<GetServiceAccountFileTokensResponse.Node> nodes = new ArrayList<>();
+        final ArrayList<GetServiceAccountCredentialsNodesResponse.Node> nodes = new ArrayList<>();
         for (int i = 0; i < total - nFailures; i++) {
-            final GetServiceAccountFileTokensResponse.Node node = randomNodeResponse(tokenNames, i);
+            final GetServiceAccountCredentialsNodesResponse.Node node = randomNodeResponse(tokenNames, i);
             nodes.add(node);
         }
 
@@ -112,25 +110,25 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
             final FailedNodeException e = randomFailedNodeException(i);
             failures.add(e);
         }
-        return new GetServiceAccountFileTokensResponse(clusterName, nodes, failures);
+        return new GetServiceAccountCredentialsNodesResponse(clusterName, nodes, failures);
     }
 
     private FailedNodeException randomFailedNodeException(int i) {
         return new FailedNodeException(randomAlphaOfLength(9) + i, randomAlphaOfLength(20), new NoSuchFileException("service_tokens"));
     }
 
-    private GetServiceAccountFileTokensResponse.Node randomNodeResponse(String[] tokenNames, int i) {
+    private GetServiceAccountCredentialsNodesResponse.Node randomNodeResponse(String[] tokenNames, int i) {
         final DiscoveryNode discoveryNode = new DiscoveryNode(
             randomAlphaOfLength(8) + i,
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
             Version.CURRENT);
-        return new GetServiceAccountFileTokensResponse.Node(
+        return new GetServiceAccountCredentialsNodesResponse.Node(
             discoveryNode,
             randomSubsetOf(randomIntBetween(0, tokenNames.length), tokenNames).toArray(String[]::new));
     }
 
     private List<TokenInfo> getAllTokenInfos(GetServiceAccountCredentialsResponse response) {
-        return Stream.concat(response.getFileTokensResponse().getTokenInfos().stream(), response.getIndexTokenInfos().stream())
+        return Stream.concat(response.getNodesResponse().getFileTokenInfos().stream(), response.getIndexTokenInfos().stream())
             .collect(toUnmodifiableList());
     }
 }

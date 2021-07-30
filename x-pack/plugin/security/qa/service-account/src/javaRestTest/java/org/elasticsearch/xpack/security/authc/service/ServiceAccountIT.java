@@ -301,7 +301,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(getTokensResponseMap1.get("service_account"), equalTo("elastic/fleet-server"));
         assertThat(getTokensResponseMap1.get("count"), equalTo(1));
         assertThat(getTokensResponseMap1.get("tokens"), equalTo(Map.of()));
-        assertFileTokens(getTokensResponseMap1);
+        assertNodesCredentials(getTokensResponseMap1);
 
         final Request createTokenRequest1 = new Request("POST", "_security/service/elastic/fleet-server/credential/token/api-token-1");
         final Response createTokenResponse1 = client().performRequest(createTokenRequest1);
@@ -320,7 +320,7 @@ public class ServiceAccountIT extends ESRestTestCase {
             "api-token-1", Map.of(),
             "api-token-2", Map.of()
         )));
-        assertFileTokens(getTokensResponseMap2);
+        assertNodesCredentials(getTokensResponseMap2);
 
         final Request deleteTokenRequest1 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/api-token-2");
         final Response deleteTokenResponse1 = client().performRequest(deleteTokenRequest1);
@@ -335,7 +335,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(getTokensResponseMap3.get("tokens"), equalTo(Map.of(
             "api-token-1", Map.of()
         )));
-        assertFileTokens(getTokensResponseMap3);
+        assertNodesCredentials(getTokensResponseMap3);
 
         final Request deleteTokenRequest2 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/non-such-thing");
         final ResponseException e2 = expectThrows(ResponseException.class, () -> client().performRequest(deleteTokenRequest2));
@@ -423,14 +423,15 @@ public class ServiceAccountIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void assertFileTokens(Map<String, Object> responseMap) {
-        final Map<String, Object> fileTokens = (Map<String, Object>) responseMap.get("file_tokens");
-        assertThat(fileTokens, hasKey("_nodes"));
-        final Map<String, Object> header = (Map<String, Object>) fileTokens.get("_nodes");
+    private void assertNodesCredentials(Map<String, Object> responseMap) {
+        final Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes_credentials");
+        assertThat(nodes, hasKey("_nodes"));
+        final Map<String, Object> header = (Map<String, Object>) nodes.get("_nodes");
         assertThat(header.get("total"), equalTo(2));
         assertThat(header.get("successful"), equalTo(2));
         assertThat(header.get("failed"), equalTo(0));
         assertThat(header.get("failures"), nullValue());
+        final Map<String, Object> fileTokens = (Map<String, Object>) nodes.get("file_tokens");
         assertThat(fileTokens, hasKey("token1"));
         final Map<String, Object> token1 = (Map<String, Object>) fileTokens.get("token1");
         assertThat((List<String>) token1.get("nodes"), equalTo(List.of("javaRestTest-0", "javaRestTest-1")));

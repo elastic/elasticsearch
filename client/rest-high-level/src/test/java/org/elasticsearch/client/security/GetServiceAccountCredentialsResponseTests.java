@@ -17,7 +17,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountFileTokensResponse;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesResponse;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 
 import java.io.IOException;
@@ -36,16 +36,16 @@ public class GetServiceAccountCredentialsResponseTests
     protected org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse createServerTestInstance(
         XContentType xContentType) {
         final String[] fileTokenNames = randomArray(3, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8));
-        final GetServiceAccountFileTokensResponse fileTokensResponse = new GetServiceAccountFileTokensResponse(
+        final GetServiceAccountCredentialsNodesResponse nodesResponse = new GetServiceAccountCredentialsNodesResponse(
             new ClusterName(randomAlphaOfLength(12)),
-            List.of(new GetServiceAccountFileTokensResponse.Node(new DiscoveryNode(randomAlphaOfLength(10),
+            List.of(new GetServiceAccountCredentialsNodesResponse.Node(new DiscoveryNode(randomAlphaOfLength(10),
                 new TransportAddress(TransportAddress.META_ADDRESS, 9300),
                 Version.CURRENT), fileTokenNames)),
             List.of(new FailedNodeException(randomAlphaOfLength(11), "error", new NoSuchFieldError("service_tokens"))));
         return new org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse(
             randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8),
             randomList(0, 5, () -> TokenInfo.indexToken(randomAlphaOfLengthBetween(3, 8))),
-            fileTokensResponse);
+            nodesResponse);
     }
 
     @Override
@@ -61,16 +61,16 @@ public class GetServiceAccountCredentialsResponseTests
 
         assertThat(
             Stream.concat(serverTestInstance.getIndexTokenInfos().stream(),
-                serverTestInstance.getFileTokensResponse().getTokenInfos().stream())
+                serverTestInstance.getNodesResponse().getFileTokenInfos().stream())
                 .map(tokenInfo -> new Tuple<>(tokenInfo.getName(), tokenInfo.getSource().name().toLowerCase(Locale.ROOT)))
                 .collect(Collectors.toSet()),
             equalTo(Stream.concat(clientInstance.getIndexTokenInfos().stream(),
-                clientInstance.getFileTokenResponse().getTokenInfos().stream())
+                clientInstance.getNodesResponse().getFileTokenInfos().stream())
                 .map(info -> new Tuple<>(info.getName(), info.getSource()))
                 .collect(Collectors.toSet())));
 
         assertThat(
-            serverTestInstance.getFileTokensResponse().failures().size(),
-            equalTo(clientInstance.getFileTokenResponse().getHeader().getFailures().size()));
+            serverTestInstance.getNodesResponse().failures().size(),
+            equalTo(clientInstance.getNodesResponse().getHeader().getFailures().size()));
     }
 }

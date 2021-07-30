@@ -34,9 +34,9 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountFileTokensAction;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountFileTokensRequest;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountFileTokensResponse;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesRequest;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesResponse;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
@@ -516,21 +516,21 @@ public class ServiceAccountServiceTests extends ESTestCase {
             return null;
         }).when(indexServiceAccountTokenStore).findTokensFor(eq(accountId), any());
 
-        final GetServiceAccountFileTokensResponse fileTokensResponse = mock(GetServiceAccountFileTokensResponse.class);
+        final GetServiceAccountCredentialsNodesResponse fileTokensResponse = mock(GetServiceAccountCredentialsNodesResponse.class);
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
             @SuppressWarnings("unchecked")
-            final ActionListener<GetServiceAccountFileTokensResponse> listener =
-                (ActionListener<GetServiceAccountFileTokensResponse>) args[2];
+            final ActionListener<GetServiceAccountCredentialsNodesResponse> listener =
+                (ActionListener<GetServiceAccountCredentialsNodesResponse>) args[2];
             listener.onResponse(fileTokensResponse);
             return null;
-        }).when(client).execute(eq(GetServiceAccountFileTokensAction.INSTANCE), any(GetServiceAccountFileTokensRequest.class), any());
+        }).when(client).execute(eq(GetServiceAccountNodesCredentialsAction.INSTANCE), any(GetServiceAccountCredentialsNodesRequest.class), any());
 
         final PlainActionFuture<GetServiceAccountCredentialsResponse> future = new PlainActionFuture<>();
         serviceAccountService.findTokensFor(new GetServiceAccountCredentialsRequest(namespace, serviceName), future);
         final GetServiceAccountCredentialsResponse response = future.actionGet();
         assertThat(response.getPrincipal(), equalTo(accountId.asPrincipal()));
-        assertThat(response.getFileTokensResponse(), is(fileTokensResponse));
+        assertThat(response.getNodesResponse(), is(fileTokensResponse));
         assertThat(response.getIndexTokenInfos(), equalTo(indexTokenInfos));
     }
 

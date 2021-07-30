@@ -24,35 +24,41 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class GetServiceAccountFileTokensResponse extends BaseNodesResponse<GetServiceAccountFileTokensResponse.Node> {
+/**
+ * Unlike index-backed service account tokens, file-backed tokens are local to the node.
+ * This response is to fetch information about them from each node. Note the class is
+ * more generically named for the possible future expansion to cover other types of credentials
+ * that are local to the node.
+ */
+public class GetServiceAccountCredentialsNodesResponse extends BaseNodesResponse<GetServiceAccountCredentialsNodesResponse.Node> {
 
-    public GetServiceAccountFileTokensResponse(ClusterName clusterName,
-                                               List<GetServiceAccountFileTokensResponse.Node> nodes,
-                                               List<FailedNodeException> failures) {
+    public GetServiceAccountCredentialsNodesResponse(ClusterName clusterName,
+                                                     List<GetServiceAccountCredentialsNodesResponse.Node> nodes,
+                                                     List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
-    public GetServiceAccountFileTokensResponse(StreamInput in) throws IOException {
+    public GetServiceAccountCredentialsNodesResponse(StreamInput in) throws IOException {
         super(in);
     }
 
     @Override
-    protected List<GetServiceAccountFileTokensResponse.Node> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(GetServiceAccountFileTokensResponse.Node::new);
+    protected List<GetServiceAccountCredentialsNodesResponse.Node> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(GetServiceAccountCredentialsNodesResponse.Node::new);
     }
 
     @Override
-    protected void writeNodesTo(StreamOutput out, List<GetServiceAccountFileTokensResponse.Node> nodes) throws IOException {
+    protected void writeNodesTo(StreamOutput out, List<GetServiceAccountCredentialsNodesResponse.Node> nodes) throws IOException {
         out.writeList(nodes);
     }
 
-    public List<TokenInfo> getTokenInfos() {
+    public List<TokenInfo> getFileTokenInfos() {
         final Map<String, Set<String>> fileTokenDistribution = new HashMap<>();
-        for (GetServiceAccountFileTokensResponse.Node node: getNodes()) {
-            if (node.tokenNames == null) {
+        for (GetServiceAccountCredentialsNodesResponse.Node node: getNodes()) {
+            if (node.fileTokenNames == null) {
                 continue;
             }
-            Arrays.stream(node.tokenNames).forEach(name -> {
+            Arrays.stream(node.fileTokenNames).forEach(name -> {
                 final Set<String> distribution = fileTokenDistribution.computeIfAbsent(name, k -> new HashSet<>());
                 distribution.add(node.getNode().getName());
             });
@@ -64,22 +70,22 @@ public class GetServiceAccountFileTokensResponse extends BaseNodesResponse<GetSe
 
     public static class Node extends BaseNodeResponse {
 
-        public final String[] tokenNames;
+        public final String[] fileTokenNames;
 
         public Node(StreamInput in) throws IOException {
             super(in);
-            this.tokenNames = in.readStringArray();
+            this.fileTokenNames = in.readStringArray();
         }
 
-        public Node(DiscoveryNode node, String[] tokenNames) {
+        public Node(DiscoveryNode node, String[] fileTokenNames) {
             super(node);
-            this.tokenNames = tokenNames;
+            this.fileTokenNames = fileTokenNames;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeStringArray(tokenNames);
+            out.writeStringArray(fileTokenNames);
         }
     }
 }

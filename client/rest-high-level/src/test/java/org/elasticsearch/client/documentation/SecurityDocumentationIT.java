@@ -2752,9 +2752,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final String tokenSource = indexTokenInfos.get(0).getSource(); // <4>
             final Collection<String> nodeNames = indexTokenInfos.get(0).getNodeNames(); // <5>
             final List<ServiceTokenInfo> fileTokenInfos
-                = getServiceAccountCredentialsResponse.getFileTokenResponse().getTokenInfos(); // <6>
+                = getServiceAccountCredentialsResponse.getNodesResponse().getFileTokenInfos(); // <6>
             final NodesResponseHeader fileTokensResponseHeader
-                = getServiceAccountCredentialsResponse.getFileTokenResponse().getHeader(); // <7>
+                = getServiceAccountCredentialsResponse.getNodesResponse().getHeader(); // <7>
             final int nSuccessful = fileTokensResponseHeader.getSuccessful(); // <8>
             final int nFailed = fileTokensResponseHeader.getFailed(); // <9>
             // end::get-service-account-credentials-response

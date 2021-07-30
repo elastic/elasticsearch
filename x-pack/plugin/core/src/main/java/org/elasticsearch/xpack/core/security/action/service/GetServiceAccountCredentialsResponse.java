@@ -24,20 +24,20 @@ public class GetServiceAccountCredentialsResponse extends ActionResponse impleme
 
     private final String principal;
     private final List<TokenInfo> indexTokenInfos;
-    private final GetServiceAccountFileTokensResponse fileTokensResponse;
+    private final GetServiceAccountCredentialsNodesResponse nodesResponse;
 
     public GetServiceAccountCredentialsResponse(String principal, Collection<TokenInfo> indexTokenInfos,
-                                                GetServiceAccountFileTokensResponse fileTokensResponse) {
+                                                GetServiceAccountCredentialsNodesResponse nodesResponse) {
         this.principal = principal;
         this.indexTokenInfos = indexTokenInfos == null ? List.of() : indexTokenInfos.stream().sorted().collect(toUnmodifiableList());
-        this.fileTokensResponse = fileTokensResponse;
+        this.nodesResponse = nodesResponse;
     }
 
     public GetServiceAccountCredentialsResponse(StreamInput in) throws IOException {
         super(in);
         this.principal = in.readString();
         this.indexTokenInfos = in.readList(TokenInfo::new);
-        this.fileTokensResponse = new GetServiceAccountFileTokensResponse(in);
+        this.nodesResponse = new GetServiceAccountCredentialsNodesResponse(in);
     }
 
     public String getPrincipal() {
@@ -48,20 +48,20 @@ public class GetServiceAccountCredentialsResponse extends ActionResponse impleme
         return indexTokenInfos;
     }
 
-    public GetServiceAccountFileTokensResponse getFileTokensResponse() {
-        return fileTokensResponse;
+    public GetServiceAccountCredentialsNodesResponse getNodesResponse() {
+        return nodesResponse;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(principal);
         out.writeList(indexTokenInfos);
-        fileTokensResponse.writeTo(out);
+        nodesResponse.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final List<TokenInfo> fileTokenInfos = fileTokensResponse.getTokenInfos();
+        final List<TokenInfo> fileTokenInfos = nodesResponse.getFileTokenInfos();
 
         builder.startObject()
             .field("service_account", principal)
@@ -70,11 +70,13 @@ public class GetServiceAccountCredentialsResponse extends ActionResponse impleme
         for (TokenInfo info : indexTokenInfos) {
             info.toXContent(builder, params);
         }
-        builder.endObject().field("file_tokens").startObject();
-        RestActions.buildNodesHeader(builder, params, fileTokensResponse);
+        builder.endObject().field("nodes_credentials").startObject();
+        RestActions.buildNodesHeader(builder, params, nodesResponse);
+        builder.startObject("file_tokens");
         for (TokenInfo info : fileTokenInfos) {
             info.toXContent(builder, params);
         }
+        builder.endObject();
         builder.endObject().endObject();
         return builder;
     }
@@ -83,6 +85,6 @@ public class GetServiceAccountCredentialsResponse extends ActionResponse impleme
     public String toString() {
         return "GetServiceAccountCredentialsResponse{" + "principal='"
             + principal + '\'' + ", indexTokenInfos=" + indexTokenInfos
-            + ", fileTokensResponse=" + fileTokensResponse + '}';
+            + ", nodesResponse=" + nodesResponse + '}';
     }
 }

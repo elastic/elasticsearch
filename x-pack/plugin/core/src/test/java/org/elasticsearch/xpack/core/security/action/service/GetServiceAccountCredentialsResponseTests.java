@@ -78,7 +78,7 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
         assertNotNull(tokens);
         tokens.keySet().forEach(k -> assertThat(nameToTokenInfos.remove(k).getSource(), equalTo(TokenInfo.TokenSource.INDEX)));
 
-        final Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");
+        final Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes_credentials");
         final Map<String, Object> nodesHeader = (Map<String, Object>) nodes.get("_nodes");
         assertThat(nodesHeader.get("successful"), equalTo(response.getNodesResponse().getNodes().size()));
         assertThat(nodesHeader.get("failed"), equalTo(response.getNodesResponse().failures().size()));

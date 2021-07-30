@@ -66,7 +66,9 @@ public class TransportGetServiceAccountNodesCredentialsAction
     }
 
     @Override
-    protected GetServiceAccountCredentialsNodesResponse.Node nodeOperation(GetServiceAccountCredentialsNodesRequest.Node request, Task task) {
+    protected GetServiceAccountCredentialsNodesResponse.Node nodeOperation(
+        GetServiceAccountCredentialsNodesRequest.Node request, Task task
+    ) {
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
         final List<TokenInfo> tokenInfos = fileServiceAccountTokenStore.findTokensFor(accountId);
         return new GetServiceAccountCredentialsNodesResponse.Node(

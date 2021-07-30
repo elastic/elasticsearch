@@ -76,10 +76,10 @@ teardown:
   - match: { "service_account": "elastic/fleet-server" }
   - match: { "count": 2 }
   - match: { "tokens": { "api-token-1": {} } }
-  - match: { "file_tokens._nodes.failed": 0 }
-  - is_true: file_tokens.token1
-  - is_true: file_tokens.token1.nodes
-  - match: { "file_tokens.token1.nodes.0" : "/(yamlRestTest-0|yamlRestCompatTest-0)/" }
+  - match: { "nodes_credentials._nodes.failed": 0 }
+  - is_true: nodes_credentials.file_tokens.token1
+  - is_true: nodes_credentials.file_tokens.token1.nodes
+  - match: { "nodes_credentials.file_tokens.token1.nodes.0" : "/(yamlRestTest-0|yamlRestCompatTest-0)/" }
 
   - do:
       security.clear_cached_service_tokens:

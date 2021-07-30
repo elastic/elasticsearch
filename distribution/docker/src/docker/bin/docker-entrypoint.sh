@@ -73,6 +73,14 @@ if [[ -n "$ES_LOG_STYLE" ]]; then
   esac
 fi
 
+if [[ -n "$ES_PLUGINS" ]]; then
+  IFS=, read -ra PLUGIN_LIST <<< "$ES_PLUGINS"
+  for PLUGIN in "${PLUGIN_LIST[@]}"
+  do
+    elasticsearch-plugin install --batch "$PLUGIN"
+  done
+fi
+
 # Signal forwarding and child reaping is handled by `tini`, which is the
 # actual entrypoint of the container
 exec /usr/share/elasticsearch/bin/elasticsearch <<<"$KEYSTORE_PASSWORD"

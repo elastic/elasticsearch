@@ -193,7 +193,7 @@ public class TransportStartTrainedModelDeploymentAction
                 @Override
                 public void onResponse(TrainedModelAllocation allocation) {
                     if (predicate.exception != null) {
-                        cancelFailedDeployment(modelId, predicate.exception, listener);
+                        deleteFailedDeployment(modelId, predicate.exception, listener);
                     } else {
                         listener.onResponse(new CreateTrainedModelAllocationAction.Response(allocation));
                     }
@@ -206,7 +206,7 @@ public class TransportStartTrainedModelDeploymentAction
             });
     }
 
-    private void cancelFailedDeployment(
+    private void deleteFailedDeployment(
         String modelId,
         Exception exception,
         ActionListener<CreateTrainedModelAllocationAction.Response> listener
@@ -264,7 +264,7 @@ public class TransportStartTrainedModelDeploymentAction
                 if (RoutingState.FAILED.equals(nodeIdAndState.getValue().getState())) {
                     nodeFailuresAndReasons.put(nodeIdAndState.getKey(), nodeIdAndState.getValue().getReason());
                 }
-                if (RoutingState.INITIALIZING.equals(nodeIdAndState.getValue().getState())) {
+                if (RoutingState.STARTING.equals(nodeIdAndState.getValue().getState())) {
                     nodesStillInitializing.add(nodeIdAndState.getKey());
                 }
             }

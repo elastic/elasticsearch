@@ -19,14 +19,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 
 import java.util.List;
-import java.util.Map;
 
 public class TransportInferTrainedModelDeploymentAction extends TransportTasksAction<TrainedModelDeploymentTask,
     InferTrainedModelDeploymentAction.Request, InferTrainedModelDeploymentAction.Response, InferTrainedModelDeploymentAction.Response> {
@@ -53,12 +51,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
-        String[] randomRunningNode = allocation.getNodeRoutingTable()
-            .entrySet()
-            .stream()
-            .filter(entry -> RoutingState.STARTED.equals(entry.getValue().getState()))
-            .map(Map.Entry::getKey)
-            .toArray(String[]::new);
+        String[] randomRunningNode = allocation.getStartedNodes();
         if (randomRunningNode.length == 0) {
             String message = "Cannot perform requested action because deployment [" + deploymentId + "] is not yet running on any node";
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));

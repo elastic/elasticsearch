@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.inference.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -142,7 +142,26 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(TrainedModelAllocationMetadata.metadata(newState).getModelAllocation(params.getModelId()));
+                listener.onResponse(TrainedModelAllocationMetadata.fromState(newState).getModelAllocation(params.getModelId()));
+            }
+        });
+    }
+
+    public void stopModelAllocation(String modelId, ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("stop model allocation", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return setToStopping(currentState, modelId);
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
             }
         });
     }
@@ -185,54 +204,39 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         }
         builder.addNewAllocation(params);
         for (DiscoveryNode node : currentState.getNodes().getAllNodes()) {
-            // TODO here is where to handle allocation options if possible
-            if (StartTrainedModelDeploymentAction.TaskParams.canAllocateToNode(node)
+            if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node)
                 && isNodeShuttingDown(currentState, node.getId()) == false) {
                 Optional<String> maybeError = nodeHasCapacity(currentState, params, node);
                 if (maybeError.isPresent()) {
-                    try {
-                        builder.addFailedNode(params.getModelId(), node.getId(), maybeError.get());
-                    } catch (Exception e) {
-                        logger.warn(
-                            () -> new ParameterizedMessage(
-                                "[{}] unexpected failure when failing to allocate to node [{}] due to [{}]",
-                                params.getModelId(),
-                                node.getId(),
-                                maybeError.get()
-                            ),
-                            e
-                        );
-                        throw new ElasticsearchException(
-                            "Error when marking node [{}] allocation as failed with [{}]",
-                            e,
-                            node.getId(),
-                            maybeError.get()
-                        );
-                    }
+                    builder.addFailedNode(params.getModelId(), node.getId(), maybeError.get());
                 } else {
-                    try {
-                        builder.addNode(params.getModelId(), node.getId());
-                    } catch (Exception e) {
-                        logger.warn(
-                            () -> new ParameterizedMessage(
-                                "[{}] unexpected failure when allocating to node [{}]",
-                                params.getModelId(),
-                                node.getId()
-                            ),
-                            e
-                        );
-                        throw new ElasticsearchException("Error when starting node [{}] allocation", e, node.getId());
-                    }
+                    builder.addNode(params.getModelId(), node.getId());
                 }
             }
         }
         return update(currentState, builder);
     }
 
+    static ClusterState setToStopping(ClusterState clusterState,  String modelId) {
+        TrainedModelAllocationMetadata metadata = TrainedModelAllocationMetadata.fromState(clusterState);
+        final TrainedModelAllocation existingAllocation = metadata.getModelAllocation(modelId);
+        if (existingAllocation == null) {
+            throw new ResourceNotFoundException("allocation for model with id [" + modelId + "] not found");
+        }
+        // If we are stopping, don't update anything
+        if (existingAllocation.getAllocationState().equals(AllocationState.STOPPING)) {
+            return clusterState;
+        }
+
+        TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(clusterState);
+        builder.setAllocationToStopping(modelId);
+        return update(clusterState, builder);
+    }
+
     static ClusterState updateModelRoutingTable(ClusterState currentState, UpdateTrainedModelAllocationStateAction.Request request) {
         final String modelId = request.getModelId();
         final String nodeId = request.getNodeId();
-        TrainedModelAllocationMetadata metadata = TrainedModelAllocationMetadata.metadata(currentState);
+        TrainedModelAllocationMetadata metadata = TrainedModelAllocationMetadata.fromState(currentState);
         logger.trace(
             () -> new ParameterizedMessage("[{}] [{}] current metadata before update {}", modelId, nodeId, Strings.toString(metadata))
         );
@@ -248,6 +252,10 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
 
         if (existingAllocation == null) {
             throw new ResourceNotFoundException("allocation for model with id [" + modelId + "] not found");
+        }
+        // If we are stopping, don't update anything
+        if (existingAllocation.getAllocationState().equals(AllocationState.STOPPING)) {
+            return currentState;
         }
         if (existingAllocation.isRoutedToNode(nodeId) == false) {
             throw new ResourceNotFoundException("allocation for model with id [" + modelId + "] is not routed to node [" + nodeId + "]");
@@ -266,20 +274,23 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
     }
 
     ClusterState addRemoveAllocationNodes(ClusterState currentState) {
-        TrainedModelAllocationMetadata previousState = TrainedModelAllocationMetadata.metadata(currentState);
+        TrainedModelAllocationMetadata previousState = TrainedModelAllocationMetadata.fromState(currentState);
         TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
         Map<String, List<String>> removedNodeModelLookUp = new HashMap<>();
         // TODO: make more efficient, right now this is O(nm) where n = sizeof(models) and m = sizeof(nodes)
         // It could probably be O(max(n, m))
         // Add nodes and keep track of currently routed nodes
-        // TODO: add memory aware node assignments.
         // Should we indicate a partial allocation somehow if some nodes don't have space?
         for (Map.Entry<String, TrainedModelAllocation> modelAllocationEntry : previousState.modelAllocations().entrySet()) {
+            // Don't bother adding/removing nodes if this allocation is stopping
+            if (modelAllocationEntry.getValue().getAllocationState().equals(AllocationState.STOPPING)) {
+                continue;
+            }
             for (DiscoveryNode node : currentState.getNodes()) {
                 // Only add the route if the node is NOT shutting down, this would be a weird case of the node
                 // just being added to the cluster and immediately shutting down...
                 if (isNodeShuttingDown(currentState, node.getId()) == false
-                    && StartTrainedModelDeploymentAction.TaskParams.canAllocateToNode(node)
+                    && StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node)
                     && modelAllocationEntry.getValue().isRoutedToNode(node.getId()) == false) {
                     nodeHasCapacity(currentState, modelAllocationEntry.getValue().getTaskParams(), node).ifPresentOrElse(
                         (error) -> builder.addFailedNode(modelAllocationEntry.getKey(), node.getId(), error),
@@ -321,13 +332,16 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         if (event.nodesChanged()) {
             DiscoveryNodes.Delta nodesDelta = event.nodesDelta();
             for (TrainedModelAllocation trainedModelAllocation : newMetadata.modelAllocations().values()) {
+                if (trainedModelAllocation.getAllocationState().equals(AllocationState.STOPPING)) {
+                    continue;
+                }
                 for (DiscoveryNode removed : nodesDelta.removedNodes()) {
                     if (trainedModelAllocation.isRoutedToNode(removed.getId())) {
                         return true;
                     }
                 }
                 for (DiscoveryNode added : nodesDelta.addedNodes()) {
-                    if (StartTrainedModelDeploymentAction.TaskParams.canAllocateToNode(added)
+                    if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(added)
                         && isNodeShuttingDown(event.state(), added.getId()) == false) {
                         return true;
                     }

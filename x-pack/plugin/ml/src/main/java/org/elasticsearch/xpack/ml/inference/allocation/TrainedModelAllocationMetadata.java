@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.allocation;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
@@ -49,16 +50,16 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
     }
 
     public static Builder builder(ClusterState clusterState) {
-        return Builder.fromMetadata(metadata(clusterState));
+        return Builder.fromMetadata(fromState(clusterState));
     }
 
-    public static TrainedModelAllocationMetadata metadata(ClusterState clusterState) {
+    public static TrainedModelAllocationMetadata fromState(ClusterState clusterState) {
         TrainedModelAllocationMetadata trainedModelAllocationMetadata = clusterState.getMetadata().custom(NAME);
         return trainedModelAllocationMetadata == null ? EMPTY : trainedModelAllocationMetadata;
     }
 
     public static Optional<TrainedModelAllocation> allocationForModelId(ClusterState clusterState, String modelId) {
-        return Optional.ofNullable(TrainedModelAllocationMetadata.metadata(clusterState))
+        return Optional.ofNullable(TrainedModelAllocationMetadata.fromState(clusterState))
             .map(metadata -> metadata.getModelAllocation(modelId));
     }
 
@@ -164,29 +165,33 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
             if (allocation == null) {
                 return this;
             }
-            isChanged = allocation.updateExistingRoutingEntry(nodeId, state).isChanged();
+            isChanged |= allocation.updateExistingRoutingEntry(nodeId, state).isChanged();
             return this;
         }
 
         Builder addNode(String modelId, String nodeId) {
             TrainedModelAllocation.Builder allocation = modelRoutingEntries.get(modelId);
             if (allocation == null) {
-                throw new IllegalStateException(
-                    "unable to add node [" + nodeId + "] to model [" + modelId + "] routing table as allocation does not exist"
+                throw new ResourceNotFoundException(
+                    "unable to add node [{}] to model [{}] routing table as allocation does not exist",
+                    nodeId,
+                    modelId
                 );
             }
-            isChanged = allocation.addNewRoutingEntry(nodeId).isChanged();
+            isChanged |= allocation.addNewRoutingEntry(nodeId).isChanged();
             return this;
         }
 
         Builder addFailedNode(String modelId, String nodeId, String reason) {
             TrainedModelAllocation.Builder allocation = modelRoutingEntries.get(modelId);
             if (allocation == null) {
-                throw new IllegalStateException(
-                    "unable to add node [" + nodeId + "] to model [" + modelId + "] routing table as allocation does not exist"
+                throw new ResourceNotFoundException(
+                    "unable to add node [{}] to model [{}] routing table as allocation does not exist",
+                    nodeId,
+                    modelId
                 );
             }
-            isChanged = allocation.addNewFailedRoutingEntry(nodeId, reason).isChanged();
+            isChanged |= allocation.addNewFailedRoutingEntry(nodeId, reason).isChanged();
             return this;
         }
 
@@ -195,12 +200,24 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
             if (allocation == null) {
                 return this;
             }
-            isChanged = allocation.removeRoutingEntry(nodeId).isChanged();
+            isChanged |= allocation.removeRoutingEntry(nodeId).isChanged();
             return this;
         }
 
         public Builder removeAllocation(String modelId) {
-            isChanged = modelRoutingEntries.remove(modelId) != null;
+            isChanged |= modelRoutingEntries.remove(modelId) != null;
+            return this;
+        }
+
+        public Builder setAllocationToStopping(String modelId) {
+            TrainedModelAllocation.Builder allocation = modelRoutingEntries.get(modelId);
+            if (allocation == null) {
+                throw new ResourceNotFoundException(
+                    "unable to set model allocation [{}] to stopping as it does not exist",
+                    modelId
+                );
+            }
+            isChanged |= allocation.stopAllocation().isChanged();
             return this;
         }
 

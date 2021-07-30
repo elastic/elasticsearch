@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
@@ -101,7 +102,17 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
                     listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
                     return;
                 }
-                normalUndeploy(task, models.get(0).getModelId(), maybeAllocation.get(), request, listener);
+                final String modelId = models.get(0).getModelId();
+                trainedModelAllocationService.stopModelAllocation(modelId, ActionListener.wrap(
+                    response -> normalUndeploy(task, models.get(0).getModelId(), maybeAllocation.get(), request, listener),
+                    failure -> {
+                        if (ExceptionsHelper.unwrapCause(failure) instanceof ResourceNotFoundException) {
+                            listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
+                            return;
+                        }
+                        listener.onFailure(failure);
+                    }
+                ));
             },
             listener::onFailure
         );

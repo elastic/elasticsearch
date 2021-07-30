@@ -9,14 +9,11 @@ package org.elasticsearch.xpack.core.ml.inference.allocation;
 
 import java.util.Locale;
 
-public enum RoutingState {
-    STARTING,
+public enum AllocationState {
     STARTED,
-    STOPPING,
-    FAILED,
-    STOPPED;
+    STOPPING;
 
-    public static RoutingState fromString(String value) {
+    public static AllocationState fromString(String value) {
         return valueOf(value.toUpperCase(Locale.ROOT));
     }
 

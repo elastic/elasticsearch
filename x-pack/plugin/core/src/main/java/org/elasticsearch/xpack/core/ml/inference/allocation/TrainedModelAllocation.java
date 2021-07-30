@@ -36,6 +36,7 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
         Diffable<TrainedModelAllocation>,
         ToXContentObject {
 
+    private static final ParseField ALLOCATION_STATE = new ParseField("allocation_state");
     private static final ParseField ROUTING_TABLE = new ParseField("routing_table");
     private static final ParseField TASK_PARAMETERS = new ParseField("task_parameters");
 
@@ -43,7 +44,11 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
     private static final ConstructingObjectParser<TrainedModelAllocation, Void> PARSER = new ConstructingObjectParser<>(
         "trained_model_allocation",
         true,
-        a -> new TrainedModelAllocation((StartTrainedModelDeploymentAction.TaskParams) a[0], (Map<String, RoutingStateAndReason>) a[1])
+        a -> new TrainedModelAllocation(
+            (StartTrainedModelDeploymentAction.TaskParams) a[0],
+            (Map<String, RoutingStateAndReason>) a[1],
+            AllocationState.fromString((String)a[2])
+        )
     );
     static {
         PARSER.declareObject(
@@ -56,23 +61,31 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
             (p, c) -> p.map(LinkedHashMap::new, RoutingStateAndReason::fromXContent),
             ROUTING_TABLE
         );
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), ALLOCATION_STATE);
     }
 
     private final StartTrainedModelDeploymentAction.TaskParams taskParams;
     private final Map<String, RoutingStateAndReason> nodeRoutingTable;
+    private final AllocationState allocationState;
 
     public static TrainedModelAllocation fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
 
-    TrainedModelAllocation(StartTrainedModelDeploymentAction.TaskParams taskParams, Map<String, RoutingStateAndReason> nodeRoutingTable) {
+    TrainedModelAllocation(
+        StartTrainedModelDeploymentAction.TaskParams taskParams,
+        Map<String, RoutingStateAndReason> nodeRoutingTable,
+        AllocationState allocationState
+    ) {
         this.taskParams = ExceptionsHelper.requireNonNull(taskParams, TASK_PARAMETERS);
         this.nodeRoutingTable = ExceptionsHelper.requireNonNull(nodeRoutingTable, ROUTING_TABLE);
+        this.allocationState = ExceptionsHelper.requireNonNull(allocationState, ALLOCATION_STATE);
     }
 
     public TrainedModelAllocation(StreamInput in) throws IOException {
         this.taskParams = new StartTrainedModelDeploymentAction.TaskParams(in);
-        nodeRoutingTable = in.readOrderedMap(StreamInput::readString, RoutingStateAndReason::new);
+        this.nodeRoutingTable = in.readOrderedMap(StreamInput::readString, RoutingStateAndReason::new);
+        this.allocationState = in.readEnum(AllocationState.class);
     }
 
     public boolean isRoutedToNode(String nodeId) {
@@ -87,17 +100,32 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
         return taskParams;
     }
 
+    public AllocationState getAllocationState() {
+        return allocationState;
+    }
+
+    public String[] getStartedNodes() {
+        return nodeRoutingTable
+            .entrySet()
+            .stream()
+            .filter(entry -> RoutingState.STARTED.equals(entry.getValue().getState()))
+            .map(Map.Entry::getKey)
+            .toArray(String[]::new);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TrainedModelAllocation that = (TrainedModelAllocation) o;
-        return Objects.equals(nodeRoutingTable, that.nodeRoutingTable) && Objects.equals(taskParams, that.taskParams);
+        return Objects.equals(nodeRoutingTable, that.nodeRoutingTable)
+            && Objects.equals(taskParams, that.taskParams)
+            && Objects.equals(allocationState, that.allocationState);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeRoutingTable, taskParams);
+        return Objects.hash(nodeRoutingTable, taskParams, allocationState);
     }
 
     @Override
@@ -105,6 +133,7 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
         builder.startObject();
         builder.field(TASK_PARAMETERS.getPreferredName(), taskParams);
         builder.field(ROUTING_TABLE.getPreferredName(), nodeRoutingTable);
+        builder.field(ALLOCATION_STATE.getPreferredName(), allocationState);
         builder.endObject();
         return builder;
     }
@@ -113,29 +142,37 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
     public void writeTo(StreamOutput out) throws IOException {
         taskParams.writeTo(out);
         out.writeMap(nodeRoutingTable, StreamOutput::writeString, (o, w) -> w.writeTo(o));
+        out.writeEnum(allocationState);
     }
 
     public static class Builder {
         private final Map<String, RoutingStateAndReason> nodeRoutingTable;
         private final StartTrainedModelDeploymentAction.TaskParams taskParams;
+        private AllocationState allocationState;
         private boolean isChanged;
 
         public static Builder fromAllocation(TrainedModelAllocation allocation) {
-            return new Builder(allocation.taskParams, allocation.nodeRoutingTable);
+            return new Builder(allocation.taskParams, allocation.nodeRoutingTable, allocation.allocationState);
         }
 
         public static Builder empty(StartTrainedModelDeploymentAction.TaskParams taskParams) {
             return new Builder(taskParams);
         }
 
-        private Builder(StartTrainedModelDeploymentAction.TaskParams taskParams, Map<String, RoutingStateAndReason> nodeRoutingTable) {
+        private Builder(
+            StartTrainedModelDeploymentAction.TaskParams taskParams,
+            Map<String, RoutingStateAndReason> nodeRoutingTable,
+            AllocationState allocationState
+        ) {
             this.taskParams = taskParams;
             this.nodeRoutingTable = new LinkedHashMap<>(nodeRoutingTable);
+            this.allocationState = allocationState;
         }
 
         private Builder(StartTrainedModelDeploymentAction.TaskParams taskParams) {
             this.nodeRoutingTable = new LinkedHashMap<>();
             this.taskParams = taskParams;
+            this.allocationState = AllocationState.STARTED;
         }
 
         public Builder addNewRoutingEntry(String nodeId) {
@@ -145,7 +182,7 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
                 );
             }
             isChanged = true;
-            nodeRoutingTable.put(nodeId, new RoutingStateAndReason(RoutingState.INITIALIZING, ""));
+            nodeRoutingTable.put(nodeId, new RoutingStateAndReason(RoutingState.STARTING, ""));
             return this;
         }
 
@@ -182,12 +219,21 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
             return this;
         }
 
+        public Builder stopAllocation() {
+            if (allocationState.equals(AllocationState.STOPPING)) {
+                return this;
+            }
+            isChanged = true;
+            allocationState = AllocationState.STOPPING;
+            return this;
+        }
+
         public boolean isChanged() {
             return isChanged;
         }
 
         public TrainedModelAllocation build() {
-            return new TrainedModelAllocation(taskParams, nodeRoutingTable);
+            return new TrainedModelAllocation(taskParams, nodeRoutingTable, allocationState);
         }
     }
 

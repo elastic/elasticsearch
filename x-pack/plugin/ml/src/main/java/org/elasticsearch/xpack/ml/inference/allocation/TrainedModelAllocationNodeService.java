@@ -250,14 +250,14 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.metadataChanged()) {
-            TrainedModelAllocationMetadata modelAllocationMetadata = TrainedModelAllocationMetadata.metadata(event.state());
+            TrainedModelAllocationMetadata modelAllocationMetadata = TrainedModelAllocationMetadata.fromState(event.state());
             final String currentNode = event.state().nodes().getLocalNodeId();
             for (TrainedModelAllocation trainedModelAllocation : modelAllocationMetadata.modelAllocations().values()) {
                 RoutingStateAndReason routingStateAndReason = trainedModelAllocation.getNodeRoutingTable().get(currentNode);
                 // Add new models to start loading
                 if (routingStateAndReason != null
                     // periodic retries should be handled in a separate thread think
-                    && routingStateAndReason.getState().equals(RoutingState.INITIALIZING)
+                    && routingStateAndReason.getState().equals(RoutingState.STARTING)
                     // This means we don't already have a task and should attempt creating one and starting the model loading
                     && modelIdToTask.containsKey(trainedModelAllocation.getTaskParams().getModelId()) == false) {
                     prepareModelToLoad(trainedModelAllocation.getTaskParams());

@@ -13,8 +13,11 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -72,6 +75,19 @@ public class CreateTrainedModelAllocationAction extends ActionType<CreateTrained
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
+        private static final ParseField ALLOCATION = new ParseField("allocation");
+
+        private static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
+            "create_trained_model_allocation_response",
+            a -> new Response((TrainedModelAllocation) a[0])
+        );
+        static {
+            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> TrainedModelAllocation.fromXContent(p), ALLOCATION);
+        }
+        static Response fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
+
         private final TrainedModelAllocation trainedModelAllocation;
 
         public Response(TrainedModelAllocation trainedModelAllocation) {
@@ -98,6 +114,19 @@ public class CreateTrainedModelAllocationAction extends ActionType<CreateTrained
             builder.field("allocation", trainedModelAllocation);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return Objects.equals(trainedModelAllocation, response.trainedModelAllocation);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(trainedModelAllocation);
         }
     }
 

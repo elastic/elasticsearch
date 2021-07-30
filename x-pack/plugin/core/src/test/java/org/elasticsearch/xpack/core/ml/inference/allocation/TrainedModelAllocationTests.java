@@ -20,6 +20,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.is;
 
 public class TrainedModelAllocationTests extends AbstractSerializingTestCase<TrainedModelAllocation> {
@@ -97,6 +98,38 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
             ResourceNotFoundException.class,
             () -> builder.updateExistingRoutingEntry(addingNode, RoutingStateAndReasonTests.randomInstance())
         );
+    }
+
+    public void testGetStartedNodes() {
+        String startedNode1 = "started-node-1";
+        String startedNode2 = "started-node-2";
+        String nodeInAnotherState1 = "another-state-node-1";
+        String nodeInAnotherState2 = "another-state-node-2";
+        TrainedModelAllocation allocation = TrainedModelAllocation.Builder.empty(
+            new StartTrainedModelDeploymentAction.TaskParams(randomAlphaOfLength(10), randomAlphaOfLength(10), randomNonNegativeLong())
+        )
+            .addNewRoutingEntry(startedNode1)
+            .addNewRoutingEntry(startedNode2)
+            .addNewRoutingEntry(nodeInAnotherState1)
+            .addNewRoutingEntry(nodeInAnotherState2)
+            .updateExistingRoutingEntry(startedNode1, new RoutingStateAndReason(RoutingState.STARTED, ""))
+            .updateExistingRoutingEntry(startedNode2, new RoutingStateAndReason(RoutingState.STARTED, ""))
+            .updateExistingRoutingEntry(
+                nodeInAnotherState1,
+                new RoutingStateAndReason(
+                    randomFrom(RoutingState.STARTING, RoutingState.FAILED, RoutingState.STOPPED, RoutingState.STOPPING),
+                    randomAlphaOfLength(10)
+                )
+            )
+            .updateExistingRoutingEntry(
+                nodeInAnotherState2,
+                new RoutingStateAndReason(
+                    randomFrom(RoutingState.STARTING, RoutingState.FAILED, RoutingState.STOPPED, RoutingState.STOPPING),
+                    randomAlphaOfLength(10)
+                )
+            )
+            .build();
+        assertThat(allocation.getStartedNodes(), arrayContainingInAnyOrder(startedNode1, startedNode2));
     }
 
     private static void assertUnchanged(

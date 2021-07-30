@@ -127,7 +127,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         // TODO add support for other roles? If so, it may have to be an instance method...
         // NOTE, whatever determines allocation should not be dynamically set on the node
         // Otherwise allocation logic might fail
-        public static boolean canAllocateToNode(DiscoveryNode node) {
+        public static boolean mayAllocateToNode(DiscoveryNode node) {
             return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE);
         }
 

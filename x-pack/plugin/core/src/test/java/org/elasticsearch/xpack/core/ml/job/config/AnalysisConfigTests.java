@@ -53,6 +53,11 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         if (randomBoolean()) {
             TimeValue bucketSpan = TimeValue.timeValueSeconds(randomIntBetween(1, 1_000));
             builder.setBucketSpan(bucketSpan);
+
+            // There is a dependency between model_prune_window and bucket_span: model_prune window must be
+            // at least twice the size of bucket_span.
+            builder.setModelPruneWindow(TimeValue.timeValueSeconds(randomIntBetween(2, 1_000) * bucketSpan.seconds()));
+
         }
         if (isCategorization) {
             builder.setCategorizationFieldName(randomAlphaOfLength(10));
@@ -99,9 +104,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         }
         if (randomBoolean()) {
             builder.setMultivariateByFields(randomBoolean());
-        }
-        if (randomBoolean()) {
-            builder.setModelPruneWindow(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
         }
 
         builder.setInfluencers(Arrays.asList(generateRandomStringArray(10, 10, false)));
@@ -718,7 +720,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
         analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
         analysisConfig.setLatency(TimeValue.ZERO);
-        analysisConfig.setModelPruneWindow(TimeValue.ZERO);
+        analysisConfig.setModelPruneWindow(TimeValue.timeValueHours(3));
         return analysisConfig;
     }
 
@@ -728,7 +730,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
         analysisConfig.setLatency(TimeValue.ZERO);
-        analysisConfig.setModelPruneWindow(TimeValue.ZERO);
+        analysisConfig.setModelPruneWindow(TimeValue.timeValueHours(3));
         analysisConfig.setCategorizationFieldName("msg");
         return analysisConfig;
     }
@@ -736,7 +738,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     @Override
     protected AnalysisConfig mutateInstance(AnalysisConfig instance) {
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(instance);
-        switch (between(0, 9)) {
+        switch (between(0, 8)) {
         case 0:
             List<Detector> detectors = new ArrayList<>(instance.getDetectors());
             Detector.Builder detector = new Detector.Builder();
@@ -746,7 +748,12 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             builder.setDetectors(detectors);
             break;
         case 1:
-            builder.setBucketSpan(new TimeValue(instance.getBucketSpan().millis() + (between(1, 1000) * 1000)));
+            TimeValue bucketSpan = new TimeValue(instance.getBucketSpan().millis() + (between(1, 1000) * 1000));
+            builder.setBucketSpan(bucketSpan);
+
+            // There is a dependency between model_prune_window and bucket_span: model_prune window must be
+            // at least twice the size of bucket_span.
+            builder.setModelPruneWindow(new TimeValue(between(2, 1000) * bucketSpan.millis()));
             break;
         case 2:
             if (instance.getLatency() == null) {
@@ -818,13 +825,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
                 builder.setMultivariateByFields(instance.getMultivariateByFields() == false);
             }
             break;
-        case 9:
-                if (instance.getModelPruneWindow() == null) {
-                    builder.setModelPruneWindow(TimeValue.timeValueDays(between(1, 10) * 10));
-                } else {
-                    builder.setModelPruneWindow( TimeValue.timeValueDays(instance.getModelPruneWindow().days() + (between(1, 10) * 10)));
-                }
-                break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }

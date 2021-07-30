@@ -185,6 +185,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=latency]
 (Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=multivariate-by-fields]
 
+`model_prune_window`:::
+(Optional, <<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-prune-window]
+
 //Begin analysis_config.per_partition_categorization
 `per_partition_categorization`:::
 (Optional, object)

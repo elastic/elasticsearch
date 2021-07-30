@@ -6,19 +6,20 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,6 +73,9 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> LENIENT_PARSER = createParser(true);
     public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> STRICT_PARSER = createParser(false);
+
+    // The minimum number of buckets considered acceptable for the model_prune_window field
+    public static final long MINIMUM_MODEL_PRUNE_WINDOW_BUCKETS = 2;
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<AnalysisConfig.Builder, Void> createParser(boolean ignoreUnknownFields) {
@@ -149,7 +153,11 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         influencers = Collections.unmodifiableList(in.readStringList());
 
         multivariateByFields = in.readOptionalBoolean();
-        modelPruneWindow = in.readOptionalTimeValue();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            modelPruneWindow = in.readOptionalTimeValue();
+        } else {
+            modelPruneWindow = null;
+        }
     }
 
     @Override
@@ -170,7 +178,10 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         out.writeStringCollection(influencers);
 
         out.writeOptionalBoolean(multivariateByFields);
-        out.writeOptionalTimeValue(modelPruneWindow);
+
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalTimeValue(modelPruneWindow);
+        }
     }
 
     /**
@@ -529,9 +540,9 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
          */
         public AnalysisConfig build() {
             TimeUtils.checkPositiveMultiple(bucketSpan, TimeUnit.SECONDS, BUCKET_SPAN);
-            if (modelPruneWindow != null) {
-                TimeUtils.checkNonNegativeMultiple(modelPruneWindow, TimeUnit.SECONDS, MODEL_PRUNE_WINDOW);
-            }
+
+            verifyModelPruneWindow();
+
             if (latency != null) {
                 TimeUtils.checkNonNegativeMultiple(latency, TimeUnit.SECONDS, LATENCY);
             }
@@ -552,6 +563,26 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             return new AnalysisConfig(bucketSpan, categorizationFieldName, categorizationFilters, categorizationAnalyzerConfig,
                 perPartitionCategorizationConfig, latency, summaryCountFieldName, detectors, influencers, multivariateByFields,
                 modelPruneWindow);
+        }
+
+        private void verifyModelPruneWindow() {
+            if (modelPruneWindow == null) {
+                return;
+            }
+
+            long modelPruneWindowSecs = modelPruneWindow.seconds();
+            long bucketSpanSecs = bucketSpan.seconds();
+
+            if (modelPruneWindowSecs % bucketSpanSecs != 0) {
+                throw ExceptionsHelper.badRequestException(MODEL_PRUNE_WINDOW.getPreferredName() + " [" + modelPruneWindow.toString() + "]"
+                    + " must be a multiple of " + BUCKET_SPAN.getPreferredName() + " [" + bucketSpan.toString() + "]");
+            }
+
+            if (modelPruneWindowSecs / bucketSpanSecs < MINIMUM_MODEL_PRUNE_WINDOW_BUCKETS) {
+                throw ExceptionsHelper.badRequestException(MODEL_PRUNE_WINDOW.getPreferredName() + " [" + modelPruneWindow.toString() + "]"
+                    + " must be at least " + MINIMUM_MODEL_PRUNE_WINDOW_BUCKETS + " times greater than " + BUCKET_SPAN.getPreferredName()
+                    + " [" + bucketSpan.toString() + "]");
+            }
         }
 
         private void verifyConfigConsistentWithPerPartitionCategorization() {

@@ -56,9 +56,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             "{\"query\":{\"bool\":{\"must\":[" +
                 "{\"prefix\":{\"metadata.application\":\"fleet\"}},{\"term\":{\"metadata.environment.os\":\"Cat\"}}]}}}",
             apiKeys -> {
-                assertThat(apiKeys.size(), equalTo(2));
-                assertThat(apiKeys.get(0).get("name"), oneOf("my-org/ingest-key-1", "my-org/management-key-1"));
-                assertThat(apiKeys.get(1).get("name"), oneOf("my-org/ingest-key-1", "my-org/management-key-1"));
+                assertThat(apiKeys, hasSize(2));
+                assertThat(apiKeys.stream().map(k -> k.get("name")).collect(Collectors.toList()), containsInAnyOrder("my-org/ingest-key-1", "my-org/management-key-1"));
             }
         );
 
@@ -91,11 +90,12 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 // search using explicit IDs
                 try {
 
+                    var subset = randomSubsetOf(randomIntBetween(1,5), apiKeys); 
                     assertQuery(API_KEY_ADMIN_AUTH_HEADER,
                         "{ \"query\": { \"ids\": { \"values\": ["
-                            + apiKeys.stream().map(m -> "\"" + m.get("id") + "\"").collect(Collectors.joining(",")) + "] } } }",
+                            + subset.stream().map(m -> "\"" + m.get("id") + "\"").collect(Collectors.joining(",")) + "] } } }",
                         keys -> {
-                            assertThat(keys.size(), equalTo(6));
+                            assertThat(keys, hasSize(subset.size()));
                         });
                 } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -119,7 +119,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             apiKeys -> {
             assertThat(apiKeys.size(), equalTo(2));
             assertThat(apiKeys.stream().map(m -> m.get("name")).collect(Collectors.toSet()),
-                equalTo(Set.of("my-ingest-key-1", "my-alert-key-2")));
+                containsInAnyOrder("my-ingest-key-1", "my-alert-key-2"));
         });
 
         assertQuery(API_KEY_USER_AUTH_HEADER,

@@ -8,7 +8,7 @@ security_test_role:
       privileges: [ "read", "write", "create_index" ]
 
 # The admin role also has the manage_own_api_key privilege to ensure this lesser privilege will not
-# be triggered when there is the greater manage_api_key privilege
+# interfere with the behaviour of the greater manage_api_key privilege
 api_key_admin_role:
   cluster:
     - manage_own_api_key

@@ -83,7 +83,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         } else if (qb instanceof TermsQueryBuilder) {
             final TermsQueryBuilder query = (TermsQueryBuilder) qb;
             if (query.termsLookup() != null) {
-                throw new IllegalArgumentException("terms query with terms lookup is not supported for search");
+                throw new IllegalArgumentException("terms query with terms lookup is not supported for API key query");
             }
             final String translatedFieldName = FieldNameTranslators.translate(query.fieldName());
             return QueryBuilders.termsQuery(translatedFieldName, query.getValues());
@@ -101,7 +101,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             final RangeQueryBuilder query = (RangeQueryBuilder) qb;
             final String translatedFieldName = FieldNameTranslators.translate(query.fieldName());
             if (query.relation() != null) {
-                throw new IllegalArgumentException("range query with relation is not supported for search");
+                throw new IllegalArgumentException("range query with relation is not supported for API Key query");
             }
             final RangeQueryBuilder newQuery = QueryBuilders.rangeQuery(translatedFieldName);
             if (query.format() != null) {

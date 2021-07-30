@@ -199,11 +199,13 @@ public class CCSFieldsOptionEmulationIT extends ESRestTestCase {
         return new RestHighLevelClient(RestClient.builder(randomFrom(parseHosts("tests.rest.remote_cluster"))));
     }
 
-    static int indexDocs(RestHighLevelClient client, String index, int numDocs) throws IOException {
+    static int indexDocs(RestHighLevelClient client, String index, int numDocs, boolean expectWarnings) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             Request indexDoc = new Request("PUT", index + "/type/" + i);
             indexDoc.setJsonEntity("{\"f\":" + i + "}");
-            indexDoc.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            if (expectWarnings) {
+                indexDoc.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            }
             client.getLowLevelClient().performRequest(indexDoc);
         }
         client.indices().refresh(new RefreshRequest(index), RequestOptions.DEFAULT);
@@ -218,13 +220,14 @@ public class CCSFieldsOptionEmulationIT extends ESRestTestCase {
             localClient.indices().create(new CreateIndexRequest(localIndex)
                     .settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))),
                 RequestOptions.DEFAULT);
-            int localNumDocs = indexDocs(localClient, localIndex, between(10, 20));
+            int localNumDocs = indexDocs(localClient, localIndex, between(10, 20), true);
 
             Builder remoteIndexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5));
             remoteClient.indices().create(new CreateIndexRequest(remoteIndex)
                     .settings(remoteIndexSettings),
                 RequestOptions.DEFAULT);
-            int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 20));
+            boolean expectRemoteIndexWarnings = UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_0_0);
+            int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 20), expectRemoteIndexWarnings);
             int expectedHitCount = localNumDocs + remoteNumDocs;
 
             configureRemoteClusters(getNodes(remoteClient.getLowLevelClient()));

@@ -52,10 +52,10 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -1213,6 +1213,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         private final byte[] checksum = new byte[8];
         private long verifiedPosition = 0;
 
+        private static final int SKIP_BUFFER_SIZE = 1024;
+
+        /* This buffer is used when skipping bytes in skipBytes(). Skipping bytes
+         * still requires reading in the bytes we skip in order to update the checksum.
+         * The reason we need to use an instance member instead of sharing a single
+         * static instance across threads is that multiple instances invoking skipBytes()
+         * concurrently on different threads can clobber the contents of a shared buffer,
+         * corrupting the checksum. See LUCENE-5583 for additional context.
+         */
+        private byte[] skipBuffer;
+
         VerifyingIndexInput(IndexInput input) {
             this(input, new BufferedChecksum(new CRC32()));
         }
@@ -1288,6 +1299,19 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 } else {
                     skipBytes(pos - getFilePointer());
                 }
+            }
+        }
+
+        @Override
+        public void skipBytes(long numBytes) throws IOException {
+            if (skipBuffer == null) {
+                skipBuffer = new byte[SKIP_BUFFER_SIZE];
+            }
+            assert skipBuffer.length == SKIP_BUFFER_SIZE;
+            for (long skipped = 0; skipped < numBytes; ) {
+                final int step = (int) Math.min(SKIP_BUFFER_SIZE, numBytes - skipped);
+                readBytes(skipBuffer, 0, step);
+                skipped += step;
             }
         }
 

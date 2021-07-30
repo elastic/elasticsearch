@@ -71,6 +71,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -307,6 +308,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
 
                 final List<SnapshotFeatureInfo> featureStates;
+                final List<String> systemDataStreamNames = new ArrayList<>();
                 // if we have any feature states in the snapshot, we add their required indices to the snapshot indices if they haven't
                 // been requested by the request directly
                 if (featureStatesSet.isEmpty()) {
@@ -324,7 +326,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     .collect(Collectors.toList())
                             )
                         )
-                        .filter(featureInfo -> featureInfo.getIndices().isEmpty() == false) // Omit any empty featureStates
                         .collect(Collectors.toList());
                     for (SnapshotFeatureInfo featureState : featureStates) {
                         indexNames.addAll(featureState.getIndices());
@@ -335,14 +336,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         for (AssociatedIndexDescriptor aid : systemIndexDescriptorMap.get(feature).getAssociatedIndexDescriptors()) {
                             indexNames.addAll(aid.getMatchingIndices(currentState.metadata()));
                         }
+                        for (SystemDataStreamDescriptor sdd : systemIndexDescriptorMap.get(feature).getDataStreamDescriptors()) {
+                            systemDataStreamNames.add(sdd.getDataStreamName());
+                            indexNames.addAll(sdd.getBackingIndexNames(currentState.metadata()));
+
+                        }
                     }
                     indices = List.copyOf(indexNames);
                 }
 
+                // need feature state data streams...
                 final List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
                     currentState,
                     request.indicesOptions(),
-                    request.indices()
+                    Stream.concat(Arrays.stream(request.indices()), systemDataStreamNames.stream()).distinct().toArray(String[]::new)
                 );
 
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);

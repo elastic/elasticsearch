@@ -36,7 +36,11 @@ import java.util.Map;
 
 import static org.elasticsearch.datastreams.SystemDataStreamSnapshotIT.SystemDataStreamTestPlugin.SYSTEM_DATA_STREAM_NAME;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 
 public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
@@ -88,6 +92,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setWaitForCompletion(true)
             .setIncludeGlobalState(false)
             .get();
+        assertSnapshotSuccess(createSnapshotResponse);
 
         // We have to delete the data stream directly, as the feature reset API doesn't clean up system data streams yet
         // See https://github.com/elastic/elasticsearch/issues/75818
@@ -116,6 +121,62 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertThat(response.getDataStreams(), hasSize(1));
             assertTrue(response.getDataStreams().get(0).getDataStream().isSystem());
         }
+    }
+
+    public void testSystemDataStreamInFeatureState() throws Exception {
+        Path location = randomRepoPath();
+        createRepository(REPO, "fs", location);
+
+        {
+            CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(SYSTEM_DATA_STREAM_NAME);
+            final AcknowledgedResponse response = client().execute(CreateDataStreamAction.INSTANCE, request).get();
+            assertTrue(response.isAcknowledged());
+        }
+
+        // Index a doc so that a concrete backing index will be created
+        IndexResponse indexToDataStreamResponse = client().prepareIndex(SYSTEM_DATA_STREAM_NAME)
+            .setId("42")
+            .setSource("{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"name\": \"my-name\" }", XContentType.JSON)
+            .setOpType(DocWriteRequest.OpType.CREATE)
+            .execute()
+            .actionGet();
+        assertThat(indexToDataStreamResponse.status().getStatus(), oneOf(200, 201));
+
+        // Index a doc so that a concrete backing index will be created
+        IndexResponse indexResponse = client().prepareIndex("my-index")
+            .setId("42")
+            .setSource("{ \"name\": \"my-name\" }", XContentType.JSON)
+            .setOpType(DocWriteRequest.OpType.CREATE)
+            .execute()
+            .actionGet();
+        assertThat(indexResponse.status().getStatus(), oneOf(200, 201));
+
+        {
+            GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[]{SYSTEM_DATA_STREAM_NAME});
+            GetDataStreamAction.Response response = client().execute(GetDataStreamAction.INSTANCE, request).get();
+            assertThat(response.getDataStreams(), hasSize(1));
+            assertTrue(response.getDataStreams().get(0).getDataStream().isSystem());
+        }
+
+        CreateSnapshotResponse createSnapshotResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(REPO, SNAPSHOT)
+            .setIndices("my-index")
+            .setFeatureStates(SystemDataStreamTestPlugin.class.getSimpleName())
+            .setWaitForCompletion(true)
+            .setIncludeGlobalState(false)
+            .get();
+        assertSnapshotSuccess(createSnapshotResponse);
+
+        assertThat(createSnapshotResponse.getSnapshotInfo().dataStreams(), not(empty()));
+    }
+
+    private void assertSnapshotSuccess(CreateSnapshotResponse createSnapshotResponse) {
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(
+            createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        );
     }
 
     public static class SystemDataStreamTestPlugin extends Plugin implements SystemIndexPlugin {

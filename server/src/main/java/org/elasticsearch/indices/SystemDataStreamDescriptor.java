@@ -8,13 +8,19 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.Metadata;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.indices.AssociatedIndexDescriptor.buildAutomaton;
 
 /**
  * Describes a {@link DataStream} that is reserved for use by a system component. The data stream will be managed by the system and also
@@ -74,6 +80,21 @@ public class SystemDataStreamDescriptor {
 
     public String getDataStreamName() {
         return dataStreamName;
+    }
+
+    // TODO[wrb]: Javadoc
+    // TODO[wrb]: Refactor to only build automaton once
+    public List<String> getBackingIndexNames(Metadata metadata) {
+        CharacterRunAutomaton auto = new CharacterRunAutomaton(buildAutomaton(getBackingIndexPattern()));
+
+        ArrayList<String> matchingIndices = new ArrayList<>();
+        metadata.indices().keysIt().forEachRemaining(indexName -> {
+            if (auto.run(indexName)) {
+                matchingIndices.add(indexName);
+            }
+        });
+
+        return Collections.unmodifiableList(matchingIndices);
     }
 
     public String getDescription() {

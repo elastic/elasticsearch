@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.junit.Before;
 
@@ -65,9 +66,8 @@ public class TransportGetServiceAccountCredentialsActionTests extends ESTestCase
     public void testDoExecuteWillDelegate() {
         final GetServiceAccountCredentialsRequest request =
             new GetServiceAccountCredentialsRequest(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
-        @SuppressWarnings("rawtypes")
-        final ActionListener listener = mock(ActionListener.class);
-        //noinspection unchecked
+        @SuppressWarnings("unchecked")
+        final ActionListener<GetServiceAccountCredentialsResponse> listener = mock(ActionListener.class);
         transportGetServiceAccountCredentialsAction.doExecute(mock(Task.class), request, listener);
         verify(serviceAccountService).findTokensFor(eq(request), eq(listener));
     }

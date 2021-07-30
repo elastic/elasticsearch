@@ -58,6 +58,8 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
         t.printStackTrace(Terminal.DEFAULT.getErrorWriter());
         // Without a final flush, the stacktrace may not be shown before ES exits
         Terminal.DEFAULT.flush();
+
+        Elasticsearch.printLogsSuggestion();
     }
 
     void onNonFatalUncaught(final String threadName, final Throwable t) {

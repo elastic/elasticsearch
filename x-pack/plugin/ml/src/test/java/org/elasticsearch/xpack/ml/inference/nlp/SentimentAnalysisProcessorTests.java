@@ -32,14 +32,14 @@ public class SentimentAnalysisProcessorTests extends ESTestCase {
     public void testInvalidResult() {
         SentimentAnalysisProcessor processor = new SentimentAnalysisProcessor(mock(BertTokenizer.class), NlpTaskConfig.builder().build());
         {
-            PyTorchResult torchResult = new PyTorchResult("foo", new double[][]{}, null);
+            PyTorchResult torchResult = new PyTorchResult("foo", new double[][]{}, 0L, null);
             InferenceResults inferenceResults = processor.processResult(torchResult);
             assertThat(inferenceResults, instanceOf(WarningInferenceResults.class));
             assertEquals("Sentiment analysis result has no data",
                 ((WarningInferenceResults) inferenceResults).getWarning());
         }
         {
-            PyTorchResult torchResult = new PyTorchResult("foo", new double[][]{{1.0}}, null);
+            PyTorchResult torchResult = new PyTorchResult("foo", new double[][]{{1.0}}, 0L, null);
             InferenceResults inferenceResults = processor.processResult(torchResult);
             assertThat(inferenceResults, instanceOf(WarningInferenceResults.class));
             assertEquals("Expected 2 values in sentiment analysis result",

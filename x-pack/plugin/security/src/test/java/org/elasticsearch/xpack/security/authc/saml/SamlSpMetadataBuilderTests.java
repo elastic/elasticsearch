@@ -48,7 +48,7 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
         if (threeCerts.size() != 3) {
             fail("Expected exactly 3 certificate in " + certPath);
         }
-        List<Class> notX509Certificates = threeCerts.stream()
+        List<Class<?>> notX509Certificates = threeCerts.stream()
             .filter(cert -> (cert instanceof X509Certificate) == false)
             .map(cert -> cert.getClass())
             .collect(Collectors.toList());

@@ -3235,6 +3235,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
+     * Loads all available snapshots in the repository using the given {@code generation} for a shard. When {@code shardGen}
+     * is null it tries to load it using the BwC mode, listing the available index- blobs in the shard container.
+     */
+    public BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots(IndexId indexId, int shardId, @Nullable String shardGen)
+        throws IOException {
+        final BlobContainer shardContainer = shardContainer(indexId, shardId);
+
+        Set<String> blobs = Collections.emptySet();
+        if (shardGen == null) {
+            blobs = shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX).keySet();
+        }
+
+        return buildBlobStoreIndexShardSnapshots(blobs, shardContainer, shardGen).v1();
+    }
+
+    /**
      * Loads all available snapshots in the repository using the given {@code generation} or falling back to trying to determine it from
      * the given list of blobs in the shard container.
      *

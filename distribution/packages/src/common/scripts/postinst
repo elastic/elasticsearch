@@ -9,11 +9,11 @@
 #       $1=1         : indicates an upgrade
 
 # source the default env file
-if [ -f "${path.env}" ]; then
-    . "${path.env}"
+if [ -f "@path.env@" ]; then
+    . "@path.env@"
 fi
 
-export ES_PATH_CONF=${ES_PATH_CONF:-${path.conf}}
+export ES_PATH_CONF=${ES_PATH_CONF:-@path.conf@}
 
 IS_UPGRADE=false
 
@@ -90,4 +90,4 @@ if [ "$PACKAGE" = "deb" ]; then
     fi
 fi
 
-${scripts.footer}
+@scripts.footer@

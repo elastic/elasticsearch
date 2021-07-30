@@ -123,6 +123,7 @@ public class CreateEnrollmentToken {
         return new URL(defaultUrl, (defaultUrl.toURI().getPath() + "/_nodes/_local/http").replaceAll("/+", "/"));
     }
 
+    @SuppressWarnings("unchecked")
     protected static List<String> getBoundAddresses(Map<?, ?> nodesInfo) {
         nodesInfo = (Map<?, ?>) nodesInfo.get("nodes");
         Map<?, ?> nodeInfo = (Map<?, ?>) nodesInfo.values().iterator().next();

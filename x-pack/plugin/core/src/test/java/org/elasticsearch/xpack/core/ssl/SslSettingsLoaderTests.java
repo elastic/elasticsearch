@@ -20,19 +20,18 @@ import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.ssl.StoreKeyConfig;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.junit.Before;
 
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509ExtendedKeyManager;
 import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.stream.Collectors;
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedKeyManager;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -350,7 +349,6 @@ public class SslSettingsLoaderTests extends ESTestCase {
     }
 
     public void testPEMFile() {
-        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
@@ -368,7 +366,6 @@ public class SslSettingsLoaderTests extends ESTestCase {
     }
 
     public void testPEMFileBackcompat() {
-        Environment env = newEnvironment();
         Settings settings = Settings.builder()
             .put("key",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
@@ -387,7 +384,6 @@ public class SslSettingsLoaderTests extends ESTestCase {
     }
 
     public void testPEMKeyAndTrustFiles() {
-        Environment env = newEnvironment();
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
@@ -411,7 +407,6 @@ public class SslSettingsLoaderTests extends ESTestCase {
     }
 
     public void testPEMKeyAndTrustFilesBackcompat() {
-        Environment env = newEnvironment();
         Settings settings = Settings.builder()
             .put("key", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
             .put("key_passphrase", "testnode")

@@ -36,7 +36,7 @@ public class SslSettingsLoader extends SslConfigurationLoader {
     private final Settings settings;
     private final Map<String, Setting<? extends SecureString>> secureSettings;
     private final Map<String, Setting<?>> standardSettings;
-    private final Map<String, Setting<?>> ignoredSettings;
+    private final Map<String, Setting<?>> disabledSettings;
 
     public SslSettingsLoader(Settings settings, String settingPrefix, boolean acceptNonSecurePasswords) {
         super(settingPrefix);
@@ -46,7 +46,7 @@ public class SslSettingsLoader extends SslConfigurationLoader {
             : SSLConfigurationSettings.withPrefix(settingPrefix, acceptNonSecurePasswords);
         this.secureSettings = mapOf(sslConfigurationSettings.getSecureSettings());
         this.standardSettings = mapOf(sslConfigurationSettings.getEnabledSettings());
-        this.ignoredSettings = mapOf(sslConfigurationSettings.getDisabledSettings());
+        this.disabledSettings = mapOf(sslConfigurationSettings.getDisabledSettings());
         setDefaultClientAuth(SslClientAuthenticationMode.REQUIRED);
     }
 
@@ -84,7 +84,7 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         if (setting != null) {
             // This triggers deprecation warnings
             setting.get(settings);
-        } else if (ignoredSettings.containsKey(key) == false) {
+        } else if (disabledSettings.containsKey(key) == false) {
             throw new SslConfigException("The setting [" + key + "] is not supported, valid SSL settings are: ["
                 + Strings.collectionToCommaDelimitedString(standardSettings.keySet()) + "]");
         }

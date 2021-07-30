@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.junit.Before;
 import org.mockito.Mockito;
 
-import javax.security.auth.x500.X500Principal;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -50,8 +49,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -157,17 +158,18 @@ public class PkiRealmTests extends ESTestCase {
         }
 
         final int numTimes = invalidate ? 2 : 1;
-        verify(roleMapper, times(numTimes)).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        verify(roleMapper, times(numTimes)).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
         verifyNoMoreInteractions(roleMapper);
     }
 
     private UserRoleMapper buildRoleMapper() {
         UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         Mockito.doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             listener.onResponse(Collections.emptySet());
             return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
         return roleMapper;
     }
 
@@ -175,6 +177,7 @@ public class PkiRealmTests extends ESTestCase {
         UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         Mockito.doAnswer(invocation -> {
             final UserRoleMapper.UserData userData = (UserRoleMapper.UserData) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
             final ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             if (userData.getDn().equals(dn)) {
                 listener.onResponse(roles);
@@ -182,7 +185,7 @@ public class PkiRealmTests extends ESTestCase {
                 listener.onFailure(new IllegalArgumentException("Expected DN '" + dn + "' but was '" + userData + "'"));
             }
             return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
         return roleMapper;
     }
 
@@ -438,7 +441,7 @@ public class PkiRealmTests extends ESTestCase {
                 .build();
         new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier(PkiRealmSettings.TYPE, REALM_NAME), settings,
                 TestEnvironment.newEnvironment(settings), new ThreadContext(settings)), mock(UserRoleMapper.class));
-        assertSettingDeprecationsAndWarnings(new Setting[]{
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{
                 PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD.getConcreteSettingForNamespace(REALM_NAME)
         });
     }
@@ -496,7 +499,7 @@ public class PkiRealmTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(settingList));
         clusterSettings.validate(settings, true);
 
-        assertSettingDeprecationsAndWarnings(new Setting[]{
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{
                 PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD.getConcreteSettingForNamespace("pki1")
         });
     }

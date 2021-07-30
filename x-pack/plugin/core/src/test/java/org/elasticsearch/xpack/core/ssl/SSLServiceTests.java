@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -326,7 +327,7 @@ public class SSLServiceTests extends ESTestCase {
             .put("xpack.security.http.ssl.keystore.path", testnodeStore)
             .put("xpack.security.http.ssl.keystore.type", testnodeStoreType)
             .put("xpack.security.transport.ssl.enabled", true)
-            .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.OPTIONAL.name())
+            .put("xpack.security.transport.ssl.client_authentication", SslClientAuthenticationMode.OPTIONAL.name())
             .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
             .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
             .setSecureSettings(secureSettings)
@@ -334,10 +335,10 @@ public class SSLServiceTests extends ESTestCase {
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(globalSettings)));
 
         final SSLConfiguration globalConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        assertThat(globalConfig.sslClientAuth(), is(SSLClientAuth.OPTIONAL));
+        assertThat(globalConfig.sslClientAuth(), is(SslClientAuthenticationMode.OPTIONAL));
 
         final SSLConfiguration httpConfig = sslService.getHttpTransportSSLConfiguration();
-        assertThat(httpConfig.sslClientAuth(), is(SSLClientAuth.NONE));
+        assertThat(httpConfig.sslClientAuth(), is(SslClientAuthenticationMode.NONE));
     }
 
     public void testThatTruststorePasswordIsRequired() throws Exception {

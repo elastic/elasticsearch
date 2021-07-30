@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
@@ -36,7 +37,7 @@ public final class SSLConfiguration {
     private final TrustConfig trustConfig;
     private final List<String> ciphers;
     private final List<String> supportedProtocols;
-    private final SSLClientAuth sslClientAuth;
+    private final SslClientAuthenticationMode sslClientAuth;
     private final SslVerificationMode verificationMode;
     private final boolean explicitlyConfigured;
 
@@ -94,7 +95,7 @@ public final class SSLConfiguration {
     /**
      * The client auth configuration
      */
-    SSLClientAuth sslClientAuth() {
+    SslClientAuthenticationMode sslClientAuth() {
         return sslClientAuth;
     }
 

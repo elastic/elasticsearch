@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import javax.crypto.SecretKeyFactory;
@@ -201,8 +201,8 @@ public class XPackSettings {
             Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1");
     }
 
-    public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
-    public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NONE;
+    public static final SslClientAuthenticationMode CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.REQUIRED;
+    public static final SslClientAuthenticationMode HTTP_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;
     public static final SslVerificationMode VERIFICATION_MODE_DEFAULT = SslVerificationMode.FULL;
 
     // http specific settings

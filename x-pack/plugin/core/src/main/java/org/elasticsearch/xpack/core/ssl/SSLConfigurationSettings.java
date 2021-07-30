@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -43,7 +44,7 @@ public class SSLConfigurationSettings {
     final Setting<Optional<String>> truststoreType;
     final Setting<Optional<String>> trustRestrictionsPath;
     final Setting<List<String>> caPaths;
-    final Setting<Optional<SSLClientAuth>> clientAuth;
+    final Setting<Optional<SslClientAuthenticationMode>> clientAuth;
     final Setting<Optional<SslVerificationMode>> verificationMode;
 
     // public for PKI realm
@@ -182,15 +183,15 @@ public class SSLConfigurationSettings {
     );
     public static final Function<String, Setting.AffixSetting<List<String>>> CAPATH_SETTING_REALM = CERT_AUTH_PATH::realm;
 
-    private static final Function<String, Setting<Optional<SSLClientAuth>>> CLIENT_AUTH_SETTING_TEMPLATE =
+    private static final Function<String, Setting<Optional<SslClientAuthenticationMode>>> CLIENT_AUTH_SETTING_TEMPLATE =
         key -> new Setting<>(
             key,
             (String) null,
-            s -> s == null ? Optional.empty() : Optional.of(SSLClientAuth.parse(s)),
+            s -> s == null ? Optional.empty() : Optional.of(SslClientAuthenticationMode.parse(s)),
             Property.NodeScope,
             Property.Filtered
         );
-    private static final SslSetting<Optional<SSLClientAuth>> CLIENT_AUTH_SETTING = SslSetting.setting(
+    private static final SslSetting<Optional<SslClientAuthenticationMode>> CLIENT_AUTH_SETTING = SslSetting.setting(
         SslConfigurationKeys.CLIENT_AUTH,
         CLIENT_AUTH_SETTING_TEMPLATE
     );

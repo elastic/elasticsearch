@@ -198,7 +198,7 @@ public class SearchStatesIT extends ESRestTestCase {
 
     static int indexDocs(RestHighLevelClient client, String index, int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
-            Request indexDoc = new Request("PUT", index + "/_doc/" + i);
+            Request indexDoc = new Request("PUT", index + "/type/" + i);
             indexDoc.setJsonEntity("{\"f\":" + i + "}");
             indexDoc.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             client.getLowLevelClient().performRequest(indexDoc);

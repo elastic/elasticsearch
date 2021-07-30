@@ -160,6 +160,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                 });
             }
             if (channel.isWritable() == false) {
+                // try flushing to make channel writable again, loop will only continue if channel becomes writable again
                 ctx.flush();
                 needsFlush = false;
             }

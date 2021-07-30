@@ -152,7 +152,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(indexResponse.status().getStatus(), oneOf(200, 201));
 
         {
-            GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[]{SYSTEM_DATA_STREAM_NAME});
+            GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
             GetDataStreamAction.Response response = client().execute(GetDataStreamAction.INSTANCE, request).get();
             assertThat(response.getDataStreams(), hasSize(1));
             assertTrue(response.getDataStreams().get(0).getDataStream().isSystem());

@@ -127,7 +127,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         builder.startObject();
         builder.startArray("snapshots");
         for (SnapshotInfo snapshotInfo : snapshots) {
-            snapshotInfo.toXContent(builder, params);
+            snapshotInfo.toXContentExternal(builder, params);
         }
         builder.endArray();
         if (failures.isEmpty() == false) {

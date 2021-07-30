@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -43,7 +44,7 @@ import java.util.Objects;
 /**
  * Information about a snapshot
  */
-public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, Writeable {
+public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentFragment, Writeable {
 
     public static final String INDEX_DETAILS_XCONTENT_PARAM = "index_details";
     public static final String INCLUDE_REPOSITORY_XCONTENT_PARAM = "include_repository";
@@ -713,12 +714,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         );
     }
 
-    @Override
-    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-        // write snapshot info to repository snapshot blob format
-        if (Metadata.CONTEXT_MODE_SNAPSHOT.equals(params.param(Metadata.CONTEXT_MODE_PARAM))) {
-            return toXContentInternal(builder, params);
-        }
+    /**
+     * Serialize this {@link SnapshotInfo} for external consumption, i.e. REST responses, from which we don't need to be able to read it back again.
+     */
+    public XContentBuilder toXContentExternal(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
+        assert Metadata.CONTEXT_MODE_SNAPSHOT.equals(params.param(Metadata.CONTEXT_MODE_PARAM)) == false
+            : "use toXContent() in SNAPSHOT context";
 
         final boolean verbose = params.paramAsBoolean("verbose", GetSnapshotsRequest.DEFAULT_VERBOSE_MODE);
         // write snapshot info for the API and any other situations
@@ -802,7 +803,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         return builder;
     }
 
-    private XContentBuilder toXContentInternal(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
+        assert Metadata.CONTEXT_MODE_SNAPSHOT.equals(params.param(Metadata.CONTEXT_MODE_PARAM))
+            : "use toXContentExternal() in external context";
+
         builder.startObject(SNAPSHOT);
         final SnapshotId snapshotId = snapshot.getSnapshotId();
         builder.field(NAME, snapshotId.getName());

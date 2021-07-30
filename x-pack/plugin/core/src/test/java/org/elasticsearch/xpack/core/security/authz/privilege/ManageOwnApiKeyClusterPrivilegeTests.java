@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -117,13 +118,17 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             InvalidateApiKeyRequest.usingRealmAndUserName("realm_b", "user_b"), authentication));
     }
 
-    public void testWillFlagFilterForCurrentUserForQueryApiKeyRequest() {
+    public void testCheckQueryApiKeyRequest() {
         final ClusterPermission clusterPermission =
             ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder()).build();
 
         final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest();
-        clusterPermission.check(QueryApiKeyAction.NAME, queryApiKeyRequest, mock(Authentication.class));
-        assertTrue(queryApiKeyRequest.isFilterForCurrentUser());
+        if (randomBoolean()) {
+            queryApiKeyRequest.setFilterForCurrentUser();
+        }
+        assertThat(
+            clusterPermission.check(QueryApiKeyAction.NAME, queryApiKeyRequest, mock(Authentication.class)),
+            is(queryApiKeyRequest.isFilterForCurrentUser()));
     }
 
     private Authentication createMockAuthentication(String username, String realmName,

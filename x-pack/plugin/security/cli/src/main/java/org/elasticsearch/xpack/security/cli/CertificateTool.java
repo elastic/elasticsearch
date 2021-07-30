@@ -93,7 +93,6 @@ public class CertificateTool extends LoggingAwareMultiCommand {
     private static final String DEFAULT_CA_ZIP = "elastic-stack-ca.zip";
     private static final String DEFAULT_CA_P12 = "elastic-stack-ca.p12";
     private static final BouncyCastleProvider BC_PROV = new BouncyCastleProvider();
-    private static final Integer MAX_SIZE_PW_BUFFER_OLDER_SSL = 50;
 
     static final String DEFAULT_CERT_NAME = "instance";
 
@@ -108,6 +107,11 @@ public class CertificateTool extends LoggingAwareMultiCommand {
     private static final Pattern ALLOWED_FILENAME_CHAR_PATTERN =
         Pattern.compile("[a-zA-Z0-9!@#$%^&{}\\[\\]()_+\\-=,.~'` ]{1," + MAX_FILENAME_LENGTH + "}");
     private static final int DEFAULT_KEY_SIZE = 2048;
+
+    // Older versions of OpenSSL had a max internal password length.
+    // We issue warnings when writing files with passwords that would not be usable in those versions of OpenSSL.
+    static final String OLD_OPENSSL_VERSION = "1.1.0";
+    static final int MAX_PASSWORD_OLD_OPENSSL = 50;
 
     /**
      * Wraps the certgen object parser.
@@ -350,8 +354,8 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         private CAInfo loadPkcs12CA(Terminal terminal, OptionSet options, Environment env) throws Exception {
             Path path = resolvePath(options, caPkcs12PathSpec);
             char[] passwordOption = getChars(caPasswordSpec.value(options));
-            Map<Certificate, Key> keys = withPassword("CA (" + path + ")", false, passwordOption,
-                terminal, password -> CertParsingUtils.readPkcs12KeyPairs(path, password, a -> password));
+            Map<Certificate, Key> keys = withPassword("CA (" + path + ")", passwordOption, terminal, false,
+                password -> CertParsingUtils.readPkcs12KeyPairs(path, password, a -> password));
 
             if (keys.size() != 1) {
                 throw new IllegalArgumentException("expected a single key in file [" + path.toAbsolutePath() + "] but found [" +
@@ -391,10 +395,11 @@ public class CertificateTool extends LoggingAwareMultiCommand {
 
             if (options.hasArgument(caPasswordSpec)) {
                 char[] password = getChars(caPasswordSpec.value(options));
+                checkPasswordLengthForOpenSSLCompatibility(password, terminal, false);
                 return new CAInfo(caCert, keyPair.getPrivate(), true, password);
             }
             if (options.has(caPasswordSpec)) {
-                return withPassword("CA Private key",false, null, terminal, p -> new CAInfo(caCert, keyPair.getPrivate(), true, p.clone()));
+                return withPassword("CA Private key", null, terminal, true, p -> new CAInfo(caCert, keyPair.getPrivate(), true, p.clone()));
             }
             return new CAInfo(caCert, keyPair.getPrivate(), true, null);
         }
@@ -541,19 +546,17 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                                 char[] password, Terminal terminal) throws Exception {
             final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
             pkcs12.load(null);
-
-
-                withPassword(fileName, true, password, terminal, p12Password -> {
-                    if (isAscii(p12Password)) {
-                        pkcs12.setKeyEntry(alias, pair.key, p12Password, new Certificate[]{pair.cert});
-                        if (caCert != null) {
-                            pkcs12.setCertificateEntry("ca", caCert);
-                        }
-                        pkcs12.store(output, p12Password);
-                        return null;
-                    } else {
-                        throw new UserException(ExitCodes.CONFIG, "PKCS#12 passwords must be plain ASCII");
+            withPassword(fileName, password, terminal, true, p12Password -> {
+                if (isAscii(p12Password)) {
+                    pkcs12.setKeyEntry(alias, pair.key, p12Password, new Certificate[] { pair.cert });
+                    if (caCert != null) {
+                        pkcs12.setCertificateEntry("ca", caCert);
                     }
+                    pkcs12.store(output, p12Password);
+                    return null;
+                } else {
+                    throw new UserException(ExitCodes.CONFIG, "PKCS#12 passwords must be plain ASCII");
+                }
             });
         }
     }
@@ -786,8 +789,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                             final String keyFileName = entryBase + ".key";
                             outputStream.putNextEntry(new ZipEntry(keyFileName));
                             if (usePassword) {
-
-                                withPassword(keyFileName, false, outputPassword, terminal, password -> {
+                                withPassword(keyFileName, outputPassword, terminal, true, password -> {
                                     pemWriter.writeObject(pair.key, getEncrypter(password));
                                     return null;
                                 });
@@ -927,30 +929,43 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         return new JcePEMEncryptorBuilder("AES-128-CBC").setProvider(BC_PROV).build(password);
     }
 
-    private static <T, E extends Exception> T withPassword(String description, boolean long_size, char[] password, Terminal terminal,
-                                                           CheckedFunction<char[], T, E> body) throws E {
-        if (password == null) {
-            char[] promptedValue = terminal.readSecret("Enter password for " + description + " : ");
-            while(long_size){
-                if(promptedValue.length > MAX_SIZE_PW_BUFFER_OLDER_SSL){
-                    if(terminal.promptYesNo("Your password exceeds a length of 50 characters. Versions of OpenSSL older than 1.1.0 will not be able to use this certificate. Do you want to continue?", true)){
-                            long_size = false;
-
-                    } else {
-                        promptedValue = terminal.readSecret("Enter password for " + description + " : ");
-                         if(promptedValue.length <= MAX_SIZE_PW_BUFFER_OLDER_SSL)
-                            long_size = false;
-                    }
-                } else {
-                    long_size = false;
+    static boolean checkPasswordLengthForOpenSSLCompatibility(char[] password, Terminal terminal, boolean confirm) {
+        if (password.length > MAX_PASSWORD_OLD_OPENSSL) {
+            terminal.println(
+                Verbosity.SILENT,
+                "Warning: Your password exceeds "
+                    + MAX_PASSWORD_OLD_OPENSSL
+                    + " characters. Versions of OpenSSL older than "
+                    + OLD_OPENSSL_VERSION
+                    + " may not be able to read this file."
+            );
+            if (confirm) {
+                if (terminal.promptYesNo("Do you want to continue?", true) == false) {
+                    return false;
                 }
             }
+        }
+        return true;
+    }
+
+    private static <T, E extends Exception> T withPassword(String description, char[] password, Terminal terminal, boolean checkLength,
+                                                           CheckedFunction<char[], T, E> body) throws E {
+        if (password == null) {
+            while (true) {
+                char[] promptedValue = terminal.readSecret("Enter password for " + description + " : ");
+                if (checkLength && checkPasswordLengthForOpenSSLCompatibility(promptedValue, terminal, true) == false) {
+                    continue;
+                }
                 try {
                     return body.apply(promptedValue);
                 } finally {
                     Arrays.fill(promptedValue, (char) 0);
                 }
+            }
         } else {
+            if (checkLength) {
+                checkPasswordLengthForOpenSSLCompatibility(password, terminal, false);
+            }
             return body.apply(password);
         }
     }

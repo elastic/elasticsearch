@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
+import org.elasticsearch.Build;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -24,12 +25,33 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class RecoverySettings {
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
+
+    private static final Boolean SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED;
+
+    static {
+        final String property = System.getProperty("es.snapshots_recovery_feature_flag_registered");
+        if (Build.CURRENT.isSnapshot() && property != null) {
+            throw new IllegalArgumentException("es.snapshots_recovery_feature_flag_registered is only supported in non-snapshot builds");
+        }
+        if ("true".equals(property)) {
+            SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED = true;
+        } else if ("false".equals(property)) {
+            SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED = false;
+        } else if (property == null) {
+            SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED = null;
+        } else {
+            throw new IllegalArgumentException(
+                "expected es.snapshots_recovery_feature_flag_registered to be unset or [true|false] but was [" + property + "]"
+            );
+        }
+    }
 
     public static final Setting<ByteSizeValue> INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING =
         Setting.byteSizeSetting(
@@ -129,6 +151,13 @@ public class RecoverySettings {
             INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING::get, TimeValue.timeValueSeconds(0),
             Property.Dynamic, Property.NodeScope);
 
+    /**
+     * recoveries would try to use files from available snapshots instead of sending them from the source node.
+     * defaults to `false`
+     */
+    public static final Setting<Boolean> INDICES_RECOVERY_USE_SNAPSHOTS_SETTING =
+        Setting.boolSetting("indices.recovery.use_snapshots", false, Property.Dynamic, Property.NodeScope);
+
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
 
     private volatile ByteSizeValue maxBytesPerSec;
@@ -141,6 +170,7 @@ public class RecoverySettings {
     private volatile TimeValue internalActionTimeout;
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
+    private volatile boolean useSnapshotsDuringRecovery;
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 
@@ -163,7 +193,7 @@ public class RecoverySettings {
         } else {
             rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
         }
-
+        this.useSnapshotsDuringRecovery = INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.get(settings);
 
         logger.debug("using max_bytes_per_sec[{}]", maxBytesPerSec);
 
@@ -177,6 +207,9 @@ public class RecoverySettings {
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING,
             this::setInternalActionLongTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
+        if (isSnapshotsRecoveryFeatureFlagEnabled(Build.CURRENT)) {
+            clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING, this::setUseSnapshotsDuringRecovery);
+        }
     }
 
     public RateLimiter rateLimiter() {
@@ -215,7 +248,6 @@ public class RecoverySettings {
         }
         this.chunkSize = chunkSize;
     }
-
 
     public void setRetryDelayStateSync(TimeValue retryDelayStateSync) {
         this.retryDelayStateSync = retryDelayStateSync;
@@ -262,5 +294,29 @@ public class RecoverySettings {
 
     private void setMaxConcurrentOperations(int maxConcurrentOperations) {
         this.maxConcurrentOperations = maxConcurrentOperations;
+    }
+
+    public boolean getUseSnapshotsDuringRecovery() {
+        return useSnapshotsDuringRecovery;
+    }
+
+    private void setUseSnapshotsDuringRecovery(boolean useSnapshotsDuringRecovery) {
+        this.useSnapshotsDuringRecovery = useSnapshotsDuringRecovery;
+    }
+
+    public static List<Setting<?>> featureFlagEnabledSettings() {
+        return featureFlagEnabledSettings(Build.CURRENT);
+    }
+
+    public static List<Setting<?>> featureFlagEnabledSettings(Build build) {
+        if (isSnapshotsRecoveryFeatureFlagEnabled(build)) {
+            return Collections.singletonList(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING);
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
+    private static boolean isSnapshotsRecoveryFeatureFlagEnabled(Build build) {
+        return build.isSnapshot() || (SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED != null && SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED);
     }
 }

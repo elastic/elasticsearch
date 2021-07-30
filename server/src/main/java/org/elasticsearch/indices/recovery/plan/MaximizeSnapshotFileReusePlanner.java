@@ -22,7 +22,6 @@ import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 public class MaximizeSnapshotFileReusePlanner implements ShardRecoveryPlanner {
     @Override
     public ShardRecoveryPlan computePlan(String shardIdentifier,
-                                         String historyUUID,
                                          Store.MetadataSnapshot sourceMetadata,
                                          Store.MetadataSnapshot targetMetadata,
                                          long startingSeqNo,
@@ -39,11 +38,6 @@ public class MaximizeSnapshotFileReusePlanner implements ShardRecoveryPlanner {
         int filesToRecoverFromSnapshot = 0;
         ShardRecoveryPlan plan = null;
         for (ShardSnapshot shardSnapshot : availableSnapshots) {
-            // We cannot guarantee that this snapshot is valid
-            if (shardSnapshot.getHistoryUUID().equals(historyUUID) == false) {
-                continue;
-            }
-
             Store.RecoveryDiff snapshotDiff = filesToRecoverFromSourceSnapshot.recoveryDiff(shardSnapshot.getMetadataSnapshot());
             if (snapshotDiff.identical.size() > filesToRecoverFromSnapshot) {
                 final ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover =

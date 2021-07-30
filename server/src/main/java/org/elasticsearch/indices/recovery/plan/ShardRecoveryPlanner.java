@@ -15,9 +15,14 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import java.util.List;
 
 public interface ShardRecoveryPlanner {
+    ShardRecoveryPlanner DEFAULT = new ShardRecoveryPlanners(List.of(
+        new UseLogicallyEquivalentSnapshotPlanner(),
+        new MaximizeSnapshotFileReusePlanner(),
+        new OnlySourceFilesPlanner())
+    );
+
     @Nullable
     ShardRecoveryPlan computePlan(String shardIdentifier,
-                                  String shardHistoryUUID,
                                   Store.MetadataSnapshot sourceMetadata,
                                   Store.MetadataSnapshot targetMetadata,
                                   long startingSeqNo,

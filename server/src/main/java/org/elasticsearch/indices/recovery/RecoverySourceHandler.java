@@ -29,19 +29,19 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -54,9 +54,13 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardRelocatedException;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
+import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
+import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transports;
@@ -104,16 +108,18 @@ public class RecoverySourceHandler {
     private final int maxConcurrentFileChunks;
     private final int maxConcurrentOperations;
     private final ThreadPool threadPool;
+    private final RecoveryPlannerService recoveryPlannerService;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
     private final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
 
     public RecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, ThreadPool threadPool,
                                  StartRecoveryRequest request, int fileChunkSizeInBytes, int maxConcurrentFileChunks,
-                                 int maxConcurrentOperations) {
+                                 int maxConcurrentOperations, RecoveryPlannerService recoveryPlannerService) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.threadPool = threadPool;
+        this.recoveryPlannerService = recoveryPlannerService;
         this.request = request;
         this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
@@ -449,8 +455,10 @@ public class RecoverySourceHandler {
         try {
             StopWatch stopWatch = new StopWatch().start();
             final Store.MetadataSnapshot recoverySourceMetadata;
+            final String shardStateIdentifier;
             try {
                 recoverySourceMetadata = store.getMetadata(snapshot);
+                shardStateIdentifier = SnapshotShardsService.getShardStateId(shard, snapshot);
             } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 shard.failShard("recovery", ex);
                 throw ex;
@@ -464,82 +472,16 @@ public class RecoverySourceHandler {
                 }
             }
             if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
-                final List<String> phase1FileNames = new ArrayList<>();
-                final List<Long> phase1FileSizes = new ArrayList<>();
-                final List<String> phase1ExistingFileNames = new ArrayList<>();
-                final List<Long> phase1ExistingFileSizes = new ArrayList<>();
-
-                // Total size of segment files that are recovered
-                long totalSizeInBytes = 0;
-                // Total size of segment files that were able to be re-used
-                long existingTotalSizeInBytes = 0;
-
-                // Generate a "diff" of all the identical, different, and missing
-                // segment files on the target node, using the existing files on
-                // the source node
-                final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(request.metadataSnapshot());
-                for (StoreFileMetadata md : diff.identical) {
-                    phase1ExistingFileNames.add(md.name());
-                    phase1ExistingFileSizes.add(md.length());
-                    existingTotalSizeInBytes += md.length();
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("recovery [phase1]: not recovering [{}], exist in local store and has checksum [{}]," +
-                                        " size [{}]", md.name(), md.checksum(), md.length());
-                    }
-                    totalSizeInBytes += md.length();
-                }
-                List<StoreFileMetadata> phase1Files = new ArrayList<>(diff.different.size() + diff.missing.size());
-                phase1Files.addAll(diff.different);
-                phase1Files.addAll(diff.missing);
-                for (StoreFileMetadata md : phase1Files) {
-                    if (request.metadataSnapshot().asMap().containsKey(md.name())) {
-                        logger.trace("recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
-                            md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
-                    } else {
-                        logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
-                    }
-                    phase1FileNames.add(md.name());
-                    phase1FileSizes.add(md.length());
-                    totalSizeInBytes += md.length();
-                }
-
-                logger.trace("recovery [phase1]: recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]",
-                    phase1FileNames.size(), new ByteSizeValue(totalSizeInBytes),
-                    phase1ExistingFileNames.size(), new ByteSizeValue(existingTotalSizeInBytes));
-                final StepListener<Void> sendFileInfoStep = new StepListener<>();
-                final StepListener<Void> sendFilesStep = new StepListener<>();
-                final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
-                final StepListener<Void> cleanFilesStep = new StepListener<>();
                 cancellableThreads.checkForCancel();
-                recoveryTarget.receiveFileInfo(phase1FileNames, phase1FileSizes, phase1ExistingFileNames,
-                        phase1ExistingFileSizes, translogOps.getAsInt(), sendFileInfoStep);
-
-                sendFileInfoStep.whenComplete(r ->
-                    sendFiles(store, phase1Files.toArray(new StoreFileMetadata[0]), translogOps, sendFilesStep), listener::onFailure);
-
-                sendFilesStep.whenComplete(r -> createRetentionLease(startingSeqNo, createRetentionLeaseStep), listener::onFailure);
-
-                createRetentionLeaseStep.whenComplete(retentionLease ->
-                    {
-                        final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();
-                        assert retentionLease == null || retentionLease.retainingSequenceNumber() - 1 <= lastKnownGlobalCheckpoint
-                            : retentionLease + " vs " + lastKnownGlobalCheckpoint;
-                        // Establishes new empty translog on the replica with global checkpoint set to lastKnownGlobalCheckpoint. We want
-                        // the commit we just copied to be a safe commit on the replica, so why not set the global checkpoint on the replica
-                        // to the max seqno of this commit? Because (in rare corner cases) this commit might not be a safe commit here on
-                        // the primary, and in these cases the max seqno would be too high to be valid as a global checkpoint.
-                        cleanFiles(store, recoverySourceMetadata, translogOps, lastKnownGlobalCheckpoint, cleanFilesStep);
-                    },
-                    listener::onFailure);
-
-                final long totalSize = totalSizeInBytes;
-                final long existingTotalSize = existingTotalSizeInBytes;
-                cleanFilesStep.whenComplete(r -> {
-                    final TimeValue took = stopWatch.totalTime();
-                    logger.trace("recovery [phase1]: took [{}]", took);
-                    listener.onResponse(new SendFileResult(phase1FileNames, phase1FileSizes, totalSize, phase1ExistingFileNames,
-                        phase1ExistingFileSizes, existingTotalSize, took));
-                }, listener::onFailure);
+                recoveryPlannerService.computeRecoveryPlan(shard.shardId(),
+                    shardStateIdentifier,
+                    recoverySourceMetadata,
+                    request.metadataSnapshot(),
+                    startingSeqNo,
+                    translogOps.getAsInt(),
+                    ActionListener.wrap(plan ->
+                        recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, listener), listener::onFailure)
+                );
             } else {
                 logger.trace("skipping [phase1] since source and target have identical sync id [{}]", recoverySourceMetadata.getSyncId());
 
@@ -557,6 +499,94 @@ public class RecoverySourceHandler {
         } catch (Exception e) {
             throw new RecoverFilesRecoveryException(request.shardId(), 0, new ByteSizeValue(0L), e);
         }
+    }
+
+    void recoverFilesFromSourceAndSnapshot(ShardRecoveryPlan shardRecoveryPlan,
+                                           Store store,
+                                           StopWatch stopWatch,
+                                           ActionListener<SendFileResult> listener) {
+        final List<String> filesToRecoverNames = shardRecoveryPlan.getFilesToRecoverNames();
+        final List<Long> filesToRecoverSizes = shardRecoveryPlan.getFilesToRecoverSizes();
+        final List<String> phase1ExistingFileNames = shardRecoveryPlan.getFilesPresentInTargetNames();
+        final List<Long> phase1ExistingFileSizes = shardRecoveryPlan.getFilesPresentInTargetSizes();
+        final long totalSize = shardRecoveryPlan.getTotalSize();
+        final long existingTotalSize = shardRecoveryPlan.getExistingSize();
+
+        if (logger.isTraceEnabled()) {
+            for (StoreFileMetadata md : shardRecoveryPlan.getFilesPresentInTarget()) {
+                logger.trace("recovery [phase1]: not recovering [{}], exist in local store and has checksum [{}]," +
+                    " size [{}]", md.name(), md.checksum(), md.length());
+            }
+
+            for (StoreFileMetadata md : shardRecoveryPlan.getSourceFilesToRecover()) {
+                if (request.metadataSnapshot().asMap().containsKey(md.name())) {
+                    logger.trace("recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
+                        md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
+                } else {
+                    logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
+                }
+            }
+
+            for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : shardRecoveryPlan.getSnapshotFilesToRecover()) {
+                final StoreFileMetadata md = fileInfo.metadata();
+                if (request.metadataSnapshot().asMap().containsKey(md.name())) {
+                    logger.trace("recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
+                        md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
+                } else {
+                    logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
+                }
+            }
+
+            logger.trace("recovery [phase1]: recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]",
+                filesToRecoverNames.size(), new ByteSizeValue(totalSize),
+                phase1ExistingFileNames.size(), new ByteSizeValue(existingTotalSize));
+        }
+
+        final StepListener<Void> sendFileInfoStep = new StepListener<>();
+        final StepListener<Void> sendFilesStep = new StepListener<>();
+        final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
+        final StepListener<Void> cleanFilesStep = new StepListener<>();
+
+        final int translogOps = shardRecoveryPlan.getTranslogOps();
+        recoveryTarget.receiveFileInfo(filesToRecoverNames,
+            filesToRecoverSizes,
+            phase1ExistingFileNames,
+            phase1ExistingFileSizes,
+            translogOps,
+            sendFileInfoStep
+        );
+
+        final List<StoreFileMetadata> sourceFiles = shardRecoveryPlan.getSourceFilesToRecover();
+
+        sendFileInfoStep.whenComplete(r ->
+            sendFiles(store,
+                sourceFiles.toArray(new StoreFileMetadata[0]), shardRecoveryPlan::getTranslogOps, sendFilesStep), listener::onFailure);
+
+        final long startingSeqNo = shardRecoveryPlan.getStartingSeqNo();
+        sendFilesStep.whenComplete(r -> createRetentionLease(startingSeqNo, createRetentionLeaseStep), listener::onFailure);
+
+        final Store.MetadataSnapshot recoverySourceMetadata = shardRecoveryPlan.getSourceMetadataSnapshot();
+        createRetentionLeaseStep.whenComplete(retentionLease ->
+            {
+                final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();
+                assert retentionLease == null || retentionLease.retainingSequenceNumber() - 1 <= lastKnownGlobalCheckpoint
+                    : retentionLease + " vs " + lastKnownGlobalCheckpoint;
+                // Establishes new empty translog on the replica with global checkpoint set to lastKnownGlobalCheckpoint. We want
+                // the commit we just copied to be a safe commit on the replica, so why not set the global checkpoint on the replica
+                // to the max seqno of this commit? Because (in rare corner cases) this commit might not be a safe commit here on
+                // the primary, and in these cases the max seqno would be too high to be valid as a global checkpoint.
+                cleanFiles(store, recoverySourceMetadata, () -> translogOps, lastKnownGlobalCheckpoint, cleanFilesStep);
+            },
+            listener::onFailure);
+
+        cleanFilesStep.whenComplete(r -> {
+            final TimeValue took = stopWatch.totalTime();
+            logger.trace("recovery [phase1]: took [{}]", took);
+            listener.onResponse(
+                new SendFileResult(filesToRecoverNames, filesToRecoverSizes, totalSize,
+                    phase1ExistingFileNames, phase1ExistingFileSizes, existingTotalSize, took)
+            );
+        }, listener::onFailure);
     }
 
     void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {

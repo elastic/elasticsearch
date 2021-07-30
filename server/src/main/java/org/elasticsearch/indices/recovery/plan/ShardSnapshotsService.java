@@ -31,20 +31,27 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-class ShardSnapshotsService {
+public class ShardSnapshotsService {
+    public static final ShardSnapshotsService NOOP_SERVICE = new ShardSnapshotsService(null, null, null) {
+        @Override
+        public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+            listener.onResponse(Collections.emptyList());
+        }
+    };
+
     private final Logger logger = LogManager.getLogger(ShardSnapshotsService.class);
 
     private final Client client;
     private final RepositoriesService repositoriesService;
     private final ThreadPool threadPool;
 
-    ShardSnapshotsService(Client client, RepositoriesService repositoriesService, ThreadPool threadPool) {
+    public ShardSnapshotsService(Client client, RepositoriesService repositoriesService, ThreadPool threadPool) {
         this.client = client;
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
     }
 
-    protected void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+    public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
         final GetShardSnapshotRequest request = GetShardSnapshotRequest.latestSnapshotInAllRepositories(shardId);
         client.execute(GetShardSnapshotAction.INSTANCE,
             request,

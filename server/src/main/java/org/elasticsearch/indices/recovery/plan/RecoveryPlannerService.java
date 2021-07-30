@@ -17,20 +17,21 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 
-public class PlannerService {
-    private final Logger logger = LogManager.getLogger(PlannerService.class);
+public class RecoveryPlannerService {
+    private final Logger logger = LogManager.getLogger(RecoveryPlannerService.class);
 
     private final ShardSnapshotsService shardSnapshotsService;
     private final ShardRecoveryPlanner shardRecoveryPlanner;
-    private final boolean snapshotRecoveriesEnabled;
+    private final BooleanSupplier snapshotRecoveriesEnabled;
 
-    public PlannerService(ShardSnapshotsService shardSnapshotsService,
-                          ShardRecoveryPlanner shardRecoveryPlanner,
-                          boolean snapshotRecoveriesEnabled) {
+    public RecoveryPlannerService(ShardSnapshotsService shardSnapshotsService,
+                                  ShardRecoveryPlanner shardRecoveryPlanner,
+                                  BooleanSupplier snapshotRecoveriesEnabled) {
         this.shardSnapshotsService = shardSnapshotsService;
         this.shardRecoveryPlanner = shardRecoveryPlanner;
         this.snapshotRecoveriesEnabled = snapshotRecoveriesEnabled;
@@ -38,7 +39,6 @@ public class PlannerService {
 
     public void computeRecoveryPlan(ShardId shardId,
                                     String shardIdentifier,
-                                    String shardHistoryUUID,
                                     Store.MetadataSnapshot sourceMetadata,
                                     Store.MetadataSnapshot targetMetadata,
                                     long startingSeqNo,
@@ -50,7 +50,6 @@ public class PlannerService {
 
             ActionListener.completeWith(listener, () ->
                 shardRecoveryPlanner.computePlan(shardIdentifier,
-                    shardHistoryUUID,
                     sourceMetadata,
                     targetMetadata,
                     startingSeqNo,
@@ -64,7 +63,7 @@ public class PlannerService {
     }
 
     void fetchAvailableSnapshotsIgnoringErrors(ShardId shardId, Consumer<List<ShardSnapshot>> listener) {
-        if (snapshotRecoveriesEnabled == false) {
+        if (snapshotRecoveriesEnabled.getAsBoolean() == false) {
             listener.accept(Collections.emptyList());
             return;
         }

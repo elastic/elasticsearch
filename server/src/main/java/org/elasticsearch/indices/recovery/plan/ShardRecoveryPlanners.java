@@ -23,7 +23,6 @@ public class ShardRecoveryPlanners implements ShardRecoveryPlanner {
 
     @Override
     public ShardRecoveryPlan computePlan(String shardIdentifier,
-                                         String historyUUID,
                                          Store.MetadataSnapshot sourceMetadata,
                                          Store.MetadataSnapshot targetMetadata,
                                          long startingSeqNo,
@@ -33,7 +32,6 @@ public class ShardRecoveryPlanners implements ShardRecoveryPlanner {
                                          List<ShardSnapshot> availableSnapshots) {
         for (ShardRecoveryPlanner planner : planners) {
             ShardRecoveryPlan plan = planner.computePlan(shardIdentifier,
-                historyUUID,
                 sourceMetadata,
                 targetMetadata,
                 startingSeqNo,

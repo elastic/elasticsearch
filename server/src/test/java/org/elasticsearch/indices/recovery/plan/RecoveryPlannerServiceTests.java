@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class PlannerServiceTests extends ESTestCase {
+public class RecoveryPlannerServiceTests extends ESTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
     private static final ByteSizeValue PART_SIZE = new ByteSizeValue(Long.MAX_VALUE);
@@ -96,7 +96,7 @@ public class PlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    protected void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         assert false: "Unexpected call";
                     }
                 },
@@ -129,7 +129,7 @@ public class PlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    protected void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         if (randomBoolean()) {
                             listener.onResponse(Collections.emptyList());
                         } else {
@@ -172,7 +172,7 @@ public class PlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    protected void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         listener.onResponse(Collections.singletonList(shardSnapshotData));
                     }
                 },
@@ -211,7 +211,7 @@ public class PlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    protected void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         listener.onResponse(Collections.singletonList(shardSnapshotData));
                     }
                 },
@@ -260,7 +260,7 @@ public class PlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    protected void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         listener.onResponse(availableSnapshots);
                     }
                 },
@@ -284,7 +284,7 @@ public class PlannerServiceTests extends ESTestCase {
         });
     }
 
-    public void testSnapshotsWithADifferentHistoryUUIDAreDiscarded() throws Exception {
+    public void testSnapshotsWithADifferentHistoryUUIDAreUsedIfFilesAreShared() throws Exception {
         createStore(store -> {
             Store.MetadataSnapshot targetMetadataSnapshot = generateRandomTargetState(store);
 
@@ -312,7 +312,7 @@ public class PlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    protected void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         listener.onResponse(availableSnapshots);
                     }
                 },
@@ -322,9 +322,7 @@ public class PlannerServiceTests extends ESTestCase {
             assertPlanIsValid(shardRecoveryPlan, latestSourceMetadata);
             assertAllSourceFilesAreAvailableInSource(shardRecoveryPlan, latestSourceMetadata);
             assertAllIdenticalFilesAreAvailableInTarget(shardRecoveryPlan, targetMetadataSnapshot);
-
-            // Since the shard historyUUID has changed, none of the available snapshots can be used during peer recovery
-            assertThat(shardRecoveryPlan.getSnapshotFilesToRecover(), is(equalTo(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY)));
+            assertUsesExpectedSnapshot(shardRecoveryPlan, availableSnapshots.get(availableSnapshots.size() - 1));
 
             assertThat(shardRecoveryPlan.getStartingSeqNo(), equalTo(startingSeqNo));
             assertThat(shardRecoveryPlan.getTranslogOps(), equalTo(translogOps));
@@ -338,13 +336,12 @@ public class PlannerServiceTests extends ESTestCase {
                                                        int translogOps,
                                                        ShardSnapshotsService shardSnapshotsService,
                                                        boolean snapshotRecoveriesEnabled) throws Exception {
-        PlannerService plannerService =
-            new PlannerService(shardSnapshotsService, ALL_PLANNERS, snapshotRecoveriesEnabled);
+        RecoveryPlannerService recoveryPlannerService =
+            new RecoveryPlannerService(shardSnapshotsService, ALL_PLANNERS, () -> snapshotRecoveriesEnabled);
 
         PlainActionFuture<ShardRecoveryPlan> planFuture = PlainActionFuture.newFuture();
-        plannerService.computeRecoveryPlan(shardId,
+        recoveryPlannerService.computeRecoveryPlan(shardId,
             shardIdentifier,
-            shardHistoryUUID,
             sourceMetadataSnapshot,
             targetMetadataSnapshot,
             startingSeqNo,

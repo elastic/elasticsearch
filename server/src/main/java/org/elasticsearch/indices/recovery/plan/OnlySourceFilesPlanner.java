@@ -16,7 +16,6 @@ import java.util.List;
 public class OnlySourceFilesPlanner implements ShardRecoveryPlanner {
     @Override
     public ShardRecoveryPlan computePlan(String shardIdentifier,
-                                         String historyUUID,
                                          Store.MetadataSnapshot sourceMetadata,
                                          Store.MetadataSnapshot targetMetadata,
                                          long startingSeqNo,

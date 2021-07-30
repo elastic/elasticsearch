@@ -19,7 +19,6 @@ public class UseLogicallyEquivalentSnapshotPlanner implements ShardRecoveryPlann
 
     @Override
     public ShardRecoveryPlan computePlan(String shardIdentifier,
-                                         String historyUUID,
                                          Store.MetadataSnapshot sourceMetadata,
                                          Store.MetadataSnapshot targetMetadata,
                                          long startingSeqNo,

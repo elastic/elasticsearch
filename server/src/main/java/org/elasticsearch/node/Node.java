@@ -113,6 +113,9 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
+import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlanner;
+import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
@@ -366,6 +369,8 @@ public class Node implements Closeable {
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
+            // Register settings from a feature flag enabled feature if it's active
+            additionalSettings.addAll(RecoverySettings.featureFlagEnabledSettings());
             client = new NodeClient(settings, threadPool);
 
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
@@ -679,8 +684,14 @@ public class Node implements Closeable {
                     b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
                     {
                         processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
+                        final ShardSnapshotsService shardSnapshotsService =
+                            new ShardSnapshotsService(client, repositoryService, threadPool);
+                        final RecoveryPlannerService recoveryPlannerService = new RecoveryPlannerService(shardSnapshotsService,
+                            ShardRecoveryPlanner.DEFAULT,
+                            recoverySettings::getUseSnapshotsDuringRecovery
+                        );
                         b.bind(PeerRecoverySourceService.class).toInstance(new PeerRecoverySourceService(transportService,
-                            indicesService, recoverySettings));
+                            indicesService, recoverySettings, recoveryPlannerService));
                         b.bind(PeerRecoveryTargetService.class).toInstance(new PeerRecoveryTargetService(threadPool,
                             transportService, recoverySettings, clusterService));
                     }

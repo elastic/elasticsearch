@@ -31,6 +31,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -61,14 +62,19 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final TransportService transportService;
     private final IndicesService indicesService;
     private final RecoverySettings recoverySettings;
+    private final RecoveryPlannerService recoveryPlannerService;
 
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
 
     @Inject
-    public PeerRecoverySourceService(TransportService transportService, IndicesService indicesService, RecoverySettings recoverySettings) {
+    public PeerRecoverySourceService(TransportService transportService,
+                                     IndicesService indicesService,
+                                     RecoverySettings recoverySettings,
+                                     RecoveryPlannerService recoveryPlannerService) {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
+        this.recoveryPlannerService = recoveryPlannerService;
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
         // node. Upon receiving START_RECOVERY, the source node will initiate the peer recovery.
         transportService.registerRequestHandler(Actions.START_RECOVERY, ThreadPool.Names.GENERIC, StartRecoveryRequest::new,
@@ -318,7 +324,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 handler = new RecoverySourceHandler(shard, recoveryTarget, shard.getThreadPool(), request,
                     Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
                     recoverySettings.getMaxConcurrentFileChunks(),
-                    recoverySettings.getMaxConcurrentOperations());
+                    recoverySettings.getMaxConcurrentOperations(),
+                    recoveryPlannerService);
                 return Tuple.tuple(handler, recoveryTarget);
             }
         }

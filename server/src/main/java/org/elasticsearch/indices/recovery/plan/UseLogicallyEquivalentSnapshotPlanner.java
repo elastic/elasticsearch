@@ -49,7 +49,7 @@ public class UseLogicallyEquivalentSnapshotPlanner implements ShardRecoveryPlann
                 sourceTargetDiff.identical,
                 startingSeqNo,
                 translogOps,
-                targetMetadata
+                sourceMetadata
             );
         }
 

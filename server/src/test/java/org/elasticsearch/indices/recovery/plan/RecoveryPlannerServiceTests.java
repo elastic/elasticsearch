@@ -374,6 +374,9 @@ public class RecoveryPlannerServiceTests extends ESTestCase {
         assertThat(missingFiles, is(empty()));
         assertThat(unexpectedFiles, is(empty()));
         assertThat(planFiles.size(), is(equalTo(storeFileMetadata.size())));
+        Store.MetadataSnapshot sourceMetadataSnapshot = shardRecoveryPlan.getSourceMetadataSnapshot();
+        assertThat(sourceMetadataSnapshot.size(), equalTo(expectedMetadataSnapshot.size()));
+        assertThat(sourceMetadataSnapshot.getHistoryUUID(), equalTo(expectedMetadataSnapshot.getHistoryUUID()));
     }
 
     private void assertAllSourceFilesAreAvailableInSource(ShardRecoveryPlan shardRecoveryPlan,

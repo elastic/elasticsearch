@@ -50,7 +50,7 @@ public class MaximizeSnapshotFileReusePlanner implements ShardRecoveryPlanner {
                     sourceTargetDiff.identical,
                     startingSeqNo,
                     translogOps,
-                    targetMetadata
+                    sourceMetadata
                 );
                 filesToRecoverFromSnapshot = plan.getSnapshotFilesToRecover().size();
             }

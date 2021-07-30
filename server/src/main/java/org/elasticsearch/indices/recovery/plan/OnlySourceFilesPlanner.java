@@ -28,7 +28,7 @@ public class OnlySourceFilesPlanner implements ShardRecoveryPlanner {
             sourceTargetDiff.identical,
             startingSeqNo,
             translogOps,
-            targetMetadata
+            sourceMetadata
         );
     }
 }

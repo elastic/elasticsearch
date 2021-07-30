@@ -438,14 +438,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
         }
-        return null;
+        return NOOP_FIELDSADAPTER;
     }
 
     interface FieldsOptionSourceAdapter {
-        void adaptRequest(SearchSourceBuilder source, Consumer<SearchSourceBuilder> sourceConsumer);
-        void adaptResponse(SearchHit[] searchHits);
+        default void adaptRequest(SearchSourceBuilder source, Consumer<SearchSourceBuilder> sourceConsumer) {
+            // noop
+        };
+        default void adaptResponse(SearchHit[] searchHits) {
+            // noop
+        };
     }
 
+    public static final FieldsOptionSourceAdapter NOOP_FIELDSADAPTER = new FieldsOptionSourceAdapter() {};
 
     static void ccsRemoteReduce(TaskId parentTaskId, SearchRequest searchRequest, OriginalIndices localIndices,
                                 Map<String, OriginalIndices> remoteIndices, SearchTimeProvider timeProvider,
@@ -460,7 +465,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String clusterAlias = entry.getKey();
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
             OriginalIndices indices = entry.getValue();
-            FieldsOptionSourceAdapter adapter = null;
+            FieldsOptionSourceAdapter adapter = NOOP_FIELDSADAPTER;
             try {
                 adapter = createFieldsOptionAdapter(
                     remoteClusterService.getConnection(clusterAlias),
@@ -471,18 +476,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, indices.indices(),
                 clusterAlias, timeProvider.getAbsoluteStartMillis(), true);
-            if (adapter != null) {
-                adapter.adaptRequest(ccsSearchRequest.source(), ccsSearchRequest::source);
-            }
+            adapter.adaptRequest(ccsSearchRequest.source(), ccsSearchRequest::source);
             final FieldsOptionSourceAdapter finalAdapter = adapter;
 
             Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    if (finalAdapter != null) {
-                        finalAdapter.adaptResponse(searchResponse.getHits().getHits());
-                    }
+                    finalAdapter.adaptResponse(searchResponse.getHits().getHits());
                     Map<String, ProfileShardResult> profileResults = searchResponse.getProfileResults();
                     SearchProfileShardResults profile = profileResults == null || profileResults.isEmpty()
                         ? null : new SearchProfileShardResults(profileResults);
@@ -515,7 +516,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 String clusterAlias = entry.getKey();
                 boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
                 OriginalIndices indices = entry.getValue();
-                FieldsOptionSourceAdapter adapter = null;
+                FieldsOptionSourceAdapter adapter = NOOP_FIELDSADAPTER;
                 try {
                     adapter = createFieldsOptionAdapter(
                         remoteClusterService.getConnection(clusterAlias),
@@ -532,9 +533,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     timeProvider.getAbsoluteStartMillis(),
                     false
                 );
-                if (adapter != null) {
-                    adapter.adaptRequest(ccsSearchRequest.source(), ccsSearchRequest::source);
-                }
+                adapter.adaptRequest(ccsSearchRequest.source(), ccsSearchRequest::source);
                 ActionListener<SearchResponse> ccsListener = createCCSListener(
                     clusterAlias,
                     skipUnavailable,
@@ -559,7 +558,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchResponseMerger,
                     totalClusters,
                     listener,
-                    null
+                    NOOP_FIELDSADAPTER
                 );
                 SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, localIndices.indices(),
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
@@ -625,14 +624,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                                              AtomicInteger skippedClusters, AtomicReference<Exception> exceptions,
                                                              SearchResponseMerger searchResponseMerger, int totalClusters,
                                                              ActionListener<SearchResponse> originalListener,
-                                                             @Nullable FieldsOptionSourceAdapter adapter) {
+                                                             FieldsOptionSourceAdapter adapter) {
         return new CCSActionListener<SearchResponse, SearchResponse>(clusterAlias, skipUnavailable, countDown, skippedClusters,
             exceptions, originalListener) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
-                if (adapter != null) {
-                    adapter.adaptResponse(searchResponse.getHits().getHits());
-                }
+                adapter.adaptResponse(searchResponse.getHits().getHits());
                 searchResponseMerger.add(searchResponse);
             }
 

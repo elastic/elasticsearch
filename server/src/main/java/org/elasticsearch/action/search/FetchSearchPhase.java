@@ -168,16 +168,14 @@ final class FetchSearchPhase extends SearchPhase {
         if (querySearchResult instanceof WrappedQuerySearchResult) {
             adapter = ((WrappedQuerySearchResult) querySearchResult).getAdapter();
         } else {
-            adapter = null;
+            adapter = TransportSearchAction.NOOP_FIELDSADAPTER;
         }
         context.getSearchTransport().sendExecuteFetch(connection, fetchSearchRequest, context.getTask(),
             new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
                 @Override
                 public void innerOnResponse(FetchSearchResult result) {
                     try {
-                        if (adapter != null) {
-                            adapter.adaptResponse(result.hits().getHits());
-                        }
+                        adapter.adaptResponse(result.hits().getHits());
                         progressListener.notifyFetchResult(shardIndex);
                         counter.onResult(result);
                     } catch (Exception e) {

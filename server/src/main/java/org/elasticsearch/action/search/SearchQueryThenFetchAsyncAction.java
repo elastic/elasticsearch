@@ -74,9 +74,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         final FieldsOptionSourceAdapter fieldsOptionAdapter;
         Connection connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
         fieldsOptionAdapter = TransportSearchAction.createFieldsOptionAdapter(connection, request.source());
-        if (fieldsOptionAdapter != null) {
-            fieldsOptionAdapter.adaptRequest(request.source(), request::source);
-        }
+        fieldsOptionAdapter.adaptRequest(request.source(), request::source);
 
         getSearchTransport().sendExecuteQuery(
             connection,
@@ -91,7 +89,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
                 @Override
                 protected void innerOnResponse(SearchPhaseResult response) {
-                    if (response instanceof QuerySearchResult && fieldsOptionAdapter != null) {
+                    if (response instanceof QuerySearchResult) {
                         response = new WrappedQuerySearchResult((QuerySearchResult) response, fieldsOptionAdapter);
                     }
                     listener.onResponse(response);

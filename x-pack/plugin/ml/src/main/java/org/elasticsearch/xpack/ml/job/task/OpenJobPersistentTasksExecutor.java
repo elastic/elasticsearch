@@ -236,6 +236,12 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     // are ignored.  Core services will be stopping in response to the SIGTERM and we want the
     // job to try to open again on another node, not spuriously fail on the dying node.
     private void runJob(JobTask jobTask, JobState jobState, OpenJobAction.JobParams params) {
+        // If the node is already running its exit handlers then do nothing - shortly
+        // the persistent task will get assigned to a new node and the code below will
+        // run there instead.
+        if (autodetectProcessManager.isNodeDying()) {
+            return;
+        }
         // If the job is closing, simply stop and return
         if (JobState.CLOSING.equals(jobState)) {
             // Mark as completed instead of using `stop` as stop assumes native processes have started
@@ -275,9 +281,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             }
         );
 
-        if (autodetectProcessManager.isNodeDying() == false) {
-            hasRunningDatafeedTask(jobTask.getJobId(), hasRunningDatafeedTaskListener);
-        }
+        hasRunningDatafeedTask(jobTask.getJobId(), hasRunningDatafeedTaskListener);
     }
 
     private boolean isMasterNodeVersionOnOrAfter(Version version) {

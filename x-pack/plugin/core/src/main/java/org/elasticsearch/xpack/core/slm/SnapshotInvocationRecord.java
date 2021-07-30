@@ -64,7 +64,7 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
 
     public SnapshotInvocationRecord(StreamInput in) throws IOException {
         this.snapshotName = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
             this.snapshotStartTimestamp = in.readOptionalVLong();
         } else {
             this.snapshotStartTimestamp = null;
@@ -93,7 +93,7 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(snapshotName);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
             out.writeOptionalVLong(snapshotStartTimestamp);
         }
         out.writeVLong(snapshotFinishTimestamp);

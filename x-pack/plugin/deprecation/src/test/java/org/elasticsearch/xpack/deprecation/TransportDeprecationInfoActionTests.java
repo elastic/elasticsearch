@@ -4,7 +4,6 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.ActionListener;
@@ -17,6 +16,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
@@ -30,9 +30,11 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         DeprecationChecker.Components components = new DeprecationChecker.Components(null, Settings.EMPTY, null, null);
         PlainActionFuture<Map<String, List<DeprecationIssue>>> future = new PlainActionFuture<>();
         TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
-            new NamedChecker("foo", Collections.emptyList(), false),
-            new NamedChecker("bar", singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", "details",
-                singletonMap("key", "value"))), false)),
+                new NamedChecker("foo", Collections.emptyList(), false),
+                new NamedChecker("bar",
+                    singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", "details", false,
+                        singletonMap("key", "value"))),
+                    false)),
             components,
             future
             );
@@ -41,6 +43,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         assertThat(issueMap.get("foo"), is(empty()));
         assertThat(issueMap.get("bar").get(0).getMessage(), equalTo("bar msg"));
         assertThat(issueMap.get("bar").get(0).getDetails(), equalTo("details"));
+        assertThat(issueMap.get("bar").get(0).isResolveDuringRollingUpgrade(), is(false));
         assertThat(issueMap.get("bar").get(0).getMeta(), equalTo(singletonMap("key", "value")));
     }
 
@@ -48,9 +51,9 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         DeprecationChecker.Components components = new DeprecationChecker.Components(null, Settings.EMPTY, null, null);
         PlainActionFuture<Map<String, List<DeprecationIssue>>> future = new PlainActionFuture<>();
         TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
-            new NamedChecker("foo", Collections.emptyList(), false),
+            new NamedChecker("foo", emptyList(), false),
             new NamedChecker("bar",
-                singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null, null)),
+                singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null, false, null)),
                 true)),
             components,
             future

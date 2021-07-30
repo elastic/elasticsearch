@@ -30,7 +30,8 @@ public class DeprecationIssueTests extends ESTestCase {
     static DeprecationIssue createTestInstance() {
         String details = randomBoolean() ? randomAlphaOfLength(10) : null;
         return new DeprecationIssue(randomFrom(Level.values()), randomAlphaOfLength(10),
-            randomAlphaOfLength(10), details, randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4))));
+            randomAlphaOfLength(10), details, randomBoolean(),
+            randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4))));
     }
 
     @Before
@@ -39,8 +40,8 @@ public class DeprecationIssueTests extends ESTestCase {
     }
 
     public void testEqualsAndHashCode() {
-        DeprecationIssue other =
-            new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(), issue.getDetails(), issue.getMeta());
+        DeprecationIssue other = new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(), issue.getDetails(),
+            issue.isResolveDuringRollingUpgrade(), issue.getMeta());
         assertThat(issue, equalTo(other));
         assertThat(other, equalTo(issue));
         assertThat(issue.hashCode(), equalTo(other.hashCode()));
@@ -65,9 +66,10 @@ public class DeprecationIssueTests extends ESTestCase {
             assertTrue(toXContentMap.containsKey("details"));
         }
         String details = (String) toXContentMap.get("details");
+        boolean requiresRestart = (boolean) toXContentMap.get("resolve_during_rolling_upgrade");
         @SuppressWarnings("unchecked")
         Map<String, Object> meta = (Map<String, Object>) toXContentMap.get("_meta");
-        DeprecationIssue other = new DeprecationIssue(Level.fromString(level), message, url, details, meta);
+        DeprecationIssue other = new DeprecationIssue(Level.fromString(level), message, url, details, requiresRestart, meta);
         assertThat(issue, equalTo(other));
     }
 }

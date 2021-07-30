@@ -414,7 +414,6 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "TODO enhance mock to not fail on remoteClusterService.getConnection() calls")
     public void testCCSRemoteReduce() throws Exception {
         int numClusters = randomIntBetween(1, 10);
         DiscoveryNode[] nodes = new DiscoveryNode[numClusters];

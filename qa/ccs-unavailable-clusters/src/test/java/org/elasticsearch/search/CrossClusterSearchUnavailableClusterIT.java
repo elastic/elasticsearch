@@ -12,7 +12,6 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
@@ -62,8 +61,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThat;
 
 public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
@@ -134,7 +131,6 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "TODO enhance mock to not fail on remoteClusterService.getConnection() calls")
     public void testSearchSkipUnavailable() throws IOException {
         try (MockTransportService remoteTransport = startTransport("node0", new CopyOnWriteArrayList<>(), Version.CURRENT, threadPool)) {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();

@@ -67,6 +67,7 @@ import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -459,23 +460,28 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String clusterAlias = entry.getKey();
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
             OriginalIndices indices = entry.getValue();
-            final FieldsOptionSourceAdapter adapter = createFieldsOptionAdapter(
-                // TODO getting the connection here breaks a mock in TransportSearchActionTests#testCCSRemoteReduce
-                remoteClusterService.getConnection(clusterAlias),
-                searchRequest.source()
-            );
+            FieldsOptionSourceAdapter adapter = null;
+            try {
+                adapter = createFieldsOptionAdapter(
+                    remoteClusterService.getConnection(clusterAlias),
+                    searchRequest.source()
+                );
+            } catch (NoSuchRemoteClusterException ex) {
+                // no connection version, adapter creation not possible if cluster not connected
+            }
             SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, indices.indices(),
                 clusterAlias, timeProvider.getAbsoluteStartMillis(), true);
             if (adapter != null) {
                 adapter.adaptRequest(ccsSearchRequest.source(), ccsSearchRequest::source);
             }
+            final FieldsOptionSourceAdapter finalAdapter = adapter;
 
             Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    if (adapter != null) {
-                        adapter.adaptResponse(searchResponse.getHits().getHits());
+                    if (finalAdapter != null) {
+                        finalAdapter.adaptResponse(searchResponse.getHits().getHits());
                     }
                     Map<String, ProfileShardResult> profileResults = searchResponse.getProfileResults();
                     SearchProfileShardResults profile = profileResults == null || profileResults.isEmpty()
@@ -509,10 +515,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 String clusterAlias = entry.getKey();
                 boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
                 OriginalIndices indices = entry.getValue();
-                FieldsOptionSourceAdapter adapter = createFieldsOptionAdapter(
-                    remoteClusterService.getConnection(clusterAlias),
-                    searchRequest.source()
-                );
+                FieldsOptionSourceAdapter adapter = null;
+                try {
+                    adapter = createFieldsOptionAdapter(
+                        remoteClusterService.getConnection(clusterAlias),
+                        searchRequest.source()
+                    );
+                } catch (NoSuchRemoteClusterException ex) {
+                    // don't create fields option converter in this case
+                }
                 SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(
                     parentTaskId,
                     searchRequest,

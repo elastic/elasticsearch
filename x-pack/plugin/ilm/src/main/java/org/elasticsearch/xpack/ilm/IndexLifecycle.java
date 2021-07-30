@@ -196,7 +196,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         ilmHistoryStore.set(new ILMHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
             clusterService, threadPool));
         indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
-            getClock(), System::currentTimeMillis, xContentRegistry, ilmHistoryStore.get(), getLicenseState()));
+            getClock(), threadPool::absoluteTimeInMillis, xContentRegistry, ilmHistoryStore.get(), getLicenseState()));
         components.add(indexLifecycleInitialisationService.get());
 
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,

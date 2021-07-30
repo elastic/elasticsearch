@@ -114,7 +114,7 @@ setup:
             - field: k8s.pod.uid
           query:
             query_string:
-              query: '+@timestamp:"2021-04-28T18:03:24.467Z" +k8s.pod.name:cat'
+              query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
   - match: {hits.hits.0.fields.k8s\.pod\.uid: [947e4ced-1786-4e53-9e0c-5c447e959507]}
@@ -133,7 +133,7 @@ setup:
             - field: k8s.pod.network.tx
           query:
             query_string:
-              query: '+@timestamp:"2021-04-28T18:03:24.467Z" +k8s.pod.name:cat'
+              query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
   - match: {hits.hits.0.fields.k8s\.pod\.network\.tx: [2012916202]}
@@ -152,7 +152,7 @@ setup:
             - field: k8s.pod.ip
           query:
             query_string:
-              query: '+@timestamp:"2021-04-28T18:03:24.467Z" +k8s.pod.name:cat'
+              query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
   - match: {hits.hits.0.fields.k8s\.pod\.ip: ['10.10.55.2']}
@@ -171,7 +171,7 @@ setup:
             - field: _tsid
           query:
             query_string:
-              query: '+@timestamp:"2021-04-28T18:03:24.467Z" +k8s.pod.name:cat'
+              query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
   - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
@@ -188,7 +188,7 @@ setup:
         body:
           query:
             query_string:
-              query: '+@timestamp:"2021-04-28T18:03:24.467Z" +k8s.pod.name:cat'
+              query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
   - is_false: hits.hits.0.fields._tsid

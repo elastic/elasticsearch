@@ -524,7 +524,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 (ActionListener<GetServiceAccountCredentialsNodesResponse>) args[2];
             listener.onResponse(fileTokensResponse);
             return null;
-        }).when(client).execute(eq(GetServiceAccountNodesCredentialsAction.INSTANCE), any(GetServiceAccountCredentialsNodesRequest.class), any());
+        }).when(client).execute(eq(GetServiceAccountNodesCredentialsAction.INSTANCE),
+            any(GetServiceAccountCredentialsNodesRequest.class), any());
 
         final PlainActionFuture<GetServiceAccountCredentialsResponse> future = new PlainActionFuture<>();
         serviceAccountService.findTokensFor(new GetServiceAccountCredentialsRequest(namespace, serviceName), future);

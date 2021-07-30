@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -36,7 +37,7 @@ public final class SSLConfiguration {
     private final List<String> ciphers;
     private final List<String> supportedProtocols;
     private final SSLClientAuth sslClientAuth;
-    private final VerificationMode verificationMode;
+    private final SslVerificationMode verificationMode;
     private final boolean explicitlyConfigured;
 
     /**
@@ -86,7 +87,7 @@ public final class SSLConfiguration {
     /**
      * The verification mode for this configuration; this mode controls certificate and hostname verification
      */
-    public VerificationMode verificationMode() {
+    public SslVerificationMode verificationMode() {
         return verificationMode;
     }
 
@@ -172,7 +173,8 @@ public final class SSLConfiguration {
             throw new IllegalArgumentException("you cannot specify a truststore and ca files");
         }
 
-        VerificationMode verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElse(XPackSettings.VERIFICATION_MODE_DEFAULT);
+        SslVerificationMode verificationMode = SETTINGS_PARSER.verificationMode.get(settings)
+            .orElse(XPackSettings.VERIFICATION_MODE_DEFAULT);
         if (verificationMode.isCertificateVerificationEnabled() == false) {
             return TrustAllConfig.INSTANCE;
         } else if (caPaths != null) {

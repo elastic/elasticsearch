@@ -18,10 +18,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
+import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -31,19 +32,18 @@ import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLHandshakeException;
-import javax.net.ssl.SSLParameters;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.regex.Pattern;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.containsString;
@@ -57,7 +57,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
 
     public void testMessageForHttpClientHostnameVerificationFailure() throws IOException, URISyntaxException {
         final Settings sslSetup = getPemSSLSettings(HTTP_SERVER_SSL, "not-this-host.crt", "not-this-host.key",
-            SSLClientAuth.NONE, VerificationMode.FULL, null)
+            SSLClientAuth.NONE, SslVerificationMode.FULL, null)
             .putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt"))
             .build();
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(sslSetup)));
@@ -77,7 +77,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
 
     public void testMessageForRestClientHostnameVerificationFailure() throws IOException, URISyntaxException {
         final Settings sslSetup = getPemSSLSettings(HTTP_SERVER_SSL, "not-this-host.crt", "not-this-host.key",
-            SSLClientAuth.NONE, VerificationMode.FULL, null)
+            SSLClientAuth.NONE, SslVerificationMode.FULL, null)
             // Client
             .putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt"))
             .build();
@@ -98,7 +98,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     public void testDiagnosticTrustManagerForHostnameVerificationFailure() throws Exception {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final Settings settings = getPemSSLSettings(HTTP_SERVER_SSL, "not-this-host.crt", "not-this-host.key",
-            SSLClientAuth.NONE, VerificationMode.FULL, null)
+            SSLClientAuth.NONE, SslVerificationMode.FULL, null)
             .putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt"))
             .build();
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
@@ -178,7 +178,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     private Settings.Builder getPemSSLSettings(String prefix, String certificatePath, String keyPath, SSLClientAuth clientAuth,
-                                               VerificationMode verificationMode, String caPath) throws FileNotFoundException {
+                                               SslVerificationMode verificationMode, String caPath) throws FileNotFoundException {
         final Settings.Builder builder = Settings.builder()
             .put(prefix + ".enabled", true)
             .put(prefix + ".certificate", getPath(certificatePath))

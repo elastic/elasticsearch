@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 
@@ -43,7 +44,7 @@ public class SSLConfigurationSettings {
     final Setting<Optional<String>> trustRestrictionsPath;
     final Setting<List<String>> caPaths;
     final Setting<Optional<SSLClientAuth>> clientAuth;
-    final Setting<Optional<VerificationMode>> verificationMode;
+    final Setting<Optional<SslVerificationMode>> verificationMode;
 
     // public for PKI realm
     private final Setting<SecureString> legacyTruststorePassword;
@@ -194,18 +195,18 @@ public class SSLConfigurationSettings {
         CLIENT_AUTH_SETTING_TEMPLATE
     );
 
-    private static final Function<String, Setting<Optional<VerificationMode>>> VERIFICATION_MODE_SETTING_TEMPLATE = key -> new Setting<>(
+    private static final Function<String, Setting<Optional<SslVerificationMode>>> VERIFICATION_MODE_SETTING_TEMPLATE = key -> new Setting<>(
         key,
         (String) null,
-        s -> s == null ? Optional.empty() : Optional.of(VerificationMode.parse(s)),
+        s -> s == null ? Optional.empty() : Optional.of(SslVerificationMode.parse(s)),
         Property.NodeScope,
         Property.Filtered
     );
-    private static final SslSetting<Optional<VerificationMode>> VERIFICATION_MODE = SslSetting.setting(
+    private static final SslSetting<Optional<SslVerificationMode>> VERIFICATION_MODE = SslSetting.setting(
         SslConfigurationKeys.VERIFICATION_MODE,
         VERIFICATION_MODE_SETTING_TEMPLATE
     );
-    public static final Function<String, Setting.AffixSetting<Optional<VerificationMode>>> VERIFICATION_MODE_SETTING_REALM =
+    public static final Function<String, Setting.AffixSetting<Optional<SslVerificationMode>>> VERIFICATION_MODE_SETTING_REALM =
         VERIFICATION_MODE::realm;
 
     /**

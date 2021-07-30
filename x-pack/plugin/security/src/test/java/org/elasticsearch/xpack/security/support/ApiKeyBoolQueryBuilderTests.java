@@ -38,8 +38,11 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.support.ApiKeyBoolQueryBuilder.FieldNameTranslators.FIELD_NAME_TRANSLATORS;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -82,13 +85,17 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(bq1, authentication);
         assertCommonFilterQueries(apiKeyQb1, authentication);
 
-        assertThat(apiKeyQb1.must(), equalTo(bq1.must()));
-        assertThat(apiKeyQb1.should(), equalTo(bq1.should()));
-        assertThat(apiKeyQb1.mustNot(), equalTo(bq1.mustNot()));
-        assertThat(apiKeyQb1.minimumShouldMatch(), equalTo(bq1.minimumShouldMatch()));
-        if (false == bq1.filter().isEmpty()) {
-            assertThat(apiKeyQb1.filter(), hasItem(bq1.filter().get(0)));
-        }
+        assertThat(apiKeyQb1.must(), hasSize(1));
+        assertThat(apiKeyQb1.should(), empty());
+        assertThat(apiKeyQb1.mustNot(), empty());
+        assertThat(apiKeyQb1.filter(), hasItem(QueryBuilders.termQuery("doc_type", "api_key")));
+        assertThat(apiKeyQb1.must().get(0).getClass(), is(BoolQueryBuilder.class));
+        final BoolQueryBuilder processed = (BoolQueryBuilder) apiKeyQb1.must().get(0);
+        assertThat(processed.must(), equalTo(bq1.must()));
+        assertThat(processed.should(), equalTo(bq1.should()));
+        assertThat(processed.mustNot(), equalTo(bq1.mustNot()));
+        assertThat(processed.minimumShouldMatch(), equalTo(bq1.minimumShouldMatch()));
+        assertThat(processed.filter(), equalTo(bq1.filter()));
     }
 
     public void testFieldNameTranslation() {
@@ -135,7 +142,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final IllegalArgumentException e1 =
             expectThrows(IllegalArgumentException.class, () -> ApiKeyBoolQueryBuilder.build(q1, authentication));
 
-        assertThat(e1.getMessage(), containsString("Field [" + fieldName + "] is not allowed for search"));
+        assertThat(e1.getMessage(), containsString("Field [" + fieldName + "] is not allowed for API Key query"));
     }
 
     public void testTermsLookupIsNotAllowed() {
@@ -143,7 +150,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final TermsQueryBuilder q1 = QueryBuilders.termsLookupQuery("name", new TermsLookup("lookup", "1", "names"));
         final IllegalArgumentException e1 =
             expectThrows(IllegalArgumentException.class, () -> ApiKeyBoolQueryBuilder.build(q1, authentication));
-        assertThat(e1.getMessage(), containsString("terms query with terms lookup is not supported for search"));
+        assertThat(e1.getMessage(), containsString("terms query with terms lookup is not supported for API Key query"));
     }
 
     public void testRangeQueryWithRelationIsNotAllowed() {
@@ -151,7 +158,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final RangeQueryBuilder q1 = QueryBuilders.rangeQuery("creation_time").relation("contains");
         final IllegalArgumentException e1 =
             expectThrows(IllegalArgumentException.class, () -> ApiKeyBoolQueryBuilder.build(q1, authentication));
-        assertThat(e1.getMessage(), containsString("range query with relation is not supported for search"));
+        assertThat(e1.getMessage(), containsString("range query with relation is not supported for API Key query"));
     }
 
     public void testDisallowedQueryTypes() {
@@ -196,7 +203,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
 
         final IllegalArgumentException e1 =
             expectThrows(IllegalArgumentException.class, () -> ApiKeyBoolQueryBuilder.build(q1, authentication));
-        assertThat(e1.getMessage(), containsString("Query type [" + q1.getName() + "] is not supported for search"));
+        assertThat(e1.getMessage(), containsString("Query type [" + q1.getName() + "] is not supported for API Key query"));
     }
 
     public void testWillSetAllowedFields() throws IOException {

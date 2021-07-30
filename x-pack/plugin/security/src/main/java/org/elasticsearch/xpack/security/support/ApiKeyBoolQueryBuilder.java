@@ -40,17 +40,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         final ApiKeyBoolQueryBuilder finalQuery = new ApiKeyBoolQueryBuilder();
         if (queryBuilder != null) {
             QueryBuilder processedQuery = doProcess(queryBuilder);
-            if (false == processedQuery instanceof BoolQueryBuilder) {
-                finalQuery.must(processedQuery);
-            } else {
-                final BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) processedQuery;
-                finalQuery.minimumShouldMatch(boolQueryBuilder.minimumShouldMatch());
-                finalQuery.adjustPureNegative(boolQueryBuilder.adjustPureNegative());
-                boolQueryBuilder.must().forEach(finalQuery::must);
-                boolQueryBuilder.should().forEach(finalQuery::should);
-                boolQueryBuilder.mustNot().forEach(finalQuery::mustNot);
-                boolQueryBuilder.filter().forEach(finalQuery::filter);
-            }
+            finalQuery.must(processedQuery);
         }
         finalQuery.filter(QueryBuilders.termQuery("doc_type", "api_key"));
 
@@ -83,7 +73,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         } else if (qb instanceof TermsQueryBuilder) {
             final TermsQueryBuilder query = (TermsQueryBuilder) qb;
             if (query.termsLookup() != null) {
-                throw new IllegalArgumentException("terms query with terms lookup is not supported for API key query");
+                throw new IllegalArgumentException("terms query with terms lookup is not supported for API Key query");
             }
             final String translatedFieldName = FieldNameTranslators.translate(query.fieldName());
             return QueryBuilders.termsQuery(translatedFieldName, query.getValues());
@@ -118,7 +108,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             }
             return newQuery.boost(query.boost());
         } else {
-            throw new IllegalArgumentException("Query type [" + qb.getName() + "] is not supported for search");
+            throw new IllegalArgumentException("Query type [" + qb.getName() + "] is not supported for API Key query");
         }
     }
 
@@ -170,7 +160,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
                     return translator.translate(fieldName);
                 }
             }
-            throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for search");
+            throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for API Key query");
         }
 
         abstract static class FieldNameTranslator {

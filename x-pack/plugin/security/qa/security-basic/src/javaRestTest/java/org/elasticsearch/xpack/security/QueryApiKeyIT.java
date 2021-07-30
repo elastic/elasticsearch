@@ -110,6 +110,11 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400,
             "{ \"query\": { \"prefix\": {\"api_key_hash\": \"{PBKDF2}10000$\"} } }");
 
+        // Search for fields that are not allowed in Query DSL but used internally by the service itself
+        final String fieldName = randomFrom("doc_type", "api_key_invalidated");
+        assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400,
+            "{ \"query\": { \"term\": {\"" + fieldName + "\": \"" + randomAlphaOfLengthBetween(3, 8) + "\"} } }");
+
         // Search for api keys won't return other entities
         assertQuery(API_KEY_ADMIN_AUTH_HEADER,
             "{ \"query\": { \"term\": {\"name\": \"someone\"} } }",

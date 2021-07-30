@@ -252,7 +252,8 @@ public class JobUpdate implements ToXContentObject {
     public int hashCode() {
         return Objects.hash(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
             backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-            systemAnnotationsRetentionDays, categorizationFilters, perPartitionCategorizationConfig, customSettings, allowLazyOpen, modelPruneWindow);
+            systemAnnotationsRetentionDays, categorizationFilters, perPartitionCategorizationConfig, customSettings, allowLazyOpen,
+            modelPruneWindow);
     }
 
     public static class DetectorUpdate implements ToXContentObject {

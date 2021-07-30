@@ -579,7 +579,9 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertLayer(tile, META_LAYER, 4096, 1, 18);
     }
 
-    public void testFailMultipolygon() throws Exception {
+    public void testOverlappingMultipolygon() throws Exception {
+        // Overlapping multipolygon are accepted by Elasticsearch but is invalid for JTS. This
+        // causes and error in the mvt library that gets logged using slf4j
         final String index = "overlapping_multipolygon";
         final Rectangle r1 = new Rectangle(-160, 160, 80, -80);
         final Rectangle r2 = new Rectangle(-159, 161, 79, -81);

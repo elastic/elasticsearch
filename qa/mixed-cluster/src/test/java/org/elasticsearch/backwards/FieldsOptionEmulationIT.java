@@ -72,14 +72,51 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testFieldOptionAdapter() throws Exception {
-        Request matchAllRequest = new Request("POST",
+    public void testFieldOptionAdapterAllFields() throws Exception {
+        for (String includeSource : new String[] { "true", "false" }) {
+            Request matchAllRequest = new Request("POST", "test_field_*/_search");
+
+            matchAllRequest.setJsonEntity("{\"_source\":" + includeSource + " ,\"fields\":[\"*\"]}");
+            try (
+                RestClient client = buildClient(
+                    restClientSettings(),
+                    newNodes.stream().map(Node::getPublishAddress).toArray(HttpHost[]::new)
+                )
+            ) {
+                Response response = client.performRequest(matchAllRequest);
+                ObjectPath responseObject = ObjectPath.createFromResponse(response);
+                List<Map<String, Object>> hits = responseObject.evaluate("hits.hits");
+                assertEquals(10, hits.size());
+                for (Map<String, Object> hit : hits) {
+                    Map<String, Object> fieldsMap = (Map<String, Object>) hit.get("fields");
+                    assertNotNull(fieldsMap);
+                    assertNotNull(fieldsMap.get("test"));
+                    assertTrue(((List<?>) fieldsMap.get("test")).get(0).toString().startsWith("test_"));
+                    assertNotNull(fieldsMap.get("obj.foo"));
+                    assertTrue(((List<?>) fieldsMap.get("obj.foo")).get(0).toString().startsWith("value_"));
+                    if (bwcNodes.get(0).getVersion().onOrAfter(Version.V_7_10_0)) {
+                        // if all nodes are > 7.10 we should get full "fields" output even for subfields
+                        assertTrue(((List<?>) fieldsMap.get("test.keyword")).get(0).toString().startsWith("test_"));
+                    }
+                    if (includeSource.equals("true")) {
+                        assertNotNull(hit.get("_source"));
+                    } else {
+                        assertNull(hit.get("_source"));
+                    }
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFieldOptionAdapterFilterFields() throws Exception {
+        Request matchAllRequestFiltered = new Request("POST",
             "test_field_*/_search");
-        matchAllRequest.setJsonEntity("{\"_source\":false,\"fields\":[\"*\"]}");
+        matchAllRequestFiltered.setJsonEntity("{\"_source\":false,\"fields\":[\"test*\"]}");
         try (
             RestClient client = buildClient(restClientSettings(), newNodes.stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))
         ) {
-            Response response = client.performRequest(matchAllRequest);
+            Response response = client.performRequest(matchAllRequestFiltered);
             ObjectPath responseObject = ObjectPath.createFromResponse(response);
             List<Map<String, Object>> hits = responseObject.evaluate("hits.hits");
             assertEquals(10, hits.size());
@@ -88,8 +125,6 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
                 assertNotNull(fieldsMap);
                 assertNotNull(fieldsMap.get("test"));
                 assertTrue(((List<?>) fieldsMap.get("test")).get(0).toString().startsWith("test_"));
-                assertNotNull(fieldsMap.get("obj.foo"));
-                assertTrue(((List<?>) fieldsMap.get("obj.foo")).get(0).toString().startsWith("value_"));
                 if (bwcNodes.get(0).getVersion().onOrAfter(Version.V_7_10_0)) {
                     // if all nodes are > 7.10 we should get full "fields" output even for subfields
                     assertTrue(((List<?>) fieldsMap.get("test.keyword")).get(0).toString().startsWith("test_"));

@@ -58,7 +58,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
 
     public void testNoSlmPolicies() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("phase_time", Long.toString(randomLong())))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("action_time", Long.toString(randomLong())))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetadata> indices =
@@ -82,7 +82,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
 
 
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("phase_time", Long.toString(randomLong())))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("action_time", Long.toString(randomLong())))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetadata> indices =
@@ -124,7 +124,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             OperationMode.RUNNING, null);
 
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("phase_time", Long.toString(phaseTime)))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("action_time", Long.toString(phaseTime)))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetadata> indices =
@@ -163,9 +163,8 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             ImmutableOpenMap.<String, IndexMetadata>builder().fPut(indexMetadata.getIndex().getName(), indexMetadata);
         Metadata.Builder meta = Metadata.builder().indices(indices.build()).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
-        ClusterStateWaitStep.Result result = instance.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertFalse(result.isComplete());
-        assertTrue(getMessage(result).contains("to be executed"));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> instance.isConditionMet(indexMetadata.getIndex(), clusterState));
+        assertTrue(e.getMessage().contains("no information about ILM action start"));
     }
 
     private String getMessage(ClusterStateWaitStep.Result result) throws IOException {

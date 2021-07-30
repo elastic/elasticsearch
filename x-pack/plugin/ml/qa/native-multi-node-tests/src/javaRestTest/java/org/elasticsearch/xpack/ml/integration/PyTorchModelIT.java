@@ -122,6 +122,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         createTrainedModel();
         startDeployment();
         try {
+            // Adding multiple inference calls to verify different calls get routed to separate nodes
             for (int i = 0; i < 10; i++) {
                 Response inference = infer("my words");
                 assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference\":[[1.0,1.0]]}"));

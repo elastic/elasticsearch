@@ -61,7 +61,7 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
         assertUnchanged(builder, b -> b.removeRoutingEntry(addingNode));
 
         if (original.getNodeRoutingTable().isEmpty() == false) {
-            String randomExistingNode = randomFrom(original.getNodeRoutingTable().keySet().toArray(String[]::new));
+            String randomExistingNode = randomFrom(original.getNodeRoutingTable().keySet());
             assertUnchanged(builder, b -> b.addNewRoutingEntry(randomExistingNode));
             assertUnchanged(builder, b -> b.addNewFailedRoutingEntry(randomExistingNode, "test failed"));
         }

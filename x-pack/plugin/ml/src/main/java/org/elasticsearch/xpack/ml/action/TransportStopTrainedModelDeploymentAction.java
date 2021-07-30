@@ -17,6 +17,7 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -40,13 +41,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+
 /**
  * Class for transporting stop trained model deloyment requests.
  *
  * NOTE: this class gets routed to each individual deployment running on the nodes. This way when the request returns, we are assured
  * that the model is not running any longer on any node.
- *
- * TODO revisit logic here. Maybe we can call `delete allocation` and then simply wait on list tasks
  */
 public class TransportStopTrainedModelDeploymentAction extends TransportTasksAction<TrainedModelDeploymentTask,
     StopTrainedModelDeploymentAction.Request, StopTrainedModelDeploymentAction.Response, StopTrainedModelDeploymentAction.Response> {
@@ -63,7 +64,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
         super(StopTrainedModelDeploymentAction.NAME, clusterService, transportService, actionFilters,
             StopTrainedModelDeploymentAction.Request::new, StopTrainedModelDeploymentAction.Response::new,
             StopTrainedModelDeploymentAction.Response::new, ThreadPool.Names.SAME);
-        this.client = client;
+        this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.trainedModelAllocationService = trainedModelAllocationService;
     }
 

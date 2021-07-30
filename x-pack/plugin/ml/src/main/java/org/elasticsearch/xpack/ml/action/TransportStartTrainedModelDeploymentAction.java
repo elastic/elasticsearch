@@ -85,7 +85,7 @@ public class TransportStartTrainedModelDeploymentAction
     @Override
     protected void masterOperation(Task task, StartTrainedModelDeploymentAction.Request request, ClusterState state,
                                    ActionListener<CreateTrainedModelAllocationAction.Response> listener) throws Exception {
-        logger.debug(() -> new ParameterizedMessage("[{}] received deploy request", request.getModelId()));
+        logger.trace(() -> new ParameterizedMessage("[{}] received deploy request", request.getModelId()));
         if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
@@ -95,7 +95,7 @@ public class TransportStartTrainedModelDeploymentAction
             ActionListener.wrap(
                 modelAllocation -> waitForDeploymentStarted(request.getModelId(), request.getTimeout(), listener),
                 e -> {
-                    logger.warn("Creating new allocation failed!", e);
+                    logger.warn(() -> new ParameterizedMessage("[{}] creating new allocation failed", request.getModelId()), e);
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                         e = new ElasticsearchStatusException(
                             "Cannot start deployment [{}] because it has already been started",
@@ -216,7 +216,7 @@ public class TransportStartTrainedModelDeploymentAction
             e -> {
                 logger.error(
                     new ParameterizedMessage(
-                        "[{}] Failed to delete mode allocation that had failed with the reason [{}]",
+                        "[{}] Failed to delete model allocation that had failed with the reason [{}]",
                         modelId,
                         exception.getMessage()
                     ),
@@ -244,7 +244,7 @@ public class TransportStartTrainedModelDeploymentAction
         private final String modelId;
 
         DeploymentStartedPredicate(String modelId) {
-            this.modelId = modelId;
+            this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
         }
 
         @Override

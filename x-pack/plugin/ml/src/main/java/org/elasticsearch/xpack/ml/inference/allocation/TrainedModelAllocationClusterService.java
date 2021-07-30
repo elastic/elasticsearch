@@ -184,10 +184,10 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             throw new ResourceAlreadyExistsException("allocation for model with id [" + params.getModelId() + "] already exist");
         }
         builder.addNewAllocation(params);
-        // TODO here is where to handle allocation options if possible
-        TrainedModelAllocation.Builder allocationBuilder = TrainedModelAllocation.Builder.empty(params);
         for (DiscoveryNode node : currentState.getNodes().getAllNodes()) {
-            if (allocationBuilder.canAllocateToNode(node) && isNodeShuttingDown(currentState, node.getId()) == false) {
+            // TODO here is where to handle allocation options if possible
+            if (StartTrainedModelDeploymentAction.TaskParams.canAllocateToNode(node)
+                && isNodeShuttingDown(currentState, node.getId()) == false) {
                 Optional<String> maybeError = nodeHasCapacity(currentState, params, node);
                 if (maybeError.isPresent()) {
                     try {
@@ -240,7 +240,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
 
         // If state is stopped, this indicates the node process is closed, remove the node from the allocation
         if (request.getRoutingState().getState().equals(RoutingState.STOPPED)) {
-            if (existingAllocation == null || existingAllocation.routedToNode(nodeId) == false) {
+            if (existingAllocation == null || existingAllocation.isRoutedToNode(nodeId) == false) {
                 return currentState;
             }
             return update(currentState, TrainedModelAllocationMetadata.builder(currentState).removeNode(modelId, nodeId));
@@ -249,7 +249,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         if (existingAllocation == null) {
             throw new ResourceNotFoundException("allocation for model with id [" + modelId + "] not found");
         }
-        if (existingAllocation.routedToNode(nodeId) == false) {
+        if (existingAllocation.isRoutedToNode(nodeId) == false) {
             throw new ResourceNotFoundException("allocation for model with id [" + modelId + "] is not routed to node [" + nodeId + "]");
         }
         TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
@@ -278,7 +278,8 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             for (DiscoveryNode node : currentState.getNodes()) {
                 // Only add the route if the node is NOT shutting down, this would be a weird case of the node
                 // just being added to the cluster and immediately shutting down...
-                if (isNodeShuttingDown(currentState, node.getId()) == false && modelAllocationEntry.getValue().canAllocateToNode(node)) {
+                if (isNodeShuttingDown(currentState, node.getId()) == false
+                    && StartTrainedModelDeploymentAction.TaskParams.canAllocateToNode(node)) {
                     nodeHasCapacity(currentState, modelAllocationEntry.getValue().getTaskParams(), node).ifPresentOrElse(
                         (error) -> builder.addFailedNode(modelAllocationEntry.getKey(), node.getId(), error),
                         () -> builder.addNode(modelAllocationEntry.getKey(), node.getId())
@@ -316,17 +317,16 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         if (newMetadata == null) {
             return false;
         }
-        boolean masterChanged = event.previousState().nodes().isLocalNodeElectedMaster() == false;
-        if (event.nodesChanged() || masterChanged) {
+        if (event.nodesChanged()) {
             DiscoveryNodes.Delta nodesDelta = event.nodesDelta();
-            for (Map.Entry<String, TrainedModelAllocation> modelAllocationEntry : newMetadata.modelAllocations().entrySet()) {
+            for (TrainedModelAllocation trainedModelAllocation : newMetadata.modelAllocations().values()) {
                 for (DiscoveryNode removed : nodesDelta.removedNodes()) {
-                    if (modelAllocationEntry.getValue().routedToNode(removed.getId())) {
+                    if (trainedModelAllocation.isRoutedToNode(removed.getId())) {
                         return true;
                     }
                 }
                 for (DiscoveryNode added : nodesDelta.addedNodes()) {
-                    if (modelAllocationEntry.getValue().canAllocateToNode(added)
+                    if (StartTrainedModelDeploymentAction.TaskParams.canAllocateToNode(added)
                         && isNodeShuttingDown(event.state(), added.getId()) == false) {
                         return true;
                     }

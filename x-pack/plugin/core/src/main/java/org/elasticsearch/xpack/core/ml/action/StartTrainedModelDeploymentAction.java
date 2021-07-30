@@ -11,6 +11,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
@@ -121,6 +123,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     }
 
     public static class TaskParams implements PersistentTaskParams, MlTaskParams {
+
+        // TODO add support for other roles? If so, it may have to be an instance method...
+        // NOTE, whatever determines allocation should not be dynamically set on the node
+        // Otherwise allocation logic might fail
+        public static boolean canAllocateToNode(DiscoveryNode node) {
+            return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE);
+        }
 
         public static final Version VERSION_INTRODUCED = Version.V_8_0_0;
         private static final ParseField MODEL_BYTES = new ParseField("model_bytes");

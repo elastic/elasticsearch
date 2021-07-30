@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.core.ml.inference.allocation;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -75,7 +75,7 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
         nodeRoutingTable = in.readOrderedMap(StreamInput::readString, RoutingStateAndReason::new);
     }
 
-    public boolean routedToNode(String nodeId) {
+    public boolean isRoutedToNode(String nodeId) {
         return nodeRoutingTable.containsKey(nodeId);
     }
 
@@ -85,13 +85,6 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
 
     public StartTrainedModelDeploymentAction.TaskParams getTaskParams() {
         return taskParams;
-    }
-
-    // TODO add support for other roles?
-    // NOTE, whatever determines allocation should not be dynamically setable on the node
-    // Otherwise allocation logic might fail
-    public boolean canAllocateToNode(DiscoveryNode node) {
-        return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE);
     }
 
     @Override
@@ -147,7 +140,9 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
 
         public Builder addNewRoutingEntry(String nodeId) {
             if (nodeRoutingTable.containsKey(nodeId)) {
-                return this;
+                throw new ResourceAlreadyExistsException(
+                    "routing entry for node [{}] for model [{}] already exists", nodeId, taskParams.getModelId()
+                );
             }
             isChanged = true;
             nodeRoutingTable.put(nodeId, new RoutingStateAndReason(RoutingState.INITIALIZING, ""));
@@ -156,7 +151,9 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
 
         public Builder addNewFailedRoutingEntry(String nodeId, String reason) {
             if (nodeRoutingTable.containsKey(nodeId)) {
-                return this;
+                throw new ResourceAlreadyExistsException(
+                    "routing entry for node [{}] for model [{}] already exists", nodeId, taskParams.getModelId()
+                );
             }
             isChanged = true;
             nodeRoutingTable.put(nodeId, new RoutingStateAndReason(RoutingState.FAILED, reason));
@@ -166,7 +163,9 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
         public Builder updateExistingRoutingEntry(String nodeId, RoutingStateAndReason state) {
             RoutingStateAndReason stateAndReason = nodeRoutingTable.get(nodeId);
             if (stateAndReason == null) {
-                return this;
+                throw new ResourceNotFoundException(
+                    "routing entry for node [{}] for model [{}] does not exist", nodeId, taskParams.getModelId()
+                );
             }
             if (stateAndReason.equals(state)) {
                 return this;
@@ -181,13 +180,6 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
                 isChanged = true;
             }
             return this;
-        }
-
-        // TODO add support for other roles?
-        // NOTE, whatever determines allocation should not be dynamically setable on the node
-        // Otherwise allocation logic might fail
-        public boolean canAllocateToNode(DiscoveryNode node) {
-            return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE);
         }
 
         public boolean isChanged() {

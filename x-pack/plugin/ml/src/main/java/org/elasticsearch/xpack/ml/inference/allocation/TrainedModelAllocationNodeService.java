@@ -116,7 +116,6 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         });
     }
 
-    // TODO should this take a listener????
     void stopDeployment(TrainedModelDeploymentTask task) {
         if (stopped) {
             return;
@@ -354,8 +353,6 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                 );
                 listener.onResponse(AcknowledgedResponse.TRUE);
             },
-                // TODO: error could be that the model is not allocated to this node any longer or that the master is
-                // TODO: Re-do on master notification failure if its due to master not elected yet
                 error -> {
                     logger.warn(
                         () -> new ParameterizedMessage(

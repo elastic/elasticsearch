@@ -24,8 +24,10 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
 
 public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
@@ -57,7 +59,9 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 "{\"prefix\":{\"metadata.application\":\"fleet\"}},{\"term\":{\"metadata.environment.os\":\"Cat\"}}]}}}",
             apiKeys -> {
                 assertThat(apiKeys, hasSize(2));
-                assertThat(apiKeys.stream().map(k -> k.get("name")).collect(Collectors.toList()), containsInAnyOrder("my-org/ingest-key-1", "my-org/management-key-1"));
+                assertThat(
+                    apiKeys.stream().map(k -> k.get("name")).collect(Collectors.toList()),
+                    containsInAnyOrder("my-org/ingest-key-1", "my-org/management-key-1"));
             }
         );
 
@@ -90,7 +94,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 // search using explicit IDs
                 try {
 
-                    var subset = randomSubsetOf(randomIntBetween(1,5), apiKeys); 
+                    var subset = randomSubsetOf(randomIntBetween(1,5), apiKeys);
                     assertQuery(API_KEY_ADMIN_AUTH_HEADER,
                         "{ \"query\": { \"ids\": { \"values\": ["
                             + subset.stream().map(m -> "\"" + m.get("id") + "\"").collect(Collectors.joining(",")) + "] } } }",
